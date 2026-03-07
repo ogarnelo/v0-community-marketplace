@@ -69,6 +69,7 @@ export function AuthForm() {
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: fullName,
             user_type: userType,
