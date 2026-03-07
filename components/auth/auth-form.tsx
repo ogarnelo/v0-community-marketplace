@@ -52,7 +52,7 @@ export function AuthForm() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      router.push("/marketplace")
+      router.push("/account")
       router.refresh()
     } catch (e: any) {
       setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.")
