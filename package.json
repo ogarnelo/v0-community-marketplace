@@ -1,7 +1,11 @@
 {
   "name": "wetudy-marketplace",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
+  "engines": {
+    "node": ">=18",
+    "npm": ">=9"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
