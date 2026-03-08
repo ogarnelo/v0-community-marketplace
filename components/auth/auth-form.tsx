@@ -52,8 +52,8 @@ export function AuthForm() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      router.push("/account")
-      router.refresh()
+
+      window.location.href = "/account"
     } catch (e: any) {
       setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.")
     } finally {
