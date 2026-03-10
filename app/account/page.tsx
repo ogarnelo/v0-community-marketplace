@@ -134,7 +134,7 @@ export default async function AccountPage() {
             <CardHeader>
               <CardTitle>Resumen del perfil</CardTitle>
               <CardDescription>
-                Esta información proviene de tu cuenta real en Supabase.
+                Esta información proviene de tu cuenta real en Wetudy.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -171,30 +171,6 @@ export default async function AccountPage() {
                   {postalCode || "Todavía no indicado"}
                 </p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Datos técnicos</CardTitle>
-              <CardDescription>
-                Bloque temporal para validar que toda la autenticación ya funciona con datos reales.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="overflow-auto rounded-xl bg-muted p-4 text-xs">
-                {JSON.stringify(
-                  {
-                    auth_user_id: user.id,
-                    email: user.email,
-                    email_verified: user.email_verified,
-                    metadata: user.user_metadata,
-                    profile,
-                  },
-                  null,
-                  2
-                )}
-              </pre>
             </CardContent>
           </Card>
         </div>
