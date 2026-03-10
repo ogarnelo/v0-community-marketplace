@@ -1,5 +1,5 @@
 "use client"
-
+import { LogoutButton } from "@/components/auth/logout-button"
 import Link from "next/link"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ interface NavbarProps {
   isAdmin?: boolean
 }
 
-export function Navbar({ isLoggedIn = false, userName = "Ana", isAdmin = false }: NavbarProps) {
+export function Navbar({ isLoggedIn = false, userName = "Mi cuenta", isAdmin = false }: NavbarProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -79,11 +79,7 @@ export function Navbar({ isLoggedIn = false, userName = "Ana", isAdmin = false }
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/auth" className="gap-2 text-destructive">
-                      <LogOut className="h-4 w-4" /> Cerrar sesion
-                    </Link>
-                  </DropdownMenuItem>
+                  <LogoutButton />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -131,11 +127,21 @@ export function Navbar({ isLoggedIn = false, userName = "Ana", isAdmin = false }
                     </Link>
                   )}
                   <div className="my-2 border-t border-border" />
-                  <Link href="/auth" onClick={() => setOpen(false)}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setOpen(false)
+                      const { createClient } = await import("@/lib/supabase/client")
+                      const supabase = createClient()
+                      await supabase.auth.signOut()
+                      window.location.assign("/auth")
+                    }}
+                    className="w-full"
+                  >
                     <Button variant="ghost" className="w-full justify-start gap-2 text-destructive">
                       <LogOut className="h-4 w-4" /> Cerrar sesion
                     </Button>
-                  </Link>
+                  </button>
                 </nav>
               </SheetContent>
             </Sheet>
