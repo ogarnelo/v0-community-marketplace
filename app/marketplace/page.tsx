@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,11 +11,33 @@ import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ListingCard } from "@/components/listing-card"
-import { listings, categories, gradeLevels, conditions, currentSchool } from "@/lib/mock-data"
+import { categories, gradeLevels, conditions } from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/client"
 import { Plus, Search, SlidersHorizontal, MapPin, X, HelpCircle } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
+type MarketplaceListing = {
+  id: string
+  title: string
+  description: string | null
+  category: string | null
+  gradeLevel: string | null
+  condition: string | null
+  type: string | null
+  price?: number
+  originalPrice?: number
+  photos: string[]
+  sellerId: string | null
+  schoolId: string | null
+  status: string | null
+  createdAt: string | null
+  distance?: number
+}
+
 export default function MarketplacePage() {
+  const [dbListings, setDbListings] = useState<MarketplaceListing[]>([])
+  const [loading, setLoading] = useState(true)
+
   const [nearbyMode, setNearbyMode] = useState(false)
   const [radius, setRadius] = useState("10")
   const [category, setCategory] = useState("all")
@@ -27,6 +49,50 @@ export default function MarketplacePage() {
   const [priceRange, setPriceRange] = useState([0, 200])
   const [priceMin, setPriceMin] = useState("")
   const [priceMax, setPriceMax] = useState("")
+
+  useEffect(() => {
+    const loadListings = async () => {
+      setLoading(true)
+
+      const supabase = createClient()
+
+      const { data, error } = await supabase
+        .from("listings")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error cargando listings:", error)
+        setDbListings([])
+        setLoading(false)
+        return
+      }
+
+      const mapped: MarketplaceListing[] = (data || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        gradeLevel: item.grade_level,
+        condition: item.condition,
+        type: item.type || item.listing_type,
+        price: item.price ?? undefined,
+        originalPrice: item.original_price ?? item.estimated_retail_price ?? undefined,
+        photos: Array.isArray(item.photos) ? item.photos : [],
+        sellerId: item.seller_id || item.user_id || null,
+        schoolId: item.school_id || null,
+        status: item.status,
+        createdAt: item.created_at,
+        distance: undefined,
+      }))
+
+      setDbListings(mapped)
+      setLoading(false)
+    }
+
+    loadListings()
+  }, [])
 
   const handleSliderChange = (values: number[]) => {
     setPriceRange(values)
@@ -47,21 +113,31 @@ export default function MarketplacePage() {
   }
 
   const filteredListings = useMemo(() => {
-    return listings.filter(l => {
+    return dbListings.filter((l) => {
       if (l.status !== "active") return false
-      if (!nearbyMode && l.schoolId !== currentSchool.id) return false
-      if (nearbyMode && l.distance && l.distance > Number(radius)) return false
+
       if (category !== "all" && l.category !== category) return false
       if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false
       if (listingType !== "all" && l.type !== listingType) return false
       if (condition !== "all" && l.condition !== condition) return false
-      if (searchQuery && !l.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
+
+      if (searchQuery && !l.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false
+      }
+
+      if (isbnQuery) {
+        return false
+      }
+
       if (l.type === "sale" && l.price !== undefined) {
         if (l.price < priceRange[0] || l.price > priceRange[1]) return false
       }
+
+      if (nearbyMode && l.distance && l.distance > Number(radius)) return false
+
       return true
     })
-  }, [nearbyMode, radius, category, gradeLevel, listingType, condition, searchQuery, priceRange])
+  }, [dbListings, nearbyMode, radius, category, gradeLevel, listingType, condition, searchQuery, isbnQuery, priceRange])
 
   const activeFiltersCount = [
     category !== "all",
@@ -92,7 +168,9 @@ export default function MarketplacePage() {
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las categorias</SelectItem>
-            {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {categories.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -103,7 +181,9 @@ export default function MarketplacePage() {
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los cursos</SelectItem>
-            {gradeLevels.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            {gradeLevels.map((g) => (
+              <SelectItem key={g} value={g}>{g}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -127,16 +207,18 @@ export default function MarketplacePage() {
             <span className="truncate">
               {condition === "all"
                 ? "Todos los estados"
-                : conditions.find(c => c.value === condition)?.label ?? condition}
+                : conditions.find((c) => c.value === condition)?.label ?? condition}
             </span>
           </SelectTrigger>
           <SelectContent className="w-[min(360px,calc(100vw-2rem))]">
             <SelectItem value="all">Todos los estados</SelectItem>
-            {conditions.map(c => (
+            {conditions.map((c) => (
               <SelectItem key={c.value} value={c.value} textValue={c.label}>
                 <div className="flex flex-col gap-0.5 py-0.5">
                   <span className="font-medium">{c.label}</span>
-                  <span className="text-xs text-muted-foreground leading-relaxed whitespace-normal">{c.description}</span>
+                  <span className="text-xs text-muted-foreground leading-relaxed whitespace-normal">
+                    {c.description}
+                  </span>
                 </div>
               </SelectItem>
             ))}
@@ -218,12 +300,14 @@ export default function MarketplacePage() {
   return (
     <div className="bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Marketplace</h1>
-            <p className="text-sm text-muted-foreground">{currentSchool.name} &middot; {filteredListings.length} anuncios</p>
+            <p className="text-sm text-muted-foreground">
+              Comunidad Wetudy · {filteredListings.length} anuncios
+            </p>
           </div>
+
           <Link href="/marketplace/new">
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -232,15 +316,13 @@ export default function MarketplacePage() {
           </Link>
         </div>
 
-        {/* Toggle + Search */}
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-          {/* Nearby toggle */}
           <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
             <div className="flex items-center gap-2">
               <Switch checked={nearbyMode} onCheckedChange={setNearbyMode} id="nearby" />
               <Label htmlFor="nearby" className="flex items-center gap-1.5 text-sm font-medium cursor-pointer">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                {nearbyMode ? "Cerca de mi" : "Mi centro"}
+                {nearbyMode ? "Cerca de mi" : "Todos los anuncios"}
               </Label>
             </div>
             {nearbyMode && (
@@ -258,7 +340,6 @@ export default function MarketplacePage() {
             )}
           </div>
 
-          {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -269,7 +350,6 @@ export default function MarketplacePage() {
             />
           </div>
 
-          {/* Mobile filter button */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="gap-2 lg:hidden">
@@ -291,9 +371,7 @@ export default function MarketplacePage() {
           </Sheet>
         </div>
 
-        {/* Main content */}
         <div className="mt-6 flex gap-8">
-          {/* Desktop sidebar filters */}
           <aside className="hidden w-60 shrink-0 lg:block">
             <div className="sticky top-24">
               <h3 className="mb-4 text-sm font-semibold text-foreground">Filtros</h3>
@@ -301,20 +379,23 @@ export default function MarketplacePage() {
             </div>
           </aside>
 
-          {/* Listings grid */}
           <div className="flex-1">
-            {filteredListings.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+                <h3 className="text-lg font-semibold text-foreground">Cargando anuncios...</h3>
+              </div>
+            ) : filteredListings.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
                 <Search className="mb-3 h-10 w-10 text-muted-foreground/40" />
                 <h3 className="text-lg font-semibold text-foreground">No se encontraron anuncios</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Prueba a cambiar los filtros o activa el modo &quot;Cerca de mi&quot;
+                  Prueba a cambiar los filtros o crea tu primer anuncio
                 </p>
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredListings.map(listing => (
-                  <ListingCard key={listing.id} listing={listing} currentSchoolId={currentSchool.id} />
+                {filteredListings.map((listing) => (
+                  <ListingCard key={listing.id} listing={listing as any} currentSchoolId={listing.schoolId || ""} />
                 ))}
               </div>
             )}
