@@ -59,7 +59,7 @@ export default function MarketplacePage() {
       const { data, error } = await supabase
         .from("listings")
         .select("*")
-        .eq("status", "active")
+        .eq("status", "available")
         .order("created_at", { ascending: false })
 
       if (error) {
@@ -114,7 +114,7 @@ export default function MarketplacePage() {
 
   const filteredListings = useMemo(() => {
     return dbListings.filter((l) => {
-      if (l.status !== "active") return false
+      if (l.status !== "available") return false
 
       if (category !== "all" && l.category !== category) return false
       if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false
