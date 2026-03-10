@@ -127,11 +127,21 @@ export function Navbar({ isLoggedIn = false, userName = "Mi cuenta", isAdmin = f
                     </Link>
                   )}
                   <div className="my-2 border-t border-border" />
-                  <Link href="/auth" onClick={() => setOpen(false)}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setOpen(false)
+                      const { createClient } = await import("@/lib/supabase/client")
+                      const supabase = createClient()
+                      await supabase.auth.signOut()
+                      window.location.assign("/auth")
+                    }}
+                    className="w-full"
+                  >
                     <Button variant="ghost" className="w-full justify-start gap-2 text-destructive">
                       <LogOut className="h-4 w-4" /> Cerrar sesion
                     </Button>
-                  </Link>
+                  </button>
                 </nav>
               </SheetContent>
             </Sheet>
