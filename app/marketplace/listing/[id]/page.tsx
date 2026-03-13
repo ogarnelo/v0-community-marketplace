@@ -1,3 +1,4 @@
+import { ContactSellerButton } from "@/components/messages/contact-seller-button"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
@@ -237,9 +238,13 @@ export default async function ListingDetailPage({
                 </div>
               )}
 
-              <Button size="lg" className="mt-6 w-full">
-                {type === "donation" ? "Solicitar donación" : "Contactar"}
-              </Button>
+              {sellerId ? (
+                <ContactSellerButton listingId={listing.id} sellerId={sellerId} />
+              ) : (
+                <Button size="lg" className="mt-6 w-full" disabled>
+                  Contactar
+                </Button>
+              )}
             </CardContent>
           </Card>
 
