@@ -102,10 +102,16 @@ export function ContactSellerButton({
     } finally {
       setLoading(false)
     }
-
-    return (
-      <Button size="lg" className="mt-6 w-full" onClick={handleContact} disabled={loading}>
-        {loading ? "Abriendo chat..." : "Contactar"}
-      </Button>
-    )
   }
+
+  return (
+    <Button
+      size="lg"
+      className="mt-6 w-full"
+      onClick={handleContact}
+      disabled={loading}
+    >
+      {loading ? "Abriendo chat..." : "Contactar"}
+    </Button>
+  )
+}
