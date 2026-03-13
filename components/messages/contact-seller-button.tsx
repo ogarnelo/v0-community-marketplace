@@ -89,17 +89,23 @@ export function ContactSellerButton({
 
       router.push(`/messages/${newConversation.id}`)
       router.refresh()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creando conversación:", error)
-      alert("No se pudo abrir la conversación.")
+
+      const message =
+        error?.message ||
+        error?.error_description ||
+        error?.details ||
+        JSON.stringify(error)
+
+      alert(`Error creando conversación: ${message}`)
     } finally {
       setLoading(false)
     }
-  }
 
-  return (
-    <Button size="lg" className="mt-6 w-full" onClick={handleContact} disabled={loading}>
-      {loading ? "Abriendo chat..." : "Contactar"}
-    </Button>
-  )
-}
+    return (
+      <Button size="lg" className="mt-6 w-full" onClick={handleContact} disabled={loading}>
+        {loading ? "Abriendo chat..." : "Contactar"}
+      </Button>
+    )
+  }
