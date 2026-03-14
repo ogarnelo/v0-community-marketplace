@@ -186,7 +186,9 @@ export default async function ConversationPage({
         <ConversationsSidebar
           conversations={conversationSummaries}
           selectedConversationId={conversation.id}
+          currentUserId={user.id}
         />
+
 
         <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
           <div className="border-b px-5 py-4">

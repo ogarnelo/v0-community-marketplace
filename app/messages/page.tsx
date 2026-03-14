@@ -150,7 +150,10 @@ export default async function MessagesPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <ConversationsSidebar conversations={conversationSummaries} />
+        <ConversationsSidebar
+          conversations={conversationSummaries}
+          currentUserId={user.id}
+        />
 
         <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8">
           <div className="max-w-md text-center">
