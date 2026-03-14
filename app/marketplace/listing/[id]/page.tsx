@@ -1,27 +1,27 @@
-import { ContactSellerButton } from "@/components/messages/contact-seller-button"
-import Link from "next/link"
-import { notFound } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, BookOpen, Tag, GraduationCap, MapPin, User, Star } from "lucide-react"
+import { ContactSellerButton } from "@/components/messages/contact-seller-button";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ArrowLeft, BookOpen, Tag, GraduationCap, MapPin, User, Star } from "lucide-react";
 
 function conditionLabel(value?: string | null) {
   switch (value) {
     case "new_with_tags":
-      return "Nuevo con etiquetas"
+      return "Nuevo con etiquetas";
     case "new_without_tags":
-      return "Nuevo sin etiquetas"
+      return "Nuevo sin etiquetas";
     case "very_good":
-      return "Muy bueno"
+      return "Muy bueno";
     case "good":
-      return "Bueno"
+      return "Bueno";
     case "satisfactory":
-      return "Satisfactorio"
+      return "Satisfactorio";
     default:
-      return value || "Sin estado"
+      return value || "Sin estado";
   }
 }
 
@@ -32,90 +32,90 @@ function getInitials(name?: string | null, email?: string | null) {
       .split(" ")
       .map((part) => part[0]?.toUpperCase())
       .slice(0, 2)
-      .join("")
+      .join("");
   }
 
   if (email && email.length > 0) {
-    return email[0].toUpperCase()
+    return email[0].toUpperCase();
   }
 
-  return "U"
+  return "U";
 }
 
 export default async function ListingDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = await params
-  const supabase = await createClient()
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: listing, error } = await supabase
     .from("listings")
     .select("*")
     .eq("id", id)
-    .single()
+    .single();
 
   if (error || !listing) {
-    notFound()
+    notFound();
   }
 
-  const sellerId = listing.seller_id || listing.user_id || null
+  const sellerId = listing.seller_id || listing.user_id || null;
 
-  let sellerProfile: any = null
+  let sellerProfile: any = null;
   if (sellerId) {
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", sellerId)
-      .maybeSingle()
+      .maybeSingle();
 
-    sellerProfile = data
+    sellerProfile = data;
   }
-  let sellerRating: number | null = null
-  let sellerReviewCount = 0
+
+  let sellerRating: number | null = null;
+  let sellerReviewCount = 0;
 
   if (sellerId) {
     const { data: ratingData } = await supabase
       .from("reviews")
       .select("rating")
-      .eq("reviewed_user_id", sellerId)
+      .eq("reviewed_user_id", sellerId);
 
     if (ratingData && ratingData.length > 0) {
-      sellerReviewCount = ratingData.length
+      sellerReviewCount = ratingData.length;
       sellerRating =
         ratingData.reduce((sum, review) => sum + review.rating, 0) /
-        ratingData.length
+        ratingData.length;
     }
   }
+
   const { data: relatedListings } = await supabase
     .from("listings")
     .select("id, title, category, grade_level, price, type, status")
     .neq("id", listing.id)
     .eq("status", "available")
     .or(`category.eq.${listing.category},grade_level.eq.${listing.grade_level}`)
-    .limit(3)
+    .limit(3);
 
-  const title = listing.title || "Anuncio sin título"
-  const description = listing.description || "Sin descripción"
-  const category = listing.category || "Sin categoría"
-  const gradeLevel = listing.grade_level || "Sin curso"
-  const condition = conditionLabel(listing.condition)
-  const type = listing.type || listing.listing_type || "sale"
-  const price = listing.price
-  const originalPrice = listing.original_price || listing.estimated_retail_price
-  const postalCode = listing.postal_code
+  const title = listing.title || "Anuncio sin título";
+  const description = listing.description || "Sin descripción";
+  const category = listing.category || "Sin categoría";
+  const gradeLevel = listing.grade_level || "Sin curso";
+  const condition = conditionLabel(listing.condition);
+  const type = listing.type || listing.listing_type || "sale";
+  const price = listing.price;
+  const originalPrice = listing.original_price || listing.estimated_retail_price;
+  const postalCode = listing.postal_code;
 
-  const sellerName =
-    sellerProfile?.full_name ||
-    "Miembro de Wetudy"
+  const sellerName = sellerProfile?.full_name || "Miembro de Wetudy";
 
   const sellerUserType =
     sellerProfile?.user_type === "parent"
       ? "Familia / Tutor legal"
       : sellerProfile?.user_type === "student"
         ? "Estudiante"
-        : "Usuario"
+        : "Usuario";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -256,19 +256,25 @@ export default async function ListingDetailPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback>
-                    {getInitials(sellerName, null)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold">{sellerName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {sellerUserType}
-                  </p>
+              <Link
+                href={sellerId ? `/profile/${sellerId}` : "#"}
+                className={`block rounded-2xl transition ${sellerId ? "hover:bg-muted/40" : ""
+                  }`}
+              >
+                <div className="flex items-center gap-3 rounded-2xl p-2">
+                  <Avatar className="h-12 w-12">
+                    <AvatarFallback>
+                      {getInitials(sellerName, null)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold">{sellerName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {sellerUserType}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </Link>
 
               <div className="rounded-xl border p-4">
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -296,6 +302,14 @@ export default async function ListingDetailPage({
                   Miembro verificado de la comunidad Wetudy.
                 </p>
               </div>
+
+              {sellerId && (
+                <Link href={`/profile/${sellerId}`} className="block">
+                  <Button variant="outline" className="w-full">
+                    Ver perfil público
+                  </Button>
+                </Link>
+              )}
             </CardContent>
           </Card>
 
@@ -327,5 +341,5 @@ export default async function ListingDetailPage({
         </div>
       </div>
     </div>
-  )
+  );
 }
