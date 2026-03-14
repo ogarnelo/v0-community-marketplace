@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Paperclip, X, Image as ImageIcon, FileText } from "lucide-react";
+import {
+  Paperclip,
+  X,
+  Image as ImageIcon,
+  FileText,
+  AlertCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +16,18 @@ import { createClient } from "@/lib/supabase/client";
 interface SendMessageFormProps {
   conversationId: string;
 }
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+const ALLOWED_FILE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
 
 function formatFileSize(size: number) {
   if (size < 1024) return `${size} B`;
@@ -27,6 +45,7 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
 
   const [body, setBody] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const canSend = body.trim().length > 0 || !!selectedFile;
@@ -37,11 +56,35 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+    setFileError("");
+
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setSelectedFile(null);
+      setFileError(
+        "Tipo de archivo no permitido. Usa imágenes, PDF o documentos Word."
+      );
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setSelectedFile(null);
+      setFileError("El archivo supera el límite de 10 MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setSelectedFile(file);
   };
 
   const clearSelectedFile = () => {
     setSelectedFile(null);
+    setFileError("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -156,6 +199,7 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
         type="file"
         className="hidden"
         onChange={handleFileChange}
+        accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx"
       />
 
       {selectedFile && (
@@ -187,6 +231,13 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
           >
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {fileError && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <AlertCircle className="h-4 w-4" />
+          <span>{fileError}</span>
         </div>
       )}
 

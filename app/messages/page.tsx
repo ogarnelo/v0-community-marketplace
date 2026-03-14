@@ -42,7 +42,10 @@ export default async function MessagesPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <ConversationsSidebar conversations={[]} />
+          <ConversationsSidebar
+            conversations={[]}
+            currentUserId={user.id}
+          />
 
           <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8">
             <div className="max-w-md text-center">
@@ -82,7 +85,7 @@ export default async function MessagesPage() {
 
   const { data: latestMessages } = await supabase
     .from("messages")
-    .select("conversation_id, body, created_at, sender_id")
+    .select("conversation_id, body, created_at, sender_id, attachment_name")
     .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false });
 
@@ -100,9 +103,10 @@ export default async function MessagesPage() {
     string,
     {
       conversation_id: string;
-      body: string;
+      body: string | null;
       created_at: string;
       sender_id: string;
+      attachment_name?: string | null;
     }
   >();
 
@@ -132,6 +136,12 @@ export default async function MessagesPage() {
     const latestMessage = latestMessageMap.get(conversation.id);
     const unreadCount = unreadCountMap.get(conversation.id) || 0;
 
+    const latestMessageBody =
+      latestMessage?.body?.trim() ||
+      (latestMessage?.attachment_name
+        ? `📎 ${latestMessage.attachment_name}`
+        : "Sin mensajes todavía");
+
     return {
       id: conversation.id,
       otherName:
@@ -139,7 +149,7 @@ export default async function MessagesPage() {
           ? otherProfile.full_name.trim()
           : "Usuario",
       listingTitle: listing?.title || "Anuncio",
-      latestMessageBody: latestMessage?.body || "Sin mensajes todavía",
+      latestMessageBody,
       latestMessageCreatedAt: latestMessage?.created_at || null,
       unreadCount,
     };

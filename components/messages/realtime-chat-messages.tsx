@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Download } from "lucide-react";
+import { FileText, Download, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 type Message = {
@@ -29,6 +29,10 @@ type RealtimeChatMessagesProps = {
 function formatMessageDate(date: string) {
   return new Date(date).toLocaleString("es-ES", {
     timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
   });
 }
 
@@ -65,6 +69,16 @@ export default function RealtimeChatMessages({
   }, [initialUnreadMessageIds]);
 
   useEffect(() => {
+    if (highlightedIds.size === 0) return;
+
+    const timeout = setTimeout(() => {
+      setHighlightedIds(new Set());
+    }, 5000);
+
+    return () => clearTimeout(timeout);
+  }, [highlightedIds]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -97,12 +111,34 @@ export default function RealtimeChatMessages({
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updatedMessage = payload.new as Message;
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
+            )
+          );
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [conversationId, currentUserId, supabase]);
+
+  const lastOwnMessageId = [...messages]
+    .reverse()
+    .find((message) => message.sender_id === currentUserId)?.id;
 
   return (
     <div className="space-y-3">
@@ -111,6 +147,7 @@ export default function RealtimeChatMessages({
         const isHighlighted = highlightedIds.has(message.id);
         const hasAttachment = !!message.attachment_url;
         const isImage = isImageAttachment(message.attachment_type);
+        const showSeen = isMine && message.id === lastOwnMessageId && !!message.read_at;
 
         return (
           <div
@@ -121,7 +158,7 @@ export default function RealtimeChatMessages({
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine
                   ? "bg-sky-500 text-white"
                   : isHighlighted
-                    ? "border border-emerald-300 bg-emerald-50 text-slate-900"
+                    ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
                     : "bg-slate-100 text-slate-900"
                 }`}
             >
@@ -186,16 +223,23 @@ export default function RealtimeChatMessages({
 
               {message.body && <p className="text-sm">{message.body}</p>}
 
-              <p
-                className={`mt-2 text-xs ${isMine
+              <div
+                className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
                     ? "text-sky-100"
                     : isHighlighted
                       ? "text-emerald-700"
                       : "text-slate-500"
                   }`}
               >
-                {formatMessageDate(message.created_at)}
-              </p>
+                <span>{formatMessageDate(message.created_at)}</span>
+
+                {showSeen && (
+                  <span className="inline-flex items-center gap-1">
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    Visto
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         );
