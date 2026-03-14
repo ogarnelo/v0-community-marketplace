@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, BookOpen, Tag, GraduationCap, MapPin, User, Star } from "lucide-react";
+import { ArrowLeft, Tag, GraduationCap, MapPin, User, Star } from "lucide-react";
 
 function conditionLabel(value?: string | null) {
   switch (value) {
@@ -40,6 +40,36 @@ function getInitials(name?: string | null, email?: string | null) {
   }
 
   return "U";
+}
+
+function getStatusLabel(status?: string | null) {
+  switch (status) {
+    case "available":
+      return "Disponible";
+    case "reserved":
+      return "Reservado";
+    case "sold":
+      return "Vendido";
+    case "archived":
+      return "Archivado";
+    default:
+      return status || "Sin estado";
+  }
+}
+
+function getStatusBadgeClass(status?: string | null) {
+  switch (status) {
+    case "available":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "reserved":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "sold":
+      return "border-slate-200 bg-slate-100 text-slate-700";
+    case "archived":
+      return "border-slate-200 bg-slate-50 text-slate-500";
+    default:
+      return "";
+  }
 }
 
 export default async function ListingDetailPage({
@@ -107,6 +137,7 @@ export default async function ListingDetailPage({
   const price = listing.price;
   const originalPrice = listing.original_price || listing.estimated_retail_price;
   const postalCode = listing.postal_code;
+  const status = listing.status || "available";
 
   const sellerName = sellerProfile?.full_name || "Miembro de Wetudy";
 
@@ -116,6 +147,8 @@ export default async function ListingDetailPage({
       : sellerProfile?.user_type === "student"
         ? "Estudiante"
         : "Usuario";
+
+  const canContact = status === "available";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -142,6 +175,9 @@ export default async function ListingDetailPage({
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge variant="secondary">{category}</Badge>
               <Badge variant="outline">{condition}</Badge>
+              <Badge variant="outline" className={getStatusBadgeClass(status)}>
+                {getStatusLabel(status)}
+              </Badge>
               {type === "donation" && <Badge>Donación</Badge>}
             </div>
 
@@ -238,11 +274,15 @@ export default async function ListingDetailPage({
                 </div>
               )}
 
-              {sellerId ? (
+              {canContact && sellerId ? (
                 <ContactSellerButton listingId={listing.id} sellerId={sellerId} />
               ) : (
                 <Button size="lg" className="mt-6 w-full" disabled>
-                  Contactar
+                  {status === "reserved"
+                    ? "Anuncio reservado"
+                    : status === "sold"
+                      ? "Anuncio vendido"
+                      : "Anuncio archivado"}
                 </Button>
               )}
             </CardContent>
@@ -328,7 +368,7 @@ export default async function ListingDetailPage({
               </div>
               <div className="flex items-center justify-between">
                 <span>Estado</span>
-                <span className="text-foreground">{condition}</span>
+                <span className="text-foreground">{getStatusLabel(status)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Tipo</span>
