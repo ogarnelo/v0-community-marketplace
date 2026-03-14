@@ -1,41 +1,41 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 
 interface ContactSellerButtonProps {
-  listingId: string
-  sellerId: string
+  listingId: string;
+  sellerId: string;
 }
 
 export function ContactSellerButton({
   listingId,
   sellerId,
 }: ContactSellerButtonProps) {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const handleContact = async () => {
-    setLoading(true)
+    setLoading(true);
 
     try {
-      const supabase = createClient()
+      const supabase = createClient();
 
       const {
         data: { user },
-      } = await supabase.auth.getUser()
+      } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign("/auth")
-        return
+        window.location.assign("/auth");
+        return;
       }
 
       if (user.id === sellerId) {
-        router.push("/messages")
-        router.refresh()
-        return
+        router.push("/messages");
+        router.refresh();
+        return;
       }
 
       const { data: existingConversation, error: existingError } = await supabase
@@ -44,54 +44,58 @@ export function ContactSellerButton({
         .eq("listing_id", listingId)
         .eq("buyer_id", user.id)
         .eq("seller_id", sellerId)
-        .maybeSingle()
+        .maybeSingle();
 
       if (existingError) {
-        throw existingError
+        throw existingError;
       }
 
       if (existingConversation) {
-        router.push(`/messages/${existingConversation.id}`)
-        router.refresh()
-        return
+        router.push(`/messages/${existingConversation.id}`);
+        router.refresh();
+        return;
       }
 
-      const { data: newConversation, error: insertConversationError } = await supabase
-        .from("conversations")
-        .insert({
-          listing_id: listingId,
-          buyer_id: user.id,
-          seller_id: sellerId,
-        })
-        .select("id")
-        .single()
+      const { data: newConversation, error: insertConversationError } =
+        await supabase
+          .from("conversations")
+          .insert({
+            listing_id: listingId,
+            buyer_id: user.id,
+            seller_id: sellerId,
+          })
+          .select("id")
+          .single();
 
       if (insertConversationError) {
-        throw insertConversationError
+        throw insertConversationError;
       }
 
-
-      await supabase
+      const { error: updateConversationError } = await supabase
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
-        .eq("id", newConversation.id)
+        .eq("id", newConversation.id);
 
-      router.push(`/messages/${newConversation.id}`)
-      router.refresh()
+      if (updateConversationError) {
+        throw updateConversationError;
+      }
+
+      router.push(`/messages/${newConversation.id}`);
+      router.refresh();
     } catch (error: any) {
-      console.error("Error creando conversación:", error)
+      console.error("Error creando conversación:", error);
 
       const message =
         error?.message ||
         error?.error_description ||
         error?.details ||
-        JSON.stringify(error)
+        JSON.stringify(error);
 
-      alert(`Error creando conversación: ${message}`)
+      alert(`Error creando conversación: ${message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Button
@@ -102,5 +106,5 @@ export function ContactSellerButton({
     >
       {loading ? "Abriendo chat..." : "Contactar"}
     </Button>
-  )
+  );
 }

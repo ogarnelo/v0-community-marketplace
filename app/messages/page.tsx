@@ -90,11 +90,18 @@ export default async function MessagesPage() {
     .select("id, full_name")
     .in("id", otherUserIds);
 
-  const { data: messages } = await supabase
+  const { data: latestMessages } = await supabase
     .from("messages")
-    .select("conversation_id, body, created_at, sender_id, read_at")
+    .select("conversation_id, body, created_at, sender_id")
     .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false });
+
+  const { data: unreadMessages } = await supabase
+    .from("messages")
+    .select("conversation_id, sender_id, read_at")
+    .in("conversation_id", conversationIds)
+    .neq("sender_id", user.id)
+    .is("read_at", null);
 
   const listingsMap = new Map((listings || []).map((l: any) => [l.id, l]));
   const profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]));
@@ -106,11 +113,10 @@ export default async function MessagesPage() {
       body: string;
       created_at: string;
       sender_id: string;
-      read_at: string | null;
     }
   >();
 
-  for (const message of messages || []) {
+  for (const message of latestMessages || []) {
     if (!latestMessageMap.has(message.conversation_id)) {
       latestMessageMap.set(message.conversation_id, message);
     }
@@ -118,16 +124,11 @@ export default async function MessagesPage() {
 
   const unreadCountMap = new Map<string, number>();
 
-  for (const message of messages || []) {
-    const isUnread =
-      message.sender_id !== user.id && message.read_at === null;
-
-    if (isUnread) {
-      unreadCountMap.set(
-        message.conversation_id,
-        (unreadCountMap.get(message.conversation_id) || 0) + 1
-      );
-    }
+  for (const message of unreadMessages || []) {
+    unreadCountMap.set(
+      message.conversation_id,
+      (unreadCountMap.get(message.conversation_id) || 0) + 1
+    );
   }
 
   return (
@@ -161,7 +162,9 @@ export default async function MessagesPage() {
           return (
             <Link key={conversation.id} href={`/messages/${conversation.id}`}>
               <Card
-                className={`transition hover:shadow-md ${unreadCount > 0 ? "border-sky-200 bg-sky-50/40" : ""
+                className={`transition hover:shadow-md ${unreadCount > 0
+                    ? "border-2 border-sky-500 bg-sky-50 shadow-sm"
+                    : ""
                   }`}
               >
                 <CardContent className="flex items-center gap-4 p-4">
@@ -175,7 +178,7 @@ export default async function MessagesPage() {
                         <p className="truncate font-semibold">{otherName}</p>
 
                         {unreadCount > 0 && (
-                          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-sky-500 px-2 py-0.5 text-xs font-medium text-white">
+                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-sky-600 px-2 text-xs font-bold text-white shadow">
                             {unreadCount}
                           </span>
                         )}
@@ -194,7 +197,12 @@ export default async function MessagesPage() {
                       {listingTitle}
                     </p>
 
-                    <p className="mt-1 truncate text-sm text-muted-foreground">
+                    <p
+                      className={`mt-1 truncate text-sm ${unreadCount > 0
+                          ? "font-medium text-slate-900"
+                          : "text-muted-foreground"
+                        }`}
+                    >
                       {latestMessage?.body || "Sin mensajes todavía"}
                     </p>
                   </div>
