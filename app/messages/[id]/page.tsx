@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SendMessageForm } from "@/components/messages/send-message-form";
 
+export const dynamic = "force-dynamic";
+
 function getInitials(name?: string | null) {
   if (!name || !name.trim()) return "U";
 
@@ -44,6 +46,17 @@ export default async function ConversationPage({
   ) {
     notFound();
   }
+
+  const { data: unreadBeforeOpen } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("conversation_id", conversation.id)
+    .neq("sender_id", user.id)
+    .is("read_at", null);
+
+  const initialUnreadMessageIds = (unreadBeforeOpen || []).map(
+    (message: any) => message.id
+  );
 
   const { error: markReadError } = await supabase
     .from("messages")
@@ -115,6 +128,7 @@ export default async function ConversationPage({
             conversationId={conversation.id}
             currentUserId={user.id}
             initialMessages={messages || []}
+            initialUnreadMessageIds={initialUnreadMessageIds}
           />
 
           <SendMessageForm conversationId={conversation.id} />

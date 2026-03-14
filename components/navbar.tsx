@@ -75,7 +75,8 @@ export function Navbar({
                   Mensajes
 
                   {hasUnread && (
-                    <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600
+ px-1 text-[10px] font-bold text-white">
                       {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                     </span>
                   )}
@@ -156,7 +157,8 @@ export function Navbar({
                       Mensajes
 
                       {hasUnread && (
-                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-fullbg-emerald-600
+ px-1 text-[10px] font-bold text-white">
                           {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                         </span>
                       )}
