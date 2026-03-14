@@ -70,17 +70,6 @@ export function ContactSellerButton({
         throw insertConversationError
       }
 
-      const { error: insertFirstMessageError } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: newConversation.id,
-          sender_id: user.id,
-          body: "Hola, me interesa este anuncio. ¿Sigue disponible?",
-        })
-
-      if (insertFirstMessageError) {
-        throw insertFirstMessageError
-      }
 
       await supabase
         .from("conversations")

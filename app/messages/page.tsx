@@ -4,18 +4,15 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-function getInitials(name?: string | null, email?: string | null) {
-  if (name && name.trim()) {
-    return name
-      .trim()
-      .split(" ")
-      .map((p) => p[0]?.toUpperCase())
-      .slice(0, 2)
-      .join("")
-  }
+function getInitials(name?: string | null) {
+  if (!name || !name.trim()) return "U"
 
-  if (email) return email[0].toUpperCase()
-  return "U"
+  return name
+    .trim()
+    .split(" ")
+    .map((p) => p[0]?.toUpperCase())
+    .slice(0, 2)
+    .join("")
 }
 
 export default async function MessagesPage() {
@@ -29,11 +26,27 @@ export default async function MessagesPage() {
     redirect("/auth")
   }
 
-  const { data: conversations } = await supabase
+  const { data: conversations, error } = await supabase
     .from("conversations")
     .select("*")
     .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
     .order("updated_at", { ascending: false })
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Mensajes</CardTitle>
+            <CardDescription>Error cargando conversaciones</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{error.message}</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   if (!conversations || conversations.length === 0) {
     return (
@@ -116,9 +129,7 @@ export default async function MessagesPage() {
               <Card className="transition hover:shadow-md">
                 <CardContent className="flex items-center gap-4 p-4">
                   <Avatar>
-                    <AvatarFallback>
-                      {getInitials(otherName, null)}
-                    </AvatarFallback>
+                    <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
                   </Avatar>
 
                   <div className="min-w-0 flex-1">
@@ -126,7 +137,7 @@ export default async function MessagesPage() {
                       <p className="truncate font-semibold">{otherName}</p>
                       {latestMessage?.created_at && (
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {new Date(latestMessage.created_at).toLocaleDateString("es-ES")}
+                          {new Date(latestMessage.created_at).toLocaleString("es-ES")}
                         </span>
                       )}
                     </div>

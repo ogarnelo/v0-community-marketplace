@@ -1,7 +1,19 @@
 import { redirect, notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { SendMessageForm } from "@/components/messages/send-message-form"
+
+function getInitials(name?: string | null) {
+  if (!name || !name.trim()) return "U"
+
+  return name
+    .trim()
+    .split(" ")
+    .map((part) => part[0]?.toUpperCase())
+    .slice(0, 2)
+    .join("")
+}
 
 export default async function ConversationPage({
   params,
@@ -39,7 +51,7 @@ export default async function ConversationPage({
 
   const { data: otherProfile } = await supabase
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, user_type")
     .eq("id", otherUserId)
     .maybeSingle()
 
@@ -55,14 +67,33 @@ export default async function ConversationPage({
     .eq("conversation_id", conversation.id)
     .order("created_at", { ascending: true })
 
+  const otherName =
+    otherProfile?.full_name?.trim() || "Usuario"
+
+  const otherRole =
+    otherProfile?.user_type === "parent"
+      ? "Familia / Tutor legal"
+      : otherProfile?.user_type === "student"
+        ? "Estudiante"
+        : "Miembro de Wetudy"
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
       <Card>
         <CardHeader>
-          <CardTitle>{otherProfile?.full_name || "Usuario"}</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {listing?.title || "Anuncio"}
-          </p>
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12">
+              <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
+            </Avatar>
+
+            <div>
+              <CardTitle>{otherName}</CardTitle>
+              <p className="text-sm text-muted-foreground">{otherRole}</p>
+              <p className="text-sm text-muted-foreground">
+                {listing?.title || "Anuncio"}
+              </p>
+            </div>
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-6">

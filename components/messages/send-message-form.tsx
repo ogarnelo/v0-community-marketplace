@@ -33,24 +33,37 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
         return
       }
 
-      const { error } = await supabase.from("messages").insert({
+      const { error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: user.id,
         body: body.trim(),
       })
 
-      if (error) throw error
+      if (insertError) {
+        throw insertError
+      }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
         .eq("id", conversationId)
 
+      if (updateError) {
+        throw updateError
+      }
+
       setBody("")
       router.refresh()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error enviando mensaje:", error)
-      alert("No se pudo enviar el mensaje.")
+
+      const message =
+        error?.message ||
+        error?.error_description ||
+        error?.details ||
+        JSON.stringify(error)
+
+      alert(`Error enviando mensaje: ${message}`)
     } finally {
       setLoading(false)
     }
