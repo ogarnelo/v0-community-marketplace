@@ -1,9 +1,12 @@
 import RealtimeChatMessages from "@/components/messages/realtime-chat-messages";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +95,7 @@ export default async function ConversationPage({
 
   const { data: latestMessages } = await supabase
     .from("messages")
-    .select("conversation_id, body, created_at, sender_id")
+    .select("conversation_id, body, created_at, sender_id, attachment_name")
     .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false });
 
@@ -116,9 +119,10 @@ export default async function ConversationPage({
     string,
     {
       conversation_id: string;
-      body: string;
+      body: string | null;
       created_at: string;
       sender_id: string;
+      attachment_name?: string | null;
     }
   >();
 
@@ -146,6 +150,12 @@ export default async function ConversationPage({
     const latestMessage = latestMessageMap.get(item.id);
     const unreadCount = unreadCountMap.get(item.id) || 0;
 
+    const latestMessageBody =
+      latestMessage?.body?.trim() ||
+      (latestMessage?.attachment_name
+        ? `📎 ${latestMessage.attachment_name}`
+        : "Sin mensajes todavía");
+
     return {
       id: item.id,
       otherName:
@@ -153,7 +163,7 @@ export default async function ConversationPage({
           ? otherProfile.full_name.trim()
           : "Usuario",
       listingTitle: listing?.title || "Anuncio",
-      latestMessageBody: latestMessage?.body || "Sin mensajes todavía",
+      latestMessageBody,
       latestMessageCreatedAt: latestMessage?.created_at || null,
       unreadCount,
     };
@@ -165,7 +175,6 @@ export default async function ConversationPage({
       : conversation.buyer_id;
 
   const otherProfile = profilesMap.get(otherUserId);
-
   const listing = listingsMap.get(conversation.listing_id);
 
   const otherName =
@@ -189,23 +198,36 @@ export default async function ConversationPage({
           currentUserId={user.id}
         />
 
-
         <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
           <div className="border-b px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-11 w-11">
-                <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
-              </Avatar>
+            <div className="flex items-center justify-between gap-4">
+              <Link
+                href={`/profile/${otherUserId}`}
+                className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"
+              >
+                <div className="flex items-center gap-3 rounded-xl p-2">
+                  <Avatar className="h-11 w-11">
+                    <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
+                  </Avatar>
 
-              <div className="min-w-0">
-                <p className="truncate text-lg font-semibold">{otherName}</p>
-                <p className="truncate text-sm text-muted-foreground">
-                  {otherRole}
-                </p>
-                <p className="truncate text-sm text-muted-foreground">
-                  {listing?.title || "Anuncio"}
-                </p>
-              </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-semibold">{otherName}</p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {otherRole}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {listing?.title || "Anuncio"}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+
+              <Link href={`/profile/${otherUserId}`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  Ver perfil
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </Link>
             </div>
           </div>
 
