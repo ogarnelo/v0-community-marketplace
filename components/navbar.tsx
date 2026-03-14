@@ -1,18 +1,19 @@
-"use client"
+"use client";
 
-import { LogoutButton } from "@/components/auth/logout-button"
-import Link from "next/link"
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { LogoutButton } from "@/components/auth/logout-button";
+import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
+import Link from "next/link";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   Menu,
   BookOpen,
@@ -22,13 +23,14 @@ import {
   LogOut,
   Package,
   ShieldCheck,
-} from "lucide-react"
+} from "lucide-react";
 
 interface NavbarProps {
-  isLoggedIn?: boolean
-  userName?: string
-  isAdmin?: boolean
-  unreadMessagesCount?: number
+  isLoggedIn?: boolean;
+  userName?: string;
+  isAdmin?: boolean;
+  unreadMessagesCount?: number;
+  currentUserId?: string;
 }
 
 export function Navbar({
@@ -36,10 +38,9 @@ export function Navbar({
   userName = "Mi cuenta",
   isAdmin = false,
   unreadMessagesCount = 0,
+  currentUserId,
 }: NavbarProps) {
-  const [open, setOpen] = useState(false)
-
-  const hasUnread = unreadMessagesCount > 0
+  const [open, setOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
@@ -74,11 +75,11 @@ export function Navbar({
                   <MessageCircle className="h-4 w-4" />
                   Mensajes
 
-                  {hasUnread && (
-                    <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600
- px-1 text-[10px] font-bold text-white">
-                      {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
-                    </span>
+                  {currentUserId && (
+                    <NavbarMessagesBadge
+                      currentUserId={currentUserId}
+                      initialCount={unreadMessagesCount}
+                    />
                   )}
                 </Button>
               </Link>
@@ -156,10 +157,12 @@ export function Navbar({
                       <MessageCircle className="h-4 w-4" />
                       Mensajes
 
-                      {hasUnread && (
-                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-fullbg-emerald-600
- px-1 text-[10px] font-bold text-white">
-                          {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
+                      {currentUserId && (
+                        <span className="ml-auto">
+                          <NavbarMessagesBadge
+                            currentUserId={currentUserId}
+                            initialCount={unreadMessagesCount}
+                          />
                         </span>
                       )}
                     </Button>
@@ -193,11 +196,11 @@ export function Navbar({
                   <button
                     type="button"
                     onClick={async () => {
-                      setOpen(false)
-                      const { createClient } = await import("@/lib/supabase/client")
-                      const supabase = createClient()
-                      await supabase.auth.signOut()
-                      window.location.assign("/auth")
+                      setOpen(false);
+                      const { createClient } = await import("@/lib/supabase/client");
+                      const supabase = createClient();
+                      await supabase.auth.signOut();
+                      window.location.assign("/auth");
                     }}
                     className="w-full"
                   >
@@ -243,5 +246,5 @@ export function Navbar({
         )}
       </div>
     </header>
-  )
+  );
 }
