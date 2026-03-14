@@ -1,18 +1,18 @@
-"use client";
+"use client"
 
-import { LogoutButton } from "@/components/auth/logout-button";
-import Link from "next/link";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LogoutButton } from "@/components/auth/logout-button"
+import Link from "next/link"
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu"
 import {
   Menu,
   BookOpen,
@@ -22,13 +22,13 @@ import {
   LogOut,
   Package,
   ShieldCheck,
-} from "lucide-react";
+} from "lucide-react"
 
 interface NavbarProps {
-  isLoggedIn?: boolean;
-  userName?: string;
-  isAdmin?: boolean;
-  unreadMessagesCount?: number;
+  isLoggedIn?: boolean
+  userName?: string
+  isAdmin?: boolean
+  unreadMessagesCount?: number
 }
 
 export function Navbar({
@@ -37,9 +37,9 @@ export function Navbar({
   isAdmin = false,
   unreadMessagesCount = 0,
 }: NavbarProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false)
 
-  const hasUnread = unreadMessagesCount > 0;
+  const hasUnread = unreadMessagesCount > 0
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
@@ -70,12 +70,12 @@ export function Navbar({
               </Link>
 
               <Link href="/messages">
-                <Button variant="ghost" size="sm" className="gap-1.5 relative">
+                <Button variant="ghost" size="sm" className="relative gap-1.5">
                   <MessageCircle className="h-4 w-4" />
                   Mensajes
 
                   {hasUnread && (
-                    <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                       {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                     </span>
                   )}
@@ -191,11 +191,11 @@ export function Navbar({
                   <button
                     type="button"
                     onClick={async () => {
-                      setOpen(false);
-                      const { createClient } = await import("@/lib/supabase/client");
-                      const supabase = createClient();
-                      await supabase.auth.signOut();
-                      window.location.assign("/auth");
+                      setOpen(false)
+                      const { createClient } = await import("@/lib/supabase/client")
+                      const supabase = createClient()
+                      await supabase.auth.signOut()
+                      window.location.assign("/auth")
                     }}
                     className="w-full"
                   >
@@ -241,5 +241,5 @@ export function Navbar({
         )}
       </div>
     </header>
-  );
+  )
 }
