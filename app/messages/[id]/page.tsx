@@ -45,12 +45,16 @@ export default async function ConversationPage({
     notFound();
   }
 
-  await supabase
+  const { error: markReadError } = await supabase
     .from("messages")
     .update({ read_at: new Date().toISOString() })
     .eq("conversation_id", conversation.id)
     .neq("sender_id", user.id)
     .is("read_at", null);
+
+  if (markReadError) {
+    console.error("Error marcando mensajes como leídos:", markReadError);
+  }
 
   const otherUserId =
     conversation.buyer_id === user.id

@@ -1,32 +1,29 @@
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { createClient } from "@/lib/supabase/server"
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function MarketplaceLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const supabase = await createClient()
+  const supabase = await createClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
-  const userName =
-    user?.user_metadata?.full_name ||
-    user?.email ||
-    "Mi cuenta"
+  const userName = user?.user_metadata?.full_name || user?.email || "Mi cuenta";
 
-  let unreadMessagesCount = 0
+  let unreadMessagesCount = 0;
 
   if (user) {
     const { data: conversations } = await supabase
       .from("conversations")
       .select("id")
-      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
 
-    const conversationIds = (conversations || []).map((c: any) => c.id)
+    const conversationIds = (conversations || []).map((c: any) => c.id);
 
     if (conversationIds.length > 0) {
       const { data: unreadMessages } = await supabase
@@ -34,9 +31,9 @@ export default async function MarketplaceLayout({
         .select("id")
         .in("conversation_id", conversationIds)
         .neq("sender_id", user.id)
-        .is("read_at", null)
+        .is("read_at", null);
 
-      unreadMessagesCount = unreadMessages?.length || 0
+      unreadMessagesCount = unreadMessages?.length || 0;
     }
   }
 
@@ -51,5 +48,5 @@ export default async function MarketplaceLayout({
       <main className="flex-1">{children}</main>
       <Footer />
     </div>
-  )
+  );
 }
