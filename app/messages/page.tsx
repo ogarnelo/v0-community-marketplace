@@ -165,8 +165,8 @@ export default async function MessagesPage() {
             <Link key={conversation.id} href={`/messages/${conversation.id}`}>
               <Card
                 className={`transition hover:shadow-md ${unreadCount > 0
-                    ? "border-2 border-emerald-500 bg-emerald-50 shadow-sm"
-                    : ""
+                  ? "border-2 border-emerald-500 bg-emerald-50 shadow-sm"
+                  : ""
                   }`}
               >
                 <CardContent className="flex items-center gap-4 p-4">
@@ -188,9 +188,10 @@ export default async function MessagesPage() {
 
                       {latestMessage?.created_at && (
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {new Date(latestMessage.created_at).toLocaleString(
-                            "es-ES"
-                          )}
+                          {new Date(latestMessage.created_at).toLocaleString("es-ES", {
+                            timeZone: "Europe/Madrid",
+                          })}
+
                         </span>
                       )}
                     </div>
@@ -201,8 +202,8 @@ export default async function MessagesPage() {
 
                     <p
                       className={`mt-1 truncate text-sm ${unreadCount > 0
-                          ? "font-medium text-slate-900"
-                          : "text-muted-foreground"
+                        ? "font-medium text-slate-900"
+                        : "text-muted-foreground"
                         }`}
                     >
                       {latestMessage?.body || "Sin mensajes todavía"}

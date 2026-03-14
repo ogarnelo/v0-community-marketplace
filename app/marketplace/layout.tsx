@@ -46,7 +46,9 @@ export default async function MarketplaceLayout({
         userName={userName}
         isAdmin={false}
         unreadMessagesCount={unreadMessagesCount}
+        currentUserId={user?.id}
       />
+
       <main className="flex-1">{children}</main>
       <Footer />
     </div>
