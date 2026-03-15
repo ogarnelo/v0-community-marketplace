@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
 
@@ -62,20 +61,20 @@ export function ListingCard({
   return (
     <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
-        <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
           <div className="flex h-full items-center justify-center bg-muted">
             <span className="select-none font-mono text-5xl text-muted-foreground/15">
               {categoryText.charAt(0)}
             </span>
           </div>
 
-          {isDonation && (
+          {isDonation ? (
             <Badge className="absolute left-2.5 top-2.5 rounded-md border-0 bg-[#7EBA28] px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">
               Donación
             </Badge>
-          )}
+          ) : null}
 
-          {(isSameSchool || hasDistance) && (
+          {isSameSchool || hasDistance ? (
             <div className="absolute right-2.5 top-2.5">
               <Badge
                 variant={isSameSchool ? "default" : "outline"}
@@ -89,7 +88,7 @@ export function ListingCard({
                 {isSameSchool ? "Mi centro" : `${listing.distance} km`}
               </Badge>
             </div>
-          )}
+          ) : null}
 
           <FavoriteButton
             listingId={listing.id}
@@ -123,25 +122,19 @@ export function ListingCard({
             {conditionText}
           </Badge>
 
-          {listing.type === "sale" &&
-            listing.originalPrice &&
-            listing.price && (
-              <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
-                -
-                {Math.round(
-                  (1 - listing.price / listing.originalPrice) * 100
-                )}
-                %
-              </Badge>
-            )}
+          {listing.type === "sale" && listing.originalPrice && listing.price ? (
+            <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
+              -{Math.round((1 - listing.price / listing.originalPrice) * 100)}%
+            </Badge>
+          ) : null}
         </div>
 
         <div className="mt-2.5 flex items-center justify-end">
-          {!isDonation && listing.price != null && (
+          {!isDonation && listing.price != null ? (
             <span className="text-[15px] font-bold text-foreground">
               {listing.price}€
             </span>
-          )}
+          ) : null}
         </div>
       </CardContent>
     </Card>

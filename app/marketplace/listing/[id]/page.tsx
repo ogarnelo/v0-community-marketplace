@@ -5,9 +5,53 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ArrowLeft, Tag, GraduationCap, MapPin, User, Star } from "lucide-react";
+
+type ListingRow = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  category: string | null;
+  grade_level: string | null;
+  condition: string | null;
+  type: string | null;
+  listing_type?: string | null;
+  price: number | null;
+  original_price: number | null;
+  estimated_retail_price?: number | null;
+  postal_code: string | null;
+  status: string | null;
+  seller_id: string | null;
+  user_id?: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  user_type: string | null;
+};
+
+type ReviewRow = {
+  rating: number;
+};
+
+type RelatedListingRow = {
+  id: string;
+  title: string | null;
+  category: string | null;
+  grade_level: string | null;
+  price: number | null;
+  type: string | null;
+  status: string | null;
+};
 
 function conditionLabel(value?: string | null) {
   switch (value) {
@@ -89,7 +133,7 @@ export default async function ListingDetailPage({
     .from("listings")
     .select("*")
     .eq("id", id)
-    .single();
+    .single<ListingRow>();
 
   if (error || !listing) {
     notFound();
@@ -97,13 +141,14 @@ export default async function ListingDetailPage({
 
   const sellerId = listing.seller_id || listing.user_id || null;
 
-  let sellerProfile: any = null;
+  let sellerProfile: ProfileRow | null = null;
+
   if (sellerId) {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, user_type")
       .eq("id", sellerId)
-      .maybeSingle();
+      .maybeSingle<ProfileRow>();
 
     sellerProfile = data;
   }
@@ -115,7 +160,8 @@ export default async function ListingDetailPage({
     const { data: ratingData } = await supabase
       .from("reviews")
       .select("rating")
-      .eq("reviewed_user_id", sellerId);
+      .eq("reviewed_user_id", sellerId)
+      .returns<ReviewRow[]>();
 
     if (ratingData && ratingData.length > 0) {
       sellerReviewCount = ratingData.length;
@@ -131,7 +177,8 @@ export default async function ListingDetailPage({
     .neq("id", listing.id)
     .eq("status", "available")
     .or(`category.eq.${listing.category},grade_level.eq.${listing.grade_level}`)
-    .limit(3);
+    .limit(3)
+    .returns<RelatedListingRow[]>();
 
   let isFavorite = false;
 
@@ -182,7 +229,10 @@ export default async function ListingDetailPage({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card className="overflow-hidden">
-            <div className="flex aspect-[4/3] items-center justify-center bg-muted">
+            <div
+              className="flex items-center justify-center bg-muted"
+              style={{ aspectRatio: "4 / 3" }}
+            >
               <span className="select-none font-mono text-7xl text-muted-foreground/15">
                 {category.charAt(0)}
               </span>
@@ -196,7 +246,7 @@ export default async function ListingDetailPage({
               <Badge variant="outline" className={getStatusBadgeClass(status)}>
                 {getStatusLabel(status)}
               </Badge>
-              {type === "donation" && <Badge>Donación</Badge>}
+              {type === "donation" ? <Badge>Donación</Badge> : null}
             </div>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -209,12 +259,12 @@ export default async function ListingDetailPage({
                     <span>{gradeLevel}</span>
                   </div>
 
-                  {postalCode && (
+                  {postalCode ? (
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
                       <span>{postalCode}</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -298,11 +348,11 @@ export default async function ListingDetailPage({
               ) : (
                 <div className="flex items-end gap-3">
                   <p className="text-3xl font-bold">{price}€</p>
-                  {originalPrice && (
+                  {originalPrice ? (
                     <p className="text-sm text-muted-foreground line-through">
                       {originalPrice}€
                     </p>
-                  )}
+                  ) : null}
                 </div>
               )}
 
@@ -335,9 +385,7 @@ export default async function ListingDetailPage({
               >
                 <div className="flex items-center gap-3 rounded-2xl p-2">
                   <Avatar className="h-12 w-12">
-                    <AvatarFallback>
-                      {getInitials(sellerName, null)}
-                    </AvatarFallback>
+                    <AvatarFallback>{getInitials(sellerName, null)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-semibold">{sellerName}</p>
@@ -375,13 +423,13 @@ export default async function ListingDetailPage({
                 </p>
               </div>
 
-              {sellerId && (
+              {sellerId ? (
                 <Link href={`/profile/${sellerId}`} className="block">
                   <Button variant="outline" className="w-full">
                     Ver perfil público
                   </Button>
                 </Link>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 
