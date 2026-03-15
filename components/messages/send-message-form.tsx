@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 
 interface SendMessageFormProps {
   conversationId: string;
+  disabled?: boolean;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -39,7 +40,10 @@ function isImageFile(file: File) {
   return file.type.startsWith("image/");
 }
 
-export function SendMessageForm({ conversationId }: SendMessageFormProps) {
+export function SendMessageForm({
+  conversationId,
+  disabled = false,
+}: SendMessageFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -48,9 +52,10 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
   const [fileError, setFileError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canSend = body.trim().length > 0 || !!selectedFile;
+  const canSend = !disabled && (body.trim().length > 0 || !!selectedFile);
 
   const handlePickFile = () => {
+    if (disabled) return;
     fileInputRef.current?.click();
   };
 
@@ -83,6 +88,7 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
   };
 
   const clearSelectedFile = () => {
+    if (disabled) return;
     setSelectedFile(null);
     setFileError("");
     if (fileInputRef.current) {
@@ -92,7 +98,8 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSend) return;
+
+    if (disabled || !canSend) return;
 
     setLoading(true);
 
@@ -200,6 +207,7 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
         className="hidden"
         onChange={handleFileChange}
         accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx"
+        disabled={disabled}
       />
 
       {selectedFile && (
@@ -226,7 +234,8 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
           <button
             type="button"
             onClick={clearSelectedFile}
-            className="rounded-full p-1 text-muted-foreground transition hover:bg-slate-200 hover:text-slate-900"
+            disabled={disabled}
+            className="rounded-full p-1 text-muted-foreground transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50"
             aria-label="Quitar archivo"
           >
             <X className="h-4 w-4" />
@@ -245,7 +254,8 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
         <button
           type="button"
           onClick={handlePickFile}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-white text-slate-600 transition hover:border-emerald-500 hover:text-emerald-600"
+          disabled={disabled}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-white text-slate-600 transition hover:border-emerald-500 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-50"
           aria-label="Adjuntar archivo"
         >
           <Paperclip className="h-5 w-5" />
@@ -255,9 +265,14 @@ export function SendMessageForm({ conversationId }: SendMessageFormProps) {
           <Textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Escribe tu mensaje..."
+            placeholder={
+              disabled
+                ? "No se pueden enviar más mensajes en este anuncio"
+                : "Escribe tu mensaje..."
+            }
             rows={2}
             className="min-h-[52px] resize-none rounded-2xl"
+            disabled={disabled}
           />
         </div>
 

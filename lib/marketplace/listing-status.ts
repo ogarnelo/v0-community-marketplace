@@ -32,7 +32,8 @@ const STATUS_CONFIG: Record<ListingStatus, ListingStatusConfig> = {
     description:
       "Este anuncio ya se ha vendido. El historial sigue visible, pero no se permiten mensajes nuevos.",
     canContact: false,
-    badgeClassName: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+    badgeClassName:
+      "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
     containerClassName: "border-slate-200 bg-slate-50 text-slate-900",
   },
   archived: {

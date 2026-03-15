@@ -1,5 +1,6 @@
 import RealtimeChatMessages from "@/components/messages/realtime-chat-messages";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
+import ConversationListingState from "@/components/messages/conversation-listing-state";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
+import {
+  canSendNewMessageToListing,
+  isValidListingStatus,
+  type ListingStatus,
+} from "@/lib/marketplace/listing-status";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +26,10 @@ function getInitials(name?: string | null) {
     .map((part) => part[0]?.toUpperCase())
     .slice(0, 2)
     .join("");
+}
+
+function getSafeListingStatus(status: unknown): ListingStatus {
+  return isValidListingStatus(status) ? status : "available";
 }
 
 export default async function ConversationPage({
@@ -85,7 +95,7 @@ export default async function ConversationPage({
 
   const { data: listings } = await supabase
     .from("listings")
-    .select("id, title")
+    .select("id, title, price, status")
     .in("id", listingIds);
 
   const { data: profiles } = await supabase
@@ -189,6 +199,9 @@ export default async function ConversationPage({
         ? "Estudiante"
         : "Miembro de Wetudy";
 
+  const listingStatus = getSafeListingStatus(listing?.status);
+  const canSendMessages = canSendNewMessageToListing(listingStatus);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -241,7 +254,17 @@ export default async function ConversationPage({
           </div>
 
           <div className="border-t px-5 py-4">
-            <SendMessageForm conversationId={conversation.id} />
+            <ConversationListingState
+              listingId={conversation.listing_id}
+              initialStatus={listingStatus}
+              title={listing?.title || "Anuncio"}
+              price={typeof listing?.price === "number" ? listing.price : null}
+            >
+              <SendMessageForm
+                conversationId={conversation.id}
+                disabled={!canSendMessages}
+              />
+            </ConversationListingState>
           </div>
         </Card>
       </div>
