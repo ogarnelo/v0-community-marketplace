@@ -9,6 +9,7 @@ interface FavoriteButtonProps {
   initialIsFavorite?: boolean;
   className?: string;
   iconClassName?: string;
+  showLabel?: boolean;
 }
 
 export function FavoriteButton({
@@ -16,6 +17,7 @@ export function FavoriteButton({
   initialIsFavorite = false,
   className = "",
   iconClassName = "h-4 w-4",
+  showLabel = false,
 }: FavoriteButtonProps) {
   const supabase = useMemo(() => createClient(), []);
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
@@ -54,10 +56,18 @@ export function FavoriteButton({
 
         setIsFavorite(false);
       } else {
-        const { error } = await supabase.from("favorites").insert({
-          user_id: user.id,
-          listing_id: listingId,
-        });
+        const { error } = await supabase
+          .from("favorites")
+          .upsert(
+            {
+              user_id: user.id,
+              listing_id: listingId,
+            },
+            {
+              onConflict: "user_id,listing_id",
+              ignoreDuplicates: true,
+            }
+          );
 
         if (error) throw error;
 
@@ -88,6 +98,11 @@ export function FavoriteButton({
             : "text-muted-foreground"
           }`}
       />
+      {showLabel && (
+        <span className="text-sm font-medium">
+          {isFavorite ? "Guardado" : "Guardar"}
+        </span>
+      )}
       <span className="sr-only">
         {isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
       </span>

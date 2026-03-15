@@ -1,7 +1,7 @@
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -138,7 +138,7 @@ export default async function ListingDetailPage({
   if (user) {
     const { data: favoriteRow } = await supabase
       .from("favorites")
-      .select("id")
+      .select("user_id, listing_id")
       .eq("user_id", user.id)
       .eq("listing_id", listing.id)
       .maybeSingle();
@@ -222,6 +222,7 @@ export default async function ListingDetailPage({
                 <FavoriteButton
                   listingId={listing.id}
                   initialIsFavorite={isFavorite}
+                  showLabel
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-full border bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-[#7EBA28] hover:text-[#7EBA28]"
                   iconClassName="h-4 w-4"
                 />
