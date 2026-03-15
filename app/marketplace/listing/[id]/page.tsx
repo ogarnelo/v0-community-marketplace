@@ -1,6 +1,7 @@
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
+import { FavoriteButton } from "@/components/favorites/favorite-button";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +81,10 @@ export default async function ListingDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: listing, error } = await supabase
     .from("listings")
     .select("*")
@@ -127,6 +132,19 @@ export default async function ListingDetailPage({
     .eq("status", "available")
     .or(`category.eq.${listing.category},grade_level.eq.${listing.grade_level}`)
     .limit(3);
+
+  let isFavorite = false;
+
+  if (user) {
+    const { data: favoriteRow } = await supabase
+      .from("favorites")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("listing_id", listing.id)
+      .maybeSingle();
+
+    isFavorite = !!favoriteRow;
+  }
 
   const title = listing.title || "Anuncio sin título";
   const description = listing.description || "Sin descripción";
@@ -181,20 +199,33 @@ export default async function ListingDetailPage({
               {type === "donation" && <Badge>Donación</Badge>}
             </div>
 
-            <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
 
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="h-4 w-4" />
-                <span>{gradeLevel}</span>
+                <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4" />
+                    <span>{gradeLevel}</span>
+                  </div>
+
+                  {postalCode && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span>{postalCode}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {postalCode && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <span>{postalCode}</span>
-                </div>
-              )}
+              <div className="shrink-0">
+                <FavoriteButton
+                  listingId={listing.id}
+                  initialIsFavorite={isFavorite}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-[#7EBA28] hover:text-[#7EBA28]"
+                  iconClassName="h-4 w-4"
+                />
+              </div>
             </div>
           </div>
 

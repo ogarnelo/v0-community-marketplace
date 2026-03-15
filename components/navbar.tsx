@@ -23,6 +23,7 @@ import {
   LogOut,
   Package,
   ShieldCheck,
+  Heart,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -60,6 +61,13 @@ export function Navbar({
               <Link href="/marketplace">
                 <Button variant="ghost" size="sm">
                   Marketplace
+                </Button>
+              </Link>
+
+              <Link href="/favorites">
+                <Button variant="ghost" size="sm" className="gap-1.5">
+                  <Heart className="h-4 w-4" />
+                  Favoritos
                 </Button>
               </Link>
 
@@ -113,6 +121,13 @@ export function Navbar({
                     </Link>
                   </DropdownMenuItem>
 
+                  <DropdownMenuItem asChild>
+                    <Link href="/favorites" className="gap-2">
+                      <Heart className="h-4 w-4" />
+                      Favoritos
+                    </Link>
+                  </DropdownMenuItem>
+
                   {isAdmin && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin/school" className="gap-2">
@@ -142,6 +157,13 @@ export function Navbar({
                     <Button variant="ghost" className="w-full justify-start gap-2">
                       <BookOpen className="h-4 w-4" />
                       Marketplace
+                    </Button>
+                  </Link>
+
+                  <Link href="/favorites" onClick={() => setOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2">
+                      <Heart className="h-4 w-4" />
+                      Favoritos
                     </Button>
                   </Link>
 

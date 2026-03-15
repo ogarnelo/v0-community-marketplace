@@ -1,72 +1,88 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ListingCard } from "@/components/listing-card"
-import { categories, gradeLevels, conditions } from "@/lib/mock-data"
-import { createClient } from "@/lib/supabase/client"
-import { Plus, Search, SlidersHorizontal, MapPin, X, HelpCircle } from "lucide-react"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ListingCard } from "@/components/listing-card";
+import { categories, gradeLevels, conditions } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
+import { Plus, Search, SlidersHorizontal, MapPin, X, HelpCircle } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 type MarketplaceListing = {
-  id: string
-  title: string
-  description: string | null
-  category: string | null
-  gradeLevel: string | null
-  condition: string | null
-  type: string | null
-  price?: number
-  originalPrice?: number
-  photos: string[]
-  sellerId: string | null
-  schoolId: string | null
-  status: string | null
-  createdAt: string | null
-  distance?: number
-}
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  gradeLevel: string | null;
+  condition: string | null;
+  type: string | null;
+  price?: number;
+  originalPrice?: number;
+  photos: string[];
+  sellerId: string | null;
+  schoolId: string | null;
+  status: string | null;
+  createdAt: string | null;
+  distance?: number;
+  isFavorite?: boolean;
+};
 
 export default function MarketplacePage() {
-  const [dbListings, setDbListings] = useState<MarketplaceListing[]>([])
-  const [loading, setLoading] = useState(true)
+  const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [nearbyMode, setNearbyMode] = useState(false)
-  const [radius, setRadius] = useState("10")
-  const [category, setCategory] = useState("all")
-  const [gradeLevel, setGradeLevel] = useState("all")
-  const [listingType, setListingType] = useState("all")
-  const [condition, setCondition] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isbnQuery, setIsbnQuery] = useState("")
-  const [priceRange, setPriceRange] = useState([0, 200])
-  const [priceMin, setPriceMin] = useState("")
-  const [priceMax, setPriceMax] = useState("")
+  const [nearbyMode, setNearbyMode] = useState(false);
+  const [radius, setRadius] = useState("10");
+  const [category, setCategory] = useState("all");
+  const [gradeLevel, setGradeLevel] = useState("all");
+  const [listingType, setListingType] = useState("all");
+  const [condition, setCondition] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isbnQuery, setIsbnQuery] = useState("");
+  const [priceRange, setPriceRange] = useState([0, 200]);
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
 
   useEffect(() => {
     const loadListings = async () => {
-      setLoading(true)
+      setLoading(true);
 
-      const supabase = createClient()
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data, error } = await supabase
         .from("listings")
         .select("*")
         .eq("status", "available")
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error cargando listings:", error)
-        setDbListings([])
-        setLoading(false)
-        return
+        console.error("Error cargando listings:", error);
+        setDbListings([]);
+        setLoading(false);
+        return;
+      }
+
+      let favoriteIds = new Set<string>();
+
+      if (user) {
+        const { data: favorites } = await supabase
+          .from("favorites")
+          .select("listing_id")
+          .eq("user_id", user.id);
+
+        favoriteIds = new Set((favorites || []).map((fav: any) => fav.listing_id));
       }
 
       const mapped: MarketplaceListing[] = (data || []).map((item: any) => ({
@@ -78,66 +94,79 @@ export default function MarketplacePage() {
         condition: item.condition,
         type: item.type || item.listing_type,
         price: item.price ?? undefined,
-        originalPrice: item.original_price ?? item.estimated_retail_price ?? undefined,
+        originalPrice:
+          item.original_price ?? item.estimated_retail_price ?? undefined,
         photos: Array.isArray(item.photos) ? item.photos : [],
         sellerId: item.seller_id || item.user_id || null,
         schoolId: item.school_id || null,
         status: item.status,
         createdAt: item.created_at,
         distance: undefined,
-      }))
+        isFavorite: favoriteIds.has(item.id),
+      }));
 
-      setDbListings(mapped)
-      setLoading(false)
-    }
+      setDbListings(mapped);
+      setLoading(false);
+    };
 
-    loadListings()
-  }, [])
+    loadListings();
+  }, []);
 
   const handleSliderChange = (values: number[]) => {
-    setPriceRange(values)
-    setPriceMin(values[0] === 0 ? "" : String(values[0]))
-    setPriceMax(values[1] === 200 ? "" : String(values[1]))
-  }
+    setPriceRange(values);
+    setPriceMin(values[0] === 0 ? "" : String(values[0]));
+    setPriceMax(values[1] === 200 ? "" : String(values[1]));
+  };
 
   const handlePriceMinChange = (val: string) => {
-    setPriceMin(val)
-    const num = Number(val) || 0
-    setPriceRange([num, priceRange[1]])
-  }
+    setPriceMin(val);
+    const num = Number(val) || 0;
+    setPriceRange([num, priceRange[1]]);
+  };
 
   const handlePriceMaxChange = (val: string) => {
-    setPriceMax(val)
-    const num = Number(val) || 200
-    setPriceRange([priceRange[0], num])
-  }
+    setPriceMax(val);
+    const num = Number(val) || 200;
+    setPriceRange([priceRange[0], num]);
+  };
 
   const filteredListings = useMemo(() => {
     return dbListings.filter((l) => {
-      if (l.status !== "available") return false
+      if (l.status !== "available") return false;
 
-      if (category !== "all" && l.category !== category) return false
-      if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false
-      if (listingType !== "all" && l.type !== listingType) return false
-      if (condition !== "all" && l.condition !== condition) return false
+      if (category !== "all" && l.category !== category) return false;
+      if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false;
+      if (listingType !== "all" && l.type !== listingType) return false;
+      if (condition !== "all" && l.condition !== condition) return false;
 
       if (searchQuery && !l.title.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false
+        return false;
       }
 
       if (isbnQuery) {
-        return false
+        return false;
       }
 
       if (l.type === "sale" && l.price !== undefined) {
-        if (l.price < priceRange[0] || l.price > priceRange[1]) return false
+        if (l.price < priceRange[0] || l.price > priceRange[1]) return false;
       }
 
-      if (nearbyMode && l.distance && l.distance > Number(radius)) return false
+      if (nearbyMode && l.distance && l.distance > Number(radius)) return false;
 
-      return true
-    })
-  }, [dbListings, nearbyMode, radius, category, gradeLevel, listingType, condition, searchQuery, isbnQuery, priceRange])
+      return true;
+    });
+  }, [
+    dbListings,
+    nearbyMode,
+    radius,
+    category,
+    gradeLevel,
+    listingType,
+    condition,
+    searchQuery,
+    isbnQuery,
+    priceRange,
+  ]);
 
   const activeFiltersCount = [
     category !== "all",
@@ -146,19 +175,19 @@ export default function MarketplacePage() {
     condition !== "all",
     priceRange[0] > 0 || priceRange[1] < 200,
     isbnQuery.length > 0,
-  ].filter(Boolean).length
+  ].filter(Boolean).length;
 
   const clearFilters = () => {
-    setCategory("all")
-    setGradeLevel("all")
-    setListingType("all")
-    setCondition("all")
-    setSearchQuery("")
-    setIsbnQuery("")
-    setPriceRange([0, 200])
-    setPriceMin("")
-    setPriceMax("")
-  }
+    setCategory("all");
+    setGradeLevel("all");
+    setListingType("all");
+    setCondition("all");
+    setSearchQuery("");
+    setIsbnQuery("");
+    setPriceRange([0, 200]);
+    setPriceMin("");
+    setPriceMax("");
+  };
 
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
@@ -216,7 +245,7 @@ export default function MarketplacePage() {
               <SelectItem key={c.value} value={c.value} textValue={c.label}>
                 <div className="flex flex-col gap-0.5 py-0.5">
                   <span className="font-medium">{c.label}</span>
-                  <span className="text-xs text-muted-foreground leading-relaxed whitespace-normal">
+                  <span className="whitespace-normal text-xs leading-relaxed text-muted-foreground">
                     {c.description}
                   </span>
                 </div>
@@ -243,22 +272,26 @@ export default function MarketplacePage() {
               placeholder="Min"
               value={priceMin}
               onChange={(e) => handlePriceMinChange(e.target.value)}
-              className="pr-6 h-8 text-sm"
+              className="h-8 pr-6 text-sm"
               min={0}
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&euro;</span>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              €
+            </span>
           </div>
-          <span className="text-muted-foreground text-xs">-</span>
+          <span className="text-xs text-muted-foreground">-</span>
           <div className="relative flex-1">
             <Input
               type="number"
               placeholder="Max"
               value={priceMax}
               onChange={(e) => handlePriceMaxChange(e.target.value)}
-              className="pr-6 h-8 text-sm"
+              className="h-8 pr-6 text-sm"
               min={0}
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">&euro;</span>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              €
+            </span>
           </div>
         </div>
       </div>
@@ -275,8 +308,10 @@ export default function MarketplacePage() {
             </PopoverTrigger>
             <PopoverContent className="w-72 text-sm" side="top">
               <p className="font-semibold text-foreground">Que es el ISBN?</p>
-              <p className="mt-1 text-muted-foreground leading-relaxed">
-                ISBN son las siglas de International Standard Book Number y consiste en un codigo que nos sirve para identificar de manera unica cada producto editorial.
+              <p className="mt-1 leading-relaxed text-muted-foreground">
+                ISBN son las siglas de International Standard Book Number y
+                consiste en un codigo que nos sirve para identificar de manera
+                unica cada producto editorial.
               </p>
             </PopoverContent>
           </Popover>
@@ -290,12 +325,17 @@ export default function MarketplacePage() {
       </div>
 
       {activeFiltersCount > 0 && (
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={clearFilters}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground"
+          onClick={clearFilters}
+        >
           <X className="h-3.5 w-3.5" /> Limpiar filtros ({activeFiltersCount})
         </Button>
       )}
     </div>
-  )
+  );
 
   return (
     <div className="bg-background">
@@ -320,14 +360,17 @@ export default function MarketplacePage() {
           <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
             <div className="flex items-center gap-2">
               <Switch checked={nearbyMode} onCheckedChange={setNearbyMode} id="nearby" />
-              <Label htmlFor="nearby" className="flex items-center gap-1.5 text-sm font-medium cursor-pointer">
+              <Label
+                htmlFor="nearby"
+                className="flex cursor-pointer items-center gap-1.5 text-sm font-medium"
+              >
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 {nearbyMode ? "Cerca de mi" : "Todos los anuncios"}
               </Label>
             </div>
             {nearbyMode && (
               <Select value={radius} onValueChange={setRadius}>
-                <SelectTrigger className="w-24 h-8">
+                <SelectTrigger className="h-8 w-24">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -356,7 +399,9 @@ export default function MarketplacePage() {
                 <SlidersHorizontal className="h-4 w-4" />
                 Filtros
                 {activeFiltersCount > 0 && (
-                  <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge>
+                  <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
+                    {activeFiltersCount}
+                  </Badge>
                 )}
               </Button>
             </SheetTrigger>
@@ -382,12 +427,16 @@ export default function MarketplacePage() {
           <div className="flex-1">
             {loading ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
-                <h3 className="text-lg font-semibold text-foreground">Cargando anuncios...</h3>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Cargando anuncios...
+                </h3>
               </div>
             ) : filteredListings.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
                 <Search className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                <h3 className="text-lg font-semibold text-foreground">No se encontraron anuncios</h3>
+                <h3 className="text-lg font-semibold text-foreground">
+                  No se encontraron anuncios
+                </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Prueba a cambiar los filtros o crea tu primer anuncio
                 </p>
@@ -395,7 +444,11 @@ export default function MarketplacePage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredListings.map((listing) => (
-                  <ListingCard key={listing.id} listing={listing as any} currentSchoolId={listing.schoolId || ""} />
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing as any}
+                    currentSchoolId={listing.schoolId || ""}
+                  />
                 ))}
               </div>
             )}
@@ -403,5 +456,5 @@ export default function MarketplacePage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
