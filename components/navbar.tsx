@@ -43,6 +43,8 @@ export function Navbar({
 }: NavbarProps) {
   const [open, setOpen] = useState(false);
 
+  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
@@ -71,7 +73,7 @@ export function Navbar({
                 </Button>
               </Link>
 
-              <Link href="/marketplace/new">
+              <Link href={publishHref}>
                 <Button variant="ghost" size="sm" className="gap-1.5">
                   <Plus className="h-4 w-4" />
                   Publicar
@@ -154,40 +156,28 @@ export function Navbar({
               <SheetContent side="right" className="w-72">
                 <nav className="flex flex-col gap-2 pt-8">
                   <Link href="/marketplace" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                    >
+                    <Button variant="ghost" className="w-full justify-start gap-2">
                       <BookOpen className="h-4 w-4" />
                       Marketplace
                     </Button>
                   </Link>
 
                   <Link href="/favorites" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                    >
+                    <Button variant="ghost" className="w-full justify-start gap-2">
                       <Heart className="h-4 w-4" />
                       Favoritos
                     </Button>
                   </Link>
 
-                  <Link href="/marketplace/new" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                    >
+                  <Link href={publishHref} onClick={() => setOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2">
                       <Plus className="h-4 w-4" />
                       Publicar anuncio
                     </Button>
                   </Link>
 
                   <Link href="/messages" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="relative w-full justify-start gap-2"
-                    >
+                    <Button variant="ghost" className="relative w-full justify-start gap-2">
                       <MessageCircle className="h-4 w-4" />
                       Mensajes
 
@@ -203,20 +193,14 @@ export function Navbar({
                   </Link>
 
                   <Link href="/account" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                    >
+                    <Button variant="ghost" className="w-full justify-start gap-2">
                       <User className="h-4 w-4" />
                       Mi cuenta
                     </Button>
                   </Link>
 
                   <Link href="/account/listings" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                    >
+                    <Button variant="ghost" className="w-full justify-start gap-2">
                       <Package className="h-4 w-4" />
                       Mis anuncios
                     </Button>
@@ -224,10 +208,7 @@ export function Navbar({
 
                   {isAdmin && (
                     <Link href="/admin/school" onClick={() => setOpen(false)}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start gap-2"
-                      >
+                      <Button variant="ghost" className="w-full justify-start gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin
                       </Button>
@@ -240,9 +221,7 @@ export function Navbar({
                     type="button"
                     onClick={async () => {
                       setOpen(false);
-                      const { createClient } = await import(
-                        "@/lib/supabase/client"
-                      );
+                      const { createClient } = await import("@/lib/supabase/client");
                       const supabase = createClient();
                       await supabase.auth.signOut();
                       window.location.assign("/auth");
@@ -281,7 +260,7 @@ export function Navbar({
               </Button>
             </Link>
 
-            <Link href="/auth?next=/marketplace/new">
+            <Link href={publishHref}>
               <Button size="sm" className="gap-1.5">
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Vender</span>

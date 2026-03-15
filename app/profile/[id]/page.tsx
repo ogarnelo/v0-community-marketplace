@@ -3,13 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,6 +54,8 @@ function getConditionLabel(value?: string | null) {
   }
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function PublicProfilePage({
   params,
 }: {
@@ -77,19 +73,17 @@ export default async function PublicProfilePage({
   let isAdmin = false;
 
   if (user) {
-    const [{ data: currentProfile }, { count: unreadCountResult }] =
-      await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name, user_type")
-          .eq("id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .neq("sender_id", user.id)
-          .is("read_at", null),
-      ]);
+    const [{ data: currentProfile }, { data: conversations }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("full_name, user_type")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("conversations")
+        .select("id")
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
+    ]);
 
     navbarUserName =
       currentProfile?.full_name?.trim() ||
@@ -101,7 +95,18 @@ export default async function PublicProfilePage({
       currentProfile?.user_type === "school_admin" ||
       currentProfile?.user_type === "super_admin";
 
-    unreadMessagesCount = unreadCountResult || 0;
+    const conversationIds = (conversations || []).map((conversation: any) => conversation.id);
+
+    if (conversationIds.length > 0) {
+      const { data: unreadMessages } = await supabase
+        .from("messages")
+        .select("id")
+        .in("conversation_id", conversationIds)
+        .neq("sender_id", user.id)
+        .is("read_at", null);
+
+      unreadMessagesCount = unreadMessages?.length || 0;
+    }
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -122,9 +127,7 @@ export default async function PublicProfilePage({
 
   const { data: activeListings } = await supabase
     .from("listings")
-    .select(
-      "id, title, category, grade_level, condition, type, price, status, created_at"
-    )
+    .select("id, title, category, grade_level, condition, type, price, status, created_at")
     .eq("seller_id", id)
     .eq("status", "available")
     .order("created_at", { ascending: false });
@@ -237,9 +240,7 @@ export default async function PublicProfilePage({
                     <Package className="h-4 w-4" />
                     Anuncios activos
                   </div>
-                  <p className="text-2xl font-bold">
-                    {activeListings?.length || 0}
-                  </p>
+                  <p className="text-2xl font-bold">{activeListings?.length || 0}</p>
                 </div>
               </CardContent>
             </Card>
@@ -318,12 +319,9 @@ export default async function PublicProfilePage({
                             {"⭐".repeat(review.rating)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(review.created_at).toLocaleDateString(
-                              "es-ES",
-                              {
-                                timeZone: "Europe/Madrid",
-                              }
-                            )}
+                            {new Date(review.created_at).toLocaleDateString("es-ES", {
+                              timeZone: "Europe/Madrid",
+                            })}
                           </p>
                         </div>
 
