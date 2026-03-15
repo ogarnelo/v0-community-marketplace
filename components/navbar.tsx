@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
-import Link from "next/link";
-import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -42,8 +43,64 @@ export function Navbar({
   currentUserId,
 }: NavbarProps) {
   const [open, setOpen] = useState(false);
+  const [liveUserName, setLiveUserName] = useState(userName);
+  const [liveIsAdmin, setLiveIsAdmin] = useState(isAdmin);
 
-  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
+  const supabase = useMemo(() => createClient(), []);
+  const publishHref = isLoggedIn
+    ? "/marketplace/new"
+    : "/auth?next=/marketplace/new";
+
+  useEffect(() => {
+    setLiveUserName(userName);
+  }, [userName]);
+
+  useEffect(() => {
+    setLiveIsAdmin(isAdmin);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel(`navbar-profile-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          const nextProfile = payload.new as {
+            full_name?: string | null;
+            user_type?: string | null;
+          };
+
+          const nextName =
+            nextProfile?.full_name?.trim() && nextProfile.full_name.trim().length > 0
+              ? nextProfile.full_name.trim()
+              : "Mi cuenta";
+
+          setLiveUserName(nextName);
+          setLiveIsAdmin(
+            nextProfile?.user_type === "school_admin" ||
+            nextProfile?.user_type === "super_admin"
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUserId, supabase]);
+
+  const avatarLetter =
+    liveUserName && liveUserName.trim().length > 0
+      ? liveUserName.trim().charAt(0).toUpperCase()
+      : "U";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
@@ -85,12 +142,12 @@ export function Navbar({
                   <MessageCircle className="h-4 w-4" />
                   Mensajes
 
-                  {currentUserId && (
+                  {currentUserId ? (
                     <NavbarMessagesBadge
                       currentUserId={currentUserId}
                       initialCount={unreadMessagesCount}
                     />
-                  )}
+                  ) : null}
                 </Button>
               </Link>
             </nav>
@@ -101,10 +158,10 @@ export function Navbar({
                   <Button variant="ghost" className="gap-2 px-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-                        {userName.charAt(0)}
+                        {avatarLetter}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{userName}</span>
+                    <span className="text-sm font-medium">{liveUserName}</span>
                   </Button>
                 </DropdownMenuTrigger>
 
@@ -130,14 +187,14 @@ export function Navbar({
                     </Link>
                   </DropdownMenuItem>
 
-                  {isAdmin && (
+                  {liveIsAdmin ? (
                     <DropdownMenuItem asChild>
                       <Link href="/admin/school" className="gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin
                       </Link>
                     </DropdownMenuItem>
-                  )}
+                  ) : null}
 
                   <DropdownMenuSeparator />
                   <LogoutButton />
@@ -177,18 +234,21 @@ export function Navbar({
                   </Link>
 
                   <Link href="/messages" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="relative w-full justify-start gap-2">
+                    <Button
+                      variant="ghost"
+                      className="relative w-full justify-start gap-2"
+                    >
                       <MessageCircle className="h-4 w-4" />
                       Mensajes
 
-                      {currentUserId && (
+                      {currentUserId ? (
                         <span className="ml-auto">
                           <NavbarMessagesBadge
                             currentUserId={currentUserId}
                             initialCount={unreadMessagesCount}
                           />
                         </span>
-                      )}
+                      ) : null}
                     </Button>
                   </Link>
 
@@ -206,14 +266,17 @@ export function Navbar({
                     </Button>
                   </Link>
 
-                  {isAdmin && (
+                  {liveIsAdmin ? (
                     <Link href="/admin/school" onClick={() => setOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-2">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-2"
+                      >
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin
                       </Button>
                     </Link>
-                  )}
+                  ) : null}
 
                   <div className="my-2 border-t border-border" />
 
@@ -221,9 +284,8 @@ export function Navbar({
                     type="button"
                     onClick={async () => {
                       setOpen(false);
-                      const { createClient } = await import("@/lib/supabase/client");
-                      const supabase = createClient();
-                      await supabase.auth.signOut();
+                      const supabaseClient = createClient();
+                      await supabaseClient.auth.signOut();
                       window.location.assign("/auth");
                     }}
                     className="w-full"

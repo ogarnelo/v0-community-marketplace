@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { schools, gradeLevels } from "@/lib/mock-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -83,19 +84,24 @@ export default async function AccountPage() {
     .eq("id", user.id)
     .maybeSingle<AccountProfile>();
 
-  const fullName = profile?.full_name || metadata.full_name || user.email || "Mi cuenta";
+  const fullName =
+    profile?.full_name || metadata.full_name || user.email || "Mi cuenta";
   const email = user.email || "Sin email";
   const userType = profile?.user_type || metadata.user_type || null;
   const gradeLevel = profile?.grade_level || metadata.grade_level || null;
   const postalCode = profile?.postal_code || metadata.postal_code || null;
   const createdAt = profile?.created_at || user.created_at || null;
 
+  const selectedSchool =
+    profile?.school_id && profile.school_id.trim().length > 0
+      ? schools.find((school) => school.id === profile.school_id) || null
+      : null;
+
   const schoolName =
-    typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0
+    selectedSchool?.name ||
+    (typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0
       ? metadata.school_name.trim()
-      : typeof profile?.school_id === "string" && profile.school_id.trim().length > 0
-        ? `Centro asociado (${profile.school_id})`
-        : "Centro no asignado";
+      : "Centro no asignado");
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
@@ -169,11 +175,16 @@ export default async function AccountPage() {
         <div className="lg:col-span-2">
           <AccountProfileForm
             initialFullName={profile?.full_name || ""}
+            initialUserType={
+              profile?.user_type === "parent" || profile?.user_type === "student"
+                ? profile.user_type
+                : ""
+            }
             initialGradeLevel={profile?.grade_level || ""}
             initialPostalCode={profile?.postal_code || ""}
+            initialSchoolId={profile?.school_id || ""}
             email={email}
-            userTypeLabel={formatUserType(userType)}
-            schoolName={schoolName}
+            gradeLevelOptions={gradeLevels}
           />
         </div>
       </div>

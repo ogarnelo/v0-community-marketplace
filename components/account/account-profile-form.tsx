@@ -1,37 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { schools } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, School, Mail, User2 } from "lucide-react";
+import { Loader2, Save, School, Mail, User2, Search, Check, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 type AccountProfileFormProps = {
   initialFullName: string;
+  initialUserType: "parent" | "student" | "";
   initialGradeLevel: string;
   initialPostalCode: string;
+  initialSchoolId: string;
   email: string;
-  userTypeLabel: string;
-  schoolName: string | null;
+  gradeLevelOptions: string[];
 };
+
+function formatUserType(userType?: string | null) {
+  switch (userType) {
+    case "parent":
+      return "Familia / Tutor legal";
+    case "student":
+      return "Estudiante";
+    default:
+      return "Selecciona un tipo de usuario";
+  }
+}
 
 export default function AccountProfileForm({
   initialFullName,
+  initialUserType,
   initialGradeLevel,
   initialPostalCode,
+  initialSchoolId,
   email,
-  userTypeLabel,
-  schoolName,
+  gradeLevelOptions,
 }: AccountProfileFormProps) {
+  const router = useRouter();
+
   const [fullName, setFullName] = useState(initialFullName);
+  const [userType, setUserType] = useState<"parent" | "student" | "">(
+    initialUserType
+  );
   const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
   const [postalCode, setPostalCode] = useState(initialPostalCode);
+  const [selectedSchoolId, setSelectedSchoolId] = useState(initialSchoolId);
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [schoolPopoverOpen, setSchoolPopoverOpen] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const filteredSchools = useMemo(() => {
+    const query = schoolSearch.trim().toLowerCase();
+
+    if (!query) return schools;
+
+    return schools.filter(
+      (school) =>
+        school.name.toLowerCase().includes(query) ||
+        school.city.toLowerCase().includes(query) ||
+        school.code.toLowerCase().includes(query)
+    );
+  }, [schoolSearch]);
+
+  const selectedSchool =
+    selectedSchoolId && selectedSchoolId.trim().length > 0
+      ? schools.find((school) => school.id === selectedSchoolId) || null
+      : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,22 +104,46 @@ export default function AccountProfileForm({
         return;
       }
 
+      const normalizedPostalCode = postalCode.trim();
+      const normalizedSchoolId = selectedSchoolId.trim();
+      const selectedSchoolName =
+        normalizedSchoolId.length > 0
+          ? schools.find((school) => school.id === normalizedSchoolId)?.name || null
+          : null;
+
       const payload = {
         id: user.id,
         full_name: fullName.trim() || null,
+        user_type: userType || null,
         grade_level: gradeLevel.trim() || null,
-        postal_code: postalCode.trim() || null,
+        postal_code: normalizedPostalCode || null,
+        school_id: normalizedSchoolId || null,
       };
 
-      const { error } = await supabase.from("profiles").upsert(payload, {
+      const { error: profileError } = await supabase.from("profiles").upsert(payload, {
         onConflict: "id",
       });
 
-      if (error) {
-        throw error;
+      if (profileError) {
+        throw profileError;
+      }
+
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName.trim() || null,
+          user_type: userType || null,
+          grade_level: gradeLevel.trim() || null,
+          postal_code: normalizedPostalCode || null,
+          school_name: selectedSchoolName,
+        },
+      });
+
+      if (authError) {
+        throw authError;
       }
 
       setSuccessMessage("Perfil actualizado correctamente.");
+      router.refresh();
     } catch (error: any) {
       console.error("Error actualizando perfil:", error);
 
@@ -104,18 +181,22 @@ export default function AccountProfileForm({
             <div className="rounded-xl border p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <User2 className="h-4 w-4" />
-                Tipo de usuario
+                Tipo de usuario actual
               </div>
-              <Badge variant="secondary">{userTypeLabel}</Badge>
+              <p className="text-sm text-muted-foreground">
+                {formatUserType(userType)}
+              </p>
             </div>
 
             <div className="rounded-xl border p-4 sm:col-span-2">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <School className="h-4 w-4" />
-                Colegio
+                Colegio actual
               </div>
               <p className="text-sm text-muted-foreground">
-                {schoolName || "Todavía no tienes un centro asignado"}
+                {selectedSchool
+                  ? `${selectedSchool.name} · ${selectedSchool.city}`
+                  : "Sin centro asignado"}
               </p>
             </div>
           </div>
@@ -132,13 +213,124 @@ export default function AccountProfileForm({
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="gradeLevel">Curso / etapa</Label>
-              <Input
-                id="gradeLevel"
-                value={gradeLevel}
-                onChange={(e) => setGradeLevel(e.target.value)}
-                placeholder="Ej: 3º ESO"
-              />
+              <Label>Tipo de usuario</Label>
+              <Select
+                value={userType || "unset"}
+                onValueChange={(value) =>
+                  setUserType(value === "unset" ? "" : (value as "parent" | "student"))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un tipo de usuario" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">Sin definir</SelectItem>
+                  <SelectItem value="parent">Familia / Tutor legal</SelectItem>
+                  <SelectItem value="student">Estudiante</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Curso / etapa</Label>
+              <Select
+                value={gradeLevel || "unset"}
+                onValueChange={(value) => setGradeLevel(value === "unset" ? "" : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">Sin indicar</SelectItem>
+                  {gradeLevelOptions.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label>Colegio</Label>
+
+              <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {selectedSchool
+                        ? `${selectedSchool.name} · ${selectedSchool.city}`
+                        : "Selecciona tu centro o déjalo vacío"}
+                    </span>
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+
+                <PopoverContent className="w-[360px] p-3" align="start">
+                  <div className="space-y-3">
+                    <Input
+                      value={schoolSearch}
+                      onChange={(e) => setSchoolSearch(e.target.value)}
+                      placeholder="Buscar por nombre, ciudad o código..."
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSchoolId("");
+                        setSchoolPopoverOpen(false);
+                        setSchoolSearch("");
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition hover:bg-muted"
+                    >
+                      <span>Sin centro asignado</span>
+                      {!selectedSchoolId ? <Check className="h-4 w-4" /> : null}
+                    </button>
+
+                    <div className="max-h-64 overflow-y-auto rounded-lg border">
+                      {filteredSchools.length === 0 ? (
+                        <div className="px-3 py-4 text-sm text-muted-foreground">
+                          No se encontraron centros.
+                        </div>
+                      ) : (
+                        filteredSchools.map((school) => {
+                          const isSelected = selectedSchoolId === school.id;
+
+                          return (
+                            <button
+                              key={school.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSchoolId(school.id);
+                                setSchoolPopoverOpen(false);
+                                setSchoolSearch("");
+                              }}
+                              className="flex w-full items-center justify-between border-b px-3 py-3 text-left transition last:border-b-0 hover:bg-muted"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">
+                                  {school.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {school.city} · {school.code}
+                                </p>
+                              </div>
+
+                              {isSelected ? (
+                                <Check className="ml-3 h-4 w-4 shrink-0" />
+                              ) : null}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -148,6 +340,7 @@ export default function AccountProfileForm({
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
                 placeholder="Ej: 28001"
+                maxLength={5}
               />
             </div>
           </div>
