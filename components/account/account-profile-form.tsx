@@ -102,11 +102,22 @@ export default function AccountProfileForm({
     ? getUserTypeLabel(userType)
     : "Selecciona un tipo de usuario";
 
+  const normalizedGradeLevelOptions = useMemo(
+    () => Array.from(new Set(gradeLevelOptions)).filter(Boolean),
+    [gradeLevelOptions]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setSuccessMessage("");
     setErrorMessage("");
+
+    if (!userType) {
+      setErrorMessage("Debes seleccionar un tipo de usuario antes de guardar.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const supabase = createClient();
@@ -132,7 +143,7 @@ export default function AccountProfileForm({
         {
           id: user.id,
           full_name: fullName.trim() || null,
-          user_type: userType || null,
+          user_type: userType,
           grade_level: gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
           school_id: normalizedSchoolId || null,
@@ -149,7 +160,7 @@ export default function AccountProfileForm({
       const { error: authError } = await supabase.auth.updateUser({
         data: {
           full_name: fullName.trim() || null,
-          user_type: userType || null,
+          user_type: userType,
           grade_level: gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
           school_name: selectedSchoolName,
@@ -233,16 +244,15 @@ export default function AccountProfileForm({
             <div className="flex flex-col gap-2">
               <Label>Tipo de usuario</Label>
               <Select
-                value={userType || "unset"}
+                value={userType || undefined}
                 onValueChange={(value) =>
-                  setUserType(value === "unset" ? "" : (value as "parent" | "student"))
+                  setUserType(value as "parent" | "student")
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona un tipo de usuario" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unset">Sin definir</SelectItem>
                   <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                   <SelectItem value="student">Estudiante</SelectItem>
                 </SelectContent>
@@ -252,15 +262,14 @@ export default function AccountProfileForm({
             <div className="flex flex-col gap-2">
               <Label>Curso / etapa</Label>
               <Select
-                value={gradeLevel || "unset"}
-                onValueChange={(value) => setGradeLevel(value === "unset" ? "" : value)}
+                value={gradeLevel || undefined}
+                onValueChange={setGradeLevel}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unset">Sin indicar</SelectItem>
-                  {gradeLevelOptions.map((level) => (
+                  {normalizedGradeLevelOptions.map((level) => (
                     <SelectItem key={level} value={level}>
                       {level}
                     </SelectItem>

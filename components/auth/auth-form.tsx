@@ -53,6 +53,11 @@ export function AuthForm() {
     return next && next.startsWith("/") ? next : null;
   }, [searchParams]);
 
+  const normalizedGradeLevels = useMemo(
+    () => Array.from(new Set(gradeLevels)).filter(Boolean),
+    []
+  );
+
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -104,6 +109,40 @@ export function AuthForm() {
   };
 
   const handleSignup = async () => {
+    const normalizedFullName = fullName.trim();
+    const normalizedEmail = email.trim();
+    const normalizedPostalCode = postalCode.trim();
+
+    if (!normalizedFullName) {
+      setError("El nombre completo es obligatorio.");
+      return;
+    }
+
+    if (!normalizedEmail) {
+      setError("El email es obligatorio.");
+      return;
+    }
+
+    if (!password.trim()) {
+      setError("La contraseña es obligatoria.");
+      return;
+    }
+
+    if (!userType) {
+      setError("Debes seleccionar un tipo de usuario.");
+      return;
+    }
+
+    if (!gradeLevel) {
+      setError("Debes seleccionar un curso o etapa.");
+      return;
+    }
+
+    if (!/^[0-9]{5}$/.test(normalizedPostalCode)) {
+      setError("Debes indicar un código postal válido de 5 dígitos.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setInfoMessage("");
@@ -116,15 +155,15 @@ export function AuthForm() {
       }
 
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           emailRedirectTo: callbackUrl.toString(),
           data: {
-            full_name: fullName,
+            full_name: normalizedFullName,
             user_type: userType,
             grade_level: gradeLevel,
-            postal_code: postalCode,
+            postal_code: normalizedPostalCode,
           },
         },
       });
@@ -134,10 +173,10 @@ export function AuthForm() {
       if (data.user?.id) {
         await upsertProfileAfterAuth({
           userId: data.user.id,
-          fullName,
+          fullName: normalizedFullName,
           userType,
           gradeLevel,
-          postalCode,
+          postalCode: normalizedPostalCode,
         });
       }
 
@@ -247,7 +286,7 @@ export function AuthForm() {
 
           {mode === "signup" && (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Nombre completo</Label>
+              <Label htmlFor="name">Nombre completo *</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -310,12 +349,15 @@ export function AuthForm() {
             <>
               <div className="flex flex-col gap-2">
                 <Label>Tipo de usuario *</Label>
-                <Select value={userType} onValueChange={(v) => setUserType(v as "parent" | "student")}>
+                <Select
+                  value={userType || undefined}
+                  onValueChange={(v) => setUserType(v as "parent" | "student")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu perfil" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="parent">Familia | Tutor legal</SelectItem>
+                    <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                     <SelectItem value="student">Estudiante</SelectItem>
                   </SelectContent>
                 </Select>
@@ -323,12 +365,12 @@ export function AuthForm() {
 
               <div className="flex flex-col gap-2">
                 <Label>Curso / Etapa *</Label>
-                <Select value={gradeLevel} onValueChange={setGradeLevel}>
+                <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona curso" />
                   </SelectTrigger>
                   <SelectContent>
-                    {gradeLevels.map((g) => (
+                    {normalizedGradeLevels.map((g) => (
                       <SelectItem key={g} value={g}>
                         {g}
                       </SelectItem>

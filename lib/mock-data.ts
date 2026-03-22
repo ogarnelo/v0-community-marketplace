@@ -134,6 +134,7 @@ export const gradeLevels = [
   "1o Bachillerato",
   "2o Bachillerato",
   "Universidad",
+  "Otros",
 ]
 
 export const conditions: ConditionOption[] = [
