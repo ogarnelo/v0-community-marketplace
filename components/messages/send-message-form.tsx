@@ -12,13 +12,18 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
+import {
+  canSendNewMessageToListing,
+  isValidListingStatus,
+  type ListingStatus,
+} from "@/lib/marketplace/listing-status";
 
 interface SendMessageFormProps {
   conversationId: string;
   disabled?: boolean;
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const ALLOWED_FILE_TYPES = [
   "image/jpeg",
@@ -38,6 +43,10 @@ function formatFileSize(size: number) {
 
 function isImageFile(file: File) {
   return file.type.startsWith("image/");
+}
+
+function getSafeListingStatus(status: unknown): ListingStatus {
+  return isValidListingStatus(status) ? status : "available";
 }
 
 export function SendMessageForm({
@@ -99,7 +108,7 @@ export function SendMessageForm({
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (disabled || !canSend) return;
+    if (disabled || !canSend || loading) return;
 
     setLoading(true);
 
@@ -113,6 +122,49 @@ export function SendMessageForm({
       if (!user) {
         window.location.assign("/auth");
         return;
+      }
+
+      const { data: conversation, error: conversationError } = await supabase
+        .from("conversations")
+        .select("id, listing_id, buyer_id, seller_id")
+        .eq("id", conversationId)
+        .maybeSingle();
+
+      if (conversationError) {
+        throw conversationError;
+      }
+
+      if (!conversation) {
+        throw new Error("La conversación ya no existe.");
+      }
+
+      if (
+        conversation.buyer_id !== user.id &&
+        conversation.seller_id !== user.id
+      ) {
+        throw new Error("No tienes permisos para enviar mensajes aquí.");
+      }
+
+      const { data: listing, error: listingError } = await supabase
+        .from("listings")
+        .select("id, status")
+        .eq("id", conversation.listing_id)
+        .maybeSingle();
+
+      if (listingError) {
+        throw listingError;
+      }
+
+      if (!listing) {
+        throw new Error("El anuncio asociado ya no existe.");
+      }
+
+      const safeStatus = getSafeListingStatus(listing.status);
+
+      if (!canSendNewMessageToListing(safeStatus)) {
+        throw new Error(
+          "Este anuncio ya no permite enviar mensajes nuevos."
+        );
       }
 
       const messageText = body.trim();
@@ -191,7 +243,7 @@ export function SendMessageForm({
         error?.message ||
         error?.error_description ||
         error?.details ||
-        JSON.stringify(error);
+        "No se pudo enviar el mensaje.";
 
       alert(`Error enviando mensaje: ${message}`);
     } finally {
@@ -210,7 +262,7 @@ export function SendMessageForm({
         disabled={disabled}
       />
 
-      {selectedFile && (
+      {selectedFile ? (
         <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="rounded-lg bg-white p-2 shadow-sm">
@@ -241,14 +293,14 @@ export function SendMessageForm({
             <X className="h-4 w-4" />
           </button>
         </div>
-      )}
+      ) : null}
 
-      {fileError && (
+      {fileError ? (
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <AlertCircle className="h-4 w-4" />
           <span>{fileError}</span>
         </div>
-      )}
+      ) : null}
 
       <div className="flex items-end gap-3">
         <button

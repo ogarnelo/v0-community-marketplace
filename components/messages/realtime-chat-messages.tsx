@@ -83,6 +83,20 @@ export default function RealtimeChatMessages({
   }, [messages]);
 
   useEffect(() => {
+    const markMessageAsRead = async (messageId: string) => {
+      const { error } = await supabase
+        .from("messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", messageId)
+        .eq("conversation_id", conversationId)
+        .neq("sender_id", currentUserId)
+        .is("read_at", null);
+
+      if (error) {
+        console.error("Error marcando mensaje como leído:", error);
+      }
+    };
+
     const channel = supabase
       .channel(`messages:${conversationId}`)
       .on(
@@ -108,6 +122,8 @@ export default function RealtimeChatMessages({
               next.add(newMessage.id);
               return next;
             });
+
+            void markMessageAsRead(newMessage.id);
           }
         }
       )
@@ -132,7 +148,7 @@ export default function RealtimeChatMessages({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [conversationId, currentUserId, supabase]);
 
@@ -147,7 +163,8 @@ export default function RealtimeChatMessages({
         const isHighlighted = highlightedIds.has(message.id);
         const hasAttachment = !!message.attachment_url;
         const isImage = isImageAttachment(message.attachment_type);
-        const showSeen = isMine && message.id === lastOwnMessageId && !!message.read_at;
+        const showSeen =
+          isMine && message.id === lastOwnMessageId && !!message.read_at;
 
         return (
           <div
@@ -162,13 +179,13 @@ export default function RealtimeChatMessages({
                     : "bg-slate-100 text-slate-900"
                 }`}
             >
-              {!isMine && isHighlighted && (
+              {!isMine && isHighlighted ? (
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
                   Nuevo
                 </p>
-              )}
+              ) : null}
 
-              {hasAttachment && isImage && message.attachment_url && (
+              {hasAttachment && isImage && message.attachment_url ? (
                 <a
                   href={message.attachment_url}
                   target="_blank"
@@ -184,9 +201,9 @@ export default function RealtimeChatMessages({
                     unoptimized
                   />
                 </a>
-              )}
+              ) : null}
 
-              {hasAttachment && !isImage && message.attachment_url && (
+              {hasAttachment && !isImage && message.attachment_url ? (
                 <a
                   href={message.attachment_url}
                   target="_blank"
@@ -219,9 +236,9 @@ export default function RealtimeChatMessages({
 
                   <Download className="h-4 w-4 shrink-0" />
                 </a>
-              )}
+              ) : null}
 
-              {message.body && <p className="text-sm">{message.body}</p>}
+              {message.body ? <p className="text-sm">{message.body}</p> : null}
 
               <div
                 className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
@@ -233,12 +250,12 @@ export default function RealtimeChatMessages({
               >
                 <span>{formatMessageDate(message.created_at)}</span>
 
-                {showSeen && (
+                {showSeen ? (
                   <span className="inline-flex items-center gap-1">
                     <CheckCheck className="h-3.5 w-3.5" />
                     Visto
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

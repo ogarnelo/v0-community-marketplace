@@ -25,7 +25,8 @@ const STATUS_CONFIG: Record<ListingStatus, ListingStatusConfig> = {
     canContact: false,
     badgeClassName:
       "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
-    containerClassName: "border-amber-200 bg-amber-50/70 text-amber-900",
+    containerClassName:
+      "border-amber-200 bg-amber-50/70 text-amber-900",
   },
   sold: {
     label: "Vendido",
@@ -56,7 +57,9 @@ export function isValidListingStatus(value: unknown): value is ListingStatus {
   );
 }
 
-export function getListingStatusConfig(status: ListingStatus): ListingStatusConfig {
+export function getListingStatusConfig(
+  status: ListingStatus
+): ListingStatusConfig {
   return STATUS_CONFIG[status];
 }
 

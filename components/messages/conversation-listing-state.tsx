@@ -33,6 +33,10 @@ export default function ConversationListingState({
   const [status, setStatus] = useState<ListingStatus>(initialStatus);
 
   useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
+  useEffect(() => {
     const channel = supabase
       .channel(`listing-status-${listingId}`)
       .on(

@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,6 +20,25 @@ import {
   Package,
   GraduationCap,
 } from "lucide-react";
+
+type ListingRow = {
+  id: string;
+  title: string | null;
+  category: string | null;
+  grade_level: string | null;
+  condition: string | null;
+  type: string | null;
+  price: number | null;
+  status: string | null;
+  created_at: string | null;
+};
+
+type ListingPhotoRow = {
+  id: string;
+  listing_id: string;
+  url: string;
+  sort_order: number | null;
+};
 
 function getInitials(name?: string | null) {
   if (!name || !name.trim()) return "U";
@@ -95,7 +120,9 @@ export default async function PublicProfilePage({
       currentProfile?.user_type === "school_admin" ||
       currentProfile?.user_type === "super_admin";
 
-    const conversationIds = (conversations || []).map((conversation: any) => conversation.id);
+    const conversationIds = (conversations || []).map(
+      (conversation: any) => conversation.id
+    );
 
     if (conversationIds.length > 0) {
       const { data: unreadMessages } = await supabase
@@ -125,12 +152,33 @@ export default async function PublicProfilePage({
     .eq("reviewed_user_id", id)
     .order("created_at", { ascending: false });
 
-  const { data: activeListings } = await supabase
+  const { data: activeListingsData } = await supabase
     .from("listings")
-    .select("id, title, category, grade_level, condition, type, price, status, created_at")
+    .select(
+      "id, title, category, grade_level, condition, type, price, status, created_at"
+    )
     .eq("seller_id", id)
     .eq("status", "available")
     .order("created_at", { ascending: false });
+
+  const activeListings = (activeListingsData || []) as ListingRow[];
+  const activeListingIds = activeListings.map((listing) => listing.id);
+
+  const firstPhotoMap = new Map<string, string>();
+
+  if (activeListingIds.length > 0) {
+    const { data: photosData } = await supabase
+      .from("listing_photos")
+      .select("id, listing_id, url, sort_order")
+      .in("listing_id", activeListingIds)
+      .order("sort_order", { ascending: true });
+
+    for (const photo of (photosData || []) as ListingPhotoRow[]) {
+      if (!firstPhotoMap.has(photo.listing_id)) {
+        firstPhotoMap.set(photo.listing_id, photo.url);
+      }
+    }
+  }
 
   const reviewCount = reviews?.length || 0;
   const averageRating =
@@ -190,19 +238,19 @@ export default async function PublicProfilePage({
                 </div>
 
                 <div className="mt-6 space-y-3 rounded-2xl border p-4">
-                  {sellerPostalCode && (
+                  {sellerPostalCode ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="h-4 w-4" />
                       <span>{sellerPostalCode}</span>
                     </div>
-                  )}
+                  ) : null}
 
-                  {sellerGradeLevel && (
+                  {sellerGradeLevel ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <GraduationCap className="h-4 w-4" />
                       <span>{sellerGradeLevel}</span>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <User className="h-4 w-4" />
@@ -240,7 +288,7 @@ export default async function PublicProfilePage({
                     <Package className="h-4 w-4" />
                     Anuncios activos
                   </div>
-                  <p className="text-2xl font-bold">{activeListings?.length || 0}</p>
+                  <p className="text-2xl font-bold">{activeListings.length}</p>
                 </div>
               </CardContent>
             </Card>
@@ -255,46 +303,70 @@ export default async function PublicProfilePage({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!activeListings || activeListings.length === 0 ? (
+                {activeListings.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Este usuario no tiene anuncios activos en este momento.
                   </p>
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {activeListings.map((listing) => (
-                      <Link
-                        key={listing.id}
-                        href={`/marketplace/listing/${listing.id}`}
-                        className="rounded-2xl border p-4 transition hover:bg-muted/40"
-                      >
-                        <div className="mb-3 flex flex-wrap gap-2">
-                          <Badge variant="secondary">
-                            {listing.category || "Sin categoría"}
-                          </Badge>
-                          <Badge variant="outline">
-                            {getConditionLabel(listing.condition)}
-                          </Badge>
-                        </div>
+                    {activeListings.map((listing) => {
+                      const firstPhoto = firstPhotoMap.get(listing.id) || null;
+                      const isDonation = (listing.type || "sale") === "donation";
 
-                        <h3 className="line-clamp-2 font-semibold">
-                          {listing.title || "Anuncio sin título"}
-                        </h3>
+                      return (
+                        <Link
+                          key={listing.id}
+                          href={`/marketplace/listing/${listing.id}`}
+                          className="overflow-hidden rounded-2xl border transition hover:bg-muted/40"
+                        >
+                          <div
+                            className="flex items-center justify-center bg-muted"
+                            style={{ aspectRatio: "4 / 3" }}
+                          >
+                            {firstPhoto ? (
+                              <img
+                                src={firstPhoto}
+                                alt={listing.title || "Anuncio"}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="select-none font-mono text-5xl text-muted-foreground/15">
+                                {(listing.category || "A").charAt(0)}
+                              </span>
+                            )}
+                          </div>
 
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          {listing.grade_level || "Sin curso"}
-                        </div>
+                          <div className="p-4">
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              <Badge variant="secondary">
+                                {listing.category || "Sin categoría"}
+                              </Badge>
+                              <Badge variant="outline">
+                                {getConditionLabel(listing.condition)}
+                              </Badge>
+                            </div>
 
-                        <div className="mt-4 text-lg font-bold">
-                          {(listing.type || "sale") === "donation"
-                            ? "Gratis"
-                            : listing.price != null
-                              ? `${listing.price}€`
-                              : "Consultar"}
-                        </div>
-                      </Link>
-                    ))}
+                            <h3 className="line-clamp-2 font-semibold">
+                              {listing.title || "Anuncio sin título"}
+                            </h3>
+
+                            <div className="mt-2 text-sm text-muted-foreground">
+                              {listing.grade_level || "Sin curso"}
+                            </div>
+
+                            <div className="mt-4 text-lg font-bold">
+                              {isDonation
+                                ? "Gratis"
+                                : listing.price != null
+                                  ? `${listing.price}€`
+                                  : "Consultar"}
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
-                )}
+                ) ? null : null}
               </CardContent>
             </Card>
 
@@ -319,9 +391,12 @@ export default async function PublicProfilePage({
                             {"⭐".repeat(review.rating)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(review.created_at).toLocaleDateString("es-ES", {
-                              timeZone: "Europe/Madrid",
-                            })}
+                            {new Date(review.created_at).toLocaleDateString(
+                              "es-ES",
+                              {
+                                timeZone: "Europe/Madrid",
+                              }
+                            )}
                           </p>
                         </div>
 
@@ -333,7 +408,7 @@ export default async function PublicProfilePage({
                       </div>
                     ))}
                   </div>
-                )}
+                ) ? null : null}
               </CardContent>
             </Card>
           </div>
