@@ -135,6 +135,11 @@ export default function NewListingForm({
     return initialSchoolName;
   }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
 
+  const normalizedGradeLevels = useMemo(
+    () => Array.from(new Set(gradeLevels)).filter(Boolean),
+    []
+  );
+
   useEffect(() => {
     return () => {
       photos.forEach((photo) => {
@@ -448,7 +453,7 @@ export default function NewListingForm({
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {gradeLevels.map((g) => (
+                      {normalizedGradeLevels.map((g) => (
                         <SelectItem key={g} value={g}>
                           {g}
                         </SelectItem>

@@ -114,6 +114,11 @@ export default function EditListingPage() {
 
   const isTextbook = selectedCategory === "Libros de texto";
 
+  const normalizedGradeLevels = useMemo(
+    () => Array.from(new Set(gradeLevels)).filter(Boolean),
+    []
+  );
+
   const visibleExistingPhotos = useMemo(
     () => existingPhotos.filter((photo) => !removedPhotoIds.includes(photo.id)),
     [existingPhotos, removedPhotoIds]
@@ -608,7 +613,7 @@ export default function EditListingPage() {
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {gradeLevels.map((g) => (
+                      {normalizedGradeLevels.map((g) => (
                         <SelectItem key={g} value={g}>
                           {g}
                         </SelectItem>
