@@ -1,7 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import {
+  categories,
+  gradeLevels,
+  conditions,
+  bookFormats,
+  bookLanguages,
+  schools,
+} from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,49 +37,286 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  categories,
-  gradeLevels,
-  conditions,
-  bookFormats,
-  bookLanguages,
-  currentSchool,
-} from "@/lib/mock-data";
-import {
   Loader2,
   ImagePlus,
   ArrowLeft,
   X,
   HelpCircle,
   BookOpen,
+  Upload,
+  School,
+  AlertCircle,
 } from "lucide-react";
-import Link from "next/link";
 
-export default function NewListingForm() {
+type NewListingFormProps = {
+  initialSchoolId: string;
+  initialSchoolName: string;
+  initialSchoolCity: string;
+};
+
+const MAX_FILES = 5;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
+type PreviewFile = {
+  file: File;
+  previewUrl: string;
+};
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+}
+
+export default function NewListingForm({
+  initialSchoolId,
+  initialSchoolName,
+  initialSchoolCity,
+}: NewListingFormProps) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [isDonation, setIsDonation] = useState(false);
-  const [photos, setPhotos] = useState<string[]>([]);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedGradeLevel, setSelectedGradeLevel] = useState("");
+  const [selectedCondition, setSelectedCondition] = useState("");
+  const [price, setPrice] = useState("");
+  const [originalPrice, setOriginalPrice] = useState("");
+
+  const [isbn, setIsbn] = useState("");
+  const [author, setAuthor] = useState("");
+  const [publisher, setPublisher] = useState("");
+  const [bookFormat, setBookFormat] = useState("");
+  const [bookLanguage, setBookLanguage] = useState("");
+
+  const [photos, setPhotos] = useState<PreviewFile[]>([]);
+  const [photoError, setPhotoError] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const isTextbook = selectedCategory === "Libros de texto";
 
-  const handleAddPhoto = () => {
-    if (photos.length < 5) {
-      setPhotos((prev) => [...prev, `Foto ${prev.length + 1}`]);
+  const schoolLabel = useMemo(() => {
+    if (!initialSchoolId) return "Sin centro asignado";
+    if (initialSchoolCity?.trim()) {
+      return `${initialSchoolName}, ${initialSchoolCity}`;
+    }
+    return initialSchoolName;
+  }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
+
+  const handlePickPhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const incomingFiles = Array.from(event.target.files || []);
+    setPhotoError("");
+
+    if (incomingFiles.length === 0) return;
+
+    const availableSlots = MAX_FILES - photos.length;
+
+    if (availableSlots <= 0) {
+      setPhotoError("Solo puedes subir un máximo de 5 fotos.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const nextFiles = incomingFiles.slice(0, availableSlots);
+    const accepted: PreviewFile[] = [];
+
+    for (const file of nextFiles) {
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        setPhotoError("Solo se permiten imágenes JPG, PNG, WEBP o GIF.");
+        continue;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        setPhotoError("Cada imagen debe pesar menos de 10 MB.");
+        continue;
+      }
+
+      accepted.push({
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+
+    if (accepted.length > 0) {
+      setPhotos((prev) => [...prev, ...accepted]);
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
   const handleRemovePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotos((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const uploadPhotos = async (userId: string) => {
+    const supabase = createClient();
+
+    if (photos.length === 0) return [];
+
+    const uploadedUrls: string[] = [];
+
+    for (let index = 0; index < photos.length; index += 1) {
+      const item = photos[index];
+      const file = item.file;
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const safeName = sanitizeFileName(file.name);
+      const path = `${userId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("listing-images")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("listing-images")
+        .getPublicUrl(path);
+
+      if (publicUrlData?.publicUrl) {
+        uploadedUrls.push(publicUrlData.publicUrl);
+      }
+    }
+
+    return uploadedUrls;
+  };
+
+  const insertListing = async (payload: Record<string, unknown>) => {
+    const supabase = createClient();
+
+    const firstAttempt = await supabase
+      .from("listings")
+      .insert(payload)
+      .select("id")
+      .single();
+
+    if (!firstAttempt.error) {
+      return firstAttempt;
+    }
+
+    const errorMessage =
+      firstAttempt.error.message ||
+      firstAttempt.error.details ||
+      firstAttempt.error.hint ||
+      "";
+
+    if (!errorMessage.toLowerCase().includes("photos")) {
+      return firstAttempt;
+    }
+
+    const { photos: _photos, ...payloadWithoutPhotos } = payload;
+
+    return supabase
+      .from("listings")
+      .insert(payloadWithoutPhotos)
+      .select("id")
+      .single();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSubmitError("");
+    setPhotoError("");
 
-    setTimeout(() => {
-      router.push("/marketplace");
-    }, 1000);
+    try {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.assign("/auth?next=/marketplace/new");
+        return;
+      }
+
+      const { data: currentProfile } = await supabase
+        .from("profiles")
+        .select("school_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const effectiveSchoolId =
+        currentProfile?.school_id && currentProfile.school_id.trim().length > 0
+          ? currentProfile.school_id
+          : initialSchoolId || null;
+
+      const uploadedPhotoUrls = await uploadPhotos(user.id);
+
+      const payload: Record<string, unknown> = {
+        title: title.trim(),
+        description: description.trim(),
+        category: selectedCategory,
+        grade_level: selectedGradeLevel,
+        condition: selectedCondition,
+        type: isDonation ? "donation" : "sale",
+        price: isDonation ? null : price ? Number(price) : null,
+        original_price: isDonation
+          ? null
+          : originalPrice
+            ? Number(originalPrice)
+            : null,
+        seller_id: user.id,
+        school_id: effectiveSchoolId,
+        status: "available",
+        photos: uploadedPhotoUrls,
+      };
+
+      const { data: insertedListing, error: insertError } = await insertListing(
+        payload
+      );
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      const listingId = insertedListing?.id;
+
+      if (!listingId) {
+        router.push("/marketplace");
+        router.refresh();
+        return;
+      }
+
+      router.push(`/marketplace/listing/${listingId}`);
+      router.refresh();
+    } catch (error: any) {
+      console.error("Error publicando anuncio:", error);
+
+      setSubmitError(
+        error?.message ||
+        error?.details ||
+        error?.error_description ||
+        "No se pudo publicar el anuncio."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,16 +337,27 @@ export default function NewListingForm() {
             </CardTitle>
             <CardDescription>
               Publica material escolar para vender o donar a tu comunidad en{" "}
-              {currentSchool.name}
+              {initialSchoolId ? initialSchoolName : "tu comunidad educativa"}.
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.gif"
+                multiple
+                className="hidden"
+                onChange={handleFilesSelected}
+              />
+
               <div className="flex flex-col gap-2">
                 <Label htmlFor="title">Titulo *</Label>
                 <Input
                   id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   placeholder="Ej: Libro Matematicas 3o ESO"
                   required
                 />
@@ -109,6 +367,8 @@ export default function NewListingForm() {
                 <Label htmlFor="description">Descripcion *</Label>
                 <Textarea
                   id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe el estado, editorial, edicion..."
                   rows={4}
                   required
@@ -138,7 +398,11 @@ export default function NewListingForm() {
 
                 <div className="flex flex-col gap-2">
                   <Label>Curso / Etapa *</Label>
-                  <Select required>
+                  <Select
+                    value={selectedGradeLevel}
+                    onValueChange={setSelectedGradeLevel}
+                    required
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
@@ -155,7 +419,11 @@ export default function NewListingForm() {
 
               <div className="flex flex-col gap-2">
                 <Label>Estado del material *</Label>
-                <Select required>
+                <Select
+                  value={selectedCondition}
+                  onValueChange={setSelectedCondition}
+                  required
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar..." />
                   </SelectTrigger>
@@ -174,7 +442,7 @@ export default function NewListingForm() {
                 </Select>
               </div>
 
-              {isTextbook && (
+              {isTextbook ? (
                 <Card className="border-border bg-muted/30">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base text-foreground">
@@ -196,6 +464,7 @@ export default function NewListingForm() {
                               variant="ghost"
                               size="icon"
                               className="h-5 w-5 rounded-full"
+                              type="button"
                             >
                               <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
                               <span className="sr-only">Que es el ISBN</span>
@@ -213,18 +482,30 @@ export default function NewListingForm() {
                           </PopoverContent>
                         </Popover>
                       </div>
-                      <Input id="isbn" placeholder="978-84-XXXXXXXXX" />
+                      <Input
+                        id="isbn"
+                        value={isbn}
+                        onChange={(e) => setIsbn(e.target.value)}
+                        placeholder="978-84-XXXXXXXXX"
+                      />
                     </div>
 
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="author">Autor</Label>
-                      <Input id="author" placeholder="Nombre del autor" />
+                      <Input
+                        id="author"
+                        value={author}
+                        onChange={(e) => setAuthor(e.target.value)}
+                        placeholder="Nombre del autor"
+                      />
                     </div>
 
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="publisher">Editorial</Label>
                       <Input
                         id="publisher"
+                        value={publisher}
+                        onChange={(e) => setPublisher(e.target.value)}
                         placeholder="Ej: SM, Anaya, Santillana..."
                       />
                     </div>
@@ -232,7 +513,7 @@ export default function NewListingForm() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="flex flex-col gap-2">
                         <Label>Formato</Label>
-                        <Select>
+                        <Select value={bookFormat} onValueChange={setBookFormat}>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar..." />
                           </SelectTrigger>
@@ -248,7 +529,10 @@ export default function NewListingForm() {
 
                       <div className="flex flex-col gap-2">
                         <Label>Idioma</Label>
-                        <Select>
+                        <Select
+                          value={bookLanguage}
+                          onValueChange={setBookLanguage}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar..." />
                           </SelectTrigger>
@@ -264,7 +548,7 @@ export default function NewListingForm() {
                     </div>
                   </CardContent>
                 </Card>
-              )}
+              ) : null}
 
               <div className="flex items-center gap-4 rounded-lg border border-border p-4">
                 <div className="flex-1">
@@ -280,7 +564,7 @@ export default function NewListingForm() {
                 <Switch checked={isDonation} onCheckedChange={setIsDonation} />
               </div>
 
-              {!isDonation && (
+              {!isDonation ? (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="price">Precio *</Label>
@@ -292,6 +576,8 @@ export default function NewListingForm() {
                         step="0.5"
                         placeholder="0"
                         className="pr-8"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
                         required
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -312,6 +598,8 @@ export default function NewListingForm() {
                         step="0.5"
                         placeholder="0"
                         className="pr-8"
+                        value={originalPrice}
+                        onChange={(e) => setOriginalPrice(e.target.value)}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                         &euro;
@@ -319,19 +607,21 @@ export default function NewListingForm() {
                     </div>
                   </div>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex flex-col gap-2">
                 <Label>Fotos (max. 5)</Label>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                   {photos.map((photo, i) => (
                     <div
-                      key={i}
-                      className="relative aspect-square rounded-lg border border-border bg-muted"
+                      key={`${photo.file.name}-${i}`}
+                      className="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
                     >
-                      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                        {photo}
-                      </div>
+                      <img
+                        src={photo.previewUrl}
+                        alt={photo.file.name}
+                        className="h-full w-full object-cover"
+                      />
                       <button
                         type="button"
                         onClick={() => handleRemovePhoto(i)}
@@ -342,33 +632,59 @@ export default function NewListingForm() {
                     </div>
                   ))}
 
-                  {photos.length < 5 && (
+                  {photos.length < MAX_FILES ? (
                     <button
                       type="button"
-                      onClick={handleAddPhoto}
-                      className="flex aspect-square items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:border-primary hover:bg-primary/5"
+                      onClick={handlePickPhoto}
+                      className="flex aspect-square flex-col items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:border-primary hover:bg-primary/5"
                     >
                       <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                      <span className="mt-2 text-[11px] text-muted-foreground">
+                        Añadir
+                      </span>
                     </button>
-                  )}
+                  ) : null}
                 </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Puedes subir hasta 5 imágenes. Formatos permitidos: JPG, PNG,
+                  WEBP y GIF.
+                </p>
+
+                {photoError ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{photoError}</span>
+                  </div>
+                ) : null}
               </div>
 
               <div className="rounded-lg border border-border bg-muted/50 p-3">
-                <p className="text-sm text-muted-foreground">
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <School className="h-4 w-4" />
                   Ubicacion:{" "}
                   <span className="font-medium text-foreground">
-                    {currentSchool.name}, {currentSchool.city}
+                    {schoolLabel}
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Se usara la ubicacion aproximada de tu centro
+                  Se usará el centro asociado a tu perfil en este momento.
                 </p>
               </div>
 
+              {submitError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {submitError}
+                </div>
+              ) : null}
+
               <div className="flex gap-3">
                 <Button type="submit" className="flex-1" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
                   Publicar anuncio
                 </Button>
 
@@ -376,6 +692,7 @@ export default function NewListingForm() {
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
+                  disabled={loading}
                 >
                   Cancelar
                 </Button>

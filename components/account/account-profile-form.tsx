@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save, School, Mail, User2, Search, Check } from "lucide-react";
 import {
@@ -25,7 +31,7 @@ type SchoolOption = {
   id: string;
   name: string;
   city: string | null;
-  code: string | null;
+  postal_code: string | null;
 };
 
 type AccountProfileFormProps = {
@@ -76,12 +82,13 @@ export default function AccountProfileForm({
 
     if (!query) return schoolOptions;
 
-    return schoolOptions.filter(
-      (school) =>
+    return schoolOptions.filter((school) => {
+      return (
         school.name.toLowerCase().includes(query) ||
         (school.city || "").toLowerCase().includes(query) ||
-        (school.code || "").toLowerCase().includes(query)
-    );
+        (school.postal_code || "").toLowerCase().includes(query)
+      );
+    });
   }, [schoolSearch, schoolOptions]);
 
   const selectedSchool =
@@ -123,9 +130,9 @@ export default function AccountProfileForm({
         school_id: normalizedSchoolId || null,
       };
 
-      const { error: profileError } = await supabase.from("profiles").upsert(payload, {
-        onConflict: "id",
-      });
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(payload, { onConflict: "id" });
 
       if (profileError) {
         throw profileError;
@@ -149,7 +156,6 @@ export default function AccountProfileForm({
       router.refresh();
     } catch (error: any) {
       console.error("Error actualizando perfil:", error);
-
       setErrorMessage(
         error?.message ||
         error?.error_description ||
@@ -271,7 +277,7 @@ export default function AccountProfileForm({
                     <Input
                       value={schoolSearch}
                       onChange={(e) => setSchoolSearch(e.target.value)}
-                      placeholder="Buscar por nombre, ciudad o código..."
+                      placeholder="Buscar por nombre, ciudad o código postal..."
                     />
 
                     <button
@@ -312,7 +318,7 @@ export default function AccountProfileForm({
                                   {school.name}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {[school.city, school.code].filter(Boolean).join(" · ")}
+                                  {[school.city, school.postal_code].filter(Boolean).join(" · ")}
                                 </p>
                               </div>
 
@@ -321,8 +327,7 @@ export default function AccountProfileForm({
                               ) : null}
                             </button>
                           );
-                        })
-                      )}
+                        })}
                     </div>
                   </div>
                 </PopoverContent>

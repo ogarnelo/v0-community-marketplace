@@ -27,7 +27,7 @@ type SchoolOption = {
   id: string;
   name: string;
   city: string | null;
-  code: string | null;
+  postal_code: string | null;
 };
 
 type SafeUserMetadata = {
@@ -83,28 +83,30 @@ export default async function AccountPage() {
 
   const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 
-  const [{ data: profile }, { data: schoolsData }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select(
-        "id, full_name, user_type, grade_level, postal_code, school_id, created_at"
-      )
-      .eq("id", user.id)
-      .maybeSingle<AccountProfile>(),
-    supabase
-      .from("schools")
-      .select("id, name, city, code")
-      .order("name", { ascending: true }),
-  ]);
+  const profileResponse = await supabase
+    .from("profiles")
+    .select("id, full_name, user_type, grade_level, postal_code, school_id, created_at")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  const schools: SchoolOption[] = (schoolsData || []).map((school: any) => ({
+  const schoolsResponse = await supabase
+    .from("schools")
+    .select("id, name, city, postal_code")
+    .order("name", { ascending: true });
+
+  const profile = (profileResponse.data || null) as AccountProfile | null;
+
+  const schools: SchoolOption[] = ((schoolsResponse.data || []) as any[]).map((school) => ({
     id: school.id,
     name: school.name,
     city: school.city ?? null,
-    code: school.code ?? null,
+    postal_code: school.postal_code ?? null,
   }));
 
-  const gradeLevelOptions = [...gradeLevels.filter((level) => level !== "Otros"), "Otros"];
+  const gradeLevelOptions = [
+    ...gradeLevels.filter((level) => level !== "Otros"),
+    "Otros",
+  ];
 
   const fullName =
     profile?.full_name || metadata.full_name || user.email || "Mi cuenta";
@@ -121,7 +123,8 @@ export default async function AccountPage() {
 
   const schoolName =
     selectedSchool?.name ||
-    (typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0
+    (typeof metadata.school_name === "string" &&
+      metadata.school_name.trim().length > 0
       ? metadata.school_name.trim()
       : "Centro no asignado");
 
