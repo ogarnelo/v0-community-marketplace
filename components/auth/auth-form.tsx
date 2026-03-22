@@ -1,104 +1,207 @@
-"use client"
+"use client";
 
-import { useMemo, useState } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Mail, Lock, User, MapPin } from "lucide-react"
-import { gradeLevels } from "@/lib/mock-data"
-import { createClient } from "@/lib/supabase/client"
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Mail, Lock, User, MapPin } from "lucide-react";
+import { gradeLevels } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 
-type AuthMode = "login" | "signup" | "forgot"
+type AuthMode = "login" | "signup" | "forgot";
+
+async function upsertProfileAfterAuth(params: {
+  userId: string;
+  fullName: string;
+  userType: "parent" | "student" | "";
+  gradeLevel: string;
+  postalCode: string;
+}) {
+  const supabase = createClient();
+
+  const payload = {
+    id: params.userId,
+    full_name: params.fullName.trim() || null,
+    user_type: params.userType || null,
+    grade_level: params.gradeLevel.trim() || null,
+    postal_code: params.postalCode.trim() || null,
+  };
+
+  const { error } = await supabase.from("profiles").upsert(payload, {
+    onConflict: "id",
+  });
+
+  if (error) {
+    throw error;
+  }
+}
 
 export function AuthForm() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const supabase = createClient()
+  const searchParams = useSearchParams();
+  const supabase = createClient();
 
   const initialMode = useMemo<AuthMode>(
     () => (searchParams.get("mode") === "signup" ? "signup" : "login"),
     [searchParams]
-  )
+  );
 
-  const [mode, setMode] = useState<AuthMode>(initialMode)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const nextPath = useMemo(() => {
+    const next = searchParams.get("next");
+    return next && next.startsWith("/") ? next : null;
+  }, [searchParams]);
 
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [userType, setUserType] = useState<"parent" | "student" | "">("")
-  const [gradeLevel, setGradeLevel] = useState("")
-  const [postalCode, setPostalCode] = useState("")
+  const normalizedGradeLevels = useMemo(
+    () => Array.from(new Set(gradeLevels)).filter(Boolean),
+    []
+  );
+
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [userType, setUserType] = useState<"parent" | "student" | "">("");
+  const [gradeLevel, setGradeLevel] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   const handleForgot = async () => {
-    setLoading(true)
-    setError("")
+    setLoading(true);
+    setError("");
+    setInfoMessage("");
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth?mode=login`,
-      })
-      if (error) throw error
-      setMode("login")
+      });
+
+      if (error) throw error;
+
+      setMode("login");
+      setInfoMessage("Te hemos enviado un enlace para restablecer tu contraseña.");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo enviar el enlace. Inténtalo de nuevo.")
+      setError(e?.message ?? "No se pudo enviar el enlace. Inténtalo de nuevo.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleLogin = async () => {
-    setLoading(true)
-    setError("")
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
+    setLoading(true);
+    setError("");
+    setInfoMessage("");
 
-      window.location.assign("/account")
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      window.location.assign(nextPath || "/account");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.")
+      setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSignup = async () => {
-    setLoading(true)
-    setError("")
+    const normalizedFullName = fullName.trim();
+    const normalizedEmail = email.trim();
+    const normalizedPostalCode = postalCode.trim();
+
+    if (!normalizedFullName) {
+      setError("El nombre completo es obligatorio.");
+      return;
+    }
+
+    if (!normalizedEmail) {
+      setError("El email es obligatorio.");
+      return;
+    }
+
+    if (!password.trim()) {
+      setError("La contraseña es obligatoria.");
+      return;
+    }
+
+    if (!userType) {
+      setError("Debes seleccionar un tipo de usuario.");
+      return;
+    }
+
+    if (!gradeLevel) {
+      setError("Debes seleccionar un curso o etapa.");
+      return;
+    }
+
+    if (!/^[0-9]{5}$/.test(normalizedPostalCode)) {
+      setError("Debes indicar un código postal válido de 5 dígitos.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setInfoMessage("");
+
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+
+      if (nextPath) {
+        callbackUrl.searchParams.set("next", nextPath);
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: callbackUrl.toString(),
           data: {
-            full_name: fullName,
+            full_name: normalizedFullName,
             user_type: userType,
             grade_level: gradeLevel,
-            postal_code: postalCode,
+            postal_code: normalizedPostalCode,
           },
         },
-      })
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      window.location.assign("/account")
+      if (data.user?.id) {
+        await upsertProfileAfterAuth({
+          userId: data.user.id,
+          fullName: normalizedFullName,
+          userType,
+          gradeLevel,
+          postalCode: normalizedPostalCode,
+        });
+      }
+
+      if (data.session) {
+        window.location.assign(nextPath || "/onboarding/join-school");
+        return;
+      }
+
+      setInfoMessage(
+        "Cuenta creada. Revisa tu email para confirmar el registro y completar el acceso."
+      );
+      setMode("login");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo crear la cuenta. Inténtalo de nuevo.")
+      setError(e?.message ?? "No se pudo crear la cuenta. Inténtalo de nuevo.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (mode === "forgot") return handleForgot()
-    if (mode === "signup") return handleSignup()
-    return handleLogin()
-  }
+    e.preventDefault();
+    if (mode === "forgot") return handleForgot();
+    if (mode === "signup") return handleSignup();
+    return handleLogin();
+  };
 
   if (mode === "forgot") {
     return (
@@ -109,9 +212,20 @@ export function AuthForm() {
             Introduce tu email y te enviaremos un enlace para restablecer tu contraseña.
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+            {error && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            {infoMessage && (
+              <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
+                {infoMessage}
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email</Label>
@@ -140,7 +254,7 @@ export function AuthForm() {
           </form>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -158,11 +272,21 @@ export function AuthForm() {
 
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          {error && (
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {infoMessage && (
+            <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
+              {infoMessage}
+            </div>
+          )}
 
           {mode === "signup" && (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Nombre completo</Label>
+              <Label htmlFor="name">Nombre completo *</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -206,6 +330,7 @@ export function AuthForm() {
                 </button>
               )}
             </div>
+
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -224,12 +349,15 @@ export function AuthForm() {
             <>
               <div className="flex flex-col gap-2">
                 <Label>Tipo de usuario *</Label>
-                <Select value={userType} onValueChange={(v) => setUserType(v as "parent" | "student")}>
+                <Select
+                  value={userType || undefined}
+                  onValueChange={(v) => setUserType(v as "parent" | "student")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu perfil" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="parent">Familia | Tutor legal</SelectItem>
+                    <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                     <SelectItem value="student">Estudiante</SelectItem>
                   </SelectContent>
                 </Select>
@@ -237,12 +365,12 @@ export function AuthForm() {
 
               <div className="flex flex-col gap-2">
                 <Label>Curso / Etapa *</Label>
-                <Select value={gradeLevel} onValueChange={setGradeLevel}>
+                <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona curso" />
                   </SelectTrigger>
                   <SelectContent>
-                    {gradeLevels.map((g) => (
+                    {normalizedGradeLevels.map((g) => (
                       <SelectItem key={g} value={g}>
                         {g}
                       </SelectItem>
@@ -304,5 +432,5 @@ export function AuthForm() {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

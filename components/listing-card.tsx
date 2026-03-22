@@ -1,82 +1,79 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { MapPin, Heart } from "lucide-react"
+import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { MapPin } from "lucide-react";
+import { FavoriteButton } from "@/components/favorites/favorite-button";
+import { getConditionLabel } from "@/lib/marketplace/formatters";
 
 type ListingCardData = {
-  id: string
-  title: string
-  description?: string | null
-  category?: string | null
-  gradeLevel?: string | null
-  condition?: string | null
-  type?: string | null
-  price?: number
-  originalPrice?: number
-  photos?: string[]
-  sellerId?: string | null
-  schoolId?: string | null
-  status?: string | null
-  createdAt?: string | null
-  distance?: number
-}
+  id: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  gradeLevel?: string | null;
+  condition?: string | null;
+  type?: string | null;
+  price?: number;
+  originalPrice?: number;
+  photos?: string[];
+  sellerId?: string | null;
+  schoolId?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  distance?: number;
+  isFavorite?: boolean;
+};
 
 interface ListingCardProps {
-  listing: ListingCardData
-  currentSchoolId?: string
-}
-
-const conditionLabels: Record<string, string> = {
-  new_with_tags: "Nuevo con etiquetas",
-  new_without_tags: "Nuevo sin etiquetas",
-  very_good: "Muy bueno",
-  good: "Bueno",
-  satisfactory: "Satisfactorio",
+  listing: ListingCardData;
+  currentSchoolId?: string;
 }
 
 export function ListingCard({
   listing,
   currentSchoolId = "",
 }: ListingCardProps) {
-  const [isFav, setIsFav] = useState(false)
-
   const isSameSchool =
     !!listing.schoolId &&
     !!currentSchoolId &&
-    listing.schoolId === currentSchoolId
+    listing.schoolId === currentSchoolId;
 
-  const isDonation = listing.type === "donation"
-  const hasDistance = !isSameSchool && listing.distance != null
+  const isDonation = listing.type === "donation";
+  const hasDistance = !isSameSchool && listing.distance != null;
+  const mainPhoto = listing.photos?.[0] || null;
 
-  const categoryText = listing.category || "Sin categoría"
-  const titleText = listing.title || "Anuncio sin título"
-  const gradeText = listing.gradeLevel || "Sin curso"
-  const conditionText =
-    (listing.condition && conditionLabels[listing.condition]) ||
-    listing.condition ||
-    "Sin estado"
+  const categoryText = listing.category || "Sin categoría";
+  const titleText = listing.title || "Anuncio sin título";
+  const gradeText = listing.gradeLevel || "Sin curso";
+  const conditionText = getConditionLabel(listing.condition);
 
   return (
     <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
-        <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-          <div className="flex h-full items-center justify-center bg-muted">
-            <span className="select-none font-mono text-5xl text-muted-foreground/15">
-              {categoryText.charAt(0)}
-            </span>
-          </div>
+        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
+          {mainPhoto ? (
+            <img
+              src={mainPhoto}
+              alt={titleText}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-muted">
+              <span className="select-none font-mono text-5xl text-muted-foreground/15">
+                {categoryText.charAt(0)}
+              </span>
+            </div>
+          )}
 
-          {isDonation && (
+          {isDonation ? (
             <Badge className="absolute left-2.5 top-2.5 rounded-md border-0 bg-[#7EBA28] px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">
               Donación
             </Badge>
-          )}
+          ) : null}
 
-          {(isSameSchool || hasDistance) && (
+          {isSameSchool || hasDistance ? (
             <div className="absolute right-2.5 top-2.5">
               <Badge
                 variant={isSameSchool ? "default" : "outline"}
@@ -90,27 +87,14 @@ export function ListingCard({
                 {isSameSchool ? "Mi centro" : `${listing.distance} km`}
               </Badge>
             </div>
-          )}
+          ) : null}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-card/80 shadow-sm backdrop-blur-sm hover:bg-card"
-            onClick={(e) => {
-              e.preventDefault()
-              setIsFav(!isFav)
-            }}
-          >
-            <Heart
-              className={`h-4 w-4 transition-colors ${isFav
-                  ? "fill-destructive text-destructive"
-                  : "text-muted-foreground"
-                }`}
-            />
-            <span className="sr-only">
-              {isFav ? "Quitar de favoritos" : "Añadir a favoritos"}
-            </span>
-          </Button>
+          <FavoriteButton
+            listingId={listing.id}
+            initialIsFavorite={!!listing.isFavorite}
+            className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-card/80 shadow-sm backdrop-blur-sm transition hover:bg-card"
+            iconClassName="h-4 w-4"
+          />
         </div>
       </Link>
 
@@ -119,49 +103,39 @@ export function ListingCard({
           {categoryText}
         </span>
 
-        <Link href={`/marketplace/listing/${listing.id}`} className="block mt-0.5">
-          <h3 className="truncate text-sm font-semibold text-foreground leading-snug group-hover:text-primary transition-colors">
+        <Link href={`/marketplace/listing/${listing.id}`} className="mt-0.5 block">
+          <h3 className="truncate text-sm font-semibold leading-snug text-foreground transition-colors group-hover:text-primary">
             {titleText}
           </h3>
         </Link>
 
-        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] text-muted-foreground">
-            {gradeText}
-          </span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground">{gradeText}</span>
 
-          <span className="text-muted-foreground/40 text-[10px]">
-            •
-          </span>
+          <span className="text-[10px] text-muted-foreground/40">•</span>
 
           <Badge
             variant="outline"
-            className="text-[10px] px-1.5 py-0 h-[18px] font-normal rounded-md border-border"
+            className="h-[18px] rounded-md border-border px-1.5 py-0 text-[10px] font-normal"
           >
             {conditionText}
           </Badge>
 
-          {listing.type === "sale" &&
-            listing.originalPrice &&
-            listing.price && (
-              <Badge className="text-[10px] px-1.5 py-0 h-[18px] bg-[#7EBA28]/15 text-[#5a9010] border-0 font-semibold rounded-md">
-                -
-                {Math.round(
-                  (1 - listing.price / listing.originalPrice) * 100
-                )}
-                %
-              </Badge>
-            )}
+          {listing.type === "sale" && listing.originalPrice && listing.price ? (
+            <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
+              -{Math.round((1 - listing.price / listing.originalPrice) * 100)}%
+            </Badge>
+          ) : null}
         </div>
 
         <div className="mt-2.5 flex items-center justify-end">
-          {!isDonation && listing.price != null && (
+          {!isDonation && listing.price != null ? (
             <span className="text-[15px] font-bold text-foreground">
               {listing.price}€
             </span>
-          )}
+          ) : null}
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,77 +1,103 @@
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Mail, MapPin, GraduationCap, Users, ShieldCheck, CalendarDays } from "lucide-react"
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { gradeLevels } from "@/lib/mock-data";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Mail,
+  MapPin,
+  GraduationCap,
+  CalendarDays,
+  Building2,
+} from "lucide-react";
+import AccountProfileForm from "@/components/account/account-profile-form";
+import type {
+  AccountProfileRow,
+  SchoolRow,
+} from "@/lib/types/marketplace";
+import {
+  getInitials,
+  getUserTypeLabel,
+} from "@/lib/marketplace/formatters";
 
-function getInitials(name?: string | null, email?: string | null) {
-  if (name && name.trim().length > 0) {
-    return name
-      .trim()
-      .split(" ")
-      .map((part) => part[0]?.toUpperCase())
-      .slice(0, 2)
-      .join("")
-  }
-
-  if (email && email.length > 0) {
-    return email[0].toUpperCase()
-  }
-
-  return "U"
-}
-
-function formatUserType(userType?: string | null) {
-  switch (userType) {
-    case "parent":
-      return "Familia / Tutor legal"
-    case "student":
-      return "Estudiante"
-    case "school_admin":
-      return "Administrador de centro"
-    case "super_admin":
-      return "Super admin"
-    default:
-      return "Usuario"
-  }
-}
+type SafeUserMetadata = {
+  full_name?: string;
+  user_type?: string;
+  grade_level?: string;
+  postal_code?: string;
+  school_name?: string;
+};
 
 export default async function AccountPage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth")
+    redirect("/auth");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle()
+  const metadata = (user.user_metadata || {}) as SafeUserMetadata;
+
+  const [{ data: profile, error: profileError }, { data: schoolsData, error: schoolsError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select(
+          "id, full_name, user_type, grade_level, postal_code, school_id, created_at"
+        )
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("schools")
+        .select("id, name, city, postal_code")
+        .order("name", { ascending: true }),
+    ]);
+
+  if (profileError) {
+    console.error("Error cargando profile:", profileError);
+  }
+
+  if (schoolsError) {
+    console.error("Error cargando schools:", schoolsError);
+  }
+
+  const typedProfile = (profile || null) as AccountProfileRow | null;
+  const schoolOptions: SchoolRow[] = Array.isArray(schoolsData)
+    ? (schoolsData as SchoolRow[])
+    : [];
 
   const fullName =
-    profile?.full_name ||
-    user.user_metadata?.full_name ||
-    user.email ||
-    "Mi cuenta"
+    typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
+  const email = user.email || "Sin email";
+  const userType = typedProfile?.user_type || metadata.user_type || null;
+  const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
+  const postalCode = typedProfile?.postal_code || metadata.postal_code || null;
+  const createdAt = typedProfile?.created_at || user.created_at || null;
 
-  const email = user.email || "Sin email"
-  const userType = profile?.user_type || user.user_metadata?.user_type || null
-  const gradeLevel = profile?.grade_level || user.user_metadata?.grade_level || null
-  const postalCode = profile?.postal_code || user.user_metadata?.postal_code || null
-  const createdAt = profile?.created_at || user.created_at || null
+  const selectedSchool =
+    typedProfile?.school_id && typedProfile.school_id.trim().length > 0
+      ? schoolOptions.find((school) => school.id === typedProfile.school_id) || null
+      : null;
+
+  const schoolName =
+    selectedSchool?.name ||
+    (typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0
+      ? metadata.school_name.trim()
+      : "Centro no asignado");
+
+  const normalizedGradeLevels = Array.from(new Set(gradeLevels)).filter(Boolean);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Mi cuenta</h1>
         <p className="mt-2 text-muted-foreground">
-          Gestiona tu perfil y revisa la información asociada a tu cuenta de Wetudy.
+          Gestiona tu perfil y revisa la información asociada a tu cuenta de
+          Wetudy.
         </p>
       </div>
 
@@ -87,8 +113,8 @@ export default async function AccountPage() {
             <div className="space-y-2">
               <h2 className="text-2xl font-semibold">{fullName}</h2>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{formatUserType(userType)}</Badge>
-                {user.email_verified && <Badge>Email verificado</Badge>}
+                <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
+                {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
               </div>
             </div>
 
@@ -98,21 +124,26 @@ export default async function AccountPage() {
                 <span>{email}</span>
               </div>
 
-              {postalCode && (
+              {postalCode ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4" />
                   <span>Código postal: {postalCode}</span>
                 </div>
-              )}
+              ) : null}
 
-              {gradeLevel && (
+              {gradeLevel ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <GraduationCap className="h-4 w-4" />
                   <span>{gradeLevel}</span>
                 </div>
-              )}
+              ) : null}
 
-              {createdAt && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Building2 className="h-4 w-4" />
+                <span>{schoolName}</span>
+              </div>
+
+              {createdAt ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <CalendarDays className="h-4 w-4" />
                   <span>
@@ -124,57 +155,33 @@ export default async function AccountPage() {
                     })}
                   </span>
                 </div>
-              )}
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen del perfil</CardTitle>
-              <CardDescription>
-                Esta información proviene de tu cuenta real en Wetudy.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border p-4">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <Users className="h-4 w-4" />
-                  Tipo de usuario
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {formatUserType(userType)}
-                </p>
-              </div>
-
-              <div className="rounded-xl border p-4">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <ShieldCheck className="h-4 w-4" />
-                  Estado de la cuenta
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {user.email_verified ? "Verificada" : "Pendiente de verificación"}
-                </p>
-              </div>
-
-              <div className="rounded-xl border p-4">
-                <div className="mb-2 text-sm font-medium">Curso / etapa</div>
-                <p className="text-sm text-muted-foreground">
-                  {gradeLevel || "Todavía no indicado"}
-                </p>
-              </div>
-
-              <div className="rounded-xl border p-4">
-                <div className="mb-2 text-sm font-medium">Código postal</div>
-                <p className="text-sm text-muted-foreground">
-                  {postalCode || "Todavía no indicado"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="lg:col-span-2">
+          <AccountProfileForm
+            initialFullName={typedProfile?.full_name || ""}
+            initialUserType={
+              typedProfile?.user_type === "parent" || typedProfile?.user_type === "student"
+                ? typedProfile.user_type
+                : ""
+            }
+            initialGradeLevel={typedProfile?.grade_level || ""}
+            initialPostalCode={typedProfile?.postal_code || ""}
+            initialSchoolId={typedProfile?.school_id || ""}
+            email={email}
+            gradeLevelOptions={normalizedGradeLevels}
+            schoolOptions={schoolOptions.map((school) => ({
+              id: school.id,
+              name: school.name,
+              city: school.city,
+              postal_code: school.postal_code || null,
+            }))}
+          />
         </div>
       </div>
     </div>
-  )
+  );
 }

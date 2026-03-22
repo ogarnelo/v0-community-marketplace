@@ -1,31 +1,62 @@
-import Link from "next/link"
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Package } from "lucide-react"
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Package } from "lucide-react";
+import { ListingStatusActions } from "@/components/account/listing-status-actions";
+import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
+import {
+  getStatusBadgeClass,
+  getStatusLabel,
+} from "@/lib/marketplace/formatters";
 
 export default async function MyListingsPage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth")
+    redirect("/auth");
   }
 
-  const { data: listings } = await supabase
+  const { data: listingsData } = await supabase
     .from("listings")
-    .select("*")
+    .select("id, title, category, price, type, status")
     .eq("seller_id", user.id)
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  const listings = (listingsData || []) as ListingRow[];
+  const listingIds = listings.map((listing) => listing.id);
+
+  const firstPhotoMap = new Map<string, string>();
+
+  if (listingIds.length > 0) {
+    const { data: photosData } = await supabase
+      .from("listing_photos")
+      .select("id, listing_id, url, sort_order")
+      .in("listing_id", listingIds)
+      .order("sort_order", { ascending: true });
+
+    for (const photo of (photosData || []) as ListingPhotoRow[]) {
+      if (!firstPhotoMap.has(photo.listing_id)) {
+        firstPhotoMap.set(photo.listing_id, photo.url);
+      }
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mis anuncios</h1>
           <p className="text-muted-foreground">
@@ -41,12 +72,12 @@ export default async function MyListingsPage() {
         </Link>
       </div>
 
-      {!listings || listings.length === 0 ? (
+      {listings.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Package className="mb-4 h-10 w-10 text-muted-foreground/40" />
             <h3 className="text-lg font-semibold">Aún no has publicado nada</h3>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               Publica tu primer artículo para empezar a reutilizar material escolar.
             </p>
 
@@ -57,36 +88,78 @@ export default async function MyListingsPage() {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {listings.map((listing: any) => (
-            <Link key={listing.id} href={`/marketplace/listing/${listing.id}`}>
-              <Card className="transition hover:shadow-lg">
+          {listings.map((listing) => {
+            const firstPhoto = firstPhotoMap.get(listing.id) || null;
+            const isDonation = listing.type === "donation";
+
+            return (
+              <Card key={listing.id} className="overflow-hidden transition hover:shadow-lg">
+                <div
+                  className="flex items-center justify-center bg-muted"
+                  style={{ aspectRatio: "4 / 3" }}
+                >
+                  {firstPhoto ? (
+                    <img
+                      src={firstPhoto}
+                      alt={listing.title || "Anuncio"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="select-none font-mono text-5xl text-muted-foreground/15">
+                      {(listing.category || "A").charAt(0)}
+                    </span>
+                  )}
+                </div>
+
                 <CardHeader>
-                  <CardTitle className="text-base line-clamp-2">
-                    {listing.title}
-                  </CardTitle>
-                  <CardDescription>
-                    {listing.category || "Sin categoría"}
-                  </CardDescription>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <CardTitle className="line-clamp-2 text-base">
+                        <Link href={`/marketplace/listing/${listing.id}`}>
+                          {listing.title || "Anuncio sin título"}
+                        </Link>
+                      </CardTitle>
+                      <CardDescription>
+                        {listing.category || "Sin categoría"}
+                      </CardDescription>
+                    </div>
+
+                    <Badge
+                      variant="outline"
+                      className={getStatusBadgeClass(listing.status)}
+                    >
+                      {getStatusLabel(listing.status)}
+                    </Badge>
+                  </div>
                 </CardHeader>
 
-                <CardContent className="flex items-center justify-between">
-                  <Badge variant="outline">
-                    {listing.status}
-                  </Badge>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    {isDonation ? (
+                      <Badge>Donación</Badge>
+                    ) : listing.price != null ? (
+                      <span className="font-semibold">{listing.price}€</span>
+                    ) : (
+                      <span className="font-semibold">Consultar</span>
+                    )}
 
-                  {listing.price ? (
-                    <span className="font-semibold">
-                      {listing.price}€
-                    </span>
-                  ) : (
-                    <Badge>Donación</Badge>
-                  )}
+                    <Link href={`/marketplace/listing/${listing.id}`}>
+                      <Button variant="ghost" size="sm">
+                        Ver anuncio
+                      </Button>
+                    </Link>
+                  </div>
+
+                  <ListingStatusActions
+                    listingId={listing.id}
+                    currentStatus={listing.status}
+                  />
                 </CardContent>
               </Card>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
-  )
+  );
 }

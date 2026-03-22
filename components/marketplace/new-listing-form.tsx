@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -37,29 +37,20 @@ import {
 } from "@/components/ui/popover";
 import {
   Loader2,
+  ImagePlus,
   ArrowLeft,
+  X,
   HelpCircle,
   BookOpen,
-  ImagePlus,
-  X,
+  Upload,
   School,
   AlertCircle,
 } from "lucide-react";
-import type {
-  ListingPhotoRow,
-  ListingRow,
-  SchoolRow,
-} from "@/lib/types/marketplace";
 
-type ExistingPhoto = {
-  id: string;
-  url: string;
-  sortOrder: number;
-};
-
-type NewPhoto = {
-  file: File;
-  previewUrl: string;
+type NewListingFormProps = {
+  initialSchoolId: string;
+  initialSchoolName: string;
+  initialSchoolCity: string;
 };
 
 const STORAGE_BUCKET = "listing-photos";
@@ -72,6 +63,31 @@ const ALLOWED_IMAGE_TYPES = [
   "image/gif",
 ];
 
+type PreviewFile = {
+  file: File;
+  previewUrl: string;
+};
+
+type ListingInsertPayload = {
+  title: string;
+  description: string;
+  category: string;
+  grade_level: string;
+  condition: string;
+  type: string;
+  price: number | null;
+  original_price: number | null;
+  seller_id: string;
+  school_id: string | null;
+  status: "available";
+};
+
+type ListingPhotoInsertPayload = {
+  listing_id: string;
+  url: string;
+  sort_order: number;
+};
+
 function sanitizeFileName(fileName: string) {
   return fileName
     .normalize("NFD")
@@ -80,24 +96,22 @@ function sanitizeFileName(fileName: string) {
     .replace(/[^a-zA-Z0-9._-]/g, "");
 }
 
-export default function EditListingPage() {
-  const params = useParams<{ id: string }>();
-  const listingId = params?.id;
+export default function NewListingForm({
+  initialSchoolId,
+  initialSchoolName,
+  initialSchoolCity,
+}: NewListingFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [pageLoading, setPageLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [photoError, setPhotoError] = useState("");
-  const [notFound, setNotFound] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isDonation, setIsDonation] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedGradeLevel, setSelectedGradeLevel] = useState("");
   const [selectedCondition, setSelectedCondition] = useState("");
-  const [isDonation, setIsDonation] = useState(false);
   const [price, setPrice] = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
 
@@ -107,146 +121,32 @@ export default function EditListingPage() {
   const [bookFormat, setBookFormat] = useState("");
   const [bookLanguage, setBookLanguage] = useState("");
 
-  const [schoolLabel, setSchoolLabel] = useState("Centro no asignado");
-  const [existingPhotos, setExistingPhotos] = useState<ExistingPhoto[]>([]);
-  const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
-  const [newPhotos, setNewPhotos] = useState<NewPhoto[]>([]);
+  const [photos, setPhotos] = useState<PreviewFile[]>([]);
+  const [photoError, setPhotoError] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const isTextbook = selectedCategory === "Libros de texto";
+
+  const schoolLabel = useMemo(() => {
+    if (!initialSchoolId) return "Sin centro asignado";
+    if (initialSchoolCity?.trim()) {
+      return `${initialSchoolName}, ${initialSchoolCity}`;
+    }
+    return initialSchoolName;
+  }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
 
   const normalizedGradeLevels = useMemo(
     () => Array.from(new Set(gradeLevels)).filter(Boolean),
     []
   );
 
-  const visibleExistingPhotos = useMemo(
-    () => existingPhotos.filter((photo) => !removedPhotoIds.includes(photo.id)),
-    [existingPhotos, removedPhotoIds]
-  );
-
-  const totalVisiblePhotos = visibleExistingPhotos.length + newPhotos.length;
-
   useEffect(() => {
     return () => {
-      newPhotos.forEach((photo) => {
+      photos.forEach((photo) => {
         URL.revokeObjectURL(photo.previewUrl);
       });
     };
-  }, [newPhotos]);
-
-  useEffect(() => {
-    const loadListing = async () => {
-      if (!listingId || typeof listingId !== "string") {
-        setNotFound(true);
-        setPageLoading(false);
-        return;
-      }
-
-      setPageLoading(true);
-
-      try {
-        const supabase = createClient();
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          window.location.assign(`/auth?next=/marketplace/edit/${listingId}`);
-          return;
-        }
-
-        const { data: listing, error: listingError } = await supabase
-          .from("listings")
-          .select(
-            "id, title, description, category, grade_level, condition, type, price, original_price, seller_id, school_id, status"
-          )
-          .eq("id", listingId)
-          .maybeSingle();
-
-        if (listingError) {
-          throw listingError;
-        }
-
-        const typedListing = listing as ListingRow | null;
-
-        if (!typedListing) {
-          setNotFound(true);
-          return;
-        }
-
-        if (typedListing.seller_id !== user.id) {
-          window.location.assign("/account/listings");
-          return;
-        }
-
-        setTitle(typedListing.title || "");
-        setDescription(typedListing.description || "");
-        setSelectedCategory(typedListing.category || "");
-        setSelectedGradeLevel(typedListing.grade_level || "");
-        setSelectedCondition(typedListing.condition || "");
-        setIsDonation(typedListing.type === "donation");
-        setPrice(
-          typeof typedListing.price === "number" ? String(typedListing.price) : ""
-        );
-        setOriginalPrice(
-          typeof typedListing.original_price === "number"
-            ? String(typedListing.original_price)
-            : ""
-        );
-
-        if (typedListing.school_id) {
-          const { data: school } = await supabase
-            .from("schools")
-            .select("id, name, city")
-            .eq("id", typedListing.school_id)
-            .maybeSingle();
-
-          const typedSchool = (school as SchoolRow | null) ?? null;
-
-          if (typedSchool) {
-            setSchoolLabel(
-              typedSchool.city
-                ? `${typedSchool.name}, ${typedSchool.city}`
-                : typedSchool.name
-            );
-          }
-        }
-
-        const { data: listingPhotos, error: photosError } = await supabase
-          .from("listing_photos")
-          .select("id, listing_id, url, sort_order")
-          .eq("listing_id", typedListing.id)
-          .order("sort_order", { ascending: true });
-
-        if (photosError) {
-          throw photosError;
-        }
-
-        const mappedPhotos = ((listingPhotos || []) as ListingPhotoRow[]).map(
-          (photo, index) => ({
-            id: photo.id,
-            url: photo.url,
-            sortOrder:
-              typeof photo.sort_order === "number" ? photo.sort_order : index,
-          })
-        );
-
-        setExistingPhotos(mappedPhotos);
-      } catch (error: any) {
-        console.error("Error cargando anuncio para editar:", error);
-        setSubmitError(
-          error?.message ||
-          error?.details ||
-          "No se pudo cargar el anuncio."
-        );
-      } finally {
-        setPageLoading(false);
-      }
-    };
-
-    void loadListing();
-  }, [listingId]);
+  }, [photos]);
 
   const handlePickPhoto = () => {
     fileInputRef.current?.click();
@@ -258,16 +158,16 @@ export default function EditListingPage() {
 
     if (incomingFiles.length === 0) return;
 
-    const availableSlots = MAX_FILES - totalVisiblePhotos;
+    const availableSlots = MAX_FILES - photos.length;
 
     if (availableSlots <= 0) {
-      setPhotoError("Solo puedes tener un máximo de 5 fotos.");
+      setPhotoError("Solo puedes subir un máximo de 5 fotos.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     const nextFiles = incomingFiles.slice(0, availableSlots);
-    const accepted: NewPhoto[] = [];
+    const accepted: PreviewFile[] = [];
 
     for (const file of nextFiles) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
@@ -287,7 +187,7 @@ export default function EditListingPage() {
     }
 
     if (accepted.length > 0) {
-      setNewPhotos((prev) => [...prev, ...accepted]);
+      setPhotos((prev) => [...prev, ...accepted]);
     }
 
     if (fileInputRef.current) {
@@ -295,16 +195,8 @@ export default function EditListingPage() {
     }
   };
 
-  const handleRemoveExistingPhoto = (photoId: string) => {
-    setRemovedPhotoIds((prev) => [...prev, photoId]);
-  };
-
-  const handleRestoreExistingPhoto = (photoId: string) => {
-    setRemovedPhotoIds((prev) => prev.filter((id) => id !== photoId));
-  };
-
-  const handleRemoveNewPhoto = (index: number) => {
-    setNewPhotos((prev) => {
+  const handleRemovePhoto = (index: number) => {
+    setPhotos((prev) => {
       const target = prev[index];
       if (target?.previewUrl) {
         URL.revokeObjectURL(target.previewUrl);
@@ -339,21 +231,18 @@ export default function EditListingPage() {
     return null;
   };
 
-  const uploadNewPhotos = async (listingIdValue: string) => {
-    if (newPhotos.length === 0) return [];
+  const uploadListingPhotos = async (listingId: string, files: PreviewFile[]) => {
+    if (files.length === 0) return;
 
     const supabase = createClient();
-    const uploadedRows: { listing_id: string; url: string; sort_order: number }[] =
-      [];
+    const uploadedPhotoRows: ListingPhotoInsertPayload[] = [];
 
-    const startingSortOrder = visibleExistingPhotos.length;
-
-    for (let index = 0; index < newPhotos.length; index += 1) {
-      const item = newPhotos[index];
+    for (let index = 0; index < files.length; index += 1) {
+      const item = files[index];
       const file = item.file;
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const safeName = sanitizeFileName(file.name);
-      const filePath = `${listingIdValue}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+      const filePath = `${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
 
       const { error: uploadError } = await supabase.storage
         .from(STORAGE_BUCKET)
@@ -376,19 +265,27 @@ export default function EditListingPage() {
         throw new Error("No se pudo obtener la URL pública de una de las imágenes.");
       }
 
-      uploadedRows.push({
-        listing_id: listingIdValue,
+      uploadedPhotoRows.push({
+        listing_id: listingId,
         url: publicUrl,
-        sort_order: startingSortOrder + index,
+        sort_order: index,
       });
     }
 
-    return uploadedRows;
+    if (uploadedPhotoRows.length > 0) {
+      const { error: listingPhotosError } = await supabase
+        .from("listing_photos")
+        .insert(uploadedPhotoRows);
+
+      if (listingPhotosError) {
+        throw listingPhotosError;
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSaving(true);
+    setLoading(true);
     setSubmitError("");
     setPhotoError("");
 
@@ -400,10 +297,6 @@ export default function EditListingPage() {
         return;
       }
 
-      if (!listingId || typeof listingId !== "string") {
-        throw new Error("Identificador de anuncio no válido.");
-      }
-
       const supabase = createClient();
 
       const {
@@ -411,146 +304,93 @@ export default function EditListingPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign(`/auth?next=/marketplace/edit/${listingId}`);
+        window.location.assign("/auth?next=/marketplace/new");
         return;
       }
 
-      const { data: listingOwner } = await supabase
-        .from("listings")
-        .select("id, seller_id")
-        .eq("id", listingId)
+      const { data: currentProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("school_id")
+        .eq("id", user.id)
         .maybeSingle();
 
-      if (!listingOwner || listingOwner.seller_id !== user.id) {
-        throw new Error("No tienes permisos para editar este anuncio.");
+      if (profileError) {
+        throw profileError;
       }
 
-      const { error: updateError } = await supabase
+      const effectiveSchoolId =
+        currentProfile?.school_id && currentProfile.school_id.trim().length > 0
+          ? currentProfile.school_id
+          : initialSchoolId || null;
+
+      const payload: ListingInsertPayload = {
+        title: title.trim(),
+        description: description.trim(),
+        category: selectedCategory,
+        grade_level: selectedGradeLevel,
+        condition: selectedCondition,
+        type: isDonation ? "donation" : "sale",
+        price: isDonation ? null : Number(price),
+        original_price:
+          isDonation || !originalPrice.trim() ? null : Number(originalPrice),
+        seller_id: user.id,
+        school_id: effectiveSchoolId,
+        status: "available",
+      };
+
+      const { data: insertedListing, error: insertError } = await supabase
         .from("listings")
-        .update({
-          title: title.trim(),
-          description: description.trim(),
-          category: selectedCategory,
-          grade_level: selectedGradeLevel,
-          condition: selectedCondition,
-          type: isDonation ? "donation" : "sale",
-          price: isDonation ? null : Number(price),
-          original_price:
-            isDonation || !originalPrice.trim() ? null : Number(originalPrice),
-        })
-        .eq("id", listingId);
+        .insert(payload)
+        .select("id")
+        .single();
 
-      if (updateError) {
-        throw updateError;
+      if (insertError) {
+        throw insertError;
       }
 
-      if (removedPhotoIds.length > 0) {
-        const { error: deletePhotosError } = await supabase
-          .from("listing_photos")
-          .delete()
-          .in("id", removedPhotoIds);
+      const listingId = insertedListing?.id;
 
-        if (deletePhotosError) {
-          throw deletePhotosError;
-        }
+      if (!listingId) {
+        throw new Error("No se pudo obtener el id del anuncio creado.");
       }
 
-      const remainingExistingPhotos = visibleExistingPhotos.map((photo, index) => ({
-        id: photo.id,
-        sort_order: index,
-      }));
-
-      for (const photo of remainingExistingPhotos) {
-        const { error: reorderError } = await supabase
-          .from("listing_photos")
-          .update({ sort_order: photo.sort_order })
-          .eq("id", photo.id);
-
-        if (reorderError) {
-          throw reorderError;
-        }
-      }
-
-      const uploadedRows = await uploadNewPhotos(listingId);
-
-      if (uploadedRows.length > 0) {
-        const { error: insertPhotosError } = await supabase
-          .from("listing_photos")
-          .insert(uploadedRows);
-
-        if (insertPhotosError) {
-          throw insertPhotosError;
-        }
-      }
+      await uploadListingPhotos(listingId, photos);
 
       router.push(`/marketplace/listing/${listingId}`);
       router.refresh();
     } catch (error: any) {
-      console.error("Error actualizando anuncio:", error);
+      console.error("Error publicando anuncio:", error);
+
       setSubmitError(
         error?.message ||
         error?.details ||
         error?.error_description ||
-        "No se pudo actualizar el anuncio."
+        "No se pudo publicar el anuncio."
       );
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
-
-  if (pageLoading) {
-    return (
-      <div className="bg-background">
-        <div className="mx-auto max-w-2xl px-4 py-6 lg:px-8">
-          <Card>
-            <CardContent className="flex items-center justify-center py-16">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Cargando anuncio...
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  if (notFound) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-background">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-foreground">
-            Anuncio no encontrado
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            Este anuncio no existe o ha sido eliminado.
-          </p>
-          <Link href="/account/listings">
-            <Button className="mt-4">Volver a mis anuncios</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-background">
       <div className="mx-auto max-w-2xl px-4 py-6 lg:px-8">
         <Link
-          href={`/marketplace/listing/${listingId}`}
+          href="/marketplace"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Volver al anuncio
+          Volver al marketplace
         </Link>
 
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="text-2xl text-foreground">
-              Editar anuncio
+              Publicar anuncio
             </CardTitle>
             <CardDescription>
-              Actualiza la información de tu anuncio.
+              Publica material escolar para vender o donar a tu comunidad en{" "}
+              {initialSchoolId ? initialSchoolName : "tu comunidad educativa"}.
             </CardDescription>
           </CardHeader>
 
@@ -581,8 +421,8 @@ export default function EditListingPage() {
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
                   placeholder="Describe el estado, editorial, edición..."
+                  rows={4}
                 />
               </div>
 
@@ -655,7 +495,7 @@ export default function EditListingPage() {
                       Detalles del libro
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Campos opcionales visuales para libros de texto
+                      Campos opcionales para libros de texto
                     </CardDescription>
                   </CardHeader>
 
@@ -680,9 +520,9 @@ export default function EditListingPage() {
                               ¿Qué es el ISBN?
                             </p>
                             <p className="mt-1 leading-relaxed text-muted-foreground">
-                              ISBN son las siglas de International Standard Book Number
-                              y consiste en un código que sirve para identificar de
-                              manera única cada producto editorial.
+                              ISBN son las siglas de International Standard Book
+                              Number y consiste en un código que sirve para
+                              identificar de manera única cada producto editorial.
                             </p>
                           </PopoverContent>
                         </Popover>
@@ -776,9 +616,10 @@ export default function EditListingPage() {
                         type="number"
                         min="0"
                         step="0.5"
+                        placeholder="0"
+                        className="pr-8"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        className="pr-8"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                         &euro;
@@ -796,9 +637,10 @@ export default function EditListingPage() {
                         type="number"
                         min="0"
                         step="0.5"
+                        placeholder="0"
+                        className="pr-8"
                         value={originalPrice}
                         onChange={(e) => setOriginalPrice(e.target.value)}
-                        className="pr-8"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                         &euro;
@@ -810,48 +652,11 @@ export default function EditListingPage() {
 
               <div className="flex flex-col gap-2">
                 <Label>Fotos (máx. 5)</Label>
-
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-                  {existingPhotos.map((photo) => {
-                    const isRemoved = removedPhotoIds.includes(photo.id);
-
-                    return (
-                      <div
-                        key={photo.id}
-                        className={`relative aspect-square overflow-hidden rounded-lg border ${isRemoved ? "opacity-40" : ""
-                          }`}
-                      >
-                        <img
-                          src={photo.url}
-                          alt="Foto del anuncio"
-                          className="h-full w-full object-cover"
-                        />
-
-                        {isRemoved ? (
-                          <button
-                            type="button"
-                            onClick={() => handleRestoreExistingPhoto(photo.id)}
-                            className="absolute inset-x-2 bottom-2 rounded-md bg-background/90 px-2 py-1 text-xs font-medium"
-                          >
-                            Restaurar
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExistingPhoto(photo.id)}
-                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {newPhotos.map((photo, index) => (
+                  {photos.map((photo, i) => (
                     <div
-                      key={`${photo.file.name}-${index}`}
-                      className="relative aspect-square overflow-hidden rounded-lg border"
+                      key={`${photo.file.name}-${i}`}
+                      className="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
                     >
                       <img
                         src={photo.previewUrl}
@@ -860,7 +665,7 @@ export default function EditListingPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => handleRemoveNewPhoto(index)}
+                        onClick={() => handleRemovePhoto(i)}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
                       >
                         <X className="h-3 w-3" />
@@ -868,20 +673,24 @@ export default function EditListingPage() {
                     </div>
                   ))}
 
-                  {totalVisiblePhotos < MAX_FILES ? (
+                  {photos.length < MAX_FILES ? (
                     <button
                       type="button"
                       onClick={handlePickPhoto}
-                      className="flex aspect-square items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:border-primary hover:bg-primary/5"
+                      className="flex aspect-square flex-col items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:border-primary hover:bg-primary/5"
                     >
                       <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                      <span className="mt-2 text-[11px] text-muted-foreground">
+                        Añadir
+                      </span>
                     </button>
                   ) : null}
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Las fotos nuevas se guardarán en <code>listing-photos</code> y
-                  se enlazarán en <code>listing_photos</code>.
+                  Las imágenes se guardarán en el bucket público{" "}
+                  <code>listing-photos</code> y se enlazarán en la tabla{" "}
+                  <code>listing_photos</code>.
                 </p>
 
                 {photoError ? (
@@ -898,6 +707,9 @@ export default function EditListingPage() {
                   Ubicación:{" "}
                   <span className="font-medium text-foreground">{schoolLabel}</span>
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Se usará el centro asociado a tu perfil en este momento.
+                </p>
               </div>
 
               {submitError ? (
@@ -907,18 +719,20 @@ export default function EditListingPage() {
               ) : null}
 
               <div className="flex gap-3">
-                <Button type="submit" className="flex-1" disabled={saving}>
-                  {saving ? (
+                <Button type="submit" className="flex-1" disabled={loading}>
+                  {loading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  Guardar cambios
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Publicar anuncio
                 </Button>
 
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
-                  disabled={saving}
+                  disabled={loading}
                 >
                   Cancelar
                 </Button>

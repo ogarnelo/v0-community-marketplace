@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function AccountLayout({
+export default async function FavoritesLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -15,34 +15,17 @@ export default async function AccountLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  let userName = user?.user_metadata?.full_name || user?.email || "Mi cuenta";
+  const userName = user?.user_metadata?.full_name || user?.email || "Mi cuenta";
+
   let unreadMessagesCount = 0;
-  let isAdmin = false;
 
   if (user) {
-    const [{ data: profile }, { data: conversations }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("full_name, user_type")
-        .eq("id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("conversations")
-        .select("id")
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
-    ]);
+    const { data: conversations } = await supabase
+      .from("conversations")
+      .select("id")
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
 
-    userName =
-      profile?.full_name?.trim() ||
-      user.user_metadata?.full_name ||
-      user.email ||
-      "Mi cuenta";
-
-    isAdmin =
-      profile?.user_type === "school_admin" ||
-      profile?.user_type === "super_admin";
-
-    const conversationIds = (conversations || []).map((conversation: any) => conversation.id);
+    const conversationIds = (conversations || []).map((c: any) => c.id);
 
     if (conversationIds.length > 0) {
       const { data: unreadMessages } = await supabase
@@ -61,7 +44,7 @@ export default async function AccountLayout({
       <Navbar
         isLoggedIn={!!user}
         userName={userName}
-        isAdmin={isAdmin}
+        isAdmin={false}
         unreadMessagesCount={unreadMessagesCount}
         currentUserId={user?.id}
       />
