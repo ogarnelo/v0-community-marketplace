@@ -36,12 +36,20 @@ export type ProfileRow = {
   school_id?: string | null;
   grade_level?: string | null;
   postal_code?: string | null;
+  created_at?: string | null;
 };
 
 export type ReviewRow = {
   rating: number;
   comment?: string | null;
   created_at?: string;
+};
+
+export type SchoolRow = {
+  id: string;
+  name: string;
+  city: string | null;
+  postal_code?: string | null;
 };
 
 export type MarketplaceListing = {
@@ -70,6 +78,16 @@ export type ConversationSummary = {
   latestMessageBody: string;
   latestMessageCreatedAt: string | null;
   unreadCount: number;
+};
+
+export type AccountProfileRow = {
+  id: string;
+  full_name: string | null;
+  user_type: string | null;
+  grade_level: string | null;
+  postal_code: string | null;
+  school_id: string | null;
+  created_at: string | null;
 };
 
 export function buildPhotosMap(rows: ListingPhotoRow[]) {

@@ -45,34 +45,11 @@ import {
   School,
   AlertCircle,
 } from "lucide-react";
-
-type ListingRow = {
-  id: string;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  grade_level: string | null;
-  condition: string | null;
-  type: string | null;
-  price: number | null;
-  original_price: number | null;
-  seller_id: string | null;
-  school_id: string | null;
-  status: string | null;
-};
-
-type SchoolRow = {
-  id: string;
-  name: string;
-  city: string | null;
-};
-
-type ListingPhotoRow = {
-  id: string;
-  listing_id: string;
-  url: string;
-  sort_order: number | null;
-};
+import type {
+  ListingPhotoRow,
+  ListingRow,
+  SchoolRow,
+} from "@/lib/types/marketplace";
 
 type ExistingPhoto = {
   id: string;
@@ -263,7 +240,7 @@ export default function EditListingPage() {
       }
     };
 
-    loadListing();
+    void loadListing();
   }, [listingId]);
 
   const handlePickPhoto = () => {

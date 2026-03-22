@@ -34,6 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getUserTypeLabel } from "@/lib/marketplace/formatters";
 
 type SchoolOption = {
   id: string;
@@ -44,7 +45,7 @@ type SchoolOption = {
 
 type AccountProfileFormProps = {
   initialFullName: string;
-  initialUserType: "parent" | "student";
+  initialUserType: "parent" | "student" | "";
   initialGradeLevel: string;
   initialPostalCode: string;
   initialSchoolId: string;
@@ -52,10 +53,6 @@ type AccountProfileFormProps = {
   gradeLevelOptions: string[];
   schoolOptions: SchoolOption[];
 };
-
-function formatUserType(userType: "parent" | "student") {
-  return userType === "parent" ? "Familia / Tutor legal" : "Estudiante";
-}
 
 export default function AccountProfileForm({
   initialFullName,
@@ -70,7 +67,9 @@ export default function AccountProfileForm({
   const router = useRouter();
 
   const [fullName, setFullName] = useState(initialFullName);
-  const [userType, setUserType] = useState<"parent" | "student">(initialUserType);
+  const [userType, setUserType] = useState<"parent" | "student" | "">(
+    initialUserType
+  );
   const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
   const [postalCode, setPostalCode] = useState(initialPostalCode);
   const [selectedSchoolId, setSelectedSchoolId] = useState(initialSchoolId);
@@ -86,13 +85,12 @@ export default function AccountProfileForm({
 
     if (!query) return schoolOptions;
 
-    return schoolOptions.filter((school) => {
-      return (
+    return schoolOptions.filter(
+      (school) =>
         school.name.toLowerCase().includes(query) ||
         (school.city || "").toLowerCase().includes(query) ||
         (school.postal_code || "").toLowerCase().includes(query)
-      );
-    });
+    );
   }, [schoolOptions, schoolSearch]);
 
   const selectedSchool =
@@ -100,7 +98,11 @@ export default function AccountProfileForm({
       ? schoolOptions.find((school) => school.id === selectedSchoolId) || null
       : null;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const currentUserTypeLabel = userType
+    ? getUserTypeLabel(userType)
+    : "Selecciona un tipo de usuario";
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setSuccessMessage("");
@@ -118,22 +120,20 @@ export default function AccountProfileForm({
         return;
       }
 
-      const normalizedFullName = fullName.trim();
-      const normalizedGradeLevel = gradeLevel.trim();
       const normalizedPostalCode = postalCode.trim();
       const normalizedSchoolId = selectedSchoolId.trim();
-
       const selectedSchoolName =
         normalizedSchoolId.length > 0
-          ? schoolOptions.find((school) => school.id === normalizedSchoolId)?.name || null
+          ? schoolOptions.find((school) => school.id === normalizedSchoolId)?.name ||
+          null
           : null;
 
       const { error: profileError } = await supabase.from("profiles").upsert(
         {
           id: user.id,
-          full_name: normalizedFullName || null,
+          full_name: fullName.trim() || null,
           user_type: userType || null,
-          grade_level: normalizedGradeLevel || null,
+          grade_level: gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
           school_id: normalizedSchoolId || null,
         },
@@ -148,9 +148,9 @@ export default function AccountProfileForm({
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
-          full_name: normalizedFullName || null,
+          full_name: fullName.trim() || null,
           user_type: userType || null,
-          grade_level: normalizedGradeLevel || null,
+          grade_level: gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
           school_name: selectedSchoolName,
         },
@@ -159,15 +159,6 @@ export default function AccountProfileForm({
       if (authError) {
         throw authError;
       }
-
-      window.dispatchEvent(
-        new CustomEvent("profile-updated", {
-          detail: {
-            full_name: normalizedFullName || "Mi cuenta",
-            user_type: userType || null,
-          },
-        })
-      );
 
       setSuccessMessage("Perfil actualizado correctamente.");
       router.refresh();
@@ -211,7 +202,7 @@ export default function AccountProfileForm({
                 Tipo de usuario actual
               </div>
               <p className="text-sm text-muted-foreground">
-                {formatUserType(userType)}
+                {currentUserTypeLabel}
               </p>
             </div>
 
@@ -223,9 +214,7 @@ export default function AccountProfileForm({
               <p className="text-sm text-muted-foreground">
                 {selectedSchool
                   ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}`
-                  : schoolOptions.length === 0
-                    ? "No hay centros disponibles todavía"
-                    : "Sin centro asignado"}
+                  : "Sin centro asignado"}
               </p>
             </div>
           </div>
@@ -244,13 +233,16 @@ export default function AccountProfileForm({
             <div className="flex flex-col gap-2">
               <Label>Tipo de usuario</Label>
               <Select
-                value={userType}
-                onValueChange={(value) => setUserType(value as "parent" | "student")}
+                value={userType || "unset"}
+                onValueChange={(value) =>
+                  setUserType(value === "unset" ? "" : (value as "parent" | "student"))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona un tipo de usuario" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="unset">Sin definir</SelectItem>
                   <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                   <SelectItem value="student">Estudiante</SelectItem>
                 </SelectContent>
@@ -290,9 +282,7 @@ export default function AccountProfileForm({
                     <span className="truncate">
                       {selectedSchool
                         ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}`
-                        : schoolOptions.length === 0
-                          ? "No hay centros disponibles todavía"
-                          : "Selecciona tu centro o déjalo vacío"}
+                        : "Selecciona tu centro o déjalo vacío"}
                     </span>
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-60" />
                   </Button>
@@ -322,9 +312,7 @@ export default function AccountProfileForm({
                     <div className="max-h-64 overflow-y-auto rounded-lg border">
                       {filteredSchools.length === 0 ? (
                         <div className="px-3 py-4 text-sm text-muted-foreground">
-                          {schoolOptions.length === 0
-                            ? "Todavía no hay centros cargados en la base de datos."
-                            : "No se encontraron centros."}
+                          No se encontraron centros.
                         </div>
                       ) : (
                         filteredSchools.map((school) => {
@@ -346,7 +334,9 @@ export default function AccountProfileForm({
                                   {school.name}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {[school.city, school.postal_code].filter(Boolean).join(" · ")}
+                                  {[school.city, school.postal_code]
+                                    .filter(Boolean)
+                                    .join(" · ")}
                                 </p>
                               </div>
 

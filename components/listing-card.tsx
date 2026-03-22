@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import { getConditionLabel } from "@/lib/marketplace/formatters";
 
 type ListingCardData = {
   id: string;
@@ -30,14 +31,6 @@ interface ListingCardProps {
   currentSchoolId?: string;
 }
 
-const conditionLabels: Record<string, string> = {
-  new_with_tags: "Nuevo con etiquetas",
-  new_without_tags: "Nuevo sin etiquetas",
-  very_good: "Muy bueno",
-  good: "Bueno",
-  satisfactory: "Satisfactorio",
-};
-
 export function ListingCard({
   listing,
   currentSchoolId = "",
@@ -49,28 +42,22 @@ export function ListingCard({
 
   const isDonation = listing.type === "donation";
   const hasDistance = !isSameSchool && listing.distance != null;
-  const firstPhoto = listing.photos?.[0] || null;
+  const mainPhoto = listing.photos?.[0] || null;
 
   const categoryText = listing.category || "Sin categoría";
   const titleText = listing.title || "Anuncio sin título";
   const gradeText = listing.gradeLevel || "Sin curso";
-  const conditionText =
-    (listing.condition && conditionLabels[listing.condition]) ||
-    listing.condition ||
-    "Sin estado";
+  const conditionText = getConditionLabel(listing.condition);
 
   return (
     <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
-        <div
-          className="relative overflow-hidden bg-muted"
-          style={{ aspectRatio: "4 / 3" }}
-        >
-          {firstPhoto ? (
+        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
+          {mainPhoto ? (
             <img
-              src={firstPhoto}
+              src={mainPhoto}
               alt={titleText}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              className="h-full w-full object-cover"
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-muted">

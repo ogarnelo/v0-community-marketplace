@@ -12,52 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
-
-type ListingRow = {
-  id: string;
-  title: string | null;
-  category: string | null;
-  price: number | null;
-  type: string | null;
-  status: string | null;
-};
-
-type ListingPhotoRow = {
-  id: string;
-  listing_id: string;
-  url: string;
-  sort_order: number | null;
-};
-
-function getStatusLabel(status?: string | null) {
-  switch (status) {
-    case "available":
-      return "Disponible";
-    case "reserved":
-      return "Reservado";
-    case "sold":
-      return "Vendido";
-    case "archived":
-      return "Archivado";
-    default:
-      return status || "Sin estado";
-  }
-}
-
-function getStatusBadgeClass(status?: string | null) {
-  switch (status) {
-    case "available":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "reserved":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "sold":
-      return "border-slate-200 bg-slate-100 text-slate-700";
-    case "archived":
-      return "border-slate-200 bg-slate-50 text-slate-500";
-    default:
-      return "";
-  }
-}
+import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
+import {
+  getStatusBadgeClass,
+  getStatusLabel,
+} from "@/lib/marketplace/formatters";
 
 export default async function MyListingsPage() {
   const supabase = await createClient();

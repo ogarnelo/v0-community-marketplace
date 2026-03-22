@@ -20,64 +20,17 @@ import {
   Package,
   GraduationCap,
 } from "lucide-react";
-
-type ListingRow = {
-  id: string;
-  title: string | null;
-  category: string | null;
-  grade_level: string | null;
-  condition: string | null;
-  type: string | null;
-  price: number | null;
-  status: string | null;
-  created_at: string | null;
-};
-
-type ListingPhotoRow = {
-  id: string;
-  listing_id: string;
-  url: string;
-  sort_order: number | null;
-};
-
-function getInitials(name?: string | null) {
-  if (!name || !name.trim()) return "U";
-
-  return name
-    .trim()
-    .split(" ")
-    .map((part) => part[0]?.toUpperCase())
-    .slice(0, 2)
-    .join("");
-}
-
-function getUserTypeLabel(userType?: string | null) {
-  switch (userType) {
-    case "parent":
-      return "Familia / Tutor legal";
-    case "student":
-      return "Estudiante";
-    default:
-      return "Miembro de Wetudy";
-  }
-}
-
-function getConditionLabel(value?: string | null) {
-  switch (value) {
-    case "new_with_tags":
-      return "Nuevo con etiquetas";
-    case "new_without_tags":
-      return "Nuevo sin etiquetas";
-    case "very_good":
-      return "Muy bueno";
-    case "good":
-      return "Bueno";
-    case "satisfactory":
-      return "Satisfactorio";
-    default:
-      return value || "Sin estado";
-  }
-}
+import type {
+  ListingPhotoRow,
+  ListingRow,
+  ProfileRow,
+  ReviewRow,
+} from "@/lib/types/marketplace";
+import {
+  getConditionLabel,
+  getInitials,
+  getUserTypeLabel,
+} from "@/lib/marketplace/formatters";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +54,7 @@ export default async function PublicProfilePage({
     const [{ data: currentProfile }, { data: conversations }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("full_name, user_type")
+        .select("id, full_name, user_type")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -110,18 +63,20 @@ export default async function PublicProfilePage({
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
     ]);
 
+    const typedCurrentProfile = (currentProfile as ProfileRow | null) ?? null;
+
     navbarUserName =
-      currentProfile?.full_name?.trim() ||
+      typedCurrentProfile?.full_name?.trim() ||
       user.user_metadata?.full_name ||
       user.email ||
       "Mi cuenta";
 
     isAdmin =
-      currentProfile?.user_type === "school_admin" ||
-      currentProfile?.user_type === "super_admin";
+      typedCurrentProfile?.user_type === "school_admin" ||
+      typedCurrentProfile?.user_type === "super_admin";
 
     const conversationIds = (conversations || []).map(
-      (conversation: any) => conversation.id
+      (conversation: { id: string }) => conversation.id
     );
 
     if (conversationIds.length > 0) {
@@ -142,7 +97,9 @@ export default async function PublicProfilePage({
     .eq("id", id)
     .maybeSingle();
 
-  if (profileError || !profile) {
+  const typedProfile = (profile as ProfileRow | null) ?? null;
+
+  if (profileError || !typedProfile) {
     notFound();
   }
 
@@ -180,20 +137,26 @@ export default async function PublicProfilePage({
     }
   }
 
-  const reviewCount = reviews?.length || 0;
+  const typedReviews = (reviews || []) as ReviewRow[];
+
+  const reviewCount = typedReviews.length;
   const averageRating =
     reviewCount > 0
-      ? reviews!.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+      ? typedReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
       : null;
 
   const sellerName =
-    profile.full_name && profile.full_name.trim().length > 0
-      ? profile.full_name.trim()
+    typedProfile.full_name && typedProfile.full_name.trim().length > 0
+      ? typedProfile.full_name.trim()
       : "Miembro de Wetudy";
 
-  const sellerUserType = getUserTypeLabel(profile.user_type);
-  const sellerPostalCode = profile.postal_code || null;
-  const sellerGradeLevel = profile.grade_level || null;
+  const sellerUserType =
+    typedProfile.user_type === "parent" || typedProfile.user_type === "student"
+      ? getUserTypeLabel(typedProfile.user_type)
+      : "Miembro de Wetudy";
+
+  const sellerPostalCode = typedProfile.postal_code || null;
+  const sellerGradeLevel = typedProfile.grade_level || null;
 
   return (
     <>
@@ -366,7 +329,7 @@ export default async function PublicProfilePage({
                       );
                     })}
                   </div>
-                ) ? null : null}
+                )}
               </CardContent>
             </Card>
 
@@ -378,25 +341,27 @@ export default async function PublicProfilePage({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!reviews || reviews.length === 0 ? (
+                {typedReviews.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Este usuario todavía no tiene valoraciones.
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {reviews.slice(0, 6).map((review, index) => (
+                    {typedReviews.slice(0, 6).map((review, index) => (
                       <div key={index} className="rounded-2xl border p-4">
                         <div className="mb-2 flex items-center justify-between gap-4">
                           <p className="text-sm font-medium">
                             {"⭐".repeat(review.rating)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(review.created_at).toLocaleDateString(
-                              "es-ES",
-                              {
-                                timeZone: "Europe/Madrid",
-                              }
-                            )}
+                            {review.created_at
+                              ? new Date(review.created_at).toLocaleDateString(
+                                "es-ES",
+                                {
+                                  timeZone: "Europe/Madrid",
+                                }
+                              )
+                              : ""}
                           </p>
                         </div>
 
@@ -408,7 +373,7 @@ export default async function PublicProfilePage({
                       </div>
                     ))}
                   </div>
-                ) ? null : null}
+                )}
               </CardContent>
             </Card>
           </div>

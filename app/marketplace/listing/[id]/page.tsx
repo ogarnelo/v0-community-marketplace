@@ -21,41 +21,19 @@ import {
   User,
   Star,
 } from "lucide-react";
-
-type ListingRow = {
-  id: string;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  grade_level: string | null;
-  condition: string | null;
-  type: string | null;
-  listing_type?: string | null;
-  price: number | null;
-  original_price: number | null;
-  estimated_retail_price?: number | null;
-  postal_code: string | null;
-  status: string | null;
-  seller_id: string | null;
-  user_id?: string | null;
-};
-
-type ListingPhotoRow = {
-  id: string;
-  listing_id: string;
-  url: string;
-  sort_order: number | null;
-};
-
-type ProfileRow = {
-  id: string;
-  full_name: string | null;
-  user_type: string | null;
-};
-
-type ReviewRow = {
-  rating: number;
-};
+import type {
+  ListingPhotoRow,
+  ListingRow,
+  ProfileRow,
+  ReviewRow,
+} from "@/lib/types/marketplace";
+import {
+  getConditionLabel,
+  getInitials,
+  getStatusBadgeClass,
+  getStatusLabel,
+  getUserTypeLabel,
+} from "@/lib/marketplace/formatters";
 
 type RelatedListingRow = {
   id: string;
@@ -66,70 +44,6 @@ type RelatedListingRow = {
   type: string | null;
   status: string | null;
 };
-
-function conditionLabel(value?: string | null) {
-  switch (value) {
-    case "new_with_tags":
-      return "Nuevo con etiquetas";
-    case "new_without_tags":
-      return "Nuevo sin etiquetas";
-    case "very_good":
-      return "Muy bueno";
-    case "good":
-      return "Bueno";
-    case "satisfactory":
-      return "Satisfactorio";
-    default:
-      return value || "Sin estado";
-  }
-}
-
-function getInitials(name?: string | null, email?: string | null) {
-  if (name && name.trim().length > 0) {
-    return name
-      .trim()
-      .split(" ")
-      .map((part) => part[0]?.toUpperCase())
-      .slice(0, 2)
-      .join("");
-  }
-
-  if (email && email.length > 0) {
-    return email[0].toUpperCase();
-  }
-
-  return "U";
-}
-
-function getStatusLabel(status?: string | null) {
-  switch (status) {
-    case "available":
-      return "Disponible";
-    case "reserved":
-      return "Reservado";
-    case "sold":
-      return "Vendido";
-    case "archived":
-      return "Archivado";
-    default:
-      return status || "Sin estado";
-  }
-}
-
-function getStatusBadgeClass(status?: string | null) {
-  switch (status) {
-    case "available":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "reserved":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "sold":
-      return "border-slate-200 bg-slate-100 text-slate-700";
-    case "archived":
-      return "border-slate-200 bg-slate-50 text-slate-500";
-    default:
-      return "";
-  }
-}
 
 export default async function ListingDetailPage({
   params,
@@ -221,7 +135,7 @@ export default async function ListingDetailPage({
   const description = listing.description || "Sin descripción";
   const category = listing.category || "Sin categoría";
   const gradeLevel = listing.grade_level || "Sin curso";
-  const condition = conditionLabel(listing.condition);
+  const condition = getConditionLabel(listing.condition);
   const type = listing.type || listing.listing_type || "sale";
   const price = listing.price;
   const originalPrice = listing.original_price || listing.estimated_retail_price;
@@ -229,13 +143,11 @@ export default async function ListingDetailPage({
   const status = listing.status || "available";
 
   const sellerName = sellerProfile?.full_name || "Miembro de Wetudy";
-
   const sellerUserType =
-    sellerProfile?.user_type === "parent"
-      ? "Familia / Tutor legal"
-      : sellerProfile?.user_type === "student"
-        ? "Estudiante"
-        : "Usuario";
+    sellerProfile?.user_type === "parent" ||
+      sellerProfile?.user_type === "student"
+      ? getUserTypeLabel(sellerProfile.user_type)
+      : "Usuario";
 
   const canContact = status === "available";
 

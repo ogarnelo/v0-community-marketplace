@@ -14,8 +14,44 @@ import {
   isValidListingStatus,
   type ListingStatus,
 } from "@/lib/marketplace/listing-status";
+import type { ConversationSummary, ProfileRow } from "@/lib/types/marketplace";
 
-export const dynamic = "force-dynamic";
+type ConversationRow = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  updated_at: string | null;
+};
+
+type ListingChatRow = {
+  id: string;
+  title: string | null;
+  price: number | null;
+  status: string | null;
+};
+
+type LatestMessageRow = {
+  conversation_id: string;
+  body: string | null;
+  created_at: string;
+  sender_id: string;
+  attachment_name?: string | null;
+};
+
+type MessageRow = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string | null;
+  created_at: string;
+  read_at?: string | null;
+  attachment_url?: string | null;
+  attachment_path?: string | null;
+  attachment_name?: string | null;
+  attachment_type?: string | null;
+  attachment_size?: number | null;
+};
 
 function getInitials(name?: string | null) {
   if (!name || !name.trim()) return "U";
@@ -54,7 +90,7 @@ export default async function ConversationPage({
     .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
     .order("updated_at", { ascending: false });
 
-  const safeConversations = conversations || [];
+  const safeConversations = (conversations || []) as ConversationRow[];
 
   const { data: conversation } = await supabase
     .from("conversations")
@@ -62,9 +98,12 @@ export default async function ConversationPage({
     .eq("id", id)
     .maybeSingle();
 
+  const typedConversation = (conversation as ConversationRow | null) ?? null;
+
   if (
-    !conversation ||
-    (conversation.buyer_id !== user.id && conversation.seller_id !== user.id)
+    !typedConversation ||
+    (typedConversation.buyer_id !== user.id &&
+      typedConversation.seller_id !== user.id)
   ) {
     notFound();
   }
@@ -72,26 +111,26 @@ export default async function ConversationPage({
   const { data: unreadBeforeOpen } = await supabase
     .from("messages")
     .select("id")
-    .eq("conversation_id", conversation.id)
+    .eq("conversation_id", typedConversation.id)
     .neq("sender_id", user.id)
     .is("read_at", null);
 
   const initialUnreadMessageIds = (unreadBeforeOpen || []).map(
-    (message: any) => message.id
+    (message: { id: string }) => message.id
   );
 
   await supabase
     .from("messages")
     .update({ read_at: new Date().toISOString() })
-    .eq("conversation_id", conversation.id)
+    .eq("conversation_id", typedConversation.id)
     .neq("sender_id", user.id)
     .is("read_at", null);
 
-  const listingIds = safeConversations.map((c: any) => c.listing_id);
-  const otherUserIds = safeConversations.map((c: any) =>
+  const listingIds = safeConversations.map((c) => c.listing_id);
+  const otherUserIds = safeConversations.map((c) =>
     c.buyer_id === user.id ? c.seller_id : c.buyer_id
   );
-  const conversationIds = safeConversations.map((c: any) => c.id);
+  const conversationIds = safeConversations.map((c) => c.id);
 
   const { data: listings } = await supabase
     .from("listings")
@@ -119,24 +158,19 @@ export default async function ConversationPage({
   const { data: messages } = await supabase
     .from("messages")
     .select("*")
-    .eq("conversation_id", conversation.id)
+    .eq("conversation_id", typedConversation.id)
     .order("created_at", { ascending: true });
 
-  const listingsMap = new Map((listings || []).map((l: any) => [l.id, l]));
-  const profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+  const listingsMap = new Map(
+    ((listings || []) as ListingChatRow[]).map((l) => [l.id, l])
+  );
+  const profilesMap = new Map(
+    ((profiles || []) as ProfileRow[]).map((p) => [p.id, p])
+  );
 
-  const latestMessageMap = new Map<
-    string,
-    {
-      conversation_id: string;
-      body: string | null;
-      created_at: string;
-      sender_id: string;
-      attachment_name?: string | null;
-    }
-  >();
+  const latestMessageMap = new Map<string, LatestMessageRow>();
 
-  for (const message of latestMessages || []) {
+  for (const message of (latestMessages || []) as LatestMessageRow[]) {
     if (!latestMessageMap.has(message.conversation_id)) {
       latestMessageMap.set(message.conversation_id, message);
     }
@@ -151,41 +185,43 @@ export default async function ConversationPage({
     );
   }
 
-  const conversationSummaries = safeConversations.map((item: any) => {
-    const otherUserId =
-      item.buyer_id === user.id ? item.seller_id : item.buyer_id;
+  const conversationSummaries: ConversationSummary[] = safeConversations.map(
+    (item) => {
+      const otherUserId =
+        item.buyer_id === user.id ? item.seller_id : item.buyer_id;
 
-    const otherProfile = profilesMap.get(otherUserId);
-    const listing = listingsMap.get(item.listing_id);
-    const latestMessage = latestMessageMap.get(item.id);
-    const unreadCount = unreadCountMap.get(item.id) || 0;
+      const otherProfile = profilesMap.get(otherUserId);
+      const listing = listingsMap.get(item.listing_id);
+      const latestMessage = latestMessageMap.get(item.id);
+      const unreadCount = unreadCountMap.get(item.id) || 0;
 
-    const latestMessageBody =
-      latestMessage?.body?.trim() ||
-      (latestMessage?.attachment_name
-        ? `📎 ${latestMessage.attachment_name}`
-        : "Sin mensajes todavía");
+      const latestMessageBody =
+        latestMessage?.body?.trim() ||
+        (latestMessage?.attachment_name
+          ? `📎 ${latestMessage.attachment_name}`
+          : "Sin mensajes todavía");
 
-    return {
-      id: item.id,
-      otherName:
-        otherProfile?.full_name && otherProfile.full_name.trim().length > 0
-          ? otherProfile.full_name.trim()
-          : "Usuario",
-      listingTitle: listing?.title || "Anuncio",
-      latestMessageBody,
-      latestMessageCreatedAt: latestMessage?.created_at || null,
-      unreadCount,
-    };
-  });
+      return {
+        id: item.id,
+        otherName:
+          otherProfile?.full_name && otherProfile.full_name.trim().length > 0
+            ? otherProfile.full_name.trim()
+            : "Usuario",
+        listingTitle: listing?.title || "Anuncio",
+        latestMessageBody,
+        latestMessageCreatedAt: latestMessage?.created_at || null,
+        unreadCount,
+      };
+    }
+  );
 
   const otherUserId =
-    conversation.buyer_id === user.id
-      ? conversation.seller_id
-      : conversation.buyer_id;
+    typedConversation.buyer_id === user.id
+      ? typedConversation.seller_id
+      : typedConversation.buyer_id;
 
   const otherProfile = profilesMap.get(otherUserId);
-  const listing = listingsMap.get(conversation.listing_id);
+  const listing = listingsMap.get(typedConversation.listing_id);
 
   const otherName =
     otherProfile?.full_name && otherProfile.full_name.trim().length > 0
@@ -207,7 +243,7 @@ export default async function ConversationPage({
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <ConversationsSidebar
           conversations={conversationSummaries}
-          selectedConversationId={conversation.id}
+          selectedConversationId={typedConversation.id}
           currentUserId={user.id}
         />
 
@@ -246,22 +282,22 @@ export default async function ConversationPage({
 
           <div className="flex-1 px-5 py-5">
             <RealtimeChatMessages
-              conversationId={conversation.id}
+              conversationId={typedConversation.id}
               currentUserId={user.id}
-              initialMessages={messages || []}
+              initialMessages={(messages || []) as MessageRow[]}
               initialUnreadMessageIds={initialUnreadMessageIds}
             />
           </div>
 
           <div className="border-t px-5 py-4">
             <ConversationListingState
-              listingId={conversation.listing_id}
+              listingId={typedConversation.listing_id}
               initialStatus={listingStatus}
               title={listing?.title || "Anuncio"}
               price={typeof listing?.price === "number" ? listing.price : null}
             >
               <SendMessageForm
-                conversationId={conversation.id}
+                conversationId={typedConversation.id}
                 disabled={!canSendMessages}
               />
             </ConversationListingState>

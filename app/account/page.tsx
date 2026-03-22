@@ -12,23 +12,14 @@ import {
   Building2,
 } from "lucide-react";
 import AccountProfileForm from "@/components/account/account-profile-form";
-
-type AccountProfile = {
-  id: string;
-  full_name: string | null;
-  user_type: string | null;
-  grade_level: string | null;
-  postal_code: string | null;
-  school_id: string | null;
-  created_at: string | null;
-};
-
-type SchoolOption = {
-  id: string;
-  name: string;
-  city: string | null;
-  postal_code: string | null;
-};
+import type {
+  AccountProfileRow,
+  SchoolRow,
+} from "@/lib/types/marketplace";
+import {
+  getInitials,
+  getUserTypeLabel,
+} from "@/lib/marketplace/formatters";
 
 type SafeUserMetadata = {
   full_name?: string;
@@ -37,38 +28,6 @@ type SafeUserMetadata = {
   postal_code?: string;
   school_name?: string;
 };
-
-function getInitials(name?: string | null, email?: string | null) {
-  if (name && name.trim().length > 0) {
-    return name
-      .trim()
-      .split(" ")
-      .map((part) => part[0]?.toUpperCase())
-      .slice(0, 2)
-      .join("");
-  }
-
-  if (email && email.length > 0) {
-    return email[0].toUpperCase();
-  }
-
-  return "U";
-}
-
-function formatUserType(userType?: string | null) {
-  switch (userType) {
-    case "parent":
-      return "Familia / Tutor legal";
-    case "student":
-      return "Estudiante";
-    case "school_admin":
-      return "Administrador de centro";
-    case "super_admin":
-      return "Super admin";
-    default:
-      return "Usuario";
-  }
-}
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -106,9 +65,9 @@ export default async function AccountPage() {
     console.error("Error cargando schools:", schoolsError);
   }
 
-  const typedProfile = (profile || null) as AccountProfile | null;
-  const schoolOptions: SchoolOption[] = Array.isArray(schoolsData)
-    ? (schoolsData as SchoolOption[])
+  const typedProfile = (profile || null) as AccountProfileRow | null;
+  const schoolOptions: SchoolRow[] = Array.isArray(schoolsData)
+    ? (schoolsData as SchoolRow[])
     : [];
 
   const fullName =
@@ -154,7 +113,7 @@ export default async function AccountPage() {
             <div className="space-y-2">
               <h2 className="text-2xl font-semibold">{fullName}</h2>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{formatUserType(userType)}</Badge>
+                <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
                 {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
               </div>
             </div>
@@ -207,14 +166,19 @@ export default async function AccountPage() {
             initialUserType={
               typedProfile?.user_type === "parent" || typedProfile?.user_type === "student"
                 ? typedProfile.user_type
-                : "student"
+                : ""
             }
             initialGradeLevel={typedProfile?.grade_level || ""}
             initialPostalCode={typedProfile?.postal_code || ""}
             initialSchoolId={typedProfile?.school_id || ""}
             email={email}
             gradeLevelOptions={normalizedGradeLevels}
-            schoolOptions={schoolOptions}
+            schoolOptions={schoolOptions.map((school) => ({
+              id: school.id,
+              name: school.name,
+              city: school.city,
+              postal_code: school.postal_code || null,
+            }))}
           />
         </div>
       </div>
