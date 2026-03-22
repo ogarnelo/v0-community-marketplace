@@ -18,6 +18,8 @@ export function ContactSellerButton({
   const [loading, setLoading] = useState(false);
 
   const handleContact = async () => {
+    if (loading) return;
+
     setLoading(true);
 
     try {
@@ -38,6 +40,20 @@ export function ContactSellerButton({
         return;
       }
 
+      const { data: listing, error: listingError } = await supabase
+        .from("listings")
+        .select("id, status")
+        .eq("id", listingId)
+        .maybeSingle();
+
+      if (listingError) {
+        throw listingError;
+      }
+
+      if (!listing) {
+        throw new Error("El anuncio ya no está disponible.");
+      }
+
       const { data: existingConversation, error: existingError } = await supabase
         .from("conversations")
         .select("id")
@@ -54,6 +70,12 @@ export function ContactSellerButton({
         router.push(`/messages/${existingConversation.id}`);
         router.refresh();
         return;
+      }
+
+      if (listing.status !== "available") {
+        throw new Error(
+          "No puedes iniciar una conversación nueva porque este anuncio ya no está disponible."
+        );
       }
 
       const { data: newConversation, error: insertConversationError } =
@@ -89,7 +111,7 @@ export function ContactSellerButton({
         error?.message ||
         error?.error_description ||
         error?.details ||
-        JSON.stringify(error);
+        "No se pudo abrir la conversación.";
 
       alert(`Error creando conversación: ${message}`);
     } finally {

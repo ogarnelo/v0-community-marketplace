@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ const STATUS_OPTIONS = [
   { value: "reserved", label: "Reservado" },
   { value: "sold", label: "Vendido" },
   { value: "archived", label: "Archivado" },
-];
+] as const;
 
 export function ListingStatusActions({
   listingId,
@@ -26,7 +26,15 @@ export function ListingStatusActions({
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    setStatus(currentStatus || "available");
+  }, [currentStatus]);
+
+  const hasChanges = status !== (currentStatus || "available");
+
   const handleSave = async () => {
+    if (loading || isPending || !hasChanges) return;
+
     setLoading(true);
 
     try {
@@ -74,7 +82,7 @@ export function ListingStatusActions({
         type="button"
         variant="outline"
         onClick={handleSave}
-        disabled={loading || isPending}
+        disabled={loading || isPending || !hasChanges}
       >
         {loading || isPending ? "Guardando..." : "Guardar"}
       </Button>
