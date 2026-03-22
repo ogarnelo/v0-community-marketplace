@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { schools } from "@/lib/mock-data";
 import NewListingForm from "@/components/marketplace/new-listing-form";
 
 export const dynamic = "force-dynamic";
+
+type SchoolRecord = {
+  id: string;
+  name: string;
+  city: string | null;
+};
 
 export default async function NewListingPage() {
   const supabase = await createClient();
@@ -16,16 +21,31 @@ export default async function NewListingPage() {
     redirect("/auth?next=/marketplace/new");
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("school_id")
     .eq("id", user.id)
     .maybeSingle();
 
-  const selectedSchool =
-    profile?.school_id && profile.school_id.trim().length > 0
-      ? schools.find((school) => school.id === profile.school_id) || null
-      : null;
+  if (profileError) {
+    console.error("Error cargando school_id del perfil:", profileError);
+  }
+
+  let selectedSchool: SchoolRecord | null = null;
+
+  if (profile?.school_id && profile.school_id.trim().length > 0) {
+    const { data: school, error: schoolError } = await supabase
+      .from("schools")
+      .select("id, name, city")
+      .eq("id", profile.school_id)
+      .maybeSingle();
+
+    if (schoolError) {
+      console.error("Error cargando school real:", schoolError);
+    }
+
+    selectedSchool = (school as SchoolRecord | null) ?? null;
+  }
 
   return (
     <NewListingForm

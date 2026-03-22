@@ -35,6 +35,11 @@ interface NavbarProps {
   currentUserId?: string;
 }
 
+type ProfileUpdatedEventDetail = {
+  full_name?: string | null;
+  user_type?: string | null;
+};
+
 export function Navbar({
   isLoggedIn = false,
   userName = "Mi cuenta",
@@ -60,6 +65,28 @@ export function Navbar({
   }, [isAdmin]);
 
   useEffect(() => {
+    const handleProfileUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<ProfileUpdatedEventDetail>;
+      const nextName =
+        customEvent.detail?.full_name && customEvent.detail.full_name.trim().length > 0
+          ? customEvent.detail.full_name.trim()
+          : "Mi cuenta";
+
+      setLiveUserName(nextName);
+      setLiveIsAdmin(
+        customEvent.detail?.user_type === "school_admin" ||
+        customEvent.detail?.user_type === "super_admin"
+      );
+    };
+
+    window.addEventListener("profile-updated", handleProfileUpdated);
+
+    return () => {
+      window.removeEventListener("profile-updated", handleProfileUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!currentUserId) return;
 
     const channel = supabase
@@ -79,7 +106,7 @@ export function Navbar({
           };
 
           const nextName =
-            nextProfile?.full_name?.trim() && nextProfile.full_name.trim().length > 0
+            nextProfile?.full_name && nextProfile.full_name.trim().length > 0
               ? nextProfile.full_name.trim()
               : "Mi cuenta";
 
@@ -206,7 +233,7 @@ export function Navbar({
               <SheetTrigger asChild className="md:hidden">
                 <Button variant="ghost" size="icon">
                   <Menu className="h-5 w-5" />
-                  <span className="sr-only">Abrir menu</span>
+                  <span className="sr-only">Abrir menú</span>
                 </Button>
               </SheetTrigger>
 
@@ -268,10 +295,7 @@ export function Navbar({
 
                   {liveIsAdmin ? (
                     <Link href="/admin/school" onClick={() => setOpen(false)}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start gap-2"
-                      >
+                      <Button variant="ghost" className="w-full justify-start gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin
                       </Button>
@@ -295,7 +319,7 @@ export function Navbar({
                       className="w-full justify-start gap-2 text-destructive"
                     >
                       <LogOut className="h-4 w-4" />
-                      Cerrar sesion
+                      Cerrar sesión
                     </Button>
                   </button>
                 </nav>
@@ -312,7 +336,7 @@ export function Navbar({
 
             <Link href="/auth">
               <Button variant="ghost" size="sm">
-                Iniciar sesion
+                Iniciar sesión
               </Button>
             </Link>
 

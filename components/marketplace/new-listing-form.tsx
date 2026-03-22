@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -10,7 +10,6 @@ import {
   conditions,
   bookFormats,
   bookLanguages,
-  schools,
 } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,9 +67,19 @@ type PreviewFile = {
   previewUrl: string;
 };
 
-function sanitizeFileName(fileName: string) {
-  return fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
-}
+type ListingInsertPayload = {
+  title: string;
+  description: string;
+  category: string;
+  grade_level: string;
+  condition: string;
+  type: string;
+  price: number | null;
+  original_price: number | null;
+  seller_id: string;
+  school_id: string | null;
+  status: "available";
+};
 
 export default function NewListingForm({
   initialSchoolId,
@@ -110,6 +119,14 @@ export default function NewListingForm({
     }
     return initialSchoolName;
   }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
+
+  useEffect(() => {
+    return () => {
+      photos.forEach((photo) => {
+        URL.revokeObjectURL(photo.previewUrl);
+      });
+    };
+  }, [photos]);
 
   const handlePickPhoto = () => {
     fileInputRef.current?.click();
@@ -168,82 +185,46 @@ export default function NewListingForm({
     });
   };
 
-  const uploadPhotos = async (userId: string) => {
-    const supabase = createClient();
+  const validateForm = () => {
+    if (!title.trim()) return "Debes indicar un título.";
+    if (!description.trim()) return "Debes añadir una descripción.";
+    if (!selectedCategory) return "Debes seleccionar una categoría.";
+    if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
+    if (!selectedCondition) return "Debes seleccionar el estado del material.";
 
-    if (photos.length === 0) return [];
+    if (!isDonation) {
+      if (!price.trim()) return "Debes indicar un precio para la venta.";
 
-    const uploadedUrls: string[] = [];
-
-    for (let index = 0; index < photos.length; index += 1) {
-      const item = photos[index];
-      const file = item.file;
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(file.name);
-      const path = `${userId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("listing-images")
-        .upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw uploadError;
+      const numericPrice = Number(price);
+      if (Number.isNaN(numericPrice) || numericPrice < 0) {
+        return "El precio debe ser un número válido.";
       }
 
-      const { data: publicUrlData } = supabase.storage
-        .from("listing-images")
-        .getPublicUrl(path);
-
-      if (publicUrlData?.publicUrl) {
-        uploadedUrls.push(publicUrlData.publicUrl);
+      if (originalPrice.trim()) {
+        const numericOriginalPrice = Number(originalPrice);
+        if (Number.isNaN(numericOriginalPrice) || numericOriginalPrice < 0) {
+          return "El precio original debe ser un número válido.";
+        }
       }
     }
 
-    return uploadedUrls;
+    return null;
   };
 
-  const insertListing = async (payload: Record<string, unknown>) => {
-    const supabase = createClient();
-
-    const firstAttempt = await supabase
-      .from("listings")
-      .insert(payload)
-      .select("id")
-      .single();
-
-    if (!firstAttempt.error) {
-      return firstAttempt;
-    }
-
-    const errorMessage =
-      firstAttempt.error.message ||
-      firstAttempt.error.details ||
-      firstAttempt.error.hint ||
-      "";
-
-    if (!errorMessage.toLowerCase().includes("photos")) {
-      return firstAttempt;
-    }
-
-    const { photos: _photos, ...payloadWithoutPhotos } = payload;
-
-    return supabase
-      .from("listings")
-      .insert(payloadWithoutPhotos)
-      .select("id")
-      .single();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setSubmitError("");
     setPhotoError("");
 
     try {
+      const validationError = validateForm();
+
+      if (validationError) {
+        setSubmitError(validationError);
+        return;
+      }
+
       const supabase = createClient();
 
       const {
@@ -255,41 +236,41 @@ export default function NewListingForm({
         return;
       }
 
-      const { data: currentProfile } = await supabase
+      const { data: currentProfile, error: profileError } = await supabase
         .from("profiles")
         .select("school_id")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
 
       const effectiveSchoolId =
         currentProfile?.school_id && currentProfile.school_id.trim().length > 0
           ? currentProfile.school_id
           : initialSchoolId || null;
 
-      const uploadedPhotoUrls = await uploadPhotos(user.id);
-
-      const payload: Record<string, unknown> = {
+      const payload: ListingInsertPayload = {
         title: title.trim(),
         description: description.trim(),
         category: selectedCategory,
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
         type: isDonation ? "donation" : "sale",
-        price: isDonation ? null : price ? Number(price) : null,
-        original_price: isDonation
-          ? null
-          : originalPrice
-            ? Number(originalPrice)
-            : null,
+        price: isDonation ? null : Number(price),
+        original_price:
+          isDonation || !originalPrice.trim() ? null : Number(originalPrice),
         seller_id: user.id,
         school_id: effectiveSchoolId,
         status: "available",
-        photos: uploadedPhotoUrls,
       };
 
-      const { data: insertedListing, error: insertError } = await insertListing(
-        payload
-      );
+      const { data: insertedListing, error: insertError } = await supabase
+        .from("listings")
+        .insert(payload)
+        .select("id")
+        .single();
 
       if (insertError) {
         throw insertError;
@@ -353,36 +334,30 @@ export default function NewListingForm({
               />
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="title">Titulo *</Label>
+                <Label htmlFor="title">Título *</Label>
                 <Input
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Libro Matematicas 3o ESO"
-                  required
+                  placeholder="Ej: Libro Matemáticas 3º ESO"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="description">Descripcion *</Label>
+                <Label htmlFor="description">Descripción *</Label>
                 <Textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe el estado, editorial, edicion..."
+                  placeholder="Describe el estado, editorial, edición..."
                   rows={4}
-                  required
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                  <Label>Categoria *</Label>
-                  <Select
-                    value={selectedCategory}
-                    onValueChange={setSelectedCategory}
-                    required
-                  >
+                  <Label>Categoría *</Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
@@ -401,7 +376,6 @@ export default function NewListingForm({
                   <Select
                     value={selectedGradeLevel}
                     onValueChange={setSelectedGradeLevel}
-                    required
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
@@ -422,7 +396,6 @@ export default function NewListingForm({
                 <Select
                   value={selectedCondition}
                   onValueChange={setSelectedCondition}
-                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar..." />
@@ -432,7 +405,7 @@ export default function NewListingForm({
                       <SelectItem key={c.value} value={c.value}>
                         <div className="flex flex-col py-0.5">
                           <span className="font-medium">{c.label}</span>
-                          <span className="leading-snug text-xs text-muted-foreground">
+                          <span className="text-xs leading-snug text-muted-foreground">
                             {c.description}
                           </span>
                         </div>
@@ -467,17 +440,17 @@ export default function NewListingForm({
                               type="button"
                             >
                               <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="sr-only">Que es el ISBN</span>
+                              <span className="sr-only">Qué es el ISBN</span>
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-72 text-sm" side="top">
                             <p className="font-semibold text-foreground">
-                              Que es el ISBN?
+                              ¿Qué es el ISBN?
                             </p>
                             <p className="mt-1 leading-relaxed text-muted-foreground">
-                              ISBN son las siglas de International Standard Book
-                              Number y consiste en un codigo que nos sirve para
-                              identificar de manera unica cada producto editorial.
+                              ISBN son las siglas de International Standard Book Number
+                              y consiste en un código que sirve para identificar de
+                              manera única cada producto editorial.
                             </p>
                           </PopoverContent>
                         </Popover>
@@ -529,10 +502,7 @@ export default function NewListingForm({
 
                       <div className="flex flex-col gap-2">
                         <Label>Idioma</Label>
-                        <Select
-                          value={bookLanguage}
-                          onValueChange={setBookLanguage}
-                        >
+                        <Select value={bookLanguage} onValueChange={setBookLanguage}>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar..." />
                           </SelectTrigger>
@@ -553,11 +523,11 @@ export default function NewListingForm({
               <div className="flex items-center gap-4 rounded-lg border border-border p-4">
                 <div className="flex-1">
                   <p className="font-medium text-foreground">
-                    {isDonation ? "Donacion" : "Venta"}
+                    {isDonation ? "Donación" : "Venta"}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {isDonation
-                      ? "El admin de tu centro gestionara las solicitudes"
+                      ? "El admin de tu centro gestionará las solicitudes"
                       : "Establece un precio para tu material"}
                   </p>
                 </div>
@@ -578,7 +548,6 @@ export default function NewListingForm({
                         className="pr-8"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        required
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                         &euro;
@@ -610,7 +579,7 @@ export default function NewListingForm({
               ) : null}
 
               <div className="flex flex-col gap-2">
-                <Label>Fotos (max. 5)</Label>
+                <Label>Fotos (máx. 5)</Label>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                   {photos.map((photo, i) => (
                     <div
@@ -647,8 +616,9 @@ export default function NewListingForm({
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Puedes subir hasta 5 imágenes. Formatos permitidos: JPG, PNG,
-                  WEBP y GIF.
+                  Puedes preparar hasta 5 imágenes. La persistencia definitiva de
+                  fotos se conectará a <code>listing_photos</code> cuando confirmemos
+                  su esquema.
                 </p>
 
                 {photoError ? (
@@ -662,10 +632,8 @@ export default function NewListingForm({
               <div className="rounded-lg border border-border bg-muted/50 p-3">
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <School className="h-4 w-4" />
-                  Ubicacion:{" "}
-                  <span className="font-medium text-foreground">
-                    {schoolLabel}
-                  </span>
+                  Ubicación:{" "}
+                  <span className="font-medium text-foreground">{schoolLabel}</span>
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Se usará el centro asociado a tu perfil en este momento.

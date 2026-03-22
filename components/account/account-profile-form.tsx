@@ -13,7 +13,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, School, Mail, User2, Search, Check } from "lucide-react";
+import {
+  Loader2,
+  Save,
+  School,
+  Mail,
+  User2,
+  Search,
+  Check,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -63,11 +71,7 @@ export default function AccountProfileForm({
 
   const [fullName, setFullName] = useState(initialFullName);
   const [userType, setUserType] = useState<"parent" | "student">(initialUserType);
-  const [gradeLevel, setGradeLevel] = useState(
-    initialGradeLevel && initialGradeLevel.trim().length > 0
-      ? initialGradeLevel
-      : "Otros"
-  );
+  const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
   const [postalCode, setPostalCode] = useState(initialPostalCode);
   const [selectedSchoolId, setSelectedSchoolId] = useState(initialSchoolId);
   const [schoolSearch, setSchoolSearch] = useState("");
@@ -89,14 +93,14 @@ export default function AccountProfileForm({
         (school.postal_code || "").toLowerCase().includes(query)
       );
     });
-  }, [schoolSearch, schoolOptions]);
+  }, [schoolOptions, schoolSearch]);
 
   const selectedSchool =
     selectedSchoolId && selectedSchoolId.trim().length > 0
       ? schoolOptions.find((school) => school.id === selectedSchoolId) || null
       : null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setSuccessMessage("");
@@ -114,25 +118,29 @@ export default function AccountProfileForm({
         return;
       }
 
+      const normalizedFullName = fullName.trim();
+      const normalizedGradeLevel = gradeLevel.trim();
       const normalizedPostalCode = postalCode.trim();
       const normalizedSchoolId = selectedSchoolId.trim();
+
       const selectedSchoolName =
         normalizedSchoolId.length > 0
           ? schoolOptions.find((school) => school.id === normalizedSchoolId)?.name || null
           : null;
 
-      const payload = {
-        id: user.id,
-        full_name: fullName.trim() || null,
-        user_type: userType,
-        grade_level: gradeLevel.trim() || "Otros",
-        postal_code: normalizedPostalCode || null,
-        school_id: normalizedSchoolId || null,
-      };
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert(payload, { onConflict: "id" });
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          full_name: normalizedFullName || null,
+          user_type: userType || null,
+          grade_level: normalizedGradeLevel || null,
+          postal_code: normalizedPostalCode || null,
+          school_id: normalizedSchoolId || null,
+        },
+        {
+          onConflict: "id",
+        }
+      );
 
       if (profileError) {
         throw profileError;
@@ -140,9 +148,9 @@ export default function AccountProfileForm({
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
-          full_name: fullName.trim() || null,
-          user_type: userType,
-          grade_level: gradeLevel.trim() || "Otros",
+          full_name: normalizedFullName || null,
+          user_type: userType || null,
+          grade_level: normalizedGradeLevel || null,
           postal_code: normalizedPostalCode || null,
           school_name: selectedSchoolName,
         },
@@ -152,10 +160,20 @@ export default function AccountProfileForm({
         throw authError;
       }
 
+      window.dispatchEvent(
+        new CustomEvent("profile-updated", {
+          detail: {
+            full_name: normalizedFullName || "Mi cuenta",
+            user_type: userType || null,
+          },
+        })
+      );
+
       setSuccessMessage("Perfil actualizado correctamente.");
       router.refresh();
     } catch (error: any) {
       console.error("Error actualizando perfil:", error);
+
       setErrorMessage(
         error?.message ||
         error?.error_description ||
@@ -205,7 +223,9 @@ export default function AccountProfileForm({
               <p className="text-sm text-muted-foreground">
                 {selectedSchool
                   ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}`
-                  : "Sin centro asignado"}
+                  : schoolOptions.length === 0
+                    ? "No hay centros disponibles todavía"
+                    : "Sin centro asignado"}
               </p>
             </div>
           </div>
@@ -239,11 +259,15 @@ export default function AccountProfileForm({
 
             <div className="flex flex-col gap-2">
               <Label>Curso / etapa</Label>
-              <Select value={gradeLevel} onValueChange={setGradeLevel}>
+              <Select
+                value={gradeLevel || "unset"}
+                onValueChange={(value) => setGradeLevel(value === "unset" ? "" : value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="unset">Sin indicar</SelectItem>
                   {gradeLevelOptions.map((level) => (
                     <SelectItem key={level} value={level}>
                       {level}
@@ -266,7 +290,9 @@ export default function AccountProfileForm({
                     <span className="truncate">
                       {selectedSchool
                         ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}`
-                        : "Selecciona tu centro o déjalo vacío"}
+                        : schoolOptions.length === 0
+                          ? "No hay centros disponibles todavía"
+                          : "Selecciona tu centro o déjalo vacío"}
                     </span>
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-60" />
                   </Button>
@@ -296,7 +322,9 @@ export default function AccountProfileForm({
                     <div className="max-h-64 overflow-y-auto rounded-lg border">
                       {filteredSchools.length === 0 ? (
                         <div className="px-3 py-4 text-sm text-muted-foreground">
-                          No se encontraron centros.
+                          {schoolOptions.length === 0
+                            ? "Todavía no hay centros cargados en la base de datos."
+                            : "No se encontraron centros."}
                         </div>
                       ) : (
                         filteredSchools.map((school) => {
@@ -327,7 +355,8 @@ export default function AccountProfileForm({
                               ) : null}
                             </button>
                           );
-                        })}
+                        })
+                      )}
                     </div>
                   </div>
                 </PopoverContent>

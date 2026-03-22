@@ -83,50 +83,54 @@ export default async function AccountPage() {
 
   const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 
-  const profileResponse = await supabase
-    .from("profiles")
-    .select("id, full_name, user_type, grade_level, postal_code, school_id, created_at")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile, error: profileError }, { data: schoolsData, error: schoolsError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select(
+          "id, full_name, user_type, grade_level, postal_code, school_id, created_at"
+        )
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("schools")
+        .select("id, name, city, postal_code")
+        .order("name", { ascending: true }),
+    ]);
 
-  const schoolsResponse = await supabase
-    .from("schools")
-    .select("id, name, city, postal_code")
-    .order("name", { ascending: true });
+  if (profileError) {
+    console.error("Error cargando profile:", profileError);
+  }
 
-  const profile = (profileResponse.data || null) as AccountProfile | null;
+  if (schoolsError) {
+    console.error("Error cargando schools:", schoolsError);
+  }
 
-  const schools: SchoolOption[] = ((schoolsResponse.data || []) as any[]).map((school) => ({
-    id: school.id,
-    name: school.name,
-    city: school.city ?? null,
-    postal_code: school.postal_code ?? null,
-  }));
-
-  const gradeLevelOptions = [
-    ...gradeLevels.filter((level) => level !== "Otros"),
-    "Otros",
-  ];
+  const typedProfile = (profile || null) as AccountProfile | null;
+  const schoolOptions: SchoolOption[] = Array.isArray(schoolsData)
+    ? (schoolsData as SchoolOption[])
+    : [];
 
   const fullName =
-    profile?.full_name || metadata.full_name || user.email || "Mi cuenta";
+    typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
   const email = user.email || "Sin email";
-  const userType = profile?.user_type || metadata.user_type || "student";
-  const gradeLevel = profile?.grade_level || metadata.grade_level || "";
-  const postalCode = profile?.postal_code || metadata.postal_code || "";
-  const createdAt = profile?.created_at || user.created_at || null;
+  const userType = typedProfile?.user_type || metadata.user_type || null;
+  const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
+  const postalCode = typedProfile?.postal_code || metadata.postal_code || null;
+  const createdAt = typedProfile?.created_at || user.created_at || null;
 
   const selectedSchool =
-    profile?.school_id && profile.school_id.trim().length > 0
-      ? schools.find((school) => school.id === profile.school_id) || null
+    typedProfile?.school_id && typedProfile.school_id.trim().length > 0
+      ? schoolOptions.find((school) => school.id === typedProfile.school_id) || null
       : null;
 
   const schoolName =
     selectedSchool?.name ||
-    (typeof metadata.school_name === "string" &&
-      metadata.school_name.trim().length > 0
+    (typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0
       ? metadata.school_name.trim()
       : "Centro no asignado");
+
+  const normalizedGradeLevels = Array.from(new Set(gradeLevels)).filter(Boolean);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
@@ -199,18 +203,18 @@ export default async function AccountPage() {
 
         <div className="lg:col-span-2">
           <AccountProfileForm
-            initialFullName={profile?.full_name || ""}
+            initialFullName={typedProfile?.full_name || ""}
             initialUserType={
-              profile?.user_type === "parent" || profile?.user_type === "student"
-                ? profile.user_type
+              typedProfile?.user_type === "parent" || typedProfile?.user_type === "student"
+                ? typedProfile.user_type
                 : "student"
             }
-            initialGradeLevel={profile?.grade_level || ""}
-            initialPostalCode={profile?.postal_code || ""}
-            initialSchoolId={profile?.school_id || ""}
+            initialGradeLevel={typedProfile?.grade_level || ""}
+            initialPostalCode={typedProfile?.postal_code || ""}
+            initialSchoolId={typedProfile?.school_id || ""}
             email={email}
-            gradeLevelOptions={gradeLevelOptions}
-            schoolOptions={schools}
+            gradeLevelOptions={normalizedGradeLevels}
+            schoolOptions={schoolOptions}
           />
         </div>
       </div>
