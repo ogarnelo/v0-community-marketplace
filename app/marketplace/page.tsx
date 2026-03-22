@@ -38,65 +38,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-
-type ListingRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string | null;
-  grade_level: string | null;
-  condition: string | null;
-  type: string | null;
-  listing_type?: string | null;
-  price: number | null;
-  original_price: number | null;
-  estimated_retail_price?: number | null;
-  seller_id: string | null;
-  user_id?: string | null;
-  school_id: string | null;
-  status: string | null;
-  created_at: string | null;
-};
-
-type ListingPhotoRow = {
-  id: string;
-  listing_id: string;
-  url: string;
-  sort_order: number | null;
-};
-
-type MarketplaceListing = {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string | null;
-  gradeLevel: string | null;
-  condition: string | null;
-  type: string | null;
-  price?: number;
-  originalPrice?: number;
-  photos: string[];
-  sellerId: string | null;
-  schoolId: string | null;
-  status: string | null;
-  createdAt: string | null;
-  distance?: number;
-  isFavorite?: boolean;
-};
-
-function buildPhotosMap(rows: ListingPhotoRow[]) {
-  const grouped = new Map<string, string[]>();
-
-  for (const row of rows) {
-    if (!grouped.has(row.listing_id)) {
-      grouped.set(row.listing_id, []);
-    }
-
-    grouped.get(row.listing_id)?.push(row.url);
-  }
-
-  return grouped;
-}
+import {
+  buildPhotosMap,
+  type ListingPhotoRow,
+  type ListingRow,
+  type MarketplaceListing,
+  type ProfileRow,
+} from "@/lib/types/marketplace";
 
 export default function MarketplacePage() {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
@@ -137,7 +85,7 @@ export default function MarketplacePage() {
               .eq("user_id", user.id),
             supabase
               .from("profiles")
-              .select("school_id")
+              .select("id, full_name, user_type, school_id")
               .eq("id", user.id)
               .maybeSingle(),
           ]);
@@ -146,9 +94,11 @@ export default function MarketplacePage() {
             (favorites || []).map((fav: { listing_id: string }) => fav.listing_id)
           );
 
+          const typedProfile = (profile as ProfileRow | null) ?? null;
+
           viewerSchoolId =
-            profile?.school_id && profile.school_id.trim().length > 0
-              ? profile.school_id
+            typedProfile?.school_id && typedProfile.school_id.trim().length > 0
+              ? typedProfile.school_id
               : "";
         }
 
@@ -189,8 +139,8 @@ export default function MarketplacePage() {
 
         const mapped: MarketplaceListing[] = listingRows.map((item) => ({
           id: item.id,
-          title: item.title,
-          description: item.description,
+          title: item.title || "Anuncio sin título",
+          description: item.description || null,
           category: item.category,
           gradeLevel: item.grade_level,
           condition: item.condition,
@@ -202,7 +152,7 @@ export default function MarketplacePage() {
           sellerId: item.seller_id || item.user_id || null,
           schoolId: item.school_id || null,
           status: item.status,
-          createdAt: item.created_at,
+          createdAt: item.created_at || null,
           distance: undefined,
           isFavorite: favoriteIds.has(item.id),
         }));
@@ -216,7 +166,7 @@ export default function MarketplacePage() {
       }
     };
 
-    loadListings();
+    void loadListings();
   }, []);
 
   const handleSliderChange = (values: number[]) => {
@@ -449,7 +399,7 @@ export default function MarketplacePage() {
         />
       </div>
 
-      {activeFiltersCount > 0 && (
+      {activeFiltersCount > 0 ? (
         <Button
           variant="ghost"
           size="sm"
@@ -458,7 +408,7 @@ export default function MarketplacePage() {
         >
           <X className="h-3.5 w-3.5" /> Limpiar filtros ({activeFiltersCount})
         </Button>
-      )}
+      ) : null}
     </div>
   );
 
@@ -497,7 +447,7 @@ export default function MarketplacePage() {
                 {nearbyMode ? "Cerca de mi" : "Todos los anuncios"}
               </Label>
             </div>
-            {nearbyMode && (
+            {nearbyMode ? (
               <Select value={radius} onValueChange={setRadius}>
                 <SelectTrigger className="h-8 w-24">
                   <SelectValue />
@@ -509,7 +459,7 @@ export default function MarketplacePage() {
                   <SelectItem value="50">50 km</SelectItem>
                 </SelectContent>
               </Select>
-            )}
+            ) : null}
           </div>
 
           <div className="relative flex-1">
@@ -527,11 +477,11 @@ export default function MarketplacePage() {
               <Button variant="outline" className="gap-2 lg:hidden">
                 <SlidersHorizontal className="h-4 w-4" />
                 Filtros
-                {activeFiltersCount > 0 && (
+                {activeFiltersCount > 0 ? (
                   <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
                     {activeFiltersCount}
                   </Badge>
-                )}
+                ) : null}
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-80">

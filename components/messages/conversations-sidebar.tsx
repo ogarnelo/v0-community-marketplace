@@ -4,15 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
-
-type ConversationSummary = {
-  id: string;
-  otherName: string;
-  listingTitle: string;
-  latestMessageBody: string;
-  latestMessageCreatedAt: string | null;
-  unreadCount: number;
-};
+import type { ConversationSummary } from "@/lib/types/marketplace";
 
 type MessageRealtimePayload = {
   id: string;

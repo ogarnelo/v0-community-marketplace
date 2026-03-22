@@ -5,46 +5,12 @@ import { ListingCard } from "@/components/listing-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
-
-type ListingRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string | null;
-  grade_level: string | null;
-  condition: string | null;
-  type: string | null;
-  listing_type?: string | null;
-  price: number | null;
-  original_price: number | null;
-  estimated_retail_price?: number | null;
-  seller_id: string | null;
-  user_id?: string | null;
-  school_id: string | null;
-  status: string | null;
-  created_at: string | null;
-};
-
-type ListingPhotoRow = {
-  id: string;
-  listing_id: string;
-  url: string;
-  sort_order: number | null;
-};
-
-function buildPhotosMap(rows: ListingPhotoRow[]) {
-  const grouped = new Map<string, string[]>();
-
-  for (const row of rows) {
-    if (!grouped.has(row.listing_id)) {
-      grouped.set(row.listing_id, []);
-    }
-
-    grouped.get(row.listing_id)?.push(row.url);
-  }
-
-  return grouped;
-}
+import {
+  buildPhotosMap,
+  type ListingPhotoRow,
+  type ListingRow,
+  type ProfileRow,
+} from "@/lib/types/marketplace";
 
 export default async function FavoritesPage() {
   const supabase = await createClient();
@@ -59,7 +25,11 @@ export default async function FavoritesPage() {
 
   const [{ data: favorites }, { data: currentProfile }] = await Promise.all([
     supabase.from("favorites").select("listing_id").eq("user_id", user.id),
-    supabase.from("profiles").select("school_id").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, user_type, school_id")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
 
   const favoriteIds = (favorites || []).map(
@@ -96,8 +66,8 @@ export default async function FavoritesPage() {
 
   const mappedListings = listings.map((item) => ({
     id: item.id,
-    title: item.title,
-    description: item.description,
+    title: item.title || "Anuncio sin título",
+    description: item.description || null,
     category: item.category,
     gradeLevel: item.grade_level,
     condition: item.condition,
@@ -109,14 +79,16 @@ export default async function FavoritesPage() {
     sellerId: item.seller_id || item.user_id || null,
     schoolId: item.school_id || null,
     status: item.status,
-    createdAt: item.created_at,
+    createdAt: item.created_at || null,
     distance: undefined,
     isFavorite: true,
   }));
 
+  const typedProfile = (currentProfile as ProfileRow | null) ?? null;
+
   const currentSchoolId =
-    currentProfile?.school_id && currentProfile.school_id.trim().length > 0
-      ? currentProfile.school_id
+    typedProfile?.school_id && typedProfile.school_id.trim().length > 0
+      ? typedProfile.school_id
       : "";
 
   return (
