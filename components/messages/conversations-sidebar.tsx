@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { HideConversationButton } from "@/components/messages/hide-conversation-button";
 import type { ConversationSummary } from "@/lib/types/marketplace";
 
 type MessageRealtimePayload = {
@@ -203,58 +204,76 @@ export function ConversationsSidebar({
             const isSelected = conversation.id === selectedConversationId;
 
             return (
-              <Link
+              <div
                 key={conversation.id}
-                href={`/messages/${conversation.id}`}
-                className={`block border-b px-4 py-4 transition hover:bg-slate-50 ${isSelected ? "bg-emerald-50" : "bg-white"
-                  }`}
+                className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}
               >
                 <div className="flex items-start gap-3">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback>
-                      {getInitials(conversation.otherName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <Link
+                    href={`/messages/${conversation.id}`}
+                    className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50"
+                  >
+                    <div className="flex items-start gap-3 rounded-xl p-1">
+                      <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarFallback>
+                          {getInitials(conversation.otherName)}
+                        </AvatarFallback>
+                      </Avatar>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">
-                          {conversation.otherName}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold">
+                              {conversation.otherName}
+                            </p>
+                            <p className="truncate text-sm text-muted-foreground">
+                              {conversation.listingTitle}
+                            </p>
+                          </div>
+
+                          <div className="flex shrink-0 flex-col items-end gap-2">
+                            {conversation.latestMessageCreatedAt ? (
+                              <span className="text-xs text-muted-foreground">
+                                {formatSidebarDate(
+                                  conversation.latestMessageCreatedAt
+                                )}
+                              </span>
+                            ) : null}
+
+                            {conversation.unreadCount > 0 ? (
+                              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
+                                {conversation.unreadCount}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <p
+                          className={`mt-2 truncate text-sm ${conversation.unreadCount > 0
+                              ? "font-medium text-slate-900"
+                              : "text-muted-foreground"
+                            }`}
+                        >
+                          {conversation.latestMessageBody || "Sin mensajes todavía"}
                         </p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {conversation.listingTitle}
-                        </p>
-                      </div>
-
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        {conversation.latestMessageCreatedAt ? (
-                          <span className="text-xs text-muted-foreground">
-                            {formatSidebarDate(
-                              conversation.latestMessageCreatedAt
-                            )}
-                          </span>
-                        ) : null}
-
-                        {conversation.unreadCount > 0 ? (
-                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
-                            {conversation.unreadCount}
-                          </span>
-                        ) : null}
                       </div>
                     </div>
+                  </Link>
 
-                    <p
-                      className={`mt-2 truncate text-sm ${conversation.unreadCount > 0
-                          ? "font-medium text-slate-900"
-                          : "text-muted-foreground"
-                        }`}
-                    >
-                      {conversation.latestMessageBody || "Sin mensajes todavía"}
-                    </p>
-                  </div>
+                  <HideConversationButton
+                    conversationId={conversation.id}
+                    iconOnly
+                    size="icon"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    onHidden={(hiddenConversationId) => {
+                      setItems((prev) =>
+                        prev.filter((item) => item.id !== hiddenConversationId)
+                      );
+                    }}
+                  />
                 </div>
-              </Link>
+              </div>
             );
           })
         )}

@@ -19,12 +19,24 @@ export function NavbarMessagesBadge({
     let isMounted = true;
 
     const loadUnreadCount = async () => {
-      const { data: conversations } = await supabase
-        .from("conversations")
-        .select("id")
-        .or(`buyer_id.eq.${currentUserId},seller_id.eq.${currentUserId}`);
+      const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select("id")
+          .or(`buyer_id.eq.${currentUserId},seller_id.eq.${currentUserId}`),
+        supabase
+          .from("hidden_conversations")
+          .select("conversation_id")
+          .eq("user_id", currentUserId),
+      ]);
 
-      const conversationIds = (conversations || []).map((c: any) => c.id);
+      const hiddenConversationIds = new Set(
+        (hiddenRows || []).map((row: { conversation_id: string }) => row.conversation_id)
+      );
+
+      const conversationIds = (conversations || [])
+        .map((c: any) => c.id)
+        .filter((id: string) => !hiddenConversationIds.has(id));
 
       if (!isMounted) return;
 
@@ -45,7 +57,7 @@ export function NavbarMessagesBadge({
       setCount(unreadMessages?.length || 0);
     };
 
-    loadUnreadCount();
+    void loadUnreadCount();
 
     const messagesChannel = supabase
       .channel(`navbar-unread-messages-${currentUserId}`)
@@ -77,10 +89,27 @@ export function NavbarMessagesBadge({
       )
       .subscribe();
 
+    const hiddenChannel = supabase
+      .channel(`navbar-hidden-conversations-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "hidden_conversations",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        async () => {
+          await loadUnreadCount();
+        }
+      )
+      .subscribe();
+
     return () => {
       isMounted = false;
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(conversationsChannel);
+      supabase.removeChannel(hiddenChannel);
     };
   }, [currentUserId, supabase]);
 

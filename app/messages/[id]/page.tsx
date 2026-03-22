@@ -1,6 +1,8 @@
 import RealtimeChatMessages from "@/components/messages/realtime-chat-messages";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
 import ConversationListingState from "@/components/messages/conversation-listing-state";
+import { HideConversationButton } from "@/components/messages/hide-conversation-button";
+import { ReportConversationButton } from "@/components/messages/report-conversation-button";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -84,13 +86,25 @@ export default async function ConversationPage({
     redirect("/auth");
   }
 
-  const { data: conversations } = await supabase
-    .from("conversations")
-    .select("*")
-    .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-    .order("updated_at", { ascending: false });
+  const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("*")
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("hidden_conversations")
+      .select("conversation_id")
+      .eq("user_id", user.id),
+  ]);
 
-  const safeConversations = (conversations || []) as ConversationRow[];
+  const hiddenConversationIds = new Set(
+    (hiddenRows || []).map((row: { conversation_id: string }) => row.conversation_id)
+  );
+
+  const safeConversations = ((conversations || []) as ConversationRow[]).filter(
+    (conversation) => !hiddenConversationIds.has(conversation.id)
+  );
 
   const { data: conversation } = await supabase
     .from("conversations")
@@ -102,6 +116,7 @@ export default async function ConversationPage({
 
   if (
     !typedConversation ||
+    hiddenConversationIds.has(typedConversation.id) ||
     (typedConversation.buyer_id !== user.id &&
       typedConversation.seller_id !== user.id)
   ) {
@@ -271,12 +286,22 @@ export default async function ConversationPage({
                 </div>
               </Link>
 
-              <Link href={`/profile/${otherUserId}`}>
-                <Button variant="outline" size="sm" className="gap-2">
-                  Ver perfil
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <ReportConversationButton conversationId={typedConversation.id} />
+
+                <HideConversationButton
+                  conversationId={typedConversation.id}
+                  variant="outline"
+                  size="sm"
+                />
+
+                <Link href={`/profile/${otherUserId}`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    Ver perfil
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
 
