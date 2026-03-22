@@ -14,6 +14,16 @@ type ConversationSummary = {
   unreadCount: number;
 };
 
+type MessageRealtimePayload = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string | null;
+  created_at: string;
+  attachment_name?: string | null;
+  read_at?: string | null;
+};
+
 function getInitials(name?: string | null) {
   if (!name || !name.trim()) return "U";
 
@@ -37,6 +47,29 @@ function formatSidebarDate(date: string | null) {
   });
 }
 
+function sortConversations(items: ConversationSummary[]) {
+  return [...items].sort((a, b) => {
+    const aTime = a.latestMessageCreatedAt
+      ? new Date(a.latestMessageCreatedAt).getTime()
+      : 0;
+    const bTime = b.latestMessageCreatedAt
+      ? new Date(b.latestMessageCreatedAt).getTime()
+      : 0;
+
+    return bTime - aTime;
+  });
+}
+
+function buildPreviewText(message: {
+  body?: string | null;
+  attachment_name?: string | null;
+}) {
+  return (
+    message.body?.trim() ||
+    (message.attachment_name ? `📎 ${message.attachment_name}` : "Nuevo mensaje")
+  );
+}
+
 interface ConversationsSidebarProps {
   conversations: ConversationSummary[];
   selectedConversationId?: string;
@@ -52,8 +85,14 @@ export function ConversationsSidebar({
   const [items, setItems] = useState<ConversationSummary[]>(conversations);
 
   useEffect(() => {
-    setItems(conversations);
-  }, [conversations]);
+    setItems(
+      conversations.map((item) => ({
+        ...item,
+        unreadCount:
+          item.id === selectedConversationId ? 0 : item.unreadCount || 0,
+      }))
+    );
+  }, [conversations, selectedConversationId]);
 
   useEffect(() => {
     const loadUnreadCounts = async () => {
@@ -61,12 +100,17 @@ export function ConversationsSidebar({
 
       const conversationIds = items.map((item) => item.id);
 
-      const { data: unreadMessages } = await supabase
+      const { data: unreadMessages, error } = await supabase
         .from("messages")
         .select("conversation_id")
         .in("conversation_id", conversationIds)
         .neq("sender_id", currentUserId)
         .is("read_at", null);
+
+      if (error) {
+        console.error("Error cargando unread counts en sidebar:", error);
+        return;
+      }
 
       const unreadCountMap = new Map<string, number>();
 
@@ -78,14 +122,19 @@ export function ConversationsSidebar({
       }
 
       setItems((prev) =>
-        [...prev].map((item) => ({
+        prev.map((item) => ({
           ...item,
-          unreadCount: unreadCountMap.get(item.id) || 0,
+          unreadCount:
+            item.id === selectedConversationId
+              ? 0
+              : unreadCountMap.get(item.id) || 0,
         }))
       );
     };
 
-    loadUnreadCounts();
+    void loadUnreadCounts();
+
+    const knownConversationIds = new Set(items.map((item) => item.id));
 
     const channel = supabase
       .channel(`conversations-sidebar:${currentUserId}`)
@@ -96,51 +145,32 @@ export function ConversationsSidebar({
           schema: "public",
           table: "messages",
         },
-        async (payload) => {
-          const newMessage = payload.new as {
-            conversation_id: string;
-            sender_id: string;
-            body: string | null;
-            created_at: string;
-            attachment_name?: string | null;
-            read_at?: string | null;
-          };
+        (payload) => {
+          const newMessage = payload.new as MessageRealtimePayload;
 
-          const previewText =
-            newMessage.body?.trim() ||
-            (newMessage.attachment_name
-              ? `📎 ${newMessage.attachment_name}`
-              : "Nuevo mensaje");
+          if (!knownConversationIds.has(newMessage.conversation_id)) return;
+
+          const previewText = buildPreviewText(newMessage);
 
           setItems((prev) => {
-            const exists = prev.some((item) => item.id === newMessage.conversation_id);
-            if (!exists) return prev;
-
             const updated = prev.map((item) => {
               if (item.id !== newMessage.conversation_id) return item;
+
+              const shouldIncreaseUnread =
+                newMessage.sender_id !== currentUserId &&
+                item.id !== selectedConversationId;
 
               return {
                 ...item,
                 latestMessageBody: previewText,
                 latestMessageCreatedAt: newMessage.created_at,
-                unreadCount:
-                  newMessage.sender_id !== currentUserId
-                    ? item.unreadCount + 1
-                    : item.unreadCount,
+                unreadCount: shouldIncreaseUnread
+                  ? item.unreadCount + 1
+                  : item.unreadCount,
               };
             });
 
-            updated.sort((a, b) => {
-              const aTime = a.latestMessageCreatedAt
-                ? new Date(a.latestMessageCreatedAt).getTime()
-                : 0;
-              const bTime = b.latestMessageCreatedAt
-                ? new Date(b.latestMessageCreatedAt).getTime()
-                : 0;
-              return bTime - aTime;
-            });
-
-            return updated;
+            return sortConversations(updated);
           });
         }
       )
@@ -151,16 +181,16 @@ export function ConversationsSidebar({
           schema: "public",
           table: "messages",
         },
-        async () => {
-          await loadUnreadCounts();
+        () => {
+          void loadUnreadCounts();
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [currentUserId, items.length, supabase]);
+  }, [currentUserId, items, selectedConversationId, supabase]);
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-white">
@@ -206,19 +236,19 @@ export function ConversationsSidebar({
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-2">
-                        {conversation.latestMessageCreatedAt && (
+                        {conversation.latestMessageCreatedAt ? (
                           <span className="text-xs text-muted-foreground">
                             {formatSidebarDate(
                               conversation.latestMessageCreatedAt
                             )}
                           </span>
-                        )}
+                        ) : null}
 
-                        {conversation.unreadCount > 0 && (
+                        {conversation.unreadCount > 0 ? (
                           <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
                             {conversation.unreadCount}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 

@@ -45,9 +45,7 @@ export default function ListingStatusBanner({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {title ? (
-            <p className="truncate text-sm font-semibold">{title}</p>
-          ) : null}
+          {title ? <p className="truncate text-sm font-semibold">{title}</p> : null}
 
           <div className="mt-1 flex items-center gap-2">
             <span
