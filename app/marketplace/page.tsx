@@ -4,17 +4,66 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ListingCard } from "@/components/listing-card";
 import { categories, gradeLevels, conditions } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Search, SlidersHorizontal, MapPin, X, HelpCircle } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Plus,
+  Search,
+  SlidersHorizontal,
+  MapPin,
+  X,
+  HelpCircle,
+} from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
+type ListingRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  grade_level: string | null;
+  condition: string | null;
+  type: string | null;
+  listing_type?: string | null;
+  price: number | null;
+  original_price: number | null;
+  estimated_retail_price?: number | null;
+  seller_id: string | null;
+  user_id?: string | null;
+  school_id: string | null;
+  status: string | null;
+  created_at: string | null;
+};
+
+type ListingPhotoRow = {
+  id: string;
+  listing_id: string;
+  url: string;
+  sort_order: number | null;
+};
 
 type MarketplaceListing = {
   id: string;
@@ -35,9 +84,24 @@ type MarketplaceListing = {
   isFavorite?: boolean;
 };
 
+function buildPhotosMap(rows: ListingPhotoRow[]) {
+  const grouped = new Map<string, string[]>();
+
+  for (const row of rows) {
+    if (!grouped.has(row.listing_id)) {
+      grouped.set(row.listing_id, []);
+    }
+
+    grouped.get(row.listing_id)?.push(row.url);
+  }
+
+  return grouped;
+}
+
 export default function MarketplacePage() {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserSchoolId, setCurrentUserSchoolId] = useState("");
 
   const [nearbyMode, setNearbyMode] = useState(false);
   const [radius, setRadius] = useState("10");
@@ -55,58 +119,101 @@ export default function MarketplacePage() {
     const loadListings = async () => {
       setLoading(true);
 
-      const supabase = createClient();
+      try {
+        const supabase = createClient();
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      const { data, error } = await supabase
-        .from("listings")
-        .select("*")
-        .eq("status", "available")
-        .order("created_at", { ascending: false });
+        let favoriteIds = new Set<string>();
+        let viewerSchoolId = "";
 
-      if (error) {
-        console.error("Error cargando listings:", error);
+        if (user) {
+          const [{ data: favorites }, { data: profile }] = await Promise.all([
+            supabase
+              .from("favorites")
+              .select("listing_id")
+              .eq("user_id", user.id),
+            supabase
+              .from("profiles")
+              .select("school_id")
+              .eq("id", user.id)
+              .maybeSingle(),
+          ]);
+
+          favoriteIds = new Set(
+            (favorites || []).map((fav: { listing_id: string }) => fav.listing_id)
+          );
+
+          viewerSchoolId =
+            profile?.school_id && profile.school_id.trim().length > 0
+              ? profile.school_id
+              : "";
+        }
+
+        setCurrentUserSchoolId(viewerSchoolId);
+
+        const { data: listingsData, error: listingsError } = await supabase
+          .from("listings")
+          .select(
+            "id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
+          )
+          .eq("status", "available")
+          .order("created_at", { ascending: false });
+
+        if (listingsError) {
+          console.error("Error cargando listings:", listingsError);
+          setDbListings([]);
+          return;
+        }
+
+        const listingRows = (listingsData || []) as ListingRow[];
+        const listingIds = listingRows.map((item) => item.id);
+
+        let photosMap = new Map<string, string[]>();
+
+        if (listingIds.length > 0) {
+          const { data: listingPhotos, error: listingPhotosError } = await supabase
+            .from("listing_photos")
+            .select("id, listing_id, url, sort_order")
+            .in("listing_id", listingIds)
+            .order("sort_order", { ascending: true });
+
+          if (listingPhotosError) {
+            console.error("Error cargando listing_photos:", listingPhotosError);
+          } else {
+            photosMap = buildPhotosMap((listingPhotos || []) as ListingPhotoRow[]);
+          }
+        }
+
+        const mapped: MarketplaceListing[] = listingRows.map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          category: item.category,
+          gradeLevel: item.grade_level,
+          condition: item.condition,
+          type: item.type || item.listing_type,
+          price: item.price ?? undefined,
+          originalPrice:
+            item.original_price ?? item.estimated_retail_price ?? undefined,
+          photos: photosMap.get(item.id) || [],
+          sellerId: item.seller_id || item.user_id || null,
+          schoolId: item.school_id || null,
+          status: item.status,
+          createdAt: item.created_at,
+          distance: undefined,
+          isFavorite: favoriteIds.has(item.id),
+        }));
+
+        setDbListings(mapped);
+      } catch (error) {
+        console.error("Error cargando marketplace:", error);
         setDbListings([]);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      let favoriteIds = new Set<string>();
-
-      if (user) {
-        const { data: favorites } = await supabase
-          .from("favorites")
-          .select("listing_id")
-          .eq("user_id", user.id);
-
-        favoriteIds = new Set((favorites || []).map((fav: any) => fav.listing_id));
-      }
-
-      const mapped: MarketplaceListing[] = (data || []).map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        category: item.category,
-        gradeLevel: item.grade_level,
-        condition: item.condition,
-        type: item.type || item.listing_type,
-        price: item.price ?? undefined,
-        originalPrice:
-          item.original_price ?? item.estimated_retail_price ?? undefined,
-        photos: Array.isArray(item.photos) ? item.photos : [],
-        sellerId: item.seller_id || item.user_id || null,
-        schoolId: item.school_id || null,
-        status: item.status,
-        createdAt: item.created_at,
-        distance: undefined,
-        isFavorite: favoriteIds.has(item.id),
-      }));
-
-      setDbListings(mapped);
-      setLoading(false);
     };
 
     loadListings();
@@ -139,7 +246,10 @@ export default function MarketplacePage() {
       if (listingType !== "all" && l.type !== listingType) return false;
       if (condition !== "all" && l.condition !== condition) return false;
 
-      if (searchQuery && !l.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      if (
+        searchQuery &&
+        !l.title.toLowerCase().includes(searchQuery.toLowerCase())
+      ) {
         return false;
       }
 
@@ -194,24 +304,34 @@ export default function MarketplacePage() {
       <div className="flex flex-col gap-2">
         <Label className="text-sm font-medium text-foreground">Categoria</Label>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las categorias</SelectItem>
             {categories.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label className="text-sm font-medium text-foreground">Curso / Etapa</Label>
+        <Label className="text-sm font-medium text-foreground">
+          Curso / Etapa
+        </Label>
         <Select value={gradeLevel} onValueChange={setGradeLevel}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los cursos</SelectItem>
             {gradeLevels.map((g) => (
-              <SelectItem key={g} value={g}>{g}</SelectItem>
+              <SelectItem key={g} value={g}>
+                {g}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -220,7 +340,9 @@ export default function MarketplacePage() {
       <div className="flex flex-col gap-2">
         <Label className="text-sm font-medium text-foreground">Tipo</Label>
         <Select value={listingType} onValueChange={setListingType}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Venta y donacion</SelectItem>
             <SelectItem value="sale">Solo venta</SelectItem>
@@ -236,7 +358,8 @@ export default function MarketplacePage() {
             <span className="truncate">
               {condition === "all"
                 ? "Todos los estados"
-                : conditions.find((c) => c.value === condition)?.label ?? condition}
+                : conditions.find((c) => c.value === condition)?.label ??
+                condition}
             </span>
           </SelectTrigger>
           <SelectContent className="w-[min(360px,calc(100vw-2rem))]">
@@ -256,7 +379,9 @@ export default function MarketplacePage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <Label className="text-sm font-medium text-foreground">Rango de precio</Label>
+        <Label className="text-sm font-medium text-foreground">
+          Rango de precio
+        </Label>
         <Slider
           value={priceRange}
           onValueChange={handleSliderChange}
@@ -359,7 +484,11 @@ export default function MarketplacePage() {
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
             <div className="flex items-center gap-2">
-              <Switch checked={nearbyMode} onCheckedChange={setNearbyMode} id="nearby" />
+              <Switch
+                checked={nearbyMode}
+                onCheckedChange={setNearbyMode}
+                id="nearby"
+              />
               <Label
                 htmlFor="nearby"
                 className="flex cursor-pointer items-center gap-1.5 text-sm font-medium"
@@ -419,7 +548,9 @@ export default function MarketplacePage() {
         <div className="mt-6 flex gap-8">
           <aside className="hidden w-60 shrink-0 lg:block">
             <div className="sticky top-24">
-              <h3 className="mb-4 text-sm font-semibold text-foreground">Filtros</h3>
+              <h3 className="mb-4 text-sm font-semibold text-foreground">
+                Filtros
+              </h3>
               <FilterControls />
             </div>
           </aside>
@@ -446,8 +577,8 @@ export default function MarketplacePage() {
                 {filteredListings.map((listing) => (
                   <ListingCard
                     key={listing.id}
-                    listing={listing as any}
-                    currentSchoolId={listing.schoolId || ""}
+                    listing={listing}
+                    currentSchoolId={currentUserSchoolId}
                   />
                 ))}
               </div>

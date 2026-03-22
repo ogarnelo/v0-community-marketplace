@@ -13,7 +13,14 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Tag, GraduationCap, MapPin, User, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  Tag,
+  GraduationCap,
+  MapPin,
+  User,
+  Star,
+} from "lucide-react";
 
 type ListingRow = {
   id: string;
@@ -31,6 +38,13 @@ type ListingRow = {
   status: string | null;
   seller_id: string | null;
   user_id?: string | null;
+};
+
+type ListingPhotoRow = {
+  id: string;
+  listing_id: string;
+  url: string;
+  sort_order: number | null;
 };
 
 type ProfileRow = {
@@ -139,6 +153,16 @@ export default async function ListingDetailPage({
     notFound();
   }
 
+  const { data: listingPhotos } = await supabase
+    .from("listing_photos")
+    .select("id, listing_id, url, sort_order")
+    .eq("listing_id", listing.id)
+    .order("sort_order", { ascending: true })
+    .returns<ListingPhotoRow[]>();
+
+  const photoUrls = (listingPhotos || []).map((photo) => photo.url);
+  const mainPhotoUrl = photoUrls[0] || null;
+
   const sellerId = listing.seller_id || listing.user_id || null;
 
   let sellerProfile: ProfileRow | null = null;
@@ -233,11 +257,38 @@ export default async function ListingDetailPage({
               className="flex items-center justify-center bg-muted"
               style={{ aspectRatio: "4 / 3" }}
             >
-              <span className="select-none font-mono text-7xl text-muted-foreground/15">
-                {category.charAt(0)}
-              </span>
+              {mainPhotoUrl ? (
+                <img
+                  src={mainPhotoUrl}
+                  alt={title}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="select-none font-mono text-7xl text-muted-foreground/15">
+                  {category.charAt(0)}
+                </span>
+              )}
             </div>
           </Card>
+
+          {photoUrls.length > 1 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {photoUrls.slice(1).map((url, index) => (
+                <div
+                  key={`${url}-${index}`}
+                  className="overflow-hidden rounded-xl border bg-muted"
+                >
+                  <div style={{ aspectRatio: "4 / 3" }}>
+                    <img
+                      src={url}
+                      alt={`${title} ${index + 2}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <div>
             <div className="mb-3 flex flex-wrap gap-2">

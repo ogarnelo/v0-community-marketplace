@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,6 +20,7 @@ export function FavoriteButton({
   iconClassName = "h-4 w-4",
   showLabel = false,
 }: FavoriteButtonProps) {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
   const [loading, setLoading] = useState(false);
@@ -73,6 +75,8 @@ export function FavoriteButton({
 
         setIsFavorite(true);
       }
+
+      router.refresh();
     } catch (error: any) {
       console.error("Error actualizando favorito:", error);
       alert(
@@ -93,16 +97,14 @@ export function FavoriteButton({
       aria-label={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
     >
       <Heart
-        className={`${iconClassName} transition-colors ${isFavorite
-            ? "fill-[#7EBA28] text-[#7EBA28]"
-            : "text-muted-foreground"
+        className={`${iconClassName} transition-colors ${isFavorite ? "fill-[#7EBA28] text-[#7EBA28]" : "text-muted-foreground"
           }`}
       />
-      {showLabel && (
+      {showLabel ? (
         <span className="text-sm font-medium">
           {isFavorite ? "Guardado" : "Guardar"}
         </span>
-      )}
+      ) : null}
       <span className="sr-only">
         {isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
       </span>

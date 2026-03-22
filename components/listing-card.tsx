@@ -49,6 +49,7 @@ export function ListingCard({
 
   const isDonation = listing.type === "donation";
   const hasDistance = !isSameSchool && listing.distance != null;
+  const firstPhoto = listing.photos?.[0] || null;
 
   const categoryText = listing.category || "Sin categoría";
   const titleText = listing.title || "Anuncio sin título";
@@ -61,12 +62,23 @@ export function ListingCard({
   return (
     <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
-        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
-          <div className="flex h-full items-center justify-center bg-muted">
-            <span className="select-none font-mono text-5xl text-muted-foreground/15">
-              {categoryText.charAt(0)}
-            </span>
-          </div>
+        <div
+          className="relative overflow-hidden bg-muted"
+          style={{ aspectRatio: "4 / 3" }}
+        >
+          {firstPhoto ? (
+            <img
+              src={firstPhoto}
+              alt={titleText}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-muted">
+              <span className="select-none font-mono text-5xl text-muted-foreground/15">
+                {categoryText.charAt(0)}
+              </span>
+            </div>
+          )}
 
           {isDonation ? (
             <Badge className="absolute left-2.5 top-2.5 rounded-md border-0 bg-[#7EBA28] px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">

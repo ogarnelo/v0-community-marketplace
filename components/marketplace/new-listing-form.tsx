@@ -53,6 +53,7 @@ type NewListingFormProps = {
   initialSchoolCity: string;
 };
 
+const STORAGE_BUCKET = "listing-photos";
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = [
@@ -80,6 +81,20 @@ type ListingInsertPayload = {
   school_id: string | null;
   status: "available";
 };
+
+type ListingPhotoInsertPayload = {
+  listing_id: string;
+  url: string;
+  sort_order: number;
+};
+
+function sanitizeFileName(fileName: string) {
+  return fileName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9._-]/g, "");
+}
 
 export default function NewListingForm({
   initialSchoolId,
@@ -211,6 +226,58 @@ export default function NewListingForm({
     return null;
   };
 
+  const uploadListingPhotos = async (listingId: string, files: PreviewFile[]) => {
+    if (files.length === 0) return;
+
+    const supabase = createClient();
+    const uploadedPhotoRows: ListingPhotoInsertPayload[] = [];
+
+    for (let index = 0; index < files.length; index += 1) {
+      const item = files[index];
+      const file = item.file;
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const safeName = sanitizeFileName(file.name);
+      const filePath = `${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData?.publicUrl;
+
+      if (!publicUrl) {
+        throw new Error("No se pudo obtener la URL pública de una de las imágenes.");
+      }
+
+      uploadedPhotoRows.push({
+        listing_id: listingId,
+        url: publicUrl,
+        sort_order: index,
+      });
+    }
+
+    if (uploadedPhotoRows.length > 0) {
+      const { error: listingPhotosError } = await supabase
+        .from("listing_photos")
+        .insert(uploadedPhotoRows);
+
+      if (listingPhotosError) {
+        throw listingPhotosError;
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -279,10 +346,10 @@ export default function NewListingForm({
       const listingId = insertedListing?.id;
 
       if (!listingId) {
-        router.push("/marketplace");
-        router.refresh();
-        return;
+        throw new Error("No se pudo obtener el id del anuncio creado.");
       }
+
+      await uploadListingPhotos(listingId, photos);
 
       router.push(`/marketplace/listing/${listingId}`);
       router.refresh();
@@ -448,9 +515,9 @@ export default function NewListingForm({
                               ¿Qué es el ISBN?
                             </p>
                             <p className="mt-1 leading-relaxed text-muted-foreground">
-                              ISBN son las siglas de International Standard Book Number
-                              y consiste en un código que sirve para identificar de
-                              manera única cada producto editorial.
+                              ISBN son las siglas de International Standard Book
+                              Number y consiste en un código que sirve para
+                              identificar de manera única cada producto editorial.
                             </p>
                           </PopoverContent>
                         </Popover>
@@ -616,9 +683,9 @@ export default function NewListingForm({
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Puedes preparar hasta 5 imágenes. La persistencia definitiva de
-                  fotos se conectará a <code>listing_photos</code> cuando confirmemos
-                  su esquema.
+                  Las imágenes se guardarán en el bucket público{" "}
+                  <code>listing-photos</code> y se enlazarán en la tabla{" "}
+                  <code>listing_photos</code>.
                 </p>
 
                 {photoError ? (
