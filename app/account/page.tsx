@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { schools, gradeLevels } from "@/lib/mock-data";
+import { gradeLevels } from "@/lib/mock-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,6 +21,13 @@ type AccountProfile = {
   postal_code: string | null;
   school_id: string | null;
   created_at: string | null;
+};
+
+type SchoolOption = {
+  id: string;
+  name: string;
+  city: string | null;
+  code: string | null;
 };
 
 type SafeUserMetadata = {
@@ -76,20 +83,35 @@ export default async function AccountPage() {
 
   const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "id, full_name, user_type, grade_level, postal_code, school_id, created_at"
-    )
-    .eq("id", user.id)
-    .maybeSingle<AccountProfile>();
+  const [{ data: profile }, { data: schoolsData }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "id, full_name, user_type, grade_level, postal_code, school_id, created_at"
+      )
+      .eq("id", user.id)
+      .maybeSingle<AccountProfile>(),
+    supabase
+      .from("schools")
+      .select("id, name, city, code")
+      .order("name", { ascending: true }),
+  ]);
+
+  const schools: SchoolOption[] = (schoolsData || []).map((school: any) => ({
+    id: school.id,
+    name: school.name,
+    city: school.city ?? null,
+    code: school.code ?? null,
+  }));
+
+  const gradeLevelOptions = [...gradeLevels.filter((level) => level !== "Otros"), "Otros"];
 
   const fullName =
     profile?.full_name || metadata.full_name || user.email || "Mi cuenta";
   const email = user.email || "Sin email";
-  const userType = profile?.user_type || metadata.user_type || null;
-  const gradeLevel = profile?.grade_level || metadata.grade_level || null;
-  const postalCode = profile?.postal_code || metadata.postal_code || null;
+  const userType = profile?.user_type || metadata.user_type || "student";
+  const gradeLevel = profile?.grade_level || metadata.grade_level || "";
+  const postalCode = profile?.postal_code || metadata.postal_code || "";
   const createdAt = profile?.created_at || user.created_at || null;
 
   const selectedSchool =
@@ -178,13 +200,14 @@ export default async function AccountPage() {
             initialUserType={
               profile?.user_type === "parent" || profile?.user_type === "student"
                 ? profile.user_type
-                : ""
+                : "student"
             }
             initialGradeLevel={profile?.grade_level || ""}
             initialPostalCode={profile?.postal_code || ""}
             initialSchoolId={profile?.school_id || ""}
             email={email}
-            gradeLevelOptions={gradeLevels}
+            gradeLevelOptions={gradeLevelOptions}
+            schoolOptions={schools}
           />
         </div>
       </div>
