@@ -1,5 +1,6 @@
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import { ReportListingButton } from "@/components/marketplace/report-listing-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -330,6 +331,10 @@ export default async function ListingDetailPage({
                       : "Anuncio archivado"}
                 </Button>
               )}
+
+              <div className="mt-3">
+                <ReportListingButton listingId={listing.id} />
+              </div>
             </CardContent>
           </Card>
 
@@ -343,8 +348,7 @@ export default async function ListingDetailPage({
             <CardContent className="space-y-4">
               <Link
                 href={sellerId ? `/profile/${sellerId}` : "#"}
-                className={`block rounded-2xl transition ${sellerId ? "hover:bg-muted/40" : ""
-                  }`}
+                className={`block rounded-2xl transition ${sellerId ? "hover:bg-muted/40" : ""}`}
               >
                 <div className="flex items-center gap-3 rounded-2xl p-2">
                   <Avatar className="h-12 w-12">
