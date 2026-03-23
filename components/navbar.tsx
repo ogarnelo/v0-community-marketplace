@@ -40,6 +40,8 @@ type ProfileUpdatedEventDetail = {
   user_type?: string | null;
 };
 
+const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
+
 export function Navbar({
   isLoggedIn = false,
   userName = "Mi cuenta",
@@ -50,11 +52,15 @@ export function Navbar({
   const [open, setOpen] = useState(false);
   const [liveUserName, setLiveUserName] = useState(userName);
   const [liveIsAdmin, setLiveIsAdmin] = useState(isAdmin);
+  const [liveIsSuperAdmin, setLiveIsSuperAdmin] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
   const publishHref = isLoggedIn
     ? "/marketplace/new"
     : "/auth?next=/marketplace/new";
+
+  const adminHref = liveIsSuperAdmin ? "/admin/super" : "/admin/school";
+  const canAccessAdmin = liveIsAdmin || liveIsSuperAdmin;
 
   useEffect(() => {
     setLiveUserName(userName);
@@ -85,6 +91,24 @@ export function Navbar({
       window.removeEventListener("profile-updated", handleProfileUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setLiveIsSuperAdmin(false);
+      return;
+    }
+
+    const syncAuthUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const email = user?.email?.toLowerCase() || "";
+      setLiveIsSuperAdmin(SUPERADMIN_EMAILS.includes(email));
+    };
+
+    void syncAuthUser();
+  }, [isLoggedIn, supabase]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -214,9 +238,9 @@ export function Navbar({
                     </Link>
                   </DropdownMenuItem>
 
-                  {liveIsAdmin ? (
+                  {canAccessAdmin ? (
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/school" className="gap-2">
+                      <Link href={adminHref} className="gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin
                       </Link>
@@ -293,8 +317,8 @@ export function Navbar({
                     </Button>
                   </Link>
 
-                  {liveIsAdmin ? (
-                    <Link href="/admin/school" onClick={() => setOpen(false)}>
+                  {canAccessAdmin ? (
+                    <Link href={adminHref} onClick={() => setOpen(false)}>
                       <Button variant="ghost" className="w-full justify-start gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin

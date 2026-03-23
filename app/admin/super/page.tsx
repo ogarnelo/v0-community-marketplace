@@ -1,64 +1,210 @@
-"use client"
-
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { schools, users, listings, schoolMetrics } from "@/lib/mock-data"
-import type { School } from "@/lib/mock-data"
+import { redirect } from "next/navigation";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { createClient } from "@/lib/supabase/server";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Globe,
   School as SchoolIcon,
   Users,
   Package,
   Heart,
   TrendingUp,
-  Search,
-  MapPin,
-  ExternalLink,
-  Shield,
-  Globe,
   AlertTriangle,
-  CheckCircle2,
-  Ban,
-} from "lucide-react"
-import { toast } from "sonner"
+  MessageSquareText,
+  Flag,
+} from "lucide-react";
 
-export default function SuperAdminPage() {
-  const [searchQuery, setSearchQuery] = useState("")
+const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
-  const totalUsers = users.length
-  const totalListings = listings.length
-  const totalSchools = schools.length
-  const totalDonations = listings.filter(l => l.type === "donation").length
-  const totalSaved = Object.values(schoolMetrics).reduce((sum, m) => sum + m.moneySaved, 0)
+type SupportTicketRow = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  message: string;
+  status: string;
+  created_at: string;
+};
 
-  const filteredSchools = schools.filter(
-    s =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+type ReportRow = {
+  id: string;
+  reporter_id: string;
+  target_type: "listing" | "conversation";
+  listing_id: string | null;
+  conversation_id: string | null;
+  reason: string;
+  details: string | null;
+  status: string;
+  created_at: string;
+};
 
-  const [schoolStatuses, setSchoolStatuses] = useState<Record<string, "active" | "suspended">>(
-    Object.fromEntries(schools.map(s => [s.id, "active"]))
-  )
+type ListingSummaryRow = {
+  id: string;
+  title: string | null;
+};
 
-  function toggleSchoolStatus(id: string) {
-    setSchoolStatuses(prev => {
-      const newStatus = prev[id] === "active" ? "suspended" : "active"
-      toast.success(`Centro ${newStatus === "active" ? "activado" : "suspendido"}`)
-      return { ...prev, [id]: newStatus }
-    })
+type ProfileSummaryRow = {
+  id: string;
+  full_name: string | null;
+};
+
+type SchoolSummaryRow = {
+  id: string;
+};
+
+type ListingStatsRow = {
+  id: string;
+  type: string | null;
+  price: number | null;
+};
+
+function formatDate(date: string | null) {
+  if (!date) return "Sin fecha";
+
+  return new Date(date).toLocaleString("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getReasonLabel(reason: string) {
+  switch (reason) {
+    case "spam":
+      return "Spam";
+    case "fraude":
+      return "Fraude o estafa";
+    case "descripcion_enganosa":
+      return "Descripción engañosa";
+    case "contenido_inapropiado":
+      return "Contenido inapropiado";
+    case "acoso":
+      return "Acoso o trato inapropiado";
+    case "otro":
+      return "Otro";
+    default:
+      return reason;
   }
+}
+
+function getStatusBadgeVariant(status: string) {
+  if (status === "open") return "destructive";
+  if (status === "in_progress" || status === "reviewing") return "secondary";
+  return "outline";
+}
+
+export default async function SuperAdminPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth?next=/admin/super");
+  }
+
+  const email = user.email?.toLowerCase() || "";
+
+  if (!SUPERADMIN_EMAILS.includes(email)) {
+    redirect("/");
+  }
+
+  const [
+    { data: profile },
+    { data: schools },
+    { data: profiles },
+    { data: listings },
+    { data: supportTickets },
+    { data: reports },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase.from("schools").select("id"),
+    supabase.from("profiles").select("id"),
+    supabase.from("listings").select("id, type, price"),
+    supabase
+      .from("support_tickets")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .returns<SupportTicketRow[]>(),
+    supabase
+      .from("reports")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .returns<ReportRow[]>(),
+  ]);
+
+  const safeSchools = (schools || []) as SchoolSummaryRow[];
+  const safeProfiles = (profiles || []) as ProfileSummaryRow[];
+  const safeListings = (listings || []) as ListingStatsRow[];
+  const safeSupportTickets = (supportTickets || []) as SupportTicketRow[];
+  const safeReports = (reports || []) as ReportRow[];
+
+  const listingIdsFromReports = safeReports
+    .map((report) => report.listing_id)
+    .filter((value): value is string => Boolean(value));
+
+  const reporterIds = safeReports
+    .map((report) => report.reporter_id)
+    .filter(Boolean);
+
+  const [{ data: reportedListings }, { data: reporterProfiles }] = await Promise.all([
+    listingIdsFromReports.length > 0
+      ? supabase
+        .from("listings")
+        .select("id, title")
+        .in("id", listingIdsFromReports)
+        .returns<ListingSummaryRow[]>()
+      : Promise.resolve({ data: [] as ListingSummaryRow[] }),
+    reporterIds.length > 0
+      ? supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", reporterIds)
+        .returns<ProfileSummaryRow[]>()
+      : Promise.resolve({ data: [] as ProfileSummaryRow[] }),
+  ]);
+
+  const listingMap = new Map(
+    ((reportedListings || []) as ListingSummaryRow[]).map((item) => [item.id, item])
+  );
+
+  const reporterMap = new Map(
+    ((reporterProfiles || []) as ProfileSummaryRow[]).map((item) => [item.id, item])
+  );
+
+  const totalSchools = safeSchools.length;
+  const totalUsers = safeProfiles.length;
+  const totalListings = safeListings.length;
+  const totalDonations = safeListings.filter((item) => item.type === "donation").length;
+  const totalEstimatedVolume = safeListings.reduce(
+    (sum, item) => sum + (typeof item.price === "number" ? item.price : 0),
+    0
+  );
+
+  const navbarUserName =
+    (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
+      ? profile.full_name.trim()
+      : null) || user.email || "Super Admin";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName="Admin" isAdmin />
+      <Navbar
+        isLoggedIn
+        userName={navbarUserName}
+        isAdmin
+        currentUserId={user.id}
+      />
 
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
@@ -67,12 +213,15 @@ export default function SuperAdminPage() {
               <Globe className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
-              <p className="text-sm text-muted-foreground">Panel de administracion global de la plataforma</p>
+              <h1 className="text-2xl font-bold text-foreground">
+                Super Admin - Wetudy
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Panel global de soporte y moderación.
+              </p>
             </div>
           </div>
 
-          {/* Global KPIs */}
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="border-border">
               <CardContent className="flex items-center gap-3 p-4">
@@ -128,153 +277,168 @@ export default function SuperAdminPage() {
                   <TrendingUp className="h-4 w-4 text-chart-4" />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-foreground">{totalSaved}&euro;</p>
-                  <p className="text-xs text-muted-foreground">Ahorro total</p>
+                  <p className="text-xl font-bold text-foreground">
+                    {Math.round(totalEstimatedVolume)}€
+                  </p>
+                  <p className="text-xs text-muted-foreground">Volumen visible</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Tabs defaultValue="schools" className="mt-6">
+          <Tabs defaultValue="support" className="mt-6">
             <TabsList>
-              <TabsTrigger value="schools">Centros educativos</TabsTrigger>
-              <TabsTrigger value="users">Usuarios</TabsTrigger>
-              <TabsTrigger value="moderation">Moderacion</TabsTrigger>
+              <TabsTrigger value="support">Soporte</TabsTrigger>
+              <TabsTrigger value="reports">Moderación</TabsTrigger>
             </TabsList>
 
-            {/* Schools */}
-            <TabsContent value="schools" className="mt-4">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nombre, ciudad o codigo..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Badge variant="outline" className="text-xs">{filteredSchools.length} centros</Badge>
-              </div>
+            <TabsContent value="support" className="mt-4">
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquareText className="h-5 w-5" />
+                    Support tickets
+                  </CardTitle>
+                  <CardDescription>
+                    Consultas enviadas desde el centro de ayuda.
+                  </CardDescription>
+                </CardHeader>
 
-              <div className="flex flex-col gap-3">
-                {filteredSchools.map(school => {
-                  const memberCount = users.filter(u => u.schoolId === school.id).length
-                  const listingCount = listings.filter(l => l.schoolId === school.id).length
-                  const status = schoolStatuses[school.id]
-                  const metric = schoolMetrics[school.id as keyof typeof schoolMetrics]
-
-                  return (
-                    <Card key={school.id} className="border-border">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                              <SchoolIcon className="h-5 w-5 text-primary" />
-                            </div>
+                <CardContent className="space-y-4">
+                  {safeSupportTickets.length === 0 ? (
+                    <div className="flex flex-col items-center py-16 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent">
+                        <MessageSquareText className="h-7 w-7 text-accent-foreground" />
+                      </div>
+                      <h3 className="mt-4 text-lg font-semibold text-foreground">
+                        Sin tickets
+                      </h3>
+                      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                        Todavía no hay consultas registradas en soporte.
+                      </p>
+                    </div>
+                  ) : (
+                    safeSupportTickets.map((ticket) => (
+                      <Card key={ticket.id} className="border-border">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-semibold text-foreground truncate">{school.name}</h3>
-                                <Badge
-                                  variant={status === "active" ? "default" : "destructive"}
-                                  className="text-[10px] shrink-0"
-                                >
-                                  {status === "active" ? "Activo" : "Suspendido"}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-foreground">
+                                  {ticket.name}
+                                </p>
+                                <Badge variant={getStatusBadgeVariant(ticket.status)}>
+                                  {ticket.status}
                                 </Badge>
                               </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" /> {school.city}
-                                </span>
-                                <span className="font-mono">{school.code}</span>
-                                <span className="capitalize">{school.type}</span>
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                <span>{memberCount} miembros</span>
-                                <span>{listingCount} anuncios</span>
-                                {metric && <span>{metric.moneySaved}&euro; ahorrado</span>}
-                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {ticket.email}
+                              </p>
+                              <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
+                                {ticket.message}
+                              </p>
+                            </div>
+
+                            <div className="shrink-0 text-xs text-muted-foreground">
+                              {formatDate(ticket.created_at)}
                             </div>
                           </div>
-
-                          <div className="flex shrink-0 items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              onClick={() => toggleSchoolStatus(school.id)}
-                            >
-                              {status === "active" ? (
-                                <>
-                                  <Ban className="h-3.5 w-3.5" /> Suspender
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 className="h-3.5 w-3.5" /> Activar
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
-            {/* Users */}
-            <TabsContent value="users" className="mt-4">
-              <div className="flex flex-col gap-3">
-                {users.map(user => {
-                  const school = schools.find(s => s.id === user.schoolId)
-                  const userListings = listings.filter(l => l.sellerId === user.id)
-                  return (
-                    <Card key={user.id} className="border-border">
-                      <CardContent className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            <span className="text-sm font-semibold text-primary">{user.name.charAt(0)}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
-                            <p className="text-xs text-muted-foreground">{user.email}</p>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <span>{school?.name}</span>
-                              <span>&middot;</span>
-                              <span>{userListings.length} anuncios</span>
-                              <span>&middot;</span>
-                              <span>Desde {new Date(user.createdAt).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="capitalize text-xs shrink-0">
-                          {user.role === "parent"
-                            ? "Familia"
-                            : user.role === "school_admin"
-                            ? "Admin Centro"
-                            : user.role === "super_admin"
-                            ? "Super Admin"
-                            : user.role}
-                        </Badge>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            </TabsContent>
-
-            {/* Moderation */}
-            <TabsContent value="moderation" className="mt-4">
+            <TabsContent value="reports" className="mt-4">
               <Card className="border-border">
-                <CardContent className="flex flex-col items-center py-16 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent">
-                    <AlertTriangle className="h-7 w-7 text-accent-foreground" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-foreground">Sin incidencias</h3>
-                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    No hay contenido reportado ni disputas pendientes de moderacion. Los reportes de usuarios y disputas entre compradores y vendedores apareceran aqui.
-                  </p>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Flag className="h-5 w-5" />
+                    Reports
+                  </CardTitle>
+                  <CardDescription>
+                    Reportes enviados por los usuarios sobre anuncios y chats.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {safeReports.length === 0 ? (
+                    <div className="flex flex-col items-center py-16 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent">
+                        <AlertTriangle className="h-7 w-7 text-accent-foreground" />
+                      </div>
+                      <h3 className="mt-4 text-lg font-semibold text-foreground">
+                        Sin incidencias
+                      </h3>
+                      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                        No hay contenido reportado ni disputas pendientes.
+                      </p>
+                    </div>
+                  ) : (
+                    safeReports.map((report) => {
+                      const reporterName =
+                        reporterMap.get(report.reporter_id)?.full_name?.trim() ||
+                        "Usuario";
+                      const reportedListingTitle =
+                        report.listing_id
+                          ? listingMap.get(report.listing_id)?.title || "Anuncio"
+                          : null;
+
+                      return (
+                        <Card key={report.id} className="border-border">
+                          <CardContent className="p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant={getStatusBadgeVariant(report.status)}>
+                                    {report.status}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {report.target_type === "listing"
+                                      ? "Anuncio"
+                                      : "Chat"}
+                                  </Badge>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {getReasonLabel(report.reason)}
+                                  </span>
+                                </div>
+
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                  Reportado por: {reporterName}
+                                </p>
+
+                                {report.target_type === "listing" ? (
+                                  <p className="text-sm text-muted-foreground">
+                                    Anuncio: {reportedListingTitle}
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">
+                                    Conversación: {report.conversation_id}
+                                  </p>
+                                )}
+
+                                {report.details ? (
+                                  <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
+                                    {report.details}
+                                  </p>
+                                ) : (
+                                  <p className="mt-3 text-sm text-muted-foreground">
+                                    Sin detalles adicionales.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="shrink-0 text-xs text-muted-foreground">
+                                {formatDate(report.created_at)}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -284,5 +448,5 @@ export default function SuperAdminPage() {
 
       <Footer />
     </div>
-  )
+  );
 }

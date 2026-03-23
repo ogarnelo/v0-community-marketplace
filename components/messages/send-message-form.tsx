@@ -224,21 +224,6 @@ export function SendMessageForm({
         throw insertError;
       }
 
-      const otherParticipantId =
-        conversation.buyer_id === user.id
-          ? conversation.seller_id
-          : conversation.buyer_id;
-
-      const { error: unhideError } = await supabase
-        .from("hidden_conversations")
-        .delete()
-        .eq("user_id", otherParticipantId)
-        .eq("conversation_id", conversationId);
-
-      if (unhideError) {
-        throw unhideError;
-      }
-
       const { error: updateError } = await supabase
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
