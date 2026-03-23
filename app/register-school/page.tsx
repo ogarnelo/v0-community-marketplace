@@ -89,7 +89,9 @@ export default function RegisterSchoolPage() {
         throw new Error("Debes seleccionar el tipo de centro.");
       }
 
-      if (!SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)) {
+      if (
+        !SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)
+      ) {
         throw new Error("El tipo de centro seleccionado no es válido.");
       }
 
@@ -167,8 +169,7 @@ export default function RegisterSchoolPage() {
                 </h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
                   Gracias. Hemos registrado tu solicitud y aparecerá en el panel de
-                  superadmin para su revisión. Si se aprueba, se generará un código de
-                  acceso real para el centro.
+                  superadmin para su revisión.
                 </p>
                 <Link href="/" className="mt-6">
                   <Button variant="outline">Volver al inicio</Button>
@@ -185,7 +186,7 @@ export default function RegisterSchoolPage() {
                   Registrar centro educativo
                 </CardTitle>
                 <CardDescription className="leading-relaxed">
-                  Si tu centro o AMPA aún no tiene código de acceso, completa este
+                  Si tu centro o AMPA aun no tiene codigo de acceso, completa este
                   formulario y el superadmin podrá aprobar su alta.
                 </CardDescription>
               </CardHeader>
@@ -203,38 +204,20 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label>Tipo de centro *</Label>
-                      <Select value={schoolType} onValueChange={setSchoolType}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SCHOOL_TYPE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Label>C. Autonoma *</Label>
-                      <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {comunidades.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="flex flex-col gap-2">
+                    <Label>Tipo de centro *</Label>
+                    <Select value={schoolType} onValueChange={setSchoolType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SCHOOL_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -248,7 +231,7 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-3">
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="city">Ciudad *</Label>
                       <Input
@@ -272,6 +255,22 @@ export default function RegisterSchoolPage() {
                         value={postalCode}
                         onChange={(e) => setPostalCode(e.target.value)}
                       />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label>C. Autonoma *</Label>
+                      <Select value={region} onValueChange={setRegion}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {comunidades.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 

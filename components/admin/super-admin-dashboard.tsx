@@ -59,11 +59,9 @@ type SchoolRequestRow = {
   city: string;
   postal_code: string;
   region: string;
-  email: string | null;
-  phone: string | null;
   contact_email: string | null;
   contact_phone: string | null;
-  status: "new" | "pending" | "approved" | "rejected" | null;
+  status: "pending" | "approved" | "rejected" | "new" | null;
   review_notes: string | null;
   approved_school_id: string | null;
   created_at: string;
@@ -95,6 +93,7 @@ type SuperAdminDashboardProps = {
   initialReports: ReportListItem[];
   initialSchoolRequests: SchoolRequestRow[];
   initialApprovedRequestMeta: Record<string, ApprovedRequestMeta>;
+  initialLoadErrors: string[];
 };
 
 function formatDate(date: string | null) {
@@ -153,17 +152,15 @@ function getSchoolTypeLabel(schoolType?: string | null) {
       return "Academia";
     case "university":
       return "Universidad";
+    case "colegio":
+      return "Colegio";
+    case "instituto":
+      return "Instituto";
+    case "universidad":
+      return "Universidad";
     default:
       return "Sin definir";
   }
-}
-
-function getRequestContactEmail(request: SchoolRequestRow) {
-  return request.contact_email || request.email || "Sin email";
-}
-
-function getRequestContactPhone(request: SchoolRequestRow) {
-  return request.contact_phone || request.phone || null;
 }
 
 const SUPPORT_STATUS_OPTIONS: SupportTicketRow["status"][] = [
@@ -223,6 +220,7 @@ export default function SuperAdminDashboard({
   initialReports,
   initialSchoolRequests,
   initialApprovedRequestMeta,
+  initialLoadErrors,
 }: SuperAdminDashboardProps) {
   const supabase = useMemo(() => createClient(), []);
   const [supportTickets, setSupportTickets] =
@@ -387,6 +385,17 @@ export default function SuperAdminDashboard({
 
   return (
     <>
+      {initialLoadErrors.length > 0 ? (
+        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="font-medium">Hay errores cargando datos del panel superadmin.</p>
+          <ul className="mt-2 list-disc pl-5">
+            {initialLoadErrors.map((errorText, index) => (
+              <li key={`${errorText}-${index}`}>{errorText}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
@@ -695,10 +704,8 @@ export default function SuperAdminDashboard({
                               </p>
 
                               <p className="mt-2 text-sm text-muted-foreground">
-                                Contacto: {getRequestContactEmail(request)}
-                                {getRequestContactPhone(request)
-                                  ? ` · ${getRequestContactPhone(request)}`
-                                  : ""}
+                                Contacto: {request.contact_email || "Sin email"}
+                                {request.contact_phone ? ` · ${request.contact_phone}` : ""}
                               </p>
 
                               {approvedMeta ? (
@@ -735,7 +742,8 @@ export default function SuperAdminDashboard({
                             </div>
                           </div>
 
-                          {normalizedStatus !== "approved" && normalizedStatus !== "rejected" ? (
+                          {normalizedStatus !== "approved" &&
+                            normalizedStatus !== "rejected" ? (
                             <div className="flex flex-wrap gap-2">
                               <Button
                                 type="button"
