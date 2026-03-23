@@ -79,10 +79,6 @@ export function Navbar({
           : "Mi cuenta";
 
       setLiveUserName(nextName);
-      setLiveIsAdmin(
-        customEvent.detail?.user_type === "school_admin" ||
-        customEvent.detail?.user_type === "super_admin"
-      );
     };
 
     window.addEventListener("profile-updated", handleProfileUpdated);
@@ -95,20 +91,39 @@ export function Navbar({
   useEffect(() => {
     if (!isLoggedIn) {
       setLiveIsSuperAdmin(false);
+      setLiveIsAdmin(false);
       return;
     }
 
-    const syncAuthUser = async () => {
+    const syncRoles = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       const email = user?.email?.toLowerCase() || "";
-      setLiveIsSuperAdmin(SUPERADMIN_EMAILS.includes(email));
+      const isSuper = SUPERADMIN_EMAILS.includes(email);
+
+      setLiveIsSuperAdmin(isSuper);
+
+      if (!user?.id) {
+        setLiveIsAdmin(false);
+        return;
+      }
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const hasSchoolAdminRole =
+        Array.isArray(roles) &&
+        roles.some((role) => role.role === "school_admin");
+
+      setLiveIsAdmin(isSuper || hasSchoolAdminRole || isAdmin);
     };
 
-    void syncAuthUser();
-  }, [isLoggedIn, supabase]);
+    void syncRoles();
+  }, [isLoggedIn, isAdmin, supabase]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -126,7 +141,6 @@ export function Navbar({
         (payload) => {
           const nextProfile = payload.new as {
             full_name?: string | null;
-            user_type?: string | null;
           };
 
           const nextName =
@@ -135,10 +149,6 @@ export function Navbar({
               : "Mi cuenta";
 
           setLiveUserName(nextName);
-          setLiveIsAdmin(
-            nextProfile?.user_type === "school_admin" ||
-            nextProfile?.user_type === "super_admin"
-          );
         }
       )
       .subscribe();

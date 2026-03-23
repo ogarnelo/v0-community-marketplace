@@ -2,20 +2,8 @@ import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Globe,
-  School as SchoolIcon,
-  Users,
-  Package,
-  Heart,
-  TrendingUp,
-  AlertTriangle,
-  MessageSquareText,
-  Flag,
-} from "lucide-react";
+import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
+import { Globe } from "lucide-react";
 
 const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
@@ -25,7 +13,7 @@ type SupportTicketRow = {
   name: string;
   email: string;
   message: string;
-  status: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
   created_at: string;
 };
 
@@ -37,8 +25,24 @@ type ReportRow = {
   conversation_id: string | null;
   reason: string;
   details: string | null;
-  status: string;
+  status: "open" | "reviewing" | "resolved" | "dismissed";
   created_at: string;
+};
+
+type SchoolRequestRow = {
+  id: string;
+  school_name: string;
+  address: string;
+  city: string;
+  postal_code: string;
+  region: string;
+  contact_email: string;
+  contact_phone: string | null;
+  status: "pending" | "approved" | "rejected";
+  review_notes: string | null;
+  approved_school_id: string | null;
+  created_at: string;
+  reviewed_at: string | null;
 };
 
 type ListingSummaryRow = {
@@ -60,44 +64,6 @@ type ListingStatsRow = {
   type: string | null;
   price: number | null;
 };
-
-function formatDate(date: string | null) {
-  if (!date) return "Sin fecha";
-
-  return new Date(date).toLocaleString("es-ES", {
-    timeZone: "Europe/Madrid",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function getReasonLabel(reason: string) {
-  switch (reason) {
-    case "spam":
-      return "Spam";
-    case "fraude":
-      return "Fraude o estafa";
-    case "descripcion_enganosa":
-      return "Descripción engañosa";
-    case "contenido_inapropiado":
-      return "Contenido inapropiado";
-    case "acoso":
-      return "Acoso o trato inapropiado";
-    case "otro":
-      return "Otro";
-    default:
-      return reason;
-  }
-}
-
-function getStatusBadgeVariant(status: string) {
-  if (status === "open") return "destructive";
-  if (status === "in_progress" || status === "reviewing") return "secondary";
-  return "outline";
-}
 
 export default async function SuperAdminPage() {
   const supabase = await createClient();
@@ -123,6 +89,7 @@ export default async function SuperAdminPage() {
     { data: listings },
     { data: supportTickets },
     { data: reports },
+    { data: schoolRequests },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -142,6 +109,11 @@ export default async function SuperAdminPage() {
       .select("*")
       .order("created_at", { ascending: false })
       .returns<ReportRow[]>(),
+    supabase
+      .from("school_registration_requests")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .returns<SchoolRequestRow[]>(),
   ]);
 
   const safeSchools = (schools || []) as SchoolSummaryRow[];
@@ -149,6 +121,7 @@ export default async function SuperAdminPage() {
   const safeListings = (listings || []) as ListingStatsRow[];
   const safeSupportTickets = (supportTickets || []) as SupportTicketRow[];
   const safeReports = (reports || []) as ReportRow[];
+  const safeSchoolRequests = (schoolRequests || []) as SchoolRequestRow[];
 
   const listingIdsFromReports = safeReports
     .map((report) => report.listing_id)
@@ -183,19 +156,30 @@ export default async function SuperAdminPage() {
     ((reporterProfiles || []) as ProfileSummaryRow[]).map((item) => [item.id, item])
   );
 
-  const totalSchools = safeSchools.length;
-  const totalUsers = safeProfiles.length;
-  const totalListings = safeListings.length;
-  const totalDonations = safeListings.filter((item) => item.type === "donation").length;
-  const totalEstimatedVolume = safeListings.reduce(
-    (sum, item) => sum + (typeof item.price === "number" ? item.price : 0),
-    0
-  );
-
   const navbarUserName =
     (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
       ? profile.full_name.trim()
       : null) || user.email || "Super Admin";
+
+  const dashboardReports = safeReports.map((report) => ({
+    ...report,
+    reporter_name:
+      reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
+    listing_title: report.listing_id
+      ? listingMap.get(report.listing_id)?.title || "Anuncio"
+      : null,
+  }));
+
+  const stats = {
+    totalSchools: safeSchools.length,
+    totalUsers: safeProfiles.length,
+    totalListings: safeListings.length,
+    totalDonations: safeListings.filter((item) => item.type === "donation").length,
+    totalEstimatedVolume: safeListings.reduce(
+      (sum, item) => sum + (typeof item.price === "number" ? item.price : 0),
+      0
+    ),
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -217,232 +201,17 @@ export default async function SuperAdminPage() {
                 Super Admin - Wetudy
               </h1>
               <p className="text-sm text-muted-foreground">
-                Panel global de soporte y moderación.
+                Panel global de soporte, moderación y altas de centros.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <SchoolIcon className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalSchools}</p>
-                  <p className="text-xs text-muted-foreground">Centros</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary/20">
-                  <Users className="h-4 w-4 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalUsers}</p>
-                  <p className="text-xs text-muted-foreground">Usuarios</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
-                  <Package className="h-4 w-4 text-accent-foreground" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalListings}</p>
-                  <p className="text-xs text-muted-foreground">Anuncios</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-chart-2/10">
-                  <Heart className="h-4 w-4 text-chart-2" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalDonations}</p>
-                  <p className="text-xs text-muted-foreground">Donaciones</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-chart-4/10">
-                  <TrendingUp className="h-4 w-4 text-chart-4" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">
-                    {Math.round(totalEstimatedVolume)}€
-                  </p>
-                  <p className="text-xs text-muted-foreground">Volumen visible</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue="support" className="mt-6">
-            <TabsList>
-              <TabsTrigger value="support">Soporte</TabsTrigger>
-              <TabsTrigger value="reports">Moderación</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="support" className="mt-4">
-              <Card className="border-border">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquareText className="h-5 w-5" />
-                    Support tickets
-                  </CardTitle>
-                  <CardDescription>
-                    Consultas enviadas desde el centro de ayuda.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {safeSupportTickets.length === 0 ? (
-                    <div className="flex flex-col items-center py-16 text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent">
-                        <MessageSquareText className="h-7 w-7 text-accent-foreground" />
-                      </div>
-                      <h3 className="mt-4 text-lg font-semibold text-foreground">
-                        Sin tickets
-                      </h3>
-                      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                        Todavía no hay consultas registradas en soporte.
-                      </p>
-                    </div>
-                  ) : (
-                    safeSupportTickets.map((ticket) => (
-                      <Card key={ticket.id} className="border-border">
-                        <CardContent className="p-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-semibold text-foreground">
-                                  {ticket.name}
-                                </p>
-                                <Badge variant={getStatusBadgeVariant(ticket.status)}>
-                                  {ticket.status}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {ticket.email}
-                              </p>
-                              <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
-                                {ticket.message}
-                              </p>
-                            </div>
-
-                            <div className="shrink-0 text-xs text-muted-foreground">
-                              {formatDate(ticket.created_at)}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="reports" className="mt-4">
-              <Card className="border-border">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Flag className="h-5 w-5" />
-                    Reports
-                  </CardTitle>
-                  <CardDescription>
-                    Reportes enviados por los usuarios sobre anuncios y chats.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {safeReports.length === 0 ? (
-                    <div className="flex flex-col items-center py-16 text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent">
-                        <AlertTriangle className="h-7 w-7 text-accent-foreground" />
-                      </div>
-                      <h3 className="mt-4 text-lg font-semibold text-foreground">
-                        Sin incidencias
-                      </h3>
-                      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                        No hay contenido reportado ni disputas pendientes.
-                      </p>
-                    </div>
-                  ) : (
-                    safeReports.map((report) => {
-                      const reporterName =
-                        reporterMap.get(report.reporter_id)?.full_name?.trim() ||
-                        "Usuario";
-                      const reportedListingTitle =
-                        report.listing_id
-                          ? listingMap.get(report.listing_id)?.title || "Anuncio"
-                          : null;
-
-                      return (
-                        <Card key={report.id} className="border-border">
-                          <CardContent className="p-4">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant={getStatusBadgeVariant(report.status)}>
-                                    {report.status}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {report.target_type === "listing"
-                                      ? "Anuncio"
-                                      : "Chat"}
-                                  </Badge>
-                                  <span className="text-sm font-medium text-foreground">
-                                    {getReasonLabel(report.reason)}
-                                  </span>
-                                </div>
-
-                                <p className="mt-2 text-sm text-muted-foreground">
-                                  Reportado por: {reporterName}
-                                </p>
-
-                                {report.target_type === "listing" ? (
-                                  <p className="text-sm text-muted-foreground">
-                                    Anuncio: {reportedListingTitle}
-                                  </p>
-                                ) : (
-                                  <p className="text-sm text-muted-foreground">
-                                    Conversación: {report.conversation_id}
-                                  </p>
-                                )}
-
-                                {report.details ? (
-                                  <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
-                                    {report.details}
-                                  </p>
-                                ) : (
-                                  <p className="mt-3 text-sm text-muted-foreground">
-                                    Sin detalles adicionales.
-                                  </p>
-                                )}
-                              </div>
-
-                              <div className="shrink-0 text-xs text-muted-foreground">
-                                {formatDate(report.created_at)}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <SuperAdminDashboard
+            stats={stats}
+            initialSupportTickets={safeSupportTickets}
+            initialReports={dashboardReports}
+            initialSchoolRequests={safeSchoolRequests}
+          />
         </div>
       </main>
 
