@@ -3,9 +3,8 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
+import { getAdminFlags, type AdminRoleRow } from "@/lib/admin/roles";
 import { Globe } from "lucide-react";
-
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SupportTicketRow = {
   id: string;
@@ -32,17 +31,21 @@ type ReportRow = {
 type SchoolRequestRow = {
   id: string;
   school_name: string;
+  school_type: string | null;
   address: string;
   city: string;
   postal_code: string;
   region: string;
-  contact_email: string;
+  email: string | null;
+  phone: string | null;
+  contact_email: string | null;
   contact_phone: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "new" | "pending" | "approved" | "rejected" | null;
   review_notes: string | null;
   approved_school_id: string | null;
   created_at: string;
   reviewed_at: string | null;
+  reviewed_by: string | null;
 };
 
 type ListingSummaryRow = {
@@ -65,6 +68,17 @@ type ListingStatsRow = {
   price: number | null;
 };
 
+type AccessCodeRow = {
+  school_id: string;
+  code: string;
+  created_at: string;
+};
+
+type ApprovedRequestMeta = {
+  schoolId: string;
+  accessCode: string;
+};
+
 export default async function SuperAdminPage() {
   const supabase = await createClient();
 
@@ -76,14 +90,9 @@ export default async function SuperAdminPage() {
     redirect("/auth?next=/admin/super");
   }
 
-  const email = user.email?.toLowerCase() || "";
-
-  if (!SUPERADMIN_EMAILS.includes(email)) {
-    redirect("/");
-  }
-
   const [
     { data: profile },
+    { data: roles },
     { data: schools },
     { data: profiles },
     { data: listings },
@@ -96,6 +105,11 @@ export default async function SuperAdminPage() {
       .select("full_name")
       .eq("id", user.id)
       .maybeSingle(),
+    supabase
+      .from("user_roles")
+      .select("role, school_id")
+      .eq("user_id", user.id)
+      .returns<AdminRoleRow[]>(),
     supabase.from("schools").select("id"),
     supabase.from("profiles").select("id"),
     supabase.from("listings").select("id, type, price"),
@@ -111,10 +125,21 @@ export default async function SuperAdminPage() {
       .returns<ReportRow[]>(),
     supabase
       .from("school_registration_requests")
-      .select("*")
+      .select(
+        "id, school_name, school_type, address, city, postal_code, region, email, phone, contact_email, contact_phone, status, review_notes, approved_school_id, created_at, reviewed_at, reviewed_by"
+      )
       .order("created_at", { ascending: false })
       .returns<SchoolRequestRow[]>(),
   ]);
+
+  const adminFlags = getAdminFlags({
+    email: user.email,
+    roles: (roles || []) as AdminRoleRow[],
+  });
+
+  if (!adminFlags.isSuperAdmin) {
+    redirect("/");
+  }
 
   const safeSchools = (schools || []) as SchoolSummaryRow[];
   const safeProfiles = (profiles || []) as ProfileSummaryRow[];
@@ -127,26 +152,38 @@ export default async function SuperAdminPage() {
     .map((report) => report.listing_id)
     .filter((value): value is string => Boolean(value));
 
-  const reporterIds = safeReports
-    .map((report) => report.reporter_id)
-    .filter(Boolean);
+  const reporterIds = safeReports.map((report) => report.reporter_id).filter(Boolean);
 
-  const [{ data: reportedListings }, { data: reporterProfiles }] = await Promise.all([
-    listingIdsFromReports.length > 0
-      ? supabase
-        .from("listings")
-        .select("id, title")
-        .in("id", listingIdsFromReports)
-        .returns<ListingSummaryRow[]>()
-      : Promise.resolve({ data: [] as ListingSummaryRow[] }),
-    reporterIds.length > 0
-      ? supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", reporterIds)
-        .returns<ProfileSummaryRow[]>()
-      : Promise.resolve({ data: [] as ProfileSummaryRow[] }),
-  ]);
+  const approvedSchoolIds = safeSchoolRequests
+    .map((request) => request.approved_school_id)
+    .filter((value): value is string => Boolean(value));
+
+  const [{ data: reportedListings }, { data: reporterProfiles }, { data: accessCodes }] =
+    await Promise.all([
+      listingIdsFromReports.length > 0
+        ? supabase
+          .from("listings")
+          .select("id, title")
+          .in("id", listingIdsFromReports)
+          .returns<ListingSummaryRow[]>()
+        : Promise.resolve({ data: [] as ListingSummaryRow[] }),
+      reporterIds.length > 0
+        ? supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", reporterIds)
+          .returns<ProfileSummaryRow[]>()
+        : Promise.resolve({ data: [] as ProfileSummaryRow[] }),
+      approvedSchoolIds.length > 0
+        ? supabase
+          .from("school_access_codes")
+          .select("school_id, code, created_at")
+          .in("school_id", approvedSchoolIds)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .returns<AccessCodeRow[]>()
+        : Promise.resolve({ data: [] as AccessCodeRow[] }),
+    ]);
 
   const listingMap = new Map(
     ((reportedListings || []) as ListingSummaryRow[]).map((item) => [item.id, item])
@@ -156,15 +193,45 @@ export default async function SuperAdminPage() {
     ((reporterProfiles || []) as ProfileSummaryRow[]).map((item) => [item.id, item])
   );
 
+  const accessCodeMap = new Map<string, AccessCodeRow>();
+
+  for (const codeRow of (accessCodes || []) as AccessCodeRow[]) {
+    if (!accessCodeMap.has(codeRow.school_id)) {
+      accessCodeMap.set(codeRow.school_id, codeRow);
+    }
+  }
+
+  const initialApprovedRequestMeta = safeSchoolRequests.reduce<
+    Record<string, ApprovedRequestMeta>
+  >((acc, request) => {
+    if (!request.approved_school_id) {
+      return acc;
+    }
+
+    const accessCode = accessCodeMap.get(request.approved_school_id);
+
+    if (!accessCode) {
+      return acc;
+    }
+
+    acc[request.id] = {
+      schoolId: request.approved_school_id,
+      accessCode: accessCode.code,
+    };
+
+    return acc;
+  }, {});
+
   const navbarUserName =
     (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
       ? profile.full_name.trim()
-      : null) || user.email || "Super Admin";
+      : null) ||
+    user.email ||
+    "Super Admin";
 
   const dashboardReports = safeReports.map((report) => ({
     ...report,
-    reporter_name:
-      reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
+    reporter_name: reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
     listing_title: report.listing_id
       ? listingMap.get(report.listing_id)?.title || "Anuncio"
       : null,
@@ -183,12 +250,7 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar
-        isLoggedIn
-        userName={navbarUserName}
-        isAdmin
-        currentUserId={user.id}
-      />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin currentUserId={user.id} />
 
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
@@ -197,9 +259,7 @@ export default async function SuperAdminPage() {
               <Globe className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                Super Admin - Wetudy
-              </h1>
+              <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
               <p className="text-sm text-muted-foreground">
                 Panel global de soporte, moderación y altas de centros.
               </p>
@@ -211,6 +271,7 @@ export default async function SuperAdminPage() {
             initialSupportTickets={safeSupportTickets}
             initialReports={dashboardReports}
             initialSchoolRequests={safeSchoolRequests}
+            initialApprovedRequestMeta={initialApprovedRequestMeta}
           />
         </div>
       </main>

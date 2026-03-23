@@ -6,7 +6,13 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BookOpen, Loader2, CheckCircle2, Search, School } from "lucide-react";
 import Link from "next/link";
@@ -30,6 +36,7 @@ export default function JoinSchoolPage() {
   const router = useRouter();
 
   const [code, setCode] = useState("");
+  const [validatedCode, setValidatedCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [found, setFound] = useState<SchoolSearchRow | null>(null);
   const [error, setError] = useState("");
@@ -67,11 +74,44 @@ export default function JoinSchoolPage() {
     void loadSchools();
   }, [showSearch]);
 
+  const resolveSchoolFromCode = async (normalizedCode: string) => {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("school_access_codes")
+      .select("school_id, schools(id, name, city)")
+      .eq("code", normalizedCode)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    const result = (data as AccessCodeResult | null) ?? null;
+
+    if (!result?.schools) {
+      throw new Error(
+        "No hemos encontrado ningun centro con ese codigo. Revisa y vuelve a intentarlo."
+      );
+    }
+
+    return {
+      schoolId: result.school_id,
+      school: {
+        id: result.schools.id,
+        name: result.schools.name,
+        city: result.schools.city,
+      },
+    };
+  };
+
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setFound(null);
+    setValidatedCode("");
 
     try {
       const normalizedCode = code.trim().toUpperCase();
@@ -91,30 +131,10 @@ export default function JoinSchoolPage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("school_access_codes")
-        .select("school_id, schools(id, name, city)")
-        .eq("code", normalizedCode)
-        .eq("is_active", true)
-        .maybeSingle();
+      const result = await resolveSchoolFromCode(normalizedCode);
 
-      if (error) {
-        throw error;
-      }
-
-      const result = (data as AccessCodeResult | null) ?? null;
-
-      if (!result?.schools) {
-        throw new Error(
-          "No hemos encontrado ningun centro con ese codigo. Revisa y vuelve a intentarlo."
-        );
-      }
-
-      setFound({
-        id: result.schools.id,
-        name: result.schools.name,
-        city: result.schools.city,
-      });
+      setValidatedCode(normalizedCode);
+      setFound(result.school);
     } catch (error: any) {
       setError(
         error?.message ||
@@ -133,6 +153,10 @@ export default function JoinSchoolPage() {
     setError("");
 
     try {
+      if (!validatedCode) {
+        throw new Error("Debes validar primero un código de acceso activo.");
+      }
+
       const supabase = createClient();
 
       const {
@@ -144,10 +168,12 @@ export default function JoinSchoolPage() {
         return;
       }
 
+      const result = await resolveSchoolFromCode(validatedCode);
+
       const { error: profileError } = await supabase.from("profiles").upsert(
         {
           id: user.id,
-          school_id: found.id,
+          school_id: result.schoolId,
         },
         { onConflict: "id" }
       );
@@ -158,7 +184,7 @@ export default function JoinSchoolPage() {
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
-          school_name: found.name,
+          school_name: result.school.name,
         },
       });
 
@@ -175,6 +201,14 @@ export default function JoinSchoolPage() {
         error?.details ||
         "No se pudo completar la unión al centro."
       );
+
+      if (
+        typeof error?.message === "string" &&
+        error.message.toLowerCase().includes("codigo")
+      ) {
+        setFound(null);
+        setValidatedCode("");
+      }
     } finally {
       setLoading(false);
     }
@@ -315,6 +349,12 @@ export default function JoinSchoolPage() {
                 </AlertDescription>
               </Alert>
 
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+
               <Button className="w-full" onClick={handleJoin} disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Unirme a {found.name}
@@ -326,6 +366,8 @@ export default function JoinSchoolPage() {
                 onClick={() => {
                   setFound(null);
                   setCode("");
+                  setValidatedCode("");
+                  setError("");
                 }}
               >
                 Buscar otro centro

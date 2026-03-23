@@ -8,8 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, School, CheckCircle2, ArrowLeft } from "lucide-react";
 
 const comunidades = [
@@ -34,12 +46,19 @@ const comunidades = [
   "Melilla",
 ];
 
+const SCHOOL_TYPE_OPTIONS = [
+  { value: "school", label: "Colegio / Instituto" },
+  { value: "academy", label: "Academia" },
+  { value: "university", label: "Universidad" },
+] as const;
+
 export default function RegisterSchoolPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const [schoolName, setSchoolName] = useState("");
+  const [schoolType, setSchoolType] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
@@ -54,6 +73,7 @@ export default function RegisterSchoolPage() {
 
     try {
       const normalizedSchoolName = schoolName.trim();
+      const normalizedSchoolType = schoolType.trim();
       const normalizedAddress = address.trim();
       const normalizedCity = city.trim();
       const normalizedPostalCode = postalCode.trim();
@@ -63,6 +83,14 @@ export default function RegisterSchoolPage() {
 
       if (!normalizedSchoolName) {
         throw new Error("Debes indicar el nombre del centro.");
+      }
+
+      if (!normalizedSchoolType) {
+        throw new Error("Debes seleccionar el tipo de centro.");
+      }
+
+      if (!SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)) {
+        throw new Error("El tipo de centro seleccionado no es válido.");
       }
 
       if (!normalizedAddress) {
@@ -89,6 +117,7 @@ export default function RegisterSchoolPage() {
 
       const { error } = await supabase.from("school_registration_requests").insert({
         school_name: normalizedSchoolName,
+        school_type: normalizedSchoolType,
         address: normalizedAddress,
         city: normalizedCity,
         postal_code: normalizedPostalCode,
@@ -138,7 +167,8 @@ export default function RegisterSchoolPage() {
                 </h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
                   Gracias. Hemos registrado tu solicitud y aparecerá en el panel de
-                  superadmin para su revisión.
+                  superadmin para su revisión. Si se aprueba, se generará un código de
+                  acceso real para el centro.
                 </p>
                 <Link href="/" className="mt-6">
                   <Button variant="outline">Volver al inicio</Button>
@@ -155,7 +185,7 @@ export default function RegisterSchoolPage() {
                   Registrar centro educativo
                 </CardTitle>
                 <CardDescription className="leading-relaxed">
-                  Si tu centro o AMPA aun no tiene codigo de acceso, completa este
+                  Si tu centro o AMPA aún no tiene código de acceso, completa este
                   formulario y el superadmin podrá aprobar su alta.
                 </CardDescription>
               </CardHeader>
@@ -173,6 +203,40 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <Label>Tipo de centro *</Label>
+                      <Select value={schoolType} onValueChange={setSchoolType}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SCHOOL_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label>C. Autonoma *</Label>
+                      <Select value={region} onValueChange={setRegion}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {comunidades.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="address">Direccion *</Label>
                     <Input
@@ -184,7 +248,7 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="city">Ciudad *</Label>
                       <Input
@@ -208,22 +272,6 @@ export default function RegisterSchoolPage() {
                         value={postalCode}
                         onChange={(e) => setPostalCode(e.target.value)}
                       />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Label>C. Autonoma *</Label>
-                      <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {comunidades.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
 

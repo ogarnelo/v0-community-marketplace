@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
 import { createClient } from "@/lib/supabase/client";
+import { getAdminFlags, type AdminRoleRow } from "@/lib/admin/roles";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,8 +41,6 @@ type ProfileUpdatedEventDetail = {
   user_type?: string | null;
 };
 
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
-
 export function Navbar({
   isLoggedIn = false,
   userName = "Mi cuenta",
@@ -55,9 +54,7 @@ export function Navbar({
   const [liveIsSuperAdmin, setLiveIsSuperAdmin] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
-  const publishHref = isLoggedIn
-    ? "/marketplace/new"
-    : "/auth?next=/marketplace/new";
+  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
 
   const adminHref = liveIsSuperAdmin ? "/admin/super" : "/admin/school";
   const canAccessAdmin = liveIsAdmin || liveIsSuperAdmin;
@@ -100,26 +97,25 @@ export function Navbar({
         data: { user },
       } = await supabase.auth.getUser();
 
-      const email = user?.email?.toLowerCase() || "";
-      const isSuper = SUPERADMIN_EMAILS.includes(email);
-
-      setLiveIsSuperAdmin(isSuper);
-
       if (!user?.id) {
+        setLiveIsSuperAdmin(false);
         setLiveIsAdmin(false);
         return;
       }
 
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
+        .select("role, school_id")
+        .eq("user_id", user.id)
+        .returns<AdminRoleRow[]>();
 
-      const hasSchoolAdminRole =
-        Array.isArray(roles) &&
-        roles.some((role) => role.role === "school_admin");
+      const adminFlags = getAdminFlags({
+        email: user.email,
+        roles: (roles || []) as AdminRoleRow[],
+      });
 
-      setLiveIsAdmin(isSuper || hasSchoolAdminRole || isAdmin);
+      setLiveIsSuperAdmin(adminFlags.isSuperAdmin);
+      setLiveIsAdmin(adminFlags.canAccessAdmin || isAdmin);
     };
 
     void syncRoles();

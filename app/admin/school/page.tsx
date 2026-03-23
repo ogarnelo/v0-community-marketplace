@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getAdminFlags, type AdminRoleRow } from "@/lib/admin/roles";
 import {
   Users,
   Package,
@@ -16,14 +17,16 @@ import {
   Eye,
   Flag,
   Shield,
+  KeyRound,
 } from "lucide-react";
-
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SchoolRow = {
   id: string;
   name: string;
   city: string | null;
+  region: string | null;
+  postal_code: string | null;
+  school_type: string | null;
 };
 
 type ListingRow = {
@@ -54,9 +57,16 @@ type ReportRow = {
   created_at: string;
 };
 
-type RoleRow = {
-  role: "super_admin" | "school_admin";
+type SchoolAdminRoleRow = {
+  user_id: string;
+  role: string;
   school_id: string | null;
+};
+
+type SchoolAccessCodeRow = {
+  code: string;
+  is_active: boolean;
+  created_at: string;
 };
 
 function getInitials(name?: string | null) {
@@ -70,6 +80,19 @@ function getInitials(name?: string | null) {
     .join("");
 }
 
+function getSchoolTypeLabel(schoolType?: string | null) {
+  switch (schoolType) {
+    case "school":
+      return "Colegio / Instituto";
+    case "academy":
+      return "Academia";
+    case "university":
+      return "Universidad";
+    default:
+      return "Centro";
+  }
+}
+
 export default async function SchoolAdminPage() {
   const supabase = await createClient();
 
@@ -81,9 +104,6 @@ export default async function SchoolAdminPage() {
     redirect("/auth?next=/admin/school");
   }
 
-  const email = user.email?.toLowerCase() || "";
-  const isSuperAdmin = SUPERADMIN_EMAILS.includes(email);
-
   const [{ data: profile }, { data: roles }] = await Promise.all([
     supabase
       .from("profiles")
@@ -94,51 +114,79 @@ export default async function SchoolAdminPage() {
       .from("user_roles")
       .select("role, school_id")
       .eq("user_id", user.id)
-      .returns<RoleRow[]>(),
+      .returns<AdminRoleRow[]>(),
   ]);
 
-  const schoolAdminRole = (roles || []).find((role) => role.role === "school_admin");
-  const effectiveSchoolId =
-    schoolAdminRole?.school_id || profile?.school_id || null;
+  const adminFlags = getAdminFlags({
+    email: user.email,
+    roles: (roles || []) as AdminRoleRow[],
+  });
+
+  const effectiveSchoolId = adminFlags.schoolAdminSchoolId || profile?.school_id || null;
 
   if (!effectiveSchoolId) {
-    if (isSuperAdmin) {
+    if (adminFlags.isSuperAdmin) {
       redirect("/admin/super");
     }
+
     redirect("/");
   }
 
-  const [{ data: school }, { data: listings }, { data: members }, { data: reports }] =
-    await Promise.all([
-      supabase
-        .from("schools")
-        .select("id, name, city")
-        .eq("id", effectiveSchoolId)
-        .maybeSingle<SchoolRow>(),
-      supabase
-        .from("listings")
-        .select("id, title, category, price, type, status, seller_id, school_id")
-        .eq("school_id", effectiveSchoolId)
-        .order("created_at", { ascending: false })
-        .returns<ListingRow[]>(),
-      supabase
-        .from("profiles")
-        .select("id, full_name, school_id, user_type")
-        .eq("school_id", effectiveSchoolId)
-        .returns<ProfileRow[]>(),
-      supabase
-        .from("reports")
-        .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
-        .eq("target_type", "listing")
-        .order("created_at", { ascending: false })
-        .returns<ReportRow[]>(),
-    ]);
+  const [
+    { data: school },
+    { data: listings },
+    { data: members },
+    { data: reports },
+    { data: accessCodes },
+    { data: schoolAdminRoles },
+  ] = await Promise.all([
+    supabase
+      .from("schools")
+      .select("id, name, city, region, postal_code, school_type")
+      .eq("id", effectiveSchoolId)
+      .maybeSingle<SchoolRow>(),
+    supabase
+      .from("listings")
+      .select("id, title, category, price, type, status, seller_id, school_id")
+      .eq("school_id", effectiveSchoolId)
+      .order("created_at", { ascending: false })
+      .returns<ListingRow[]>(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, school_id, user_type")
+      .eq("school_id", effectiveSchoolId)
+      .returns<ProfileRow[]>(),
+    supabase
+      .from("reports")
+      .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
+      .eq("target_type", "listing")
+      .order("created_at", { ascending: false })
+      .returns<ReportRow[]>(),
+    supabase
+      .from("school_access_codes")
+      .select("code, is_active, created_at")
+      .eq("school_id", effectiveSchoolId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .returns<SchoolAccessCodeRow[]>(),
+    supabase
+      .from("user_roles")
+      .select("user_id, role, school_id")
+      .eq("school_id", effectiveSchoolId)
+      .eq("role", "school_admin")
+      .returns<SchoolAdminRoleRow[]>(),
+  ]);
 
   const safeListings = (listings || []) as ListingRow[];
   const safeMembers = (members || []) as ProfileRow[];
+  const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
+  const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
   const safeListingReports = ((reports || []) as ReportRow[]).filter((report) =>
     safeListings.some((listing) => listing.id === report.listing_id)
   );
+
+  const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
+  const schoolAdmins = safeMembers.filter((member) => schoolAdminIds.includes(member.id));
 
   const donationListings = safeListings.filter((listing) => listing.type === "donation");
   const totalEstimatedVolume = safeListings.reduce(
@@ -149,16 +197,13 @@ export default async function SchoolAdminPage() {
   const navbarUserName =
     (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
       ? profile.full_name.trim()
-      : null) || user.email || "Admin centro";
+      : null) ||
+    user.email ||
+    "Admin centro";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar
-        isLoggedIn
-        userName={navbarUserName}
-        isAdmin
-        currentUserId={user.id}
-      />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin currentUserId={user.id} />
 
       <main className="flex-1">
         <div className="mx-auto max-w-5xl px-4 py-6 lg:px-8">
@@ -170,9 +215,15 @@ export default async function SchoolAdminPage() {
               <h1 className="text-2xl font-bold text-foreground">
                 Panel Admin - {school?.name || "Centro"}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {school?.city || "Ciudad no indicada"}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>{school?.city || "Ciudad no indicada"}</span>
+                {school?.region ? <span>· {school.region}</span> : null}
+                {school?.school_type ? (
+                  <Badge variant="outline" className="ml-1">
+                    {getSchoolTypeLabel(school.school_type)}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -228,10 +279,38 @@ export default async function SchoolAdminPage() {
             </Card>
           </div>
 
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Card className="border-border">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <Shield className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{schoolAdmins.length}</p>
+                  <p className="text-xs text-muted-foreground">Admins del centro</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary/20">
+                  <KeyRound className="h-5 w-5 text-secondary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{safeAccessCodes.length}</p>
+                  <p className="text-xs text-muted-foreground">Códigos activos</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Tabs defaultValue="listings" className="mt-6">
             <TabsList>
               <TabsTrigger value="listings">Anuncios ({safeListings.length})</TabsTrigger>
               <TabsTrigger value="members">Miembros ({safeMembers.length})</TabsTrigger>
+              <TabsTrigger value="admins">Admins ({schoolAdmins.length})</TabsTrigger>
+              <TabsTrigger value="access">Accesos ({safeAccessCodes.length})</TabsTrigger>
               <TabsTrigger value="flagged">Reportados ({safeListingReports.length})</TabsTrigger>
             </TabsList>
 
@@ -320,6 +399,78 @@ export default async function SchoolAdminPage() {
               )}
             </TabsContent>
 
+            <TabsContent value="admins" className="mt-4 flex flex-col gap-3">
+              {schoolAdmins.length === 0 ? (
+                <Card className="border-border">
+                  <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                    Aún no hay administradores asignados en user_roles para este centro.
+                  </CardContent>
+                </Card>
+              ) : (
+                schoolAdmins.map((admin) => (
+                  <Card key={admin.id} className="border-border">
+                    <CardContent className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                            {getInitials(admin.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {admin.full_name?.trim() || "Administrador"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Rol administrativo real desde user_roles
+                          </p>
+                        </div>
+                      </div>
+
+                      <Badge>school_admin</Badge>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="access" className="mt-4 flex flex-col gap-3">
+              {safeAccessCodes.length === 0 ? (
+                <Card className="border-border">
+                  <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                    Este centro todavía no tiene códigos activos.
+                  </CardContent>
+                </Card>
+              ) : (
+                safeAccessCodes.map((accessCode) => (
+                  <Card key={`${accessCode.code}-${accessCode.created_at}`} className="border-border">
+                    <CardContent className="flex items-center justify-between gap-4 p-4">
+                      <div>
+                        <p className="font-mono text-sm font-semibold tracking-widest text-foreground">
+                          {accessCode.code}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Creado el{" "}
+                          {new Date(accessCode.created_at).toLocaleString("es-ES", {
+                            timeZone: "Europe/Madrid",
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+
+                      <Badge variant={accessCode.is_active ? "secondary" : "outline"}>
+                        {accessCode.is_active ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
             <TabsContent value="flagged" className="mt-4">
               <Card className="border-border">
                 <CardContent className="space-y-3 p-4">
@@ -332,10 +483,7 @@ export default async function SchoolAdminPage() {
                     </div>
                   ) : (
                     safeListingReports.map((report) => (
-                      <div
-                        key={report.id}
-                        className="rounded-xl border border-border p-4"
-                      >
+                      <div key={report.id} className="rounded-xl border border-border p-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline">{report.status}</Badge>
                           <Badge variant="secondary">Anuncio</Badge>

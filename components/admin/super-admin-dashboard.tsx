@@ -54,17 +54,21 @@ type ReportRow = {
 type SchoolRequestRow = {
   id: string;
   school_name: string;
+  school_type: string | null;
   address: string;
   city: string;
   postal_code: string;
   region: string;
-  contact_email: string;
+  email: string | null;
+  phone: string | null;
+  contact_email: string | null;
   contact_phone: string | null;
-  status: "pending" | "approved" | "rejected" | null;
+  status: "new" | "pending" | "approved" | "rejected" | null;
   review_notes: string | null;
   approved_school_id: string | null;
   created_at: string;
   reviewed_at: string | null;
+  reviewed_by: string | null;
 };
 
 type DashboardStats = {
@@ -90,6 +94,7 @@ type SuperAdminDashboardProps = {
   initialSupportTickets: SupportTicketRow[];
   initialReports: ReportListItem[];
   initialSchoolRequests: SchoolRequestRow[];
+  initialApprovedRequestMeta: Record<string, ApprovedRequestMeta>;
 };
 
 function formatDate(date: string | null) {
@@ -138,6 +143,27 @@ function normalizeSchoolRequestStatus(
   }
 
   return "pending";
+}
+
+function getSchoolTypeLabel(schoolType?: string | null) {
+  switch (schoolType) {
+    case "school":
+      return "Colegio / Instituto";
+    case "academy":
+      return "Academia";
+    case "university":
+      return "Universidad";
+    default:
+      return "Sin definir";
+  }
+}
+
+function getRequestContactEmail(request: SchoolRequestRow) {
+  return request.contact_email || request.email || "Sin email";
+}
+
+function getRequestContactPhone(request: SchoolRequestRow) {
+  return request.contact_phone || request.phone || null;
 }
 
 const SUPPORT_STATUS_OPTIONS: SupportTicketRow["status"][] = [
@@ -196,6 +222,7 @@ export default function SuperAdminDashboard({
   initialSupportTickets,
   initialReports,
   initialSchoolRequests,
+  initialApprovedRequestMeta,
 }: SuperAdminDashboardProps) {
   const supabase = useMemo(() => createClient(), []);
   const [supportTickets, setSupportTickets] =
@@ -209,7 +236,7 @@ export default function SuperAdminDashboard({
   const [globalError, setGlobalError] = useState("");
   const [approvedRequestMeta, setApprovedRequestMeta] = useState<
     Record<string, ApprovedRequestMeta>
-  >({});
+  >(initialApprovedRequestMeta);
 
   const updateSupportTicketStatus = async (
     ticketId: string,
@@ -295,7 +322,7 @@ export default function SuperAdminDashboard({
             ? {
               ...request,
               status: "approved",
-              approved_school_id: result?.school_id || null,
+              approved_school_id: result?.school_id || request.approved_school_id,
               reviewed_at: new Date().toISOString(),
             }
             : request
@@ -470,17 +497,13 @@ export default function SuperAdminDashboard({
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-foreground">
-                                {ticket.name}
-                              </p>
+                              <p className="font-semibold text-foreground">{ticket.name}</p>
                               <Badge variant={getStatusBadgeVariant(ticket.status)}>
                                 {ticket.status}
                               </Badge>
                             </div>
 
-                            <p className="text-sm text-muted-foreground">
-                              {ticket.email}
-                            </p>
+                            <p className="text-sm text-muted-foreground">{ticket.email}</p>
 
                             <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
                               {ticket.message}
@@ -562,9 +585,7 @@ export default function SuperAdminDashboard({
 
                             {report.target_type === "listing" ? (
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                <span>
-                                  Anuncio: {report.listing_title || "Anuncio"}
-                                </span>
+                                <span>Anuncio: {report.listing_title || "Anuncio"}</span>
                                 {report.listing_id ? (
                                   <Link
                                     href={`/marketplace/listing/${report.listing_id}`}
@@ -644,9 +665,7 @@ export default function SuperAdminDashboard({
                 </div>
               ) : (
                 schoolRequests.map((request) => {
-                  const normalizedStatus = normalizeSchoolRequestStatus(
-                    request.status
-                  );
+                  const normalizedStatus = normalizeSchoolRequestStatus(request.status);
                   const approvedMeta = approvedRequestMeta[request.id];
 
                   return (
@@ -662,6 +681,9 @@ export default function SuperAdminDashboard({
                                 <Badge variant={getStatusBadgeVariant(normalizedStatus)}>
                                   {normalizedStatus}
                                 </Badge>
+                                <Badge variant="outline">
+                                  {getSchoolTypeLabel(request.school_type)}
+                                </Badge>
                               </div>
 
                               <p className="mt-1 text-sm text-muted-foreground">
@@ -673,8 +695,10 @@ export default function SuperAdminDashboard({
                               </p>
 
                               <p className="mt-2 text-sm text-muted-foreground">
-                                Contacto: {request.contact_email}
-                                {request.contact_phone ? ` · ${request.contact_phone}` : ""}
+                                Contacto: {getRequestContactEmail(request)}
+                                {getRequestContactPhone(request)
+                                  ? ` · ${getRequestContactPhone(request)}`
+                                  : ""}
                               </p>
 
                               {approvedMeta ? (
@@ -688,6 +712,13 @@ export default function SuperAdminDashboard({
                                   </p>
                                   <p className="mt-1 text-xs">
                                     School ID: {approvedMeta.schoolId}
+                                  </p>
+                                </div>
+                              ) : request.approved_school_id ? (
+                                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                  <p className="font-medium">Centro aprobado</p>
+                                  <p className="mt-1 text-xs">
+                                    School ID: {request.approved_school_id}
                                   </p>
                                 </div>
                               ) : null}
@@ -704,8 +735,7 @@ export default function SuperAdminDashboard({
                             </div>
                           </div>
 
-                          {normalizedStatus !== "approved" &&
-                            normalizedStatus !== "rejected" ? (
+                          {normalizedStatus !== "approved" && normalizedStatus !== "rejected" ? (
                             <div className="flex flex-wrap gap-2">
                               <Button
                                 type="button"
