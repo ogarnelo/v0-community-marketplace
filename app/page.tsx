@@ -10,8 +10,9 @@ import { createClient } from "@/lib/supabase/server";
 
 type SafeUserMetadata = {
   full_name?: string;
-  user_type?: string;
 };
+
+const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -31,11 +32,17 @@ export default async function LandingPage() {
   if (user) {
     const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, user_type")
-      .eq("id", user.id)
-      .maybeSingle();
+    const [{ data: profile }, { data: roles }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id),
+    ]);
 
     const fullName =
       (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
@@ -47,14 +54,17 @@ export default async function LandingPage() {
       user.email ||
       "Mi cuenta";
 
-    const userType =
-      (typeof profile?.user_type === "string" ? profile.user_type : null) ||
-      (typeof metadata.user_type === "string" ? metadata.user_type : null);
+    const isSuperAdmin = SUPERADMIN_EMAILS.includes(
+      user.email?.toLowerCase() || ""
+    );
+
+    const hasSchoolAdminRole =
+      Array.isArray(roles) && roles.some((role) => role.role === "school_admin");
 
     navbarProps = {
       isLoggedIn: true,
       userName: fullName,
-      isAdmin: userType === "school_admin" || userType === "super_admin",
+      isAdmin: isSuperAdmin || hasSchoolAdminRole,
       unreadMessagesCount: 0,
       currentUserId: user.id,
     };
