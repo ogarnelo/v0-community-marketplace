@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Globe,
   School as SchoolIcon,
   Users,
   Package,
@@ -61,7 +60,7 @@ type SchoolRequestRow = {
   region: string;
   contact_email: string;
   contact_phone: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | null;
   review_notes: string | null;
   approved_school_id: string | null;
   created_at: string;
@@ -129,6 +128,16 @@ function getStatusBadgeVariant(status: string) {
   if (status === "open" || status === "pending") return "destructive";
   if (status === "in_progress" || status === "reviewing") return "secondary";
   return "outline";
+}
+
+function normalizeSchoolRequestStatus(
+  status: SchoolRequestRow["status"]
+): "pending" | "approved" | "rejected" {
+  if (status === "approved" || status === "rejected") {
+    return status;
+  }
+
+  return "pending";
 }
 
 const SUPPORT_STATUS_OPTIONS: SupportTicketRow["status"][] = [
@@ -215,9 +224,7 @@ export default function SuperAdminDashboard({
         .update({ status: nextStatus })
         .eq("id", ticketId);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setSupportTickets((prev) =>
         prev.map((ticket) =>
@@ -249,9 +256,7 @@ export default function SuperAdminDashboard({
         .update({ status: nextStatus })
         .eq("id", reportId);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setReports((prev) =>
         prev.map((report) =>
@@ -280,9 +285,7 @@ export default function SuperAdminDashboard({
         { request_id: requestId }
       );
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       const result = Array.isArray(data) ? data[0] : data;
 
@@ -330,9 +333,7 @@ export default function SuperAdminDashboard({
         notes: null,
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setSchoolRequests((prev) =>
         prev.map((request) =>
@@ -643,6 +644,9 @@ export default function SuperAdminDashboard({
                 </div>
               ) : (
                 schoolRequests.map((request) => {
+                  const normalizedStatus = normalizeSchoolRequestStatus(
+                    request.status
+                  );
                   const approvedMeta = approvedRequestMeta[request.id];
 
                   return (
@@ -655,8 +659,8 @@ export default function SuperAdminDashboard({
                                 <p className="font-semibold text-foreground">
                                   {request.school_name}
                                 </p>
-                                <Badge variant={getStatusBadgeVariant(request.status)}>
-                                  {request.status}
+                                <Badge variant={getStatusBadgeVariant(normalizedStatus)}>
+                                  {normalizedStatus}
                                 </Badge>
                               </div>
 
@@ -700,7 +704,8 @@ export default function SuperAdminDashboard({
                             </div>
                           </div>
 
-                          {request.status === "pending" ? (
+                          {normalizedStatus !== "approved" &&
+                            normalizedStatus !== "rejected" ? (
                             <div className="flex flex-wrap gap-2">
                               <Button
                                 type="button"
