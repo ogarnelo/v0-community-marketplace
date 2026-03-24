@@ -56,6 +56,8 @@ type ProfileSummaryRow = {
   id: string;
   full_name: string | null;
   school_id: string | null;
+  user_type: string | null;
+  grade_level: string | null;
 };
 
 type SchoolSummaryRow = {
@@ -72,6 +74,8 @@ type ListingStatsRow = {
   price: number | null;
   status: string | null;
   school_id: string | null;
+  category: string | null;
+  grade_level: string | null;
   created_at: string;
 };
 
@@ -122,11 +126,11 @@ export default async function SuperAdminPage() {
       .returns<SchoolSummaryRow[]>(),
     supabase
       .from("profiles")
-      .select("id, full_name, school_id")
+      .select("id, full_name, school_id, user_type, grade_level")
       .returns<ProfileSummaryRow[]>(),
     supabase
       .from("listings")
-      .select("id, type, price, status, school_id, created_at")
+      .select("id, type, price, status, school_id, category, grade_level, created_at")
       .returns<ListingStatsRow[]>(),
     supabase
       .from("support_tickets")
@@ -182,8 +186,8 @@ export default async function SuperAdminPage() {
         .from("profiles")
         .select("id, full_name")
         .in("id", reporterIds)
-        .returns<ProfileSummaryRow[]>()
-      : Promise.resolve({ data: [] as ProfileSummaryRow[] }),
+        .returns<Pick<ProfileSummaryRow, "id" | "full_name">[]>()
+      : Promise.resolve({ data: [] as Pick<ProfileSummaryRow, "id" | "full_name">[] }),
   ]);
 
   const listingMap = new Map(
@@ -191,7 +195,9 @@ export default async function SuperAdminPage() {
   );
 
   const reporterMap = new Map(
-    ((reporterProfiles || []) as ProfileSummaryRow[]).map((item) => [item.id, item])
+    ((reporterProfiles || []) as Pick<ProfileSummaryRow, "id" | "full_name">[]).map(
+      (item) => [item.id, item]
+    )
   );
 
   const latestAccessCodeBySchoolId = new Map<string, string>();
@@ -242,7 +248,8 @@ export default async function SuperAdminPage() {
     totalListings: safeListings.length,
     totalDonations: safeListings.filter((item) => item.type === "donation").length,
     totalEstimatedVolume: safeListings.reduce(
-      (sum, item) => sum + (typeof item.price === "number" ? item.price : 0),
+      (sum, item) =>
+        item.status === "available" && typeof item.price === "number" ? sum + item.price : sum,
       0
     ),
   };
@@ -260,7 +267,7 @@ export default async function SuperAdminPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
               <p className="text-sm text-muted-foreground">
-                Panel global con KPIs, soporte, moderación y altas de centros.
+                Panel global con KPIs, rankings y gestión operativa.
               </p>
             </div>
           </div>

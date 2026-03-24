@@ -35,17 +35,20 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
-  Building2,
+  BarChart3,
   CheckCircle2,
   Euro,
   ExternalLink,
+  EyeOff,
   Flag,
   Heart,
   Loader2,
   MessageSquareText,
   Package,
+  Percent,
   School,
   School as SchoolIcon,
+  ShoppingCart,
   TrendingUp,
   Users,
   XCircle,
@@ -121,6 +124,8 @@ type ProfileSummaryRow = {
   id: string;
   full_name: string | null;
   school_id: string | null;
+  user_type: string | null;
+  grade_level: string | null;
 };
 
 type ListingStatsRow = {
@@ -129,6 +134,8 @@ type ListingStatsRow = {
   price: number | null;
   status: string | null;
   school_id: string | null;
+  category: string | null;
+  grade_level: string | null;
   created_at: string;
 };
 
@@ -143,42 +150,20 @@ type SuperAdminDashboardProps = {
   initialListings: ListingStatsRow[];
 };
 
-const supportStatusChartConfig = {
-  total: { label: "Tickets" },
-  open: { label: "Abiertos", color: "hsl(var(--chart-5))" },
-  in_progress: { label: "En curso", color: "hsl(var(--chart-4))" },
-  resolved: { label: "Resueltos", color: "hsl(var(--chart-2))" },
-  closed: { label: "Cerrados", color: "hsl(var(--chart-1))" },
-} satisfies ChartConfig;
-
-const reportStatusChartConfig = {
-  total: { label: "Reports" },
-  open: { label: "Abiertos", color: "hsl(var(--chart-5))" },
-  reviewing: { label: "Revisando", color: "hsl(var(--chart-4))" },
-  resolved: { label: "Resueltos", color: "hsl(var(--chart-2))" },
-  dismissed: { label: "Descartados", color: "hsl(var(--chart-1))" },
-} satisfies ChartConfig;
-
-const requestStatusChartConfig = {
-  total: { label: "Solicitudes" },
-  pending: { label: "Pendientes", color: "hsl(var(--chart-4))" },
-  approved: { label: "Aprobadas", color: "hsl(var(--chart-2))" },
-  rejected: { label: "Rechazadas", color: "hsl(var(--chart-5))" },
-} satisfies ChartConfig;
-
-const listingTypeChartConfig = {
-  total: { label: "Anuncios" },
-  sale: { label: "Venta", color: "hsl(var(--chart-1))" },
-  donation: { label: "Donación", color: "hsl(var(--chart-2))" },
-  exchange: { label: "Intercambio", color: "hsl(var(--chart-4))" },
-  other: { label: "Otros", color: "hsl(var(--chart-5))" },
-} satisfies ChartConfig;
-
 const growthChartConfig = {
   listings: { label: "Anuncios", color: "hsl(var(--chart-1))" },
   support: { label: "Tickets", color: "hsl(var(--chart-4))" },
   reports: { label: "Reports", color: "hsl(var(--chart-5))" },
   requests: { label: "Solicitudes", color: "hsl(var(--chart-2))" },
+} satisfies ChartConfig;
+
+const rankingChartConfig = {
+  percentage: { label: "%", color: "hsl(var(--chart-1))" },
+} satisfies ChartConfig;
+
+const listingTypeChartConfig = {
+  sale: { label: "Venta", color: "hsl(var(--chart-1))" },
+  donation: { label: "Donación", color: "hsl(var(--chart-2))" },
 } satisfies ChartConfig;
 
 function formatDate(date: string | null) {
@@ -278,7 +263,10 @@ function buildMonthlySeries({
     }
   >();
 
-  const add = (date: string, key: "listings" | "support" | "reports" | "requests") => {
+  const add = (
+    date: string,
+    key: "listings" | "support" | "reports" | "requests"
+  ) => {
     const bucketKey = monthKey(date);
     const current = buckets.get(bucketKey) || {
       month: bucketKey,
@@ -298,6 +286,115 @@ function buildMonthlySeries({
   requests.forEach((item) => add(item.created_at, "requests"));
 
   return Array.from(buckets.values()).slice(-6);
+}
+
+function buildPercentageRanking(
+  items: Array<{ label: string; total: number }>,
+  emptyLabel = "Sin datos"
+) {
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+
+  if (total <= 0) {
+    return [{ label: emptyLabel, total: 0, percentage: 0 }];
+  }
+
+  return items
+    .filter((item) => item.total > 0)
+    .map((item) => ({
+      ...item,
+      percentage: Number(((item.total / total) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
+function prettyGradeLevel(value?: string | null) {
+  if (!value || !value.trim()) return "Sin etapa";
+
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function prettyCategory(value?: string | null) {
+  return value?.trim() || "Sin categoría";
+}
+
+function prettyStatus(value?: string | null) {
+  switch (value) {
+    case "available":
+      return "Disponible";
+    case "reserved":
+      return "Reservado";
+    case "sold":
+      return "Vendido";
+    case "archived":
+      return "Archivado";
+    default:
+      return "Sin estado";
+  }
+}
+
+function prettyUserType(value?: string | null) {
+  switch (value) {
+    case "student":
+      return "Estudiantes";
+    case "parent":
+      return "Familias / tutores";
+    default:
+      return "Otros";
+  }
+}
+
+function RankingChart({
+  title,
+  description,
+  data,
+}: {
+  title: string;
+  description: string;
+  data: Array<{ label: string; total: number; percentage: number }>;
+}) {
+  return (
+    <Card className="border-border">
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={rankingChartConfig} className="h-[260px] w-full">
+          <BarChart data={data} layout="vertical" margin={{ left: 12, right: 12 }}>
+            <CartesianGrid horizontal={false} />
+            <XAxis
+              type="number"
+              tickFormatter={(value) => `${value}%`}
+              domain={[0, 100]}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              width={110}
+            />
+            <ChartTooltip
+              content={<ChartTooltipContent formatter={(value) => `${value}%`} />}
+            />
+            <Bar dataKey="percentage" radius={8}>
+              {data.map((entry, index) => (
+                <Cell
+                  key={`${entry.label}-${index}`}
+                  fill={`hsl(var(--chart-${(index % 5) + 1}))`}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
 }
 
 function StatusActionGroup({
@@ -362,14 +459,13 @@ export default function SuperAdminDashboard({
   const schoolSummaries = useMemo(() => {
     const bySchoolId = new Map<
       string,
-      { members: number; listings: number; donations: number; salesVolume: number }
+      { members: number; listings: number; salesVolume: number }
     >();
 
     initialSchools.forEach((school) => {
       bySchoolId.set(school.id, {
         members: 0,
         listings: 0,
-        donations: 0,
         salesVolume: 0,
       });
     });
@@ -385,11 +481,7 @@ export default function SuperAdminDashboard({
       const bucket = bySchoolId.get(listing.school_id)!;
       bucket.listings += 1;
 
-      if (listing.type === "donation") {
-        bucket.donations += 1;
-      }
-
-      if (typeof listing.price === "number") {
+      if (listing.status === "sold" && typeof listing.price === "number") {
         bucket.salesVolume += listing.price;
       }
     });
@@ -400,67 +492,12 @@ export default function SuperAdminDashboard({
         ...(bySchoolId.get(school.id) || {
           members: 0,
           listings: 0,
-          donations: 0,
           salesVolume: 0,
         }),
       }))
       .sort((a, b) => b.members - a.members || b.listings - a.listings)
       .slice(0, 5);
   }, [initialListings, initialProfiles, initialSchools]);
-
-  const supportStatusData = useMemo(
-    () =>
-      ["open", "in_progress", "resolved", "closed"].map((status) => ({
-        status,
-        total: supportTickets.filter((ticket) => ticket.status === status).length,
-        fill: `var(--color-${status})`,
-      })),
-    [supportTickets]
-  );
-
-  const reportStatusData = useMemo(
-    () =>
-      ["open", "reviewing", "resolved", "dismissed"].map((status) => ({
-        status,
-        total: reports.filter((report) => report.status === status).length,
-        fill: `var(--color-${status})`,
-      })),
-    [reports]
-  );
-
-  const requestStatusData = useMemo(
-    () =>
-      ["pending", "approved", "rejected"].map((status) => ({
-        status,
-        total: schoolRequests.filter(
-          (request) => normalizeSchoolRequestStatus(request.status) === status
-        ).length,
-        fill: `var(--color-${status})`,
-      })),
-    [schoolRequests]
-  );
-
-  const listingTypeData = useMemo(() => {
-    const types = ["sale", "donation", "exchange"] as const;
-
-    const values = types.map((type) => ({
-      type,
-      total: initialListings.filter((listing) => listing.type === type).length,
-      fill: `var(--color-${type})`,
-    }));
-
-    const knownTotal = values.reduce((sum, item) => sum + item.total, 0);
-    const otherTotal = initialListings.length - knownTotal;
-
-    return [
-      ...values,
-      {
-        type: "other",
-        total: Math.max(otherTotal, 0),
-        fill: "var(--color-other)",
-      },
-    ];
-  }, [initialListings]);
 
   const growthData = useMemo(
     () =>
@@ -473,10 +510,41 @@ export default function SuperAdminDashboard({
     [initialListings, reports, schoolRequests, supportTickets]
   );
 
-  const openIncidents =
-    supportTickets.filter((ticket) => ticket.status === "open" || ticket.status === "in_progress")
-      .length +
-    reports.filter((report) => report.status === "open" || report.status === "reviewing").length;
+  const incidentUserIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    supportTickets.forEach((ticket) => {
+      if (ticket.user_id) ids.add(ticket.user_id);
+    });
+
+    reports.forEach((report) => {
+      if (report.reporter_id) ids.add(report.reporter_id);
+    });
+
+    return ids;
+  }, [reports, supportTickets]);
+
+  const totalSales = useMemo(
+    () =>
+      initialListings.reduce(
+        (sum, listing) =>
+          listing.status === "sold" && typeof listing.price === "number"
+            ? sum + listing.price
+            : sum,
+        0
+      ),
+    [initialListings]
+  );
+
+  const totalTransactions = useMemo(
+    () => initialListings.filter((listing) => listing.status === "sold").length,
+    [initialListings]
+  );
+
+  const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+
+  const incidentRate =
+    stats.totalUsers > 0 ? (incidentUserIds.size / stats.totalUsers) * 100 : 0;
 
   const approvalRate =
     schoolRequests.length > 0
@@ -488,6 +556,91 @@ export default function SuperAdminDashboard({
         100
       )
       : 0;
+
+  const categoryRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialListings.forEach((listing) => {
+      const key = prettyCategory(listing.category);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [initialListings]);
+
+  const listingGradeLevelRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialListings.forEach((listing) => {
+      const key = prettyGradeLevel(listing.grade_level);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [initialListings]);
+
+  const userGradeLevelRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialProfiles.forEach((profile) => {
+      const key = prettyGradeLevel(profile.grade_level);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [initialProfiles]);
+
+  const listingStatusRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialListings.forEach((listing) => {
+      const key = prettyStatus(listing.status);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    );
+  }, [initialListings]);
+
+  const userTypeRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialProfiles.forEach((profile) => {
+      const key = prettyUserType(profile.user_type);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    );
+  }, [initialProfiles]);
+
+  const listingTypeData = useMemo(() => {
+    const saleTotal = initialListings.filter((listing) => listing.type === "sale").length;
+    const donationTotal = initialListings.filter(
+      (listing) => listing.type === "donation"
+    ).length;
+
+    return [
+      {
+        type: "sale",
+        total: saleTotal,
+        fill: "var(--color-sale)",
+      },
+      {
+        type: "donation",
+        total: donationTotal,
+        fill: "var(--color-donation)",
+      },
+    ].filter((item) => item.total > 0);
+  }, [initialListings]);
 
   const updateSupportTicketStatus = async (
     ticketId: string,
@@ -618,7 +771,7 @@ export default function SuperAdminDashboard({
 
   return (
     <>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="mt-6 grid gap-4 md:grid-cols-5">
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -670,25 +823,81 @@ export default function SuperAdminDashboard({
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-5/10">
-              <AlertTriangle className="h-5 w-5 text-chart-5" />
+              <Percent className="h-5 w-5 text-chart-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{openIncidents}</p>
-              <p className="text-xs text-muted-foreground">Incidencias abiertas</p>
+              <p className="text-2xl font-bold text-foreground">
+                {incidentRate.toFixed(1)}%
+              </p>
+              <p className="text-xs text-muted-foreground">Tasa de incidencias</p>
             </div>
           </CardContent>
         </Card>
+      </div>
 
+      <div className="mt-4 grid gap-4 md:grid-cols-5">
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
-              <Euro className="h-5 w-5 text-chart-4" />
+              <EyeOff className="h-5 w-5 text-chart-4" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
                 {Math.round(stats.totalEstimatedVolume)}€
               </p>
               <p className="text-xs text-muted-foreground">Volumen visible</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-1/10">
+              <Euro className="h-5 w-5 text-chart-1" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">
+                {Math.round(totalSales)}€
+              </p>
+              <p className="text-xs text-muted-foreground">Ventas totales</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{totalTransactions}</p>
+              <p className="text-xs text-muted-foreground">Número de transacciones</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/20">
+              <BarChart3 className="h-5 w-5 text-secondary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">
+                {Math.round(averageTicket)}€
+              </p>
+              <p className="text-xs text-muted-foreground">Ticket medio</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+              <TrendingUp className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">N/D</p>
+              <p className="text-xs text-muted-foreground">Tasa de conversión</p>
             </div>
           </CardContent>
         </Card>
@@ -717,7 +926,8 @@ export default function SuperAdminDashboard({
                   Actividad operativa reciente
                 </CardTitle>
                 <CardDescription>
-                  Evolución combinada de anuncios, soporte, reports y solicitudes.
+                  Evolución de anuncios, tickets, reports y solicitudes. “Nuevos usuarios”
+                  queda pendiente de una fuente temporal real en usuarios.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -813,116 +1023,81 @@ export default function SuperAdminDashboard({
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="text-base">Tickets por estado</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={supportStatusChartConfig} className="mx-auto h-[220px]">
-                  <PieChart>
-                    <ChartTooltip
-                      content={<ChartTooltipContent nameKey="status" hideLabel />}
-                    />
-                    <Pie
-                      data={supportStatusData}
-                      dataKey="total"
-                      nameKey="status"
-                      innerRadius={55}
-                      outerRadius={85}
-                    >
-                      {supportStatusData.map((entry) => (
-                        <Cell key={entry.status} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <ChartLegend content={<ChartLegendContent nameKey="status" />} />
-                  </PieChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <RankingChart
+              title="Ranking por categoría"
+              description="Peso porcentual de cada categoría de producto en los anuncios."
+              data={categoryRanking}
+            />
 
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="text-base">Reports por estado</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={reportStatusChartConfig} className="mx-auto h-[220px]">
-                  <PieChart>
-                    <ChartTooltip
-                      content={<ChartTooltipContent nameKey="status" hideLabel />}
-                    />
-                    <Pie
-                      data={reportStatusData}
-                      dataKey="total"
-                      nameKey="status"
-                      innerRadius={55}
-                      outerRadius={85}
-                    >
-                      {reportStatusData.map((entry) => (
-                        <Cell key={entry.status} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <ChartLegend content={<ChartLegendContent nameKey="status" />} />
-                  </PieChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
+            <RankingChart
+              title="Ranking por curso/etapa de anuncios"
+              description="Peso porcentual de cada curso o etapa en los anuncios."
+              data={listingGradeLevelRanking}
+            />
 
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="text-base">Solicitudes de centros</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={requestStatusChartConfig} className="mx-auto h-[220px]">
-                  <BarChart data={requestStatusData}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="status" tickLine={false} axisLine={false} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="total" radius={8}>
-                      {requestStatusData.map((entry) => (
-                        <Cell key={entry.status} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
+            <RankingChart
+              title="Ranking por curso/etapa de usuarios"
+              description="Peso porcentual de cada curso o etapa dentro de los usuarios."
+              data={userGradeLevelRanking}
+            />
+          </div>
 
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <Card className="border-border">
               <CardHeader>
                 <CardTitle className="text-base">Tipos de anuncio</CardTitle>
+                <CardDescription>
+                  Distribución entre venta y donación.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={listingTypeChartConfig} className="mx-auto h-[220px]">
-                  <PieChart>
-                    <ChartTooltip content={<ChartTooltipContent nameKey="type" hideLabel />} />
-                    <Pie
-                      data={listingTypeData}
-                      dataKey="total"
-                      nameKey="type"
-                      innerRadius={55}
-                      outerRadius={85}
-                    >
-                      {listingTypeData.map((entry) => (
-                        <Cell key={entry.type} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <ChartLegend content={<ChartLegendContent nameKey="type" />} />
-                  </PieChart>
-                </ChartContainer>
+                {listingTypeData.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    No hay datos de tipos de anuncio.
+                  </p>
+                ) : (
+                  <ChartContainer config={listingTypeChartConfig} className="mx-auto h-[240px]">
+                    <PieChart>
+                      <ChartTooltip
+                        content={<ChartTooltipContent nameKey="type" hideLabel />}
+                      />
+                      <Pie
+                        data={listingTypeData}
+                        dataKey="total"
+                        nameKey="type"
+                        innerRadius={60}
+                        outerRadius={90}
+                      >
+                        {listingTypeData.map((entry) => (
+                          <Cell key={entry.type} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <ChartLegend content={<ChartLegendContent nameKey="type" />} />
+                    </PieChart>
+                  </ChartContainer>
+                )}
               </CardContent>
             </Card>
+
+            <RankingChart
+              title="Ranking por estado de producto"
+              description="Peso porcentual de los estados de anuncio disponibles en marketplace."
+              data={listingStatusRanking}
+            />
+
+            <RankingChart
+              title="Ranking por tipo de usuario"
+              description="Peso porcentual entre estudiantes y familias / tutores."
+              data={userTypeRanking}
+            />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <Card className="border-border">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Centros con más comunidad
-                </CardTitle>
-                <CardDescription>Top centros por miembros y catálogo publicado.</CardDescription>
+                <CardTitle>Centros con más comunidad</CardTitle>
+                <CardDescription>Top centros por miembros y catálogo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {schoolSummaries.length === 0 ? (
@@ -959,7 +1134,7 @@ export default function SuperAdminDashboard({
                           </p>
                         </div>
                         <div className="rounded-lg bg-muted/40 p-3">
-                          <p className="text-xs text-muted-foreground">Volumen</p>
+                          <p className="text-xs text-muted-foreground">Ventas</p>
                           <p className="mt-1 font-semibold text-foreground">
                             {Math.round(school.salesVolume)}€
                           </p>
@@ -1029,6 +1204,20 @@ export default function SuperAdminDashboard({
                         ).length
                       }
                     </Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Conversión pendiente de instrumentar
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Requiere tabla real de visitas
+                      </p>
+                    </div>
+                    <Badge variant="outline">N/D</Badge>
                   </div>
                 </div>
               </CardContent>
