@@ -1,6 +1,7 @@
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
 import { ReportListingButton } from "@/components/marketplace/report-listing-button";
+import { ListingViewTracker } from "@/components/marketplace/listing-view-tracker";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -154,6 +155,8 @@ export default async function ListingDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <ListingViewTracker listingId={listing.id} />
+
       <div className="mb-6">
         <Link href="/marketplace">
           <Button variant="ghost" className="gap-2">

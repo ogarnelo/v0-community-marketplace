@@ -73,10 +73,16 @@ type ListingStatsRow = {
   type: string | null;
   price: number | null;
   status: string | null;
+  condition: string | null;
   school_id: string | null;
   category: string | null;
   grade_level: string | null;
   created_at: string;
+};
+
+type ListingViewRow = {
+  listing_id: string;
+  viewed_at: string;
 };
 
 type ApprovedRequestMeta = {
@@ -117,6 +123,7 @@ export default async function SuperAdminPage() {
     { data: reports },
     { data: schoolRequests },
     { data: accessCodes },
+    { data: listingViews },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
     supabase
@@ -130,7 +137,7 @@ export default async function SuperAdminPage() {
       .returns<ProfileSummaryRow[]>(),
     supabase
       .from("listings")
-      .select("id, type, price, status, school_id, category, grade_level, created_at")
+      .select("id, type, price, status, condition, school_id, category, grade_level, created_at")
       .returns<ListingStatsRow[]>(),
     supabase
       .from("support_tickets")
@@ -155,6 +162,11 @@ export default async function SuperAdminPage() {
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .returns<AccessCodeRow[]>(),
+    supabase
+      .from("listing_views")
+      .select("listing_id, viewed_at")
+      .order("viewed_at", { ascending: false })
+      .returns<ListingViewRow[]>(),
   ]);
 
   const safeSchools = (schools || []) as SchoolSummaryRow[];
@@ -164,6 +176,7 @@ export default async function SuperAdminPage() {
   const safeReports = (reports || []) as ReportRow[];
   const safeSchoolRequests = (schoolRequests || []) as SchoolRequestRow[];
   const safeAccessCodes = (accessCodes || []) as AccessCodeRow[];
+  const safeListingViews = (listingViews || []) as ListingViewRow[];
 
   const listingIdsFromReports = safeReports
     .map((report) => report.listing_id)
@@ -281,6 +294,7 @@ export default async function SuperAdminPage() {
             initialSchools={safeSchools}
             initialProfiles={safeProfiles}
             initialListings={safeListings}
+            initialListingViews={safeListingViews}
           />
         </div>
       </main>

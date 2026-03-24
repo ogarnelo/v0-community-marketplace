@@ -34,12 +34,11 @@ import {
   YAxis,
 } from "recharts";
 import {
-  AlertTriangle,
   BarChart3,
   CheckCircle2,
   Euro,
   ExternalLink,
-  EyeOff,
+  Eye,
   Flag,
   Heart,
   Loader2,
@@ -133,10 +132,16 @@ type ListingStatsRow = {
   type: string | null;
   price: number | null;
   status: string | null;
+  condition: string | null;
   school_id: string | null;
   category: string | null;
   grade_level: string | null;
   created_at: string;
+};
+
+type ListingViewRow = {
+  listing_id: string;
+  viewed_at: string;
 };
 
 type SuperAdminDashboardProps = {
@@ -148,21 +153,24 @@ type SuperAdminDashboardProps = {
   initialSchools: SchoolSummaryRow[];
   initialProfiles: ProfileSummaryRow[];
   initialListings: ListingStatsRow[];
+  initialListingViews: ListingViewRow[];
 };
 
+type RangeKey = "30d" | "90d" | "180d" | "total";
+
 const growthChartConfig = {
-  listings: { label: "Anuncios", color: "hsl(var(--chart-1))" },
-  support: { label: "Tickets", color: "hsl(var(--chart-4))" },
-  reports: { label: "Reports", color: "hsl(var(--chart-5))" },
-  requests: { label: "Solicitudes", color: "hsl(var(--chart-2))" },
+  listings: { label: "Anuncios", color: "hsl(var(--primary))" },
+  support: { label: "Tickets", color: "hsl(var(--primary))" },
+  reports: { label: "Reports", color: "hsl(var(--primary))" },
+  requests: { label: "Solicitudes", color: "hsl(var(--primary))" },
 } satisfies ChartConfig;
 
 const rankingChartConfig = {
-  percentage: { label: "%", color: "hsl(var(--chart-1))" },
+  percentage: { label: "%", color: "hsl(var(--primary))" },
 } satisfies ChartConfig;
 
 const listingTypeChartConfig = {
-  sale: { label: "Venta", color: "hsl(var(--chart-1))" },
+  sale: { label: "Venta", color: "hsl(var(--primary))" },
   donation: { label: "Donación", color: "hsl(var(--chart-2))" },
 } satisfies ChartConfig;
 
@@ -241,6 +249,58 @@ function monthKey(date: string) {
   }).format(parsed);
 }
 
+function prettyGradeLevel(value?: string | null) {
+  if (!value || !value.trim()) return "Sin etapa";
+
+  return value
+    .split("_")
+    .map((part) => {
+      const normalized = part.toLowerCase();
+
+      if (normalized === "eso") return "ESO";
+      if (normalized === "bachillerato") return "Bachillerato";
+      if (normalized === "infantil") return "Infantil";
+      if (normalized === "primaria") return "Primaria";
+      if (normalized === "secundaria") return "Secundaria";
+      if (normalized === "fp") return "FP";
+
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join(" ");
+}
+
+function prettyCategory(value?: string | null) {
+  return value?.trim() || "Sin categoría";
+}
+
+function prettyCondition(value?: string | null) {
+  switch (value) {
+    case "new_with_tags":
+      return "Nuevo con etiquetas";
+    case "new_without_tags":
+      return "Nuevo sin etiquetas";
+    case "like_new":
+      return "Como nuevo";
+    case "good":
+      return "En buen estado";
+    case "fair":
+      return "Con desgaste";
+    default:
+      return value?.trim() || "Sin estado de uso";
+  }
+}
+
+function prettyUserType(value?: string | null) {
+  switch (value) {
+    case "student":
+      return "Estudiantes";
+    case "parent":
+      return "Familias / tutores";
+    default:
+      return "Otros";
+  }
+}
+
 function buildMonthlySeries({
   listings,
   supportTickets,
@@ -307,43 +367,21 @@ function buildPercentageRanking(
     .sort((a, b) => b.percentage - a.percentage);
 }
 
-function prettyGradeLevel(value?: string | null) {
-  if (!value || !value.trim()) return "Sin etapa";
+function isWithinRange(date: string, range: RangeKey) {
+  if (range === "total") return true;
 
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
+  const now = new Date();
+  const parsed = new Date(date);
 
-function prettyCategory(value?: string | null) {
-  return value?.trim() || "Sin categoría";
-}
+  if (Number.isNaN(parsed.getTime())) return false;
 
-function prettyStatus(value?: string | null) {
-  switch (value) {
-    case "available":
-      return "Disponible";
-    case "reserved":
-      return "Reservado";
-    case "sold":
-      return "Vendido";
-    case "archived":
-      return "Archivado";
-    default:
-      return "Sin estado";
-  }
-}
+  const days =
+    range === "30d" ? 30 : range === "90d" ? 90 : 180;
 
-function prettyUserType(value?: string | null) {
-  switch (value) {
-    case "student":
-      return "Estudiantes";
-    case "parent":
-      return "Familias / tutores";
-    default:
-      return "Otros";
-  }
+  const start = new Date(now);
+  start.setDate(now.getDate() - days);
+
+  return parsed >= start;
 }
 
 function RankingChart({
@@ -377,19 +415,12 @@ function RankingChart({
               dataKey="label"
               tickLine={false}
               axisLine={false}
-              width={110}
+              width={120}
             />
             <ChartTooltip
               content={<ChartTooltipContent formatter={(value) => `${value}%`} />}
             />
-            <Bar dataKey="percentage" radius={8}>
-              {data.map((entry, index) => (
-                <Cell
-                  key={`${entry.label}-${index}`}
-                  fill={`hsl(var(--chart-${(index % 5) + 1}))`}
-                />
-              ))}
-            </Bar>
+            <Bar dataKey="percentage" radius={8} fill="hsl(var(--primary))" />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -443,8 +474,10 @@ export default function SuperAdminDashboard({
   initialSchools,
   initialProfiles,
   initialListings,
+  initialListingViews,
 }: SuperAdminDashboardProps) {
   const supabase = useMemo(() => createClient(), []);
+  const [selectedRange, setSelectedRange] = useState<RangeKey>("90d");
   const [supportTickets, setSupportTickets] = useState(initialSupportTickets);
   const [reports, setReports] = useState(initialReports);
   const [schoolRequests, setSchoolRequests] = useState(initialSchoolRequests);
@@ -455,6 +488,31 @@ export default function SuperAdminDashboard({
   const [approvedRequestMeta, setApprovedRequestMeta] = useState<
     Record<string, ApprovedRequestMeta>
   >(initialApprovedRequestMeta);
+
+  const filteredListings = useMemo(
+    () => initialListings.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [initialListings, selectedRange]
+  );
+
+  const filteredSupportTickets = useMemo(
+    () => supportTickets.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [selectedRange, supportTickets]
+  );
+
+  const filteredReports = useMemo(
+    () => reports.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [reports, selectedRange]
+  );
+
+  const filteredSchoolRequests = useMemo(
+    () => schoolRequests.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [schoolRequests, selectedRange]
+  );
+
+  const filteredListingViews = useMemo(
+    () => initialListingViews.filter((item) => isWithinRange(item.viewed_at, selectedRange)),
+    [initialListingViews, selectedRange]
+  );
 
   const schoolSummaries = useMemo(() => {
     const bySchoolId = new Map<
@@ -475,7 +533,7 @@ export default function SuperAdminDashboard({
       bySchoolId.get(profile.school_id)!.members += 1;
     });
 
-    initialListings.forEach((listing) => {
+    filteredListings.forEach((listing) => {
       if (!listing.school_id || !bySchoolId.has(listing.school_id)) return;
 
       const bucket = bySchoolId.get(listing.school_id)!;
@@ -497,48 +555,48 @@ export default function SuperAdminDashboard({
       }))
       .sort((a, b) => b.members - a.members || b.listings - a.listings)
       .slice(0, 5);
-  }, [initialListings, initialProfiles, initialSchools]);
+  }, [filteredListings, initialProfiles, initialSchools]);
 
   const growthData = useMemo(
     () =>
       buildMonthlySeries({
-        listings: initialListings,
-        supportTickets,
-        reports,
-        requests: schoolRequests,
+        listings: filteredListings,
+        supportTickets: filteredSupportTickets,
+        reports: filteredReports,
+        requests: filteredSchoolRequests,
       }),
-    [initialListings, reports, schoolRequests, supportTickets]
+    [filteredListings, filteredReports, filteredSchoolRequests, filteredSupportTickets]
   );
 
   const incidentUserIds = useMemo(() => {
     const ids = new Set<string>();
 
-    supportTickets.forEach((ticket) => {
+    filteredSupportTickets.forEach((ticket) => {
       if (ticket.user_id) ids.add(ticket.user_id);
     });
 
-    reports.forEach((report) => {
+    filteredReports.forEach((report) => {
       if (report.reporter_id) ids.add(report.reporter_id);
     });
 
     return ids;
-  }, [reports, supportTickets]);
+  }, [filteredReports, filteredSupportTickets]);
 
   const totalSales = useMemo(
     () =>
-      initialListings.reduce(
+      filteredListings.reduce(
         (sum, listing) =>
           listing.status === "sold" && typeof listing.price === "number"
             ? sum + listing.price
             : sum,
         0
       ),
-    [initialListings]
+    [filteredListings]
   );
 
   const totalTransactions = useMemo(
-    () => initialListings.filter((listing) => listing.status === "sold").length,
-    [initialListings]
+    () => filteredListings.filter((listing) => listing.status === "sold").length,
+    [filteredListings]
   );
 
   const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
@@ -546,13 +604,18 @@ export default function SuperAdminDashboard({
   const incidentRate =
     stats.totalUsers > 0 ? (incidentUserIds.size / stats.totalUsers) * 100 : 0;
 
+  const conversionRate =
+    filteredListingViews.length > 0
+      ? (totalTransactions / filteredListingViews.length) * 100
+      : null;
+
   const approvalRate =
-    schoolRequests.length > 0
+    filteredSchoolRequests.length > 0
       ? Math.round(
-        (schoolRequests.filter(
+        (filteredSchoolRequests.filter(
           (request) => normalizeSchoolRequestStatus(request.status) === "approved"
         ).length /
-          schoolRequests.length) *
+          filteredSchoolRequests.length) *
         100
       )
       : 0;
@@ -560,7 +623,7 @@ export default function SuperAdminDashboard({
   const categoryRanking = useMemo(() => {
     const counts = new Map<string, number>();
 
-    initialListings.forEach((listing) => {
+    filteredListings.forEach((listing) => {
       const key = prettyCategory(listing.category);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
@@ -568,12 +631,12 @@ export default function SuperAdminDashboard({
     return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
-  }, [initialListings]);
+  }, [filteredListings]);
 
   const listingGradeLevelRanking = useMemo(() => {
     const counts = new Map<string, number>();
 
-    initialListings.forEach((listing) => {
+    filteredListings.forEach((listing) => {
       const key = prettyGradeLevel(listing.grade_level);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
@@ -581,7 +644,7 @@ export default function SuperAdminDashboard({
     return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
-  }, [initialListings]);
+  }, [filteredListings]);
 
   const userGradeLevelRanking = useMemo(() => {
     const counts = new Map<string, number>();
@@ -596,18 +659,18 @@ export default function SuperAdminDashboard({
     ).slice(0, 8);
   }, [initialProfiles]);
 
-  const listingStatusRanking = useMemo(() => {
+  const conditionRanking = useMemo(() => {
     const counts = new Map<string, number>();
 
-    initialListings.forEach((listing) => {
-      const key = prettyStatus(listing.status);
+    filteredListings.forEach((listing) => {
+      const key = prettyCondition(listing.condition);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
     return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
-  }, [initialListings]);
+  }, [filteredListings]);
 
   const userTypeRanking = useMemo(() => {
     const counts = new Map<string, number>();
@@ -623,8 +686,8 @@ export default function SuperAdminDashboard({
   }, [initialProfiles]);
 
   const listingTypeData = useMemo(() => {
-    const saleTotal = initialListings.filter((listing) => listing.type === "sale").length;
-    const donationTotal = initialListings.filter(
+    const saleTotal = filteredListings.filter((listing) => listing.type === "sale").length;
+    const donationTotal = filteredListings.filter(
       (listing) => listing.type === "donation"
     ).length;
 
@@ -632,15 +695,15 @@ export default function SuperAdminDashboard({
       {
         type: "sale",
         total: saleTotal,
-        fill: "var(--color-sale)",
+        fill: "hsl(var(--primary))",
       },
       {
         type: "donation",
         total: donationTotal,
-        fill: "var(--color-donation)",
+        fill: "hsl(var(--chart-2))",
       },
     ].filter((item) => item.total > 0);
-  }, [initialListings]);
+  }, [filteredListings]);
 
   const updateSupportTicketStatus = async (
     ticketId: string,
@@ -771,6 +834,26 @@ export default function SuperAdminDashboard({
 
   return (
     <>
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Rango temporal:</span>
+        {[
+          { key: "30d", label: "30 días" },
+          { key: "90d", label: "90 días" },
+          { key: "180d", label: "180 días" },
+          { key: "total", label: "Total" },
+        ].map((item) => (
+          <Button
+            key={item.key}
+            type="button"
+            size="sm"
+            variant={selectedRange === item.key ? "default" : "outline"}
+            onClick={() => setSelectedRange(item.key as RangeKey)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+
       <div className="mt-6 grid gap-4 md:grid-cols-5">
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
@@ -802,7 +885,7 @@ export default function SuperAdminDashboard({
               <Package className="h-5 w-5 text-accent-foreground" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{stats.totalListings}</p>
+              <p className="text-2xl font-bold text-foreground">{filteredListings.length}</p>
               <p className="text-xs text-muted-foreground">Anuncios</p>
             </div>
           </CardContent>
@@ -814,7 +897,9 @@ export default function SuperAdminDashboard({
               <Heart className="h-5 w-5 text-chart-2" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{stats.totalDonations}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {filteredListings.filter((item) => item.type === "donation").length}
+              </p>
               <p className="text-xs text-muted-foreground">Donaciones</p>
             </div>
           </CardContent>
@@ -839,11 +924,20 @@ export default function SuperAdminDashboard({
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
-              <EyeOff className="h-5 w-5 text-chart-4" />
+              <Eye className="h-5 w-5 text-chart-4" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {Math.round(stats.totalEstimatedVolume)}€
+                {Math.round(
+                  filteredListings.reduce(
+                    (sum, item) =>
+                      item.status === "available" && typeof item.price === "number"
+                        ? sum + item.price
+                        : sum,
+                    0
+                  )
+                )}
+                €
               </p>
               <p className="text-xs text-muted-foreground">Volumen visible</p>
             </div>
@@ -892,11 +986,13 @@ export default function SuperAdminDashboard({
 
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-              <TrendingUp className="h-5 w-5 text-muted-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">N/D</p>
+              <p className="text-2xl font-bold text-foreground">
+                {conversionRate != null ? `${conversionRate.toFixed(1)}%` : "N/D"}
+              </p>
               <p className="text-xs text-muted-foreground">Tasa de conversión</p>
             </div>
           </CardContent>
@@ -927,7 +1023,7 @@ export default function SuperAdminDashboard({
                 </CardTitle>
                 <CardDescription>
                   Evolución de anuncios, tickets, reports y solicitudes. “Nuevos usuarios”
-                  queda pendiente de una fuente temporal real en usuarios.
+                  queda pendiente de una fuente temporal real en perfiles.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -983,7 +1079,7 @@ export default function SuperAdminDashboard({
                   </p>
                   <p className="mt-2 text-3xl font-bold text-foreground">{approvalRate}%</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Sobre {schoolRequests.length} solicitudes registradas.
+                    Sobre {filteredSchoolRequests.length} solicitudes del rango.
                   </p>
                 </div>
 
@@ -993,7 +1089,7 @@ export default function SuperAdminDashboard({
                   </p>
                   <p className="mt-2 text-3xl font-bold text-foreground">
                     {
-                      supportTickets.filter(
+                      filteredSupportTickets.filter(
                         (ticket) => ticket.status === "open" || ticket.status === "in_progress"
                       ).length
                     }
@@ -1009,7 +1105,7 @@ export default function SuperAdminDashboard({
                   </p>
                   <p className="mt-2 text-3xl font-bold text-foreground">
                     {
-                      reports.filter(
+                      filteredReports.filter(
                         (report) =>
                           report.status === "open" || report.status === "reviewing"
                       ).length
@@ -1038,7 +1134,7 @@ export default function SuperAdminDashboard({
 
             <RankingChart
               title="Ranking por curso/etapa de usuarios"
-              description="Peso porcentual de cada curso o etapa dentro de los usuarios."
+              description="Peso porcentual de cada curso o etapa dentro de los usuarios actuales."
               data={userGradeLevelRanking}
             />
           </div>
@@ -1082,8 +1178,8 @@ export default function SuperAdminDashboard({
 
             <RankingChart
               title="Ranking por estado de producto"
-              description="Peso porcentual de los estados de anuncio disponibles en marketplace."
-              data={listingStatusRanking}
+              description="Peso porcentual según el estado de uso registrado en el anuncio."
+              data={conditionRanking}
             />
 
             <RankingChart
@@ -1162,7 +1258,7 @@ export default function SuperAdminDashboard({
                     </div>
                     <Badge variant="secondary">
                       {
-                        supportTickets.filter(
+                        filteredSupportTickets.filter(
                           (ticket) =>
                             ticket.status === "open" || ticket.status === "in_progress"
                         ).length
@@ -1179,7 +1275,7 @@ export default function SuperAdminDashboard({
                     </div>
                     <Badge variant="destructive">
                       {
-                        reports.filter(
+                        filteredReports.filter(
                           (report) =>
                             report.status === "open" || report.status === "reviewing"
                         ).length
@@ -1198,7 +1294,7 @@ export default function SuperAdminDashboard({
                     </div>
                     <Badge variant="outline">
                       {
-                        schoolRequests.filter(
+                        filteredSchoolRequests.filter(
                           (request) =>
                             normalizeSchoolRequestStatus(request.status) === "pending"
                         ).length
@@ -1211,13 +1307,13 @@ export default function SuperAdminDashboard({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        Conversión pendiente de instrumentar
+                        Visitas registradas del rango
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Requiere tabla real de visitas
+                        Base usada para la conversión
                       </p>
                     </div>
-                    <Badge variant="outline">N/D</Badge>
+                    <Badge variant="outline">{filteredListingViews.length}</Badge>
                   </div>
                 </div>
               </CardContent>
