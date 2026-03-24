@@ -20,9 +20,11 @@ type ListingRow = {
   id: string;
   title: string | null;
   category: string | null;
+  grade_level: string | null;
   price: number | null;
   type: string | null;
   status: string | null;
+  condition: string | null;
   seller_id: string | null;
   school_id: string | null;
   created_at: string;
@@ -33,6 +35,7 @@ type ProfileRow = {
   full_name: string | null;
   school_id: string | null;
   user_type: string | null;
+  grade_level: string | null;
 };
 
 type ReportRow = {
@@ -60,6 +63,11 @@ type SchoolAdminRoleRow = {
   user_id: string;
   role: string;
   school_id: string | null;
+};
+
+type ListingViewRow = {
+  listing_id: string;
+  viewed_at: string;
 };
 
 export default async function SchoolAdminPage() {
@@ -107,6 +115,7 @@ export default async function SchoolAdminPage() {
     { data: reports },
     { data: accessCodes },
     { data: schoolAdminRoles },
+    { data: listingViews },
   ] = await Promise.all([
     supabase
       .from("schools")
@@ -115,13 +124,15 @@ export default async function SchoolAdminPage() {
       .maybeSingle<SchoolRow>(),
     supabase
       .from("listings")
-      .select("id, title, category, price, type, status, seller_id, school_id, created_at")
+      .select(
+        "id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at"
+      )
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<ListingRow[]>(),
     supabase
       .from("profiles")
-      .select("id, full_name, school_id, user_type")
+      .select("id, full_name, school_id, user_type, grade_level")
       .eq("school_id", effectiveSchoolId)
       .returns<ProfileRow[]>(),
     supabase
@@ -143,6 +154,15 @@ export default async function SchoolAdminPage() {
       .eq("school_id", effectiveSchoolId)
       .eq("role", "school_admin")
       .returns<SchoolAdminRoleRow[]>(),
+    supabase
+      .from("listing_views")
+      .select("listing_id, viewed_at")
+      .in(
+        "listing_id",
+        ((listings || []) as ListingRow[]).map((item) => item.id)
+      )
+      .order("viewed_at", { ascending: false })
+      .returns<ListingViewRow[]>(),
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
@@ -150,6 +170,7 @@ export default async function SchoolAdminPage() {
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
   const safeReports = (reports || []) as ReportRow[];
+  const safeListingViews = (listingViews || []) as ListingViewRow[];
 
   const safeListingReports = safeReports.filter((report) =>
     safeListings.some((listing) => listing.id === report.listing_id)
@@ -178,7 +199,7 @@ export default async function SchoolAdminPage() {
                 Panel Admin - {school?.name || "Centro"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Dashboard del centro con KPIs reales de comunidad y marketplace.
+                Dashboard del centro con KPIs, rankings y conversión.
               </p>
             </div>
           </div>
@@ -190,6 +211,7 @@ export default async function SchoolAdminPage() {
             schoolAdmins={schoolAdmins}
             reports={safeListingReports}
             accessCodes={safeAccessCodes}
+            listingViews={safeListingViews}
           />
         </div>
       </main>

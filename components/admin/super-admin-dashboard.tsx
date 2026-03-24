@@ -158,20 +158,27 @@ type SuperAdminDashboardProps = {
 
 type RangeKey = "30d" | "90d" | "180d" | "total";
 
+const CORPORATE_BLUE = "#2563eb";
+const CORPORATE_BLUE_SOFT = "#60a5fa";
+const CORPORATE_GREEN = "#16a34a";
+const CORPORATE_RED = "#dc2626";
+const CORPORATE_AMBER = "#d97706";
+const CORPORATE_SLATE = "#64748b";
+
 const growthChartConfig = {
-  listings: { label: "Anuncios", color: "hsl(var(--primary))" },
-  support: { label: "Tickets", color: "hsl(var(--primary))" },
-  reports: { label: "Reports", color: "hsl(var(--primary))" },
-  requests: { label: "Solicitudes", color: "hsl(var(--primary))" },
+  listings: { label: "Anuncios", color: CORPORATE_BLUE },
+  support: { label: "Tickets", color: CORPORATE_BLUE_SOFT },
+  reports: { label: "Reports", color: CORPORATE_RED },
+  requests: { label: "Solicitudes", color: CORPORATE_GREEN },
 } satisfies ChartConfig;
 
 const rankingChartConfig = {
-  percentage: { label: "%", color: "hsl(var(--primary))" },
+  percentage: { label: "%", color: CORPORATE_BLUE },
 } satisfies ChartConfig;
 
 const listingTypeChartConfig = {
-  sale: { label: "Venta", color: "hsl(var(--primary))" },
-  donation: { label: "Donación", color: "hsl(var(--chart-2))" },
+  sale: { label: "Venta", color: CORPORATE_BLUE },
+  donation: { label: "Donación", color: CORPORATE_GREEN },
 } satisfies ChartConfig;
 
 function formatDate(date: string | null) {
@@ -375,9 +382,7 @@ function isWithinRange(date: string, range: RangeKey) {
 
   if (Number.isNaN(parsed.getTime())) return false;
 
-  const days =
-    range === "30d" ? 30 : range === "90d" ? 90 : 180;
-
+  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
   const start = new Date(now);
   start.setDate(now.getDate() - days);
 
@@ -420,7 +425,7 @@ function RankingChart({
             <ChartTooltip
               content={<ChartTooltipContent formatter={(value) => `${value}%`} />}
             />
-            <Bar dataKey="percentage" radius={8} fill="hsl(var(--primary))" />
+            <Bar dataKey="percentage" radius={8} fill={CORPORATE_BLUE} />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -695,12 +700,12 @@ export default function SuperAdminDashboard({
       {
         type: "sale",
         total: saleTotal,
-        fill: "hsl(var(--primary))",
+        fill: CORPORATE_BLUE,
       },
       {
         type: "donation",
         total: donationTotal,
-        fill: "hsl(var(--chart-2))",
+        fill: CORPORATE_GREEN,
       },
     ].filter((item) => item.total > 0);
   }, [filteredListings]);
@@ -1034,34 +1039,10 @@ export default function SuperAdminDashboard({
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                     <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
                     <ChartLegend content={<ChartLegendContent />} />
-                    <Line
-                      type="monotone"
-                      dataKey="listings"
-                      stroke="var(--color-listings)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="support"
-                      stroke="var(--color-support)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="reports"
-                      stroke="var(--color-reports)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="requests"
-                      stroke="var(--color-requests)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
+                    <Line type="monotone" dataKey="listings" stroke={CORPORATE_BLUE} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="support" stroke={CORPORATE_BLUE_SOFT} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="reports" stroke={CORPORATE_RED} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="requests" stroke={CORPORATE_GREEN} strokeWidth={2} dot={false} />
                   </LineChart>
                 </ChartContainer>
               </CardContent>
