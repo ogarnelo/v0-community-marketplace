@@ -41,31 +41,160 @@ type ProfileUpdatedEventDetail = {
   user_type?: string | null;
 };
 
+type NavbarResolvedState = {
+  isLoggedIn: boolean;
+  userName: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  currentUserId?: string;
+};
+
 export function Navbar({
-  isLoggedIn = false,
+  isLoggedIn,
   userName = "Mi cuenta",
   isAdmin = false,
   unreadMessagesCount = 0,
   currentUserId,
 }: NavbarProps) {
   const [open, setOpen] = useState(false);
-  const [liveUserName, setLiveUserName] = useState(userName);
-  const [liveIsAdmin, setLiveIsAdmin] = useState(isAdmin);
-  const [liveIsSuperAdmin, setLiveIsSuperAdmin] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [resolvedState, setResolvedState] = useState<NavbarResolvedState>({
+    isLoggedIn: Boolean(isLoggedIn),
+    userName,
+    isAdmin,
+    isSuperAdmin: false,
+    currentUserId,
+  });
 
   const supabase = useMemo(() => createClient(), []);
-  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
-
-  const adminHref = liveIsSuperAdmin ? "/admin/super" : "/admin/school";
-  const canAccessAdmin = liveIsAdmin || liveIsSuperAdmin;
 
   useEffect(() => {
-    setLiveUserName(userName);
-  }, [userName]);
+    setResolvedState((prev) => ({
+      ...prev,
+      isLoggedIn: Boolean(isLoggedIn),
+      userName,
+      isAdmin,
+      currentUserId,
+    }));
+  }, [isLoggedIn, userName, isAdmin, currentUserId]);
 
   useEffect(() => {
-    setLiveIsAdmin(isAdmin);
-  }, [isAdmin]);
+    let cancelled = false;
+
+    const syncSessionAndRoles = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (cancelled) return;
+
+        if (!user) {
+          setResolvedState({
+            isLoggedIn: false,
+            userName: "Mi cuenta",
+            isAdmin: false,
+            isSuperAdmin: false,
+            currentUserId: undefined,
+          });
+          setHydrated(true);
+          return;
+        }
+
+        const [{ data: profile }, { data: roles }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .maybeSingle<{ full_name: string | null }>(),
+          supabase
+            .from("user_roles")
+            .select("role, school_id")
+            .eq("user_id", user.id)
+            .returns<AdminRoleRow[]>(),
+        ]);
+
+        if (cancelled) return;
+
+        const adminFlags = getAdminFlags({
+          email: user.email,
+          roles: (roles || []) as AdminRoleRow[],
+        });
+
+        const nextUserName =
+          profile?.full_name?.trim() ||
+          user.user_metadata?.full_name ||
+          user.email ||
+          "Mi cuenta";
+
+        setResolvedState({
+          isLoggedIn: true,
+          userName: nextUserName,
+          isAdmin: adminFlags.canAccessAdmin,
+          isSuperAdmin: adminFlags.isSuperAdmin,
+          currentUserId: user.id,
+        });
+      } catch (error) {
+        console.error("Error sincronizando navbar:", error);
+      } finally {
+        if (!cancelled) {
+          setHydrated(true);
+        }
+      }
+    };
+
+    void syncSessionAndRoles();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user) {
+        setResolvedState({
+          isLoggedIn: false,
+          userName: "Mi cuenta",
+          isAdmin: false,
+          isSuperAdmin: false,
+          currentUserId: undefined,
+        });
+        return;
+      }
+
+      const [{ data: profile }, { data: roles }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", session.user.id)
+          .maybeSingle<{ full_name: string | null }>(),
+        supabase
+          .from("user_roles")
+          .select("role, school_id")
+          .eq("user_id", session.user.id)
+          .returns<AdminRoleRow[]>(),
+      ]);
+
+      const adminFlags = getAdminFlags({
+        email: session.user.email,
+        roles: (roles || []) as AdminRoleRow[],
+      });
+
+      setResolvedState({
+        isLoggedIn: true,
+        userName:
+          profile?.full_name?.trim() ||
+          session.user.user_metadata?.full_name ||
+          session.user.email ||
+          "Mi cuenta",
+        isAdmin: adminFlags.canAccessAdmin,
+        isSuperAdmin: adminFlags.isSuperAdmin,
+        currentUserId: session.user.id,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     const handleProfileUpdated = (event: Event) => {
@@ -75,7 +204,10 @@ export function Navbar({
           ? customEvent.detail.full_name.trim()
           : "Mi cuenta";
 
-      setLiveUserName(nextName);
+      setResolvedState((prev) => ({
+        ...prev,
+        userName: nextName,
+      }));
     };
 
     window.addEventListener("profile-updated", handleProfileUpdated);
@@ -86,53 +218,17 @@ export function Navbar({
   }, []);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      setLiveIsSuperAdmin(false);
-      setLiveIsAdmin(false);
-      return;
-    }
-
-    const syncRoles = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        setLiveIsSuperAdmin(false);
-        setLiveIsAdmin(false);
-        return;
-      }
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role, school_id")
-        .eq("user_id", user.id)
-        .returns<AdminRoleRow[]>();
-
-      const adminFlags = getAdminFlags({
-        email: user.email,
-        roles: (roles || []) as AdminRoleRow[],
-      });
-
-      setLiveIsSuperAdmin(adminFlags.isSuperAdmin);
-      setLiveIsAdmin(adminFlags.canAccessAdmin || isAdmin);
-    };
-
-    void syncRoles();
-  }, [isLoggedIn, isAdmin, supabase]);
-
-  useEffect(() => {
-    if (!currentUserId) return;
+    if (!resolvedState.currentUserId) return;
 
     const channel = supabase
-      .channel(`navbar-profile-${currentUserId}`)
+      .channel(`navbar-profile-${resolvedState.currentUserId}`)
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "profiles",
-          filter: `id=eq.${currentUserId}`,
+          filter: `id=eq.${resolvedState.currentUserId}`,
         },
         (payload) => {
           const nextProfile = payload.new as {
@@ -144,7 +240,10 @@ export function Navbar({
               ? nextProfile.full_name.trim()
               : "Mi cuenta";
 
-          setLiveUserName(nextName);
+          setResolvedState((prev) => ({
+            ...prev,
+            userName: nextName,
+          }));
         }
       )
       .subscribe();
@@ -152,11 +251,23 @@ export function Navbar({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, supabase]);
+  }, [resolvedState.currentUserId, supabase]);
+
+  const effectiveIsLoggedIn = resolvedState.isLoggedIn;
+  const effectiveUserName = resolvedState.userName;
+  const effectiveCurrentUserId = resolvedState.currentUserId;
+  const effectiveIsSuperAdmin = resolvedState.isSuperAdmin;
+  const effectiveCanAccessAdmin = resolvedState.isAdmin || resolvedState.isSuperAdmin;
+
+  const publishHref = effectiveIsLoggedIn
+    ? "/marketplace/new"
+    : "/auth?next=/marketplace/new";
+
+  const adminHref = effectiveIsSuperAdmin ? "/admin/super" : "/admin/school";
 
   const avatarLetter =
-    liveUserName && liveUserName.trim().length > 0
-      ? liveUserName.trim().charAt(0).toUpperCase()
+    effectiveUserName && effectiveUserName.trim().length > 0
+      ? effectiveUserName.trim().charAt(0).toUpperCase()
       : "U";
 
   return (
@@ -171,7 +282,13 @@ export function Navbar({
           </span>
         </Link>
 
-        {isLoggedIn ? (
+        {!hydrated ? (
+          <div className="flex items-center gap-2 opacity-0">
+            <Button variant="ghost" size="sm">
+              Placeholder
+            </Button>
+          </div>
+        ) : effectiveIsLoggedIn ? (
           <>
             <nav className="hidden items-center gap-1 md:flex">
               <Link href="/marketplace">
@@ -199,9 +316,9 @@ export function Navbar({
                   <MessageCircle className="h-4 w-4" />
                   Mensajes
 
-                  {currentUserId ? (
+                  {effectiveCurrentUserId ? (
                     <NavbarMessagesBadge
-                      currentUserId={currentUserId}
+                      currentUserId={effectiveCurrentUserId}
                       initialCount={unreadMessagesCount}
                     />
                   ) : null}
@@ -218,7 +335,7 @@ export function Navbar({
                         {avatarLetter}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{liveUserName}</span>
+                    <span className="text-sm font-medium">{effectiveUserName}</span>
                   </Button>
                 </DropdownMenuTrigger>
 
@@ -244,7 +361,7 @@ export function Navbar({
                     </Link>
                   </DropdownMenuItem>
 
-                  {canAccessAdmin ? (
+                  {effectiveCanAccessAdmin ? (
                     <DropdownMenuItem asChild>
                       <Link href={adminHref} className="gap-2">
                         <ShieldCheck className="h-4 w-4" />
@@ -298,10 +415,10 @@ export function Navbar({
                       <MessageCircle className="h-4 w-4" />
                       Mensajes
 
-                      {currentUserId ? (
+                      {effectiveCurrentUserId ? (
                         <span className="ml-auto">
                           <NavbarMessagesBadge
-                            currentUserId={currentUserId}
+                            currentUserId={effectiveCurrentUserId}
                             initialCount={unreadMessagesCount}
                           />
                         </span>
@@ -323,7 +440,7 @@ export function Navbar({
                     </Button>
                   </Link>
 
-                  {canAccessAdmin ? (
+                  {effectiveCanAccessAdmin ? (
                     <Link href={adminHref} onClick={() => setOpen(false)}>
                       <Button variant="ghost" className="w-full justify-start gap-2">
                         <ShieldCheck className="h-4 w-4" />
