@@ -5,14 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
 import { Globe } from "lucide-react";
 
-export const dynamic = "force-dynamic";
-
-const PROVISIONAL_SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
-
-type UserRoleRow = {
-  role: string;
-  school_id: string | null;
-};
+const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SupportTicketRow = {
   id: string;
@@ -62,27 +55,36 @@ type ListingSummaryRow = {
 type ProfileSummaryRow = {
   id: string;
   full_name: string | null;
+  school_id: string | null;
 };
 
 type SchoolSummaryRow = {
   id: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  school_type: string | null;
 };
 
 type ListingStatsRow = {
   id: string;
   type: string | null;
   price: number | null;
-};
-
-type AccessCodeRow = {
-  school_id: string;
-  code: string;
+  status: string | null;
+  school_id: string | null;
   created_at: string;
 };
 
 type ApprovedRequestMeta = {
   schoolId: string;
   accessCode: string;
+};
+
+type AccessCodeRow = {
+  school_id: string;
+  code: string;
+  is_active: boolean;
+  created_at: string;
 };
 
 export default async function SuperAdminPage() {
@@ -96,42 +98,36 @@ export default async function SuperAdminPage() {
     redirect("/auth?next=/admin/super");
   }
 
-  const normalizedEmail = user.email?.toLowerCase().trim() || "";
+  const email = user.email?.toLowerCase() || "";
 
-  const { data: rolesData, error: rolesError } = await supabase
-    .from("user_roles")
-    .select("role, school_id")
-    .eq("user_id", user.id)
-    .returns<UserRoleRow[]>();
-
-  const safeRoles = (rolesData || []) as UserRoleRow[];
-  const hasSuperAdminRole = safeRoles.some((role) => role.role === "super_admin");
-  const isProvisionalSuperAdmin = PROVISIONAL_SUPERADMIN_EMAILS.includes(normalizedEmail);
-  const isSuperAdmin = hasSuperAdminRole || isProvisionalSuperAdmin;
-
-  if (!isSuperAdmin) {
+  if (!SUPERADMIN_EMAILS.includes(email)) {
     redirect("/");
   }
 
-  const loadErrors: string[] = [];
-
-  if (rolesError) {
-    loadErrors.push(`user_roles: ${rolesError.message}`);
-  }
-
   const [
-    profileResult,
-    schoolsResult,
-    profilesResult,
-    listingsResult,
-    supportTicketsResult,
-    reportsResult,
-    schoolRequestsResult,
+    { data: profile },
+    { data: schools },
+    { data: profiles },
+    { data: listings },
+    { data: supportTickets },
+    { data: reports },
+    { data: schoolRequests },
+    { data: accessCodes },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    supabase.from("schools").select("id"),
-    supabase.from("profiles").select("id"),
-    supabase.from("listings").select("id, type, price"),
+    supabase
+      .from("schools")
+      .select("id, name, city, region, school_type")
+      .order("name", { ascending: true })
+      .returns<SchoolSummaryRow[]>(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, school_id")
+      .returns<ProfileSummaryRow[]>(),
+    supabase
+      .from("listings")
+      .select("id, type, price, status, school_id, created_at")
+      .returns<ListingStatsRow[]>(),
     supabase
       .from("support_tickets")
       .select("*")
@@ -149,46 +145,21 @@ export default async function SuperAdminPage() {
       )
       .order("created_at", { ascending: false })
       .returns<SchoolRequestRow[]>(),
+    supabase
+      .from("school_access_codes")
+      .select("school_id, code, is_active, created_at")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .returns<AccessCodeRow[]>(),
   ]);
 
-  if (profileResult.error) {
-    loadErrors.push(`profiles(me): ${profileResult.error.message}`);
-  }
-
-  if (schoolsResult.error) {
-    loadErrors.push(`schools: ${schoolsResult.error.message}`);
-  }
-
-  if (profilesResult.error) {
-    loadErrors.push(`profiles(total): ${profilesResult.error.message}`);
-  }
-
-  if (listingsResult.error) {
-    loadErrors.push(`listings: ${listingsResult.error.message}`);
-  }
-
-  if (supportTicketsResult.error) {
-    loadErrors.push(`support_tickets: ${supportTicketsResult.error.message}`);
-  }
-
-  if (reportsResult.error) {
-    loadErrors.push(`reports: ${reportsResult.error.message}`);
-  }
-
-  if (schoolRequestsResult.error) {
-    loadErrors.push(
-      `school_registration_requests: ${schoolRequestsResult.error.message}`
-    );
-  }
-
-  const safeSchools = ((schoolsResult.data || []) as SchoolSummaryRow[]) ?? [];
-  const safeProfiles = ((profilesResult.data || []) as ProfileSummaryRow[]) ?? [];
-  const safeListings = ((listingsResult.data || []) as ListingStatsRow[]) ?? [];
-  const safeSupportTickets =
-    ((supportTicketsResult.data || []) as SupportTicketRow[]) ?? [];
-  const safeReports = ((reportsResult.data || []) as ReportRow[]) ?? [];
-  const safeSchoolRequests =
-    ((schoolRequestsResult.data || []) as SchoolRequestRow[]) ?? [];
+  const safeSchools = (schools || []) as SchoolSummaryRow[];
+  const safeProfiles = (profiles || []) as ProfileSummaryRow[];
+  const safeListings = (listings || []) as ListingStatsRow[];
+  const safeSupportTickets = (supportTickets || []) as SupportTicketRow[];
+  const safeReports = (reports || []) as ReportRow[];
+  const safeSchoolRequests = (schoolRequests || []) as SchoolRequestRow[];
+  const safeAccessCodes = (accessCodes || []) as AccessCodeRow[];
 
   const listingIdsFromReports = safeReports
     .map((report) => report.listing_id)
@@ -198,77 +169,36 @@ export default async function SuperAdminPage() {
     .map((report) => report.reporter_id)
     .filter((value): value is string => Boolean(value));
 
-  const approvedSchoolIds = safeSchoolRequests
-    .map((request) => request.approved_school_id)
-    .filter((value): value is string => Boolean(value));
-
-  const [reportedListingsResult, reporterProfilesResult, accessCodesResult] =
-    await Promise.all([
-      listingIdsFromReports.length > 0
-        ? supabase
-          .from("listings")
-          .select("id, title")
-          .in("id", listingIdsFromReports)
-          .returns<ListingSummaryRow[]>()
-        : Promise.resolve({
-          data: [] as ListingSummaryRow[],
-          error: null,
-        }),
-      reporterIds.length > 0
-        ? supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", reporterIds)
-          .returns<ProfileSummaryRow[]>()
-        : Promise.resolve({
-          data: [] as ProfileSummaryRow[],
-          error: null,
-        }),
-      approvedSchoolIds.length > 0
-        ? supabase
-          .from("school_access_codes")
-          .select("school_id, code, created_at")
-          .in("school_id", approvedSchoolIds)
-          .eq("is_active", true)
-          .order("created_at", { ascending: false })
-          .returns<AccessCodeRow[]>()
-        : Promise.resolve({
-          data: [] as AccessCodeRow[],
-          error: null,
-        }),
-    ]);
-
-  if (reportedListingsResult.error) {
-    loadErrors.push(`reported listings: ${reportedListingsResult.error.message}`);
-  }
-
-  if (reporterProfilesResult.error) {
-    loadErrors.push(`reporter profiles: ${reporterProfilesResult.error.message}`);
-  }
-
-  if (accessCodesResult.error) {
-    loadErrors.push(`school_access_codes: ${accessCodesResult.error.message}`);
-  }
+  const [{ data: reportedListings }, { data: reporterProfiles }] = await Promise.all([
+    listingIdsFromReports.length > 0
+      ? supabase
+        .from("listings")
+        .select("id, title")
+        .in("id", listingIdsFromReports)
+        .returns<ListingSummaryRow[]>()
+      : Promise.resolve({ data: [] as ListingSummaryRow[] }),
+    reporterIds.length > 0
+      ? supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", reporterIds)
+        .returns<ProfileSummaryRow[]>()
+      : Promise.resolve({ data: [] as ProfileSummaryRow[] }),
+  ]);
 
   const listingMap = new Map(
-    (((reportedListingsResult.data || []) as ListingSummaryRow[]) ?? []).map((item) => [
-      item.id,
-      item,
-    ])
+    ((reportedListings || []) as ListingSummaryRow[]).map((item) => [item.id, item])
   );
 
   const reporterMap = new Map(
-    (((reporterProfilesResult.data || []) as ProfileSummaryRow[]) ?? []).map((item) => [
-      item.id,
-      item,
-    ])
+    ((reporterProfiles || []) as ProfileSummaryRow[]).map((item) => [item.id, item])
   );
 
-  const accessCodeMap = new Map<string, AccessCodeRow>();
+  const latestAccessCodeBySchoolId = new Map<string, string>();
 
-  for (const codeRow of ((accessCodesResult.data || []) as AccessCodeRow[]) ?? []) {
-    if (!accessCodeMap.has(codeRow.school_id)) {
-      accessCodeMap.set(codeRow.school_id, codeRow);
+  for (const accessCode of safeAccessCodes) {
+    if (!latestAccessCodeBySchoolId.has(accessCode.school_id)) {
+      latestAccessCodeBySchoolId.set(accessCode.school_id, accessCode.code);
     }
   }
 
@@ -279,7 +209,7 @@ export default async function SuperAdminPage() {
       return acc;
     }
 
-    const accessCode = accessCodeMap.get(request.approved_school_id);
+    const accessCode = latestAccessCodeBySchoolId.get(request.approved_school_id);
 
     if (!accessCode) {
       return acc;
@@ -287,24 +217,20 @@ export default async function SuperAdminPage() {
 
     acc[request.id] = {
       schoolId: request.approved_school_id,
-      accessCode: accessCode.code,
+      accessCode,
     };
 
     return acc;
   }, {});
 
   const navbarUserName =
-    (typeof profileResult.data?.full_name === "string" &&
-      profileResult.data.full_name.trim().length > 0
-      ? profileResult.data.full_name.trim()
-      : null) ||
-    user.email ||
-    "Super Admin";
+    (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
+      ? profile.full_name.trim()
+      : null) || user.email || "Super Admin";
 
   const dashboardReports = safeReports.map((report) => ({
     ...report,
-    reporter_name:
-      reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
+    reporter_name: reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
     listing_title: report.listing_id
       ? listingMap.get(report.listing_id)?.title || "Anuncio"
       : null,
@@ -323,25 +249,18 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar
-        isLoggedIn
-        userName={navbarUserName}
-        isAdmin
-        currentUserId={user.id}
-      />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin currentUserId={user.id} />
 
       <main className="flex-1">
-        <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Globe className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                Super Admin - Wetudy
-              </h1>
+              <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
               <p className="text-sm text-muted-foreground">
-                Panel global de soporte, moderación y altas de centros.
+                Panel global con KPIs, soporte, moderación y altas de centros.
               </p>
             </div>
           </div>
@@ -352,7 +271,9 @@ export default async function SuperAdminPage() {
             initialReports={dashboardReports}
             initialSchoolRequests={safeSchoolRequests}
             initialApprovedRequestMeta={initialApprovedRequestMeta}
-            initialLoadErrors={loadErrors}
+            initialSchools={safeSchools}
+            initialProfiles={safeProfiles}
+            initialListings={safeListings}
           />
         </div>
       </main>
