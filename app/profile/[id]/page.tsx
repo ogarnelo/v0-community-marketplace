@@ -1,3 +1,4 @@
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -71,9 +72,15 @@ export default async function PublicProfilePage({
       user.email ||
       "Mi cuenta";
 
-    isAdmin =
-      typedCurrentProfile?.user_type === "school_admin" ||
-      typedCurrentProfile?.user_type === "super_admin";
+    const { data: currentRoles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    isAdmin = (currentRoles || []).some(
+      (role: { role: string | null }) =>
+        role.role === "school_admin" || role.role === "super_admin"
+    );
 
     const conversationIds = (conversations || []).map(
       (conversation: { id: string }) => conversation.id
@@ -112,7 +119,7 @@ export default async function PublicProfilePage({
   const { data: activeListingsData } = await supabase
     .from("listings")
     .select(
-      "id, title, category, grade_level, condition, type, price, status, created_at"
+      "id, title, category, grade_level, condition, type, listing_type, price, status, created_at"
     )
     .eq("seller_id", id)
     .eq("status", "available")
@@ -274,7 +281,7 @@ export default async function PublicProfilePage({
                   <div className="grid gap-4 sm:grid-cols-2">
                     {activeListings.map((listing) => {
                       const firstPhoto = firstPhotoMap.get(listing.id) || null;
-                      const isDonation = (listing.type || "sale") === "donation";
+                      const isDonation = getNormalizedListingType(listing) === "donation";
 
                       return (
                         <Link

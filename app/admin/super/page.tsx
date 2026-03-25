@@ -1,3 +1,4 @@
+listing_type ?: string | null;
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -137,7 +138,7 @@ export default async function SuperAdminPage() {
       .returns<ProfileSummaryRow[]>(),
     supabase
       .from("listings")
-      .select("id, type, price, status, condition, school_id, category, grade_level, created_at")
+      .select("id, type, listing_type, price, status, condition, school_id, category, grade_level, created_at")
       .returns<ListingStatsRow[]>(),
     supabase
       .from("support_tickets")

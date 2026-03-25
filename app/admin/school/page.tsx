@@ -123,8 +123,9 @@ export default async function SchoolAdminPage() {
       .maybeSingle<SchoolRow>(),
     supabase
       .from("listings")
-      .select(
-        "id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at"
+      (
+     .select(
+        "id, title, category, grade_level, price, type, listing_type, status, condition, seller_id, school_id, created_at"
       )
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })

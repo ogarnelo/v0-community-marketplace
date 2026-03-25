@@ -1,5 +1,5 @@
 "use client";
-
+import { buildListingWritePayload } from "@/lib/marketplace/listing-type";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -74,7 +74,8 @@ type ListingInsertPayload = {
   category: string;
   grade_level: string;
   condition: string;
-  type: string;
+  type: "sale" | "donation";
+  listing_type: "sale" | "donation";
   price: number | null;
   original_price: number | null;
   seller_id: string;
@@ -323,13 +324,15 @@ export default function NewListingForm({
           ? currentProfile.school_id
           : initialSchoolId || null;
 
+      const normalizedListingType = isDonation ? "donation" : "sale";
+
       const payload: ListingInsertPayload = {
         title: title.trim(),
         description: description.trim(),
         category: selectedCategory,
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
-        type: isDonation ? "donation" : "sale",
+        ...buildListingWritePayload(normalizedListingType),
         price: isDonation ? null : Number(price),
         original_price:
           isDonation || !originalPrice.trim() ? null : Number(originalPrice),

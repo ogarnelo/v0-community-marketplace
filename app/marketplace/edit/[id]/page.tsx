@@ -1,5 +1,8 @@
 "use client";
-
+import {
+  buildListingWritePayload,
+  getNormalizedListingType,
+} from "@/lib/marketplace/listing-type";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -159,7 +162,7 @@ export default function EditListingPage() {
         const { data: listing, error: listingError } = await supabase
           .from("listings")
           .select(
-            "id, title, description, category, grade_level, condition, type, price, original_price, seller_id, school_id, status"
+            "id, title, description, category, grade_level, condition, type, listing_type, price, original_price, seller_id, school_id, status"
           )
           .eq("id", listingId)
           .maybeSingle();
@@ -185,7 +188,7 @@ export default function EditListingPage() {
         setSelectedCategory(typedListing.category || "");
         setSelectedGradeLevel(typedListing.grade_level || "");
         setSelectedCondition(typedListing.condition || "");
-        setIsDonation(typedListing.type === "donation");
+        setIsDonation(getNormalizedListingType(typedListing) === "donation");
         setPrice(
           typeof typedListing.price === "number" ? String(typedListing.price) : ""
         );
@@ -433,7 +436,7 @@ export default function EditListingPage() {
           category: selectedCategory,
           grade_level: selectedGradeLevel,
           condition: selectedCondition,
-          type: isDonation ? "donation" : "sale",
+          ...buildListingWritePayload(isDonation ? "donation" : "sale"),
           price: isDonation ? null : Number(price),
           original_price:
             isDonation || !originalPrice.trim() ? null : Number(originalPrice),

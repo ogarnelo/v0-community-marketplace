@@ -1,3 +1,4 @@
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
 import { ReportListingButton } from "@/components/marketplace/report-listing-button";
@@ -138,7 +139,7 @@ export default async function ListingDetailPage({
   const category = listing.category || "Sin categoría";
   const gradeLevel = listing.grade_level || "Sin curso";
   const condition = getConditionLabel(listing.condition);
-  const type = listing.type || listing.listing_type || "sale";
+  const type = getNormalizedListingType(listing);
   const price = listing.price;
   const originalPrice = listing.original_price || listing.estimated_retail_price;
   const postalCode = listing.postal_code;

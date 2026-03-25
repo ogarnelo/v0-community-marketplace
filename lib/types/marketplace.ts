@@ -10,7 +10,7 @@ export type ListingRow = {
   grade_level: string | null;
   condition: string | null;
   type: string | null;
-  listing_type?: string | null;
+  listing_type: string | null;
   price: number | null;
   original_price?: number | null;
   estimated_retail_price?: number | null;

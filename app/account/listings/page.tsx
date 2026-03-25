@@ -17,6 +17,7 @@ import {
   getStatusBadgeClass,
   getStatusLabel,
 } from "@/lib/marketplace/formatters";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 export default async function MyListingsPage() {
   const supabase = await createClient();
@@ -31,7 +32,7 @@ export default async function MyListingsPage() {
 
   const { data: listingsData } = await supabase
     .from("listings")
-    .select("id, title, category, price, type, status")
+    .select("id, title, category, price, type, listing_type, status")
     .eq("seller_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -90,7 +91,7 @@ export default async function MyListingsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {listings.map((listing) => {
             const firstPhoto = firstPhotoMap.get(listing.id) || null;
-            const isDonation = listing.type === "donation";
+            const isDonation = getNormalizedListingType(listing) === "donation";
 
             return (
               <Card key={listing.id} className="overflow-hidden transition hover:shadow-lg">

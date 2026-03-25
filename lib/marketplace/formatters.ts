@@ -21,10 +21,6 @@ export function getUserTypeLabel(userType?: string | null) {
       return "Familia / Tutor legal";
     case "student":
       return "Estudiante";
-    case "school_admin":
-      return "Administrador de centro";
-    case "super_admin":
-      return "Super admin";
     default:
       return "Usuario";
   }
