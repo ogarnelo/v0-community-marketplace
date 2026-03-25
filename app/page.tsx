@@ -10,7 +10,6 @@ import { createClient } from "@/lib/supabase/server";
 
 type SafeUserMetadata = {
   full_name?: string;
-  user_type?: string;
 };
 
 export default async function LandingPage() {
@@ -33,9 +32,9 @@ export default async function LandingPage() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, user_type")
+      .select("full_name")
       .eq("id", user.id)
-      .maybeSingle();
+      .maybeSingle<{ full_name: string | null }>();
 
     const fullName =
       (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
@@ -47,14 +46,9 @@ export default async function LandingPage() {
       user.email ||
       "Mi cuenta";
 
-    const userType =
-      (typeof profile?.user_type === "string" ? profile.user_type : null) ||
-      (typeof metadata.user_type === "string" ? metadata.user_type : null);
-
     navbarProps = {
       isLoggedIn: true,
       userName: fullName,
-      isAdmin: userType === "school_admin" || userType === "super_admin",
       unreadMessagesCount: 0,
       currentUserId: user.id,
     };
