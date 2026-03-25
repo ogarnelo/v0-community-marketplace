@@ -115,7 +115,6 @@ export default async function SchoolAdminPage() {
     { data: reports },
     { data: accessCodes },
     { data: schoolAdminRoles },
-    { data: listingViews },
   ] = await Promise.all([
     supabase
       .from("schools")
@@ -154,15 +153,6 @@ export default async function SchoolAdminPage() {
       .eq("school_id", effectiveSchoolId)
       .eq("role", "school_admin")
       .returns<SchoolAdminRoleRow[]>(),
-    supabase
-      .from("listing_views")
-      .select("listing_id, viewed_at")
-      .in(
-        "listing_id",
-        ((listings || []) as ListingRow[]).map((item) => item.id)
-      )
-      .order("viewed_at", { ascending: false })
-      .returns<ListingViewRow[]>(),
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
@@ -170,6 +160,19 @@ export default async function SchoolAdminPage() {
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
   const safeReports = (reports || []) as ReportRow[];
+
+  const listingIds = safeListings.map((item) => item.id);
+
+  const { data: listingViews } =
+    listingIds.length > 0
+      ? await supabase
+        .from("listing_views")
+        .select("listing_id, viewed_at")
+        .in("listing_id", listingIds)
+        .order("viewed_at", { ascending: false })
+        .returns<ListingViewRow[]>()
+      : { data: [] as ListingViewRow[] };
+
   const safeListingViews = (listingViews || []) as ListingViewRow[];
 
   const safeListingReports = safeReports.filter((report) =>
