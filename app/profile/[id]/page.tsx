@@ -1,4 +1,3 @@
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -32,6 +31,7 @@ import {
   getInitials,
   getUserTypeLabel,
 } from "@/lib/marketplace/formatters";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 export const dynamic = "force-dynamic";
 

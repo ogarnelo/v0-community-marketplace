@@ -1,4 +1,3 @@
-listing_type ?: string | null;
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -72,6 +71,7 @@ type SchoolSummaryRow = {
 type ListingStatsRow = {
   id: string;
   type: string | null;
+  listing_type: string | null;
   price: number | null;
   status: string | null;
   condition: string | null;

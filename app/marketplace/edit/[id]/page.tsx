@@ -1,8 +1,5 @@
 "use client";
-import {
-  buildListingWritePayload,
-  getNormalizedListingType,
-} from "@/lib/marketplace/listing-type";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -53,6 +50,10 @@ import type {
   ListingRow,
   SchoolRow,
 } from "@/lib/types/marketplace";
+import {
+  buildListingWritePayload,
+  getNormalizedListingType,
+} from "@/lib/marketplace/listing-type";
 
 type ExistingPhoto = {
   id: string;

@@ -1,4 +1,3 @@
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
 import { ReportListingButton } from "@/components/marketplace/report-listing-button";
@@ -37,6 +36,7 @@ import {
   getStatusLabel,
   getUserTypeLabel,
 } from "@/lib/marketplace/formatters";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 type RelatedListingRow = {
   id: string;
@@ -45,6 +45,7 @@ type RelatedListingRow = {
   grade_level: string | null;
   price: number | null;
   type: string | null;
+  listing_type?: string | null;
   status: string | null;
 };
 
@@ -114,7 +115,7 @@ export default async function ListingDetailPage({
 
   const { data: relatedListings } = await supabase
     .from("listings")
-    .select("id, title, category, grade_level, price, type, status")
+    .select("id, title, category, grade_level, price, type, listing_type, status")
     .neq("id", listing.id)
     .eq("status", "available")
     .or(`category.eq.${listing.category},grade_level.eq.${listing.grade_level}`)
