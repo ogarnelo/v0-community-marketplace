@@ -135,7 +135,7 @@ const rankingChartConfig = {
 
 const listingTypeChartConfig = {
   sale: { label: "Venta", color: CORPORATE_BLUE },
-  donation: { label: "Donación", color: CORPORATE_GREEN },
+  donation: { label: "Donaci√≥n", color: CORPORATE_GREEN },
 } satisfies ChartConfig;
 
 function getInitials(name?: string | null) {
@@ -194,7 +194,7 @@ function prettyGradeLevel(value?: string | null) {
 }
 
 function prettyCategory(value?: string | null) {
-  return value?.trim() || "Sin categoría";
+  return value?.trim() || "Sin categor√≠a";
 }
 
 function prettyCondition(value?: string | null) {
@@ -225,20 +225,6 @@ function prettyUserType(value?: string | null) {
   }
 }
 
-function monthKey(date: string) {
-  const parsed = new Date(date);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return "Sin fecha";
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    timeZone: "Europe/Madrid",
-    month: "short",
-    year: "2-digit",
-  }).format(parsed);
-}
-
 function formatDate(date: string) {
   return new Date(date).toLocaleString("es-ES", {
     timeZone: "Europe/Madrid",
@@ -248,40 +234,6 @@ function formatDate(date: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function isWithinRange(date: string, range: RangeKey) {
-  if (range === "total") return true;
-
-  const now = new Date();
-  const parsed = new Date(date);
-
-  if (Number.isNaN(parsed.getTime())) return false;
-
-  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
-  const start = new Date(now);
-  start.setDate(now.getDate() - days);
-
-  return parsed >= start;
-}
-
-function buildSharedPercentageRanking(
-  items: Array<{ label: string; total: number }>,
-  emptyLabel = "Sin datos"
-) {
-  const total = items.reduce((sum, item) => sum + item.total, 0);
-
-  if (total <= 0) {
-    return [{ label: emptyLabel, total: 0, percentage: 0 }];
-  }
-
-  return items
-    .filter((item) => item.total > 0)
-    .map((item) => ({
-      ...item,
-      percentage: Number(((item.total / total) * 100).toFixed(1)),
-    }))
-    .sort((a, b) => b.percentage - a.percentage);
 }
 
 function RankingChart({
@@ -476,7 +428,7 @@ export default function SchoolAdminDashboard({
     <>
       <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>{school?.city || "Ciudad no indicada"}</span>
-        {school?.region ? <span>· {school.region}</span> : null}
+        {school?.region ? <span>¬∑ {school.region}</span> : null}
         {school?.school_type ? (
           <Badge variant="outline">{getSchoolTypeLabel(school.school_type)}</Badge>
         ) : null}
@@ -485,9 +437,9 @@ export default function SchoolAdminDashboard({
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Rango temporal:</span>
         {[
-          { key: "30d", label: "30 días" },
-          { key: "90d", label: "90 días" },
-          { key: "180d", label: "180 días" },
+          { key: "30d", label: "30 d√≠as" },
+          { key: "90d", label: "90 d√≠as" },
+          { key: "180d", label: "180 d√≠as" },
           { key: "total", label: "Total" },
         ].map((item) => (
           <Button
@@ -572,7 +524,7 @@ export default function SchoolAdminDashboard({
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {Math.round(totalVisibleVolume)}€
+                {Math.round(totalVisibleVolume)}‚Ç¨
               </p>
               <p className="text-xs text-muted-foreground">Volumen visible</p>
             </div>
@@ -585,7 +537,7 @@ export default function SchoolAdminDashboard({
               <TrendingUp className="h-5 w-5 text-chart-1" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{Math.round(totalSales)}€</p>
+              <p className="text-2xl font-bold text-foreground">{Math.round(totalSales)}‚Ç¨</p>
               <p className="text-xs text-muted-foreground">Ventas totales</p>
             </div>
           </CardContent>
@@ -610,7 +562,7 @@ export default function SchoolAdminDashboard({
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {Math.round(averageTicket)}€
+                {Math.round(averageTicket)}‚Ç¨
               </p>
               <p className="text-xs text-muted-foreground">Ticket medio</p>
             </div>
@@ -626,7 +578,7 @@ export default function SchoolAdminDashboard({
               <p className="text-2xl font-bold text-foreground">
                 {conversionRate != null ? `${conversionRate.toFixed(1)}%` : "N/D"}
               </p>
-              <p className="text-xs text-muted-foreground">Conversión</p>
+              <p className="text-xs text-muted-foreground">Conversi√≥n</p>
             </div>
           </CardContent>
         </Card>
@@ -651,7 +603,7 @@ export default function SchoolAdminDashboard({
                   Actividad del centro
                 </CardTitle>
                 <CardDescription>
-                  Evolución de anuncios publicados y reports recibidos.
+                  Evoluci√≥n de anuncios publicados y reports recibidos.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -672,7 +624,7 @@ export default function SchoolAdminDashboard({
             <Card className="border-border">
               <CardHeader>
                 <CardTitle>Resumen ejecutivo</CardTitle>
-                <CardDescription>Lectura rápida del estado del centro.</CardDescription>
+                <CardDescription>Lectura r√°pida del estado del centro.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-xl border border-border p-4">
@@ -701,10 +653,10 @@ export default function SchoolAdminDashboard({
 
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Código activo principal
+                    C√≥digo activo principal
                   </p>
                   <p className="mt-2 font-mono text-xl font-bold text-foreground">
-                    {accessCodes[0]?.code || "Sin código"}
+                    {accessCodes[0]?.code || "Sin c√≥digo"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Acceso actual para nuevos miembros.
@@ -716,8 +668,8 @@ export default function SchoolAdminDashboard({
 
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <RankingChart
-              title="Ranking por categoría"
-              description="Peso porcentual de cada categoría de producto."
+              title="Ranking por categor√≠a"
+              description="Peso porcentual de cada categor√≠a de producto."
               data={categoryRanking}
             />
 
@@ -739,7 +691,7 @@ export default function SchoolAdminDashboard({
               <CardHeader>
                 <CardTitle className="text-base">Tipos de anuncio</CardTitle>
                 <CardDescription>
-                  Distribución entre venta y donación.
+                  Distribuci√≥n entre venta y donaci√≥n.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -771,7 +723,7 @@ export default function SchoolAdminDashboard({
 
             <RankingChart
               title="Ranking por estado de producto"
-              description="Peso porcentual según el estado de uso registrado."
+              description="Peso porcentual seg√∫n el estado de uso registrado."
               data={conditionRanking}
             />
 
@@ -787,7 +739,7 @@ export default function SchoolAdminDashboard({
           {listings.length === 0 ? (
             <Card className="border-border">
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Aún no hay anuncios en este centro.
+                A√∫n no hay anuncios en este centro.
               </CardContent>
             </Card>
           ) : (
@@ -799,18 +751,18 @@ export default function SchoolAdminDashboard({
                       {listing.title || "Anuncio"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {listing.category || "Sin categoría"} · {listing.status || "Sin estado"}
+                      {listing.category || "Sin categor√≠a"} ¬∑ {listing.status || "Sin estado"}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
                     {listing.type === "donation" ? (
                       <Badge variant="secondary" className="text-xs">
-                        Donación
+                        Donaci√≥n
                       </Badge>
                     ) : (
                       <span className="text-sm font-bold text-foreground">
-                        {typeof listing.price === "number" ? `${listing.price}€` : "Consultar"}
+                        {typeof listing.price === "number" ? `${listing.price}‚Ç¨` : "Consultar"}
                       </span>
                     )}
 
@@ -831,7 +783,7 @@ export default function SchoolAdminDashboard({
           {members.length === 0 ? (
             <Card className="border-border">
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Aún no hay miembros vinculados a este centro.
+                A√∫n no hay miembros vinculados a este centro.
               </CardContent>
             </Card>
           ) : (
@@ -868,7 +820,7 @@ export default function SchoolAdminDashboard({
           {schoolAdmins.length === 0 ? (
             <Card className="border-border">
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Aún no hay administradores asignados para este centro.
+                A√∫n no hay administradores asignados para este centro.
               </CardContent>
             </Card>
           ) : (
@@ -903,7 +855,7 @@ export default function SchoolAdminDashboard({
           {accessCodes.length === 0 ? (
             <Card className="border-border">
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Este centro todavía no tiene códigos activos.
+                Este centro todav√≠a no tiene c√≥digos activos.
               </CardContent>
             </Card>
           ) : (
