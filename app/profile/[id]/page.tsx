@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +32,6 @@ import {
   getInitials,
   getUserTypeLabel,
 } from "@/lib/marketplace/formatters";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 export const dynamic = "force-dynamic";
 
@@ -72,15 +72,9 @@ export default async function PublicProfilePage({
       user.email ||
       "Mi cuenta";
 
-    const { data: currentRoles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
-
-    isAdmin = (currentRoles || []).some(
-      (role: { role: string | null }) =>
-        role.role === "school_admin" || role.role === "super_admin"
-    );
+    isAdmin =
+      typedCurrentProfile?.user_type === "school_admin" ||
+      typedCurrentProfile?.user_type === "super_admin";
 
     const conversationIds = (conversations || []).map(
       (conversation: { id: string }) => conversation.id

@@ -1,22 +1,35 @@
-import type { ListingRow, ListingType } from "@/lib/types/marketplace";
+import type { ListingType } from "@/lib/types/marketplace";
 
-export function getNormalizedListingType(
-  input:
-    | Pick<ListingRow, "type" | "listing_type">
-    | { type?: string | null; listing_type?: string | null }
-    | null
-    | undefined
-): ListingType {
-  const rawType = input?.type?.trim().toLowerCase();
-  const rawListingType = input?.listing_type?.trim().toLowerCase();
-  const resolved = rawType || rawListingType;
+type ListingTypeSource = {
+  type?: string | null;
+  listing_type?: string | null;
+};
 
-  return resolved === "donation" ? "donation" : "sale";
+export function getNormalizedListingType(source?: ListingTypeSource | null): ListingType {
+  const raw = source?.listing_type || source?.type || null;
+  return raw === "donation" ? "donation" : "sale";
 }
 
-export function buildListingWritePayload(type: ListingType) {
+type ListingWriteBase = {
+  title: string;
+  description: string;
+  category: string;
+  grade_level: string;
+  condition: string;
+  price: number | null;
+  original_price: number | null;
+  seller_id?: string;
+  school_id?: string | null;
+  status?: string;
+};
+
+export function buildListingWritePayload(
+  data: ListingWriteBase,
+  listingType: ListingType
+) {
   return {
-    type,
-    listing_type: type,
-  } as const;
+    ...data,
+    type: listingType,
+    listing_type: listingType,
+  };
 }

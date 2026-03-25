@@ -3,6 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
+import {
+  buildMonthlyAdminSeries,
+  buildPercentageRanking as buildSharedPercentageRanking,
+  filterRowsByRange,
+} from "@/lib/admin/dashboard-analytics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,16 +39,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  buildCommonDashboardAnalytics,
-  isWithinDashboardRange,
-  monthKey,
-  prettyCategory,
-  prettyCondition,
-  prettyGradeLevel,
-  prettyUserType,
-  type DashboardRangeKey,
-} from "@/lib/admin/dashboard-analytics";
 import {
   BarChart3,
   CheckCircle2,
@@ -140,7 +136,7 @@ type ProfileSummaryRow = {
 type ListingStatsRow = {
   id: string;
   type: string | null;
-  listing_type: string | null;
+  listing_type?: string | null;
   price: number | null;
   status: string | null;
   condition: string | null;
@@ -167,7 +163,7 @@ type SuperAdminDashboardProps = {
   initialListingViews: ListingViewRow[];
 };
 
-type RangeKey = DashboardRangeKey;
+type RangeKey = "30d" | "90d" | "180d" | "total";
 
 const CORPORATE_BLUE = "#2563eb";
 const CORPORATE_BLUE_SOFT = "#60a5fa";
@@ -253,7 +249,73 @@ function normalizeSchoolRequestStatus(
   return "pending";
 }
 
-function buildMonthlySeries({
+function monthKey(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    month: "short",
+    year: "2-digit",
+  }).format(parsed);
+}
+
+function prettyGradeLevel(value?: string | null) {
+  if (!value || !value.trim()) return "Sin etapa";
+
+  return value
+    .split("_")
+    .map((part) => {
+      const normalized = part.toLowerCase();
+
+      if (normalized === "eso") return "ESO";
+      if (normalized === "bachillerato") return "Bachillerato";
+      if (normalized === "infantil") return "Infantil";
+      if (normalized === "primaria") return "Primaria";
+      if (normalized === "secundaria") return "Secundaria";
+      if (normalized === "fp") return "FP";
+
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join(" ");
+}
+
+function prettyCategory(value?: string | null) {
+  return value?.trim() || "Sin categoría";
+}
+
+function prettyCondition(value?: string | null) {
+  switch (value) {
+    case "new_with_tags":
+      return "Nuevo con etiquetas";
+    case "new_without_tags":
+      return "Nuevo sin etiquetas";
+    case "like_new":
+      return "Como nuevo";
+    case "good":
+      return "En buen estado";
+    case "fair":
+      return "Con desgaste";
+    default:
+      return value?.trim() || "Sin estado de uso";
+  }
+}
+
+function prettyUserType(value?: string | null) {
+  switch (value) {
+    case "student":
+      return "Estudiantes";
+    case "parent":
+      return "Familias / tutores";
+    default:
+      return "Otros";
+  }
+}
+
+function buildMonthlyAdminSeries({
   listings,
   supportTickets,
   reports,
@@ -298,6 +360,40 @@ function buildMonthlySeries({
   requests.forEach((item) => add(item.created_at, "requests"));
 
   return Array.from(buckets.values()).slice(-6);
+}
+
+function buildSharedPercentageRanking(
+  items: Array<{ label: string; total: number }>,
+  emptyLabel = "Sin datos"
+) {
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+
+  if (total <= 0) {
+    return [{ label: emptyLabel, total: 0, percentage: 0 }];
+  }
+
+  return items
+    .filter((item) => item.total > 0)
+    .map((item) => ({
+      ...item,
+      percentage: Number(((item.total / total) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
+function isWithinRange(date: string, range: RangeKey) {
+  if (range === "total") return true;
+
+  const now = new Date();
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
+  const start = new Date(now);
+  start.setDate(now.getDate() - days);
+
+  return parsed >= start;
 }
 
 function RankingChart({
@@ -405,28 +501,33 @@ export default function SuperAdminDashboard({
     Record<string, ApprovedRequestMeta>
   >(initialApprovedRequestMeta);
 
+  const normalizedListings = useMemo(
+    () => initialListings.map((item) => ({ ...item, type: getNormalizedListingType(item) })),
+    [initialListings]
+  );
+
   const filteredListings = useMemo(
-    () => initialListings.filter((item) => isWithinDashboardRange(item.created_at, selectedRange)),
-    [initialListings, selectedRange]
+    () => filterRowsByRange(normalizedListings, (item) => item.created_at, selectedRange),
+    [normalizedListings, selectedRange]
   );
 
   const filteredSupportTickets = useMemo(
-    () => supportTickets.filter((item) => isWithinDashboardRange(item.created_at, selectedRange)),
+    () => filterRowsByRange(supportTickets, (item) => item.created_at, selectedRange),
     [selectedRange, supportTickets]
   );
 
   const filteredReports = useMemo(
-    () => reports.filter((item) => isWithinDashboardRange(item.created_at, selectedRange)),
+    () => filterRowsByRange(reports, (item) => item.created_at, selectedRange),
     [reports, selectedRange]
   );
 
   const filteredSchoolRequests = useMemo(
-    () => schoolRequests.filter((item) => isWithinDashboardRange(item.created_at, selectedRange)),
+    () => filterRowsByRange(schoolRequests, (item) => item.created_at, selectedRange),
     [schoolRequests, selectedRange]
   );
 
   const filteredListingViews = useMemo(
-    () => initialListingViews.filter((item) => isWithinDashboardRange(item.viewed_at, selectedRange)),
+    () => filterRowsByRange(initialListingViews, (item) => item.viewed_at, selectedRange),
     [initialListingViews, selectedRange]
   );
 
@@ -475,7 +576,7 @@ export default function SuperAdminDashboard({
 
   const growthData = useMemo(
     () =>
-      buildMonthlySeries({
+      buildMonthlyAdminSeries({
         listings: filteredListings,
         supportTickets: filteredSupportTickets,
         reports: filteredReports,
@@ -498,32 +599,32 @@ export default function SuperAdminDashboard({
     return ids;
   }, [filteredReports, filteredSupportTickets]);
 
-  const dashboardAnalytics = useMemo(
+  const totalSales = useMemo(
     () =>
-      buildCommonDashboardAnalytics({
-        listings: filteredListings,
-        reports: filteredReports,
-        listingViews: filteredListingViews,
-        profiles: initialProfiles,
-      }),
-    [filteredListings, filteredReports, filteredListingViews, initialProfiles]
+      filteredListings.reduce(
+        (sum, listing) =>
+          listing.status === "sold" && typeof listing.price === "number"
+            ? sum + listing.price
+            : sum,
+        0
+      ),
+    [filteredListings]
   );
 
-  const {
-    totalSales,
-    totalTransactions,
-    averageTicket,
-    conversionRate,
-    categoryRanking,
-    listingGradeLevelRanking,
-    userGradeLevelRanking,
-    conditionRanking,
-    userTypeRanking,
-    listingTypeData: rawListingTypeData,
-  } = dashboardAnalytics;
+  const totalTransactions = useMemo(
+    () => filteredListings.filter((listing) => listing.status === "sold").length,
+    [filteredListings]
+  );
+
+  const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
 
   const incidentRate =
     stats.totalUsers > 0 ? (incidentUserIds.size / stats.totalUsers) * 100 : 0;
+
+  const conversionRate =
+    filteredListingViews.length > 0
+      ? (totalTransactions / filteredListingViews.length) * 100
+      : null;
 
   const approvalRate =
     filteredSchoolRequests.length > 0
@@ -536,10 +637,90 @@ export default function SuperAdminDashboard({
       )
       : 0;
 
-  const listingTypeData = rawListingTypeData.map((item) => ({
-    ...item,
-    fill: item.type === "donation" ? CORPORATE_GREEN : CORPORATE_BLUE,
-  }));
+  const categoryRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    filteredListings.forEach((listing) => {
+      const key = prettyCategory(listing.category);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildSharedPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [filteredListings]);
+
+  const listingGradeLevelRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    filteredListings.forEach((listing) => {
+      const key = prettyGradeLevel(listing.grade_level);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildSharedPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [filteredListings]);
+
+  const userGradeLevelRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialProfiles.forEach((profile) => {
+      const key = prettyGradeLevel(profile.grade_level);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildSharedPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [initialProfiles]);
+
+  const conditionRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    filteredListings.forEach((listing) => {
+      const key = prettyCondition(listing.condition);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildSharedPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    );
+  }, [filteredListings]);
+
+  const userTypeRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    initialProfiles.forEach((profile) => {
+      const key = prettyUserType(profile.user_type);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildSharedPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    );
+  }, [initialProfiles]);
+
+  const listingTypeData = useMemo(() => {
+    const saleTotal = filteredListings.filter((listing) => listing.type === "sale").length;
+    const donationTotal = filteredListings.filter(
+      (listing) => listing.type === "donation"
+    ).length;
+
+    return [
+      {
+        type: "sale",
+        total: saleTotal,
+        fill: CORPORATE_BLUE,
+      },
+      {
+        type: "donation",
+        total: donationTotal,
+        fill: CORPORATE_GREEN,
+      },
+    ].filter((item) => item.total > 0);
+  }, [filteredListings]);
 
   const updateSupportTicketStatus = async (
     ticketId: string,

@@ -1,57 +1,13 @@
 export type DashboardRangeKey = "30d" | "90d" | "180d" | "total";
 
-export type DashboardListingLike = {
-  id: string;
-  category: string | null;
-  grade_level: string | null;
-  condition: string | null;
-  price: number | null;
-  status: string | null;
-  type?: string | null;
-  listing_type?: string | null;
-  created_at: string;
-};
-
-export type DashboardProfileLike = {
-  id: string;
-  user_type: string | null;
-  grade_level: string | null;
-};
-
-export type DashboardReportLike = {
-  created_at: string;
-};
-
-export type DashboardListingViewLike = {
-  listing_id: string;
-  viewed_at: string;
-};
-
-type RankingRow = {
-  label: string;
-  total: number;
-  percentage: number;
-};
-
-function normalizeListingType(value: {
-  type?: string | null;
-  listing_type?: string | null;
-}) {
-  return value.type === "donation" || value.listing_type === "donation"
-    ? "donation"
-    : "sale";
-}
-
-export function isWithinDashboardRange(
-  date: string,
-  range: DashboardRangeKey
-) {
+export function isWithinRange(date: string, range: DashboardRangeKey) {
   if (range === "total") return true;
 
+  const now = new Date();
   const parsed = new Date(date);
+
   if (Number.isNaN(parsed.getTime())) return false;
 
-  const now = new Date();
   const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
   const start = new Date(now);
   start.setDate(now.getDate() - days);
@@ -59,10 +15,18 @@ export function isWithinDashboardRange(
   return parsed >= start;
 }
 
-export function buildDashboardPercentageRanking(
+export function filterRowsByRange<T>(
+  rows: T[],
+  getDate: (row: T) => string,
+  range: DashboardRangeKey
+) {
+  return rows.filter((row) => isWithinRange(getDate(row), range));
+}
+
+export function buildPercentageRanking(
   items: Array<{ label: string; total: number }>,
   emptyLabel = "Sin datos"
-): RankingRow[] {
+) {
   const total = items.reduce((sum, item) => sum + item.total, 0);
 
   if (total <= 0) {
@@ -78,132 +42,76 @@ export function buildDashboardPercentageRanking(
     .sort((a, b) => b.percentage - a.percentage);
 }
 
-export function buildCommonDashboardAnalytics(args: {
-  listings: DashboardListingLike[];
-  reports: DashboardReportLike[];
-  listingViews: DashboardListingViewLike[];
-  profiles: DashboardProfileLike[];
-  prettyCategory: (value?: string | null) => string;
-  prettyGradeLevel: (value?: string | null) => string;
-  prettyCondition: (value?: string | null) => string;
-  prettyUserType: (value?: string | null) => string;
+function monthKey(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    month: "short",
+    year: "2-digit",
+  }).format(parsed);
+}
+
+export function buildMonthlyListingReportSeries({
+  listings,
+  reports,
+}: {
+  listings: Array<{ created_at: string }>;
+  reports: Array<{ created_at: string }>;
 }) {
-  const {
-    listings,
-    reports,
-    listingViews,
-    profiles,
-    prettyCategory,
-    prettyGradeLevel,
-    prettyCondition,
-    prettyUserType,
-  } = args;
+  const buckets = new Map<string, { month: string; listings: number; reports: number }>();
 
-  const totalVisibleVolume = listings.reduce(
-    (sum, listing) =>
-      listing.status === "available" && typeof listing.price === "number"
-        ? sum + listing.price
-        : sum,
-    0
-  );
+  const add = (date: string, key: "listings" | "reports") => {
+    const bucketKey = monthKey(date);
+    const current = buckets.get(bucketKey) || { month: bucketKey, listings: 0, reports: 0 };
+    current[key] += 1;
+    buckets.set(bucketKey, current);
+  };
 
-  const totalSales = listings.reduce(
-    (sum, listing) =>
-      listing.status === "sold" && typeof listing.price === "number"
-        ? sum + listing.price
-        : sum,
-    0
-  );
+  listings.forEach((row) => add(row.created_at, "listings"));
+  reports.forEach((row) => add(row.created_at, "reports"));
 
-  const totalTransactions = listings.filter(
-    (listing) => listing.status === "sold"
-  ).length;
+  return Array.from(buckets.values()).slice(-6);
+}
 
-  const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
-
-  const conversionRate =
-    listingViews.length > 0
-      ? (totalTransactions / listingViews.length) * 100
-      : null;
-
-  const byMonth = new Map<
+export function buildMonthlyAdminSeries({
+  listings,
+  supportTickets,
+  reports,
+  requests,
+}: {
+  listings: Array<{ created_at: string }>;
+  supportTickets: Array<{ created_at: string }>;
+  reports: Array<{ created_at: string }>;
+  requests: Array<{ created_at: string }>;
+}) {
+  const buckets = new Map<
     string,
-    { month: string; listings: number; reports: number }
+    { month: string; listings: number; support: number; reports: number; requests: number }
   >();
 
-  const monthKey = (date: string) =>
-    new Intl.DateTimeFormat("es-ES", {
-      timeZone: "Europe/Madrid",
-      month: "short",
-      year: "2-digit",
-    }).format(new Date(date));
-
-  const addMonth = (date: string, key: "listings" | "reports") => {
+  const add = (date: string, key: "listings" | "support" | "reports" | "requests") => {
     const bucketKey = monthKey(date);
-    const current = byMonth.get(bucketKey) || {
+    const current = buckets.get(bucketKey) || {
       month: bucketKey,
       listings: 0,
+      support: 0,
       reports: 0,
+      requests: 0,
     };
 
     current[key] += 1;
-    byMonth.set(bucketKey, current);
+    buckets.set(bucketKey, current);
   };
 
-  listings.forEach((listing) => addMonth(listing.created_at, "listings"));
-  reports.forEach((report) => addMonth(report.created_at, "reports"));
+  listings.forEach((row) => add(row.created_at, "listings"));
+  supportTickets.forEach((row) => add(row.created_at, "support"));
+  reports.forEach((row) => add(row.created_at, "reports"));
+  requests.forEach((row) => add(row.created_at, "requests"));
 
-  const countMap = <T,>(items: T[], getLabel: (item: T) => string) => {
-    const counts = new Map<string, number>();
-
-    items.forEach((item) => {
-      const key = getLabel(item);
-      counts.set(key, (counts.get(key) || 0) + 1);
-    });
-
-    return buildDashboardPercentageRanking(
-      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
-    );
-  };
-
-  const saleTotal = listings.filter(
-    (listing) => normalizeListingType(listing) === "sale"
-  ).length;
-
-  const donationTotal = listings.filter(
-    (listing) => normalizeListingType(listing) === "donation"
-  ).length;
-
-  return {
-    totalVisibleVolume,
-    totalSales,
-    totalTransactions,
-    averageTicket,
-    conversionRate,
-    monthlyActivityData: Array.from(byMonth.values()).slice(-6),
-    listingTypeData: [
-      { type: "sale", total: saleTotal },
-      { type: "donation", total: donationTotal },
-    ].filter((item) => item.total > 0),
-    categoryRanking: countMap(
-      listings,
-      (listing) => prettyCategory(listing.category)
-    ).slice(0, 8),
-    listingGradeLevelRanking: countMap(
-      listings,
-      (listing) => prettyGradeLevel(listing.grade_level)
-    ).slice(0, 8),
-    userGradeLevelRanking: countMap(
-      profiles,
-      (profile) => prettyGradeLevel(profile.grade_level)
-    ).slice(0, 8),
-    conditionRanking: countMap(
-      listings,
-      (listing) => prettyCondition(listing.condition)
-    ),
-    userTypeRanking: countMap(
-      profiles,
-      (profile) => prettyUserType(profile.user_type)
-    ),
-  };
+  return Array.from(buckets.values()).slice(-6);
 }

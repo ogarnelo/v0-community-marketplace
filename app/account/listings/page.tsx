@@ -13,11 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
 import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import {
   getStatusBadgeClass,
   getStatusLabel,
 } from "@/lib/marketplace/formatters";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 export default async function MyListingsPage() {
   const supabase = await createClient();

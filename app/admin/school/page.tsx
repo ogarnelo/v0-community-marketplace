@@ -23,7 +23,7 @@ type ListingRow = {
   grade_level: string | null;
   price: number | null;
   type: string | null;
-  listing_type: string | null;
+  listing_type?: string | null;
   status: string | null;
   condition: string | null;
   seller_id: string | null;

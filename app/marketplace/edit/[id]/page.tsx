@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { buildListingWritePayload, getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import {
   categories,
   gradeLevels,
@@ -50,10 +51,6 @@ import type {
   ListingRow,
   SchoolRow,
 } from "@/lib/types/marketplace";
-import {
-  buildListingWritePayload,
-  getNormalizedListingType,
-} from "@/lib/marketplace/listing-type";
 
 type ExistingPhoto = {
   id: string;
@@ -437,7 +434,7 @@ export default function EditListingPage() {
           category: selectedCategory,
           grade_level: selectedGradeLevel,
           condition: selectedCondition,
-          ...buildListingWritePayload(isDonation ? "donation" : "sale"),
+          type: isDonation ? "donation" : "sale",
           price: isDonation ? null : Number(price),
           original_price:
             isDonation || !originalPrice.trim() ? null : Number(originalPrice),

@@ -5,6 +5,7 @@ import { ListingViewTracker } from "@/components/marketplace/listing-view-tracke
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -36,7 +37,6 @@ import {
   getStatusLabel,
   getUserTypeLabel,
 } from "@/lib/marketplace/formatters";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 type RelatedListingRow = {
   id: string;
@@ -290,7 +290,7 @@ export default async function ListingDetailPage({
                         {item.grade_level || "Sin curso"}
                       </div>
                       <div className="mt-3 font-semibold">
-                        {(item.type || "sale") === "donation"
+                        {getNormalizedListingType(item) === "donation"
                           ? "Gratis"
                           : item.price != null
                             ? `${item.price}€`

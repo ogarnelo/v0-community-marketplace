@@ -26,6 +26,10 @@ export function getUserTypeLabel(userType?: string | null) {
   }
 }
 
+export function getListingTypeLabel(listingType?: string | null) {
+  return listingType === "donation" ? "Donación" : "Venta";
+}
+
 export function getConditionLabel(value?: string | null) {
   switch (value) {
     case "new_with_tags":

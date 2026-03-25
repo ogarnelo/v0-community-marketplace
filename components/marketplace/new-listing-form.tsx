@@ -69,20 +69,7 @@ type PreviewFile = {
   previewUrl: string;
 };
 
-type ListingInsertPayload = {
-  title: string;
-  description: string;
-  category: string;
-  grade_level: string;
-  condition: string;
-  type: "sale" | "donation";
-  listing_type: "sale" | "donation";
-  price: number | null;
-  original_price: number | null;
-  seller_id: string;
-  school_id: string | null;
-  status: "available";
-};
+type ListingInsertPayload = ReturnType<typeof buildListingWritePayload>;
 
 type ListingPhotoInsertPayload = {
   listing_id: string;
@@ -325,22 +312,22 @@ export default function NewListingForm({
           ? currentProfile.school_id
           : initialSchoolId || null;
 
-      const normalizedListingType = isDonation ? "donation" : "sale";
-
-      const payload: ListingInsertPayload = {
-        title: title.trim(),
-        description: description.trim(),
-        category: selectedCategory,
-        grade_level: selectedGradeLevel,
-        condition: selectedCondition,
-        ...buildListingWritePayload(normalizedListingType),
-        price: isDonation ? null : Number(price),
-        original_price:
-          isDonation || !originalPrice.trim() ? null : Number(originalPrice),
-        seller_id: user.id,
-        school_id: effectiveSchoolId,
-        status: "available",
-      };
+      const payload: ListingInsertPayload = buildListingWritePayload(
+        {
+          title: title.trim(),
+          description: description.trim(),
+          category: selectedCategory,
+          grade_level: selectedGradeLevel,
+          condition: selectedCondition,
+          price: isDonation ? null : Number(price),
+          original_price:
+            isDonation || !originalPrice.trim() ? null : Number(originalPrice),
+          seller_id: user.id,
+          school_id: effectiveSchoolId,
+          status: "available",
+        },
+        isDonation ? "donation" : "sale"
+      );
 
       const { data: insertedListing, error: insertError } = await supabase
         .from("listings")
