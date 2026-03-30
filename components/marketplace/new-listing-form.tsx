@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { buildListingWritePayload } from "@/lib/marketplace/listing-type";
 import {
   categories,
   gradeLevels,
@@ -69,7 +68,19 @@ type PreviewFile = {
   previewUrl: string;
 };
 
-type ListingInsertPayload = ReturnType<typeof buildListingWritePayload>;
+type ListingInsertPayload = {
+  title: string;
+  description: string;
+  category: string;
+  grade_level: string;
+  condition: string;
+  type: string;
+  price: number | null;
+  original_price: number | null;
+  seller_id: string;
+  school_id: string | null;
+  status: "available";
+};
 
 type ListingPhotoInsertPayload = {
   listing_id: string;
@@ -150,7 +161,7 @@ export default function NewListingForm({
     const availableSlots = MAX_FILES - photos.length;
 
     if (availableSlots <= 0) {
-      setPhotoError("Solo puedes subir un máximo de 5 fotos.");
+      setPhotoError("Solo puedes subir un m√°ximo de 5 fotos.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -160,7 +171,7 @@ export default function NewListingForm({
 
     for (const file of nextFiles) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        setPhotoError("Solo se permiten imágenes JPG, PNG, WEBP o GIF.");
+        setPhotoError("Solo se permiten im√°genes JPG, PNG, WEBP o GIF.");
         continue;
       }
 
@@ -195,9 +206,9 @@ export default function NewListingForm({
   };
 
   const validateForm = () => {
-    if (!title.trim()) return "Debes indicar un título.";
-    if (!description.trim()) return "Debes añadir una descripción.";
-    if (!selectedCategory) return "Debes seleccionar una categoría.";
+    if (!title.trim()) return "Debes indicar un t√≠tulo.";
+    if (!description.trim()) return "Debes a√±adir una descripci√≥n.";
+    if (!selectedCategory) return "Debes seleccionar una categor√≠a.";
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
 
@@ -206,13 +217,13 @@ export default function NewListingForm({
 
       const numericPrice = Number(price);
       if (Number.isNaN(numericPrice) || numericPrice < 0) {
-        return "El precio debe ser un número válido.";
+        return "El precio debe ser un n√∫mero v√°lido.";
       }
 
       if (originalPrice.trim()) {
         const numericOriginalPrice = Number(originalPrice);
         if (Number.isNaN(numericOriginalPrice) || numericOriginalPrice < 0) {
-          return "El precio original debe ser un número válido.";
+          return "El precio original debe ser un n√∫mero v√°lido.";
         }
       }
     }
@@ -251,7 +262,7 @@ export default function NewListingForm({
       const publicUrl = publicUrlData?.publicUrl;
 
       if (!publicUrl) {
-        throw new Error("No se pudo obtener la URL pública de una de las imágenes.");
+        throw new Error("No se pudo obtener la URL p√∫blica de una de las im√°genes.");
       }
 
       uploadedPhotoRows.push({
@@ -312,22 +323,20 @@ export default function NewListingForm({
           ? currentProfile.school_id
           : initialSchoolId || null;
 
-      const payload: ListingInsertPayload = buildListingWritePayload(
-        {
-          title: title.trim(),
-          description: description.trim(),
-          category: selectedCategory,
-          grade_level: selectedGradeLevel,
-          condition: selectedCondition,
-          price: isDonation ? null : Number(price),
-          original_price:
-            isDonation || !originalPrice.trim() ? null : Number(originalPrice),
-          seller_id: user.id,
-          school_id: effectiveSchoolId,
-          status: "available",
-        },
-        isDonation ? "donation" : "sale"
-      );
+      const payload: ListingInsertPayload = {
+        title: title.trim(),
+        description: description.trim(),
+        category: selectedCategory,
+        grade_level: selectedGradeLevel,
+        condition: selectedCondition,
+        type: isDonation ? "donation" : "sale",
+        price: isDonation ? null : Number(price),
+        original_price:
+          isDonation || !originalPrice.trim() ? null : Number(originalPrice),
+        seller_id: user.id,
+        school_id: effectiveSchoolId,
+        status: "available",
+      };
 
       const { data: insertedListing, error: insertError } = await supabase
         .from("listings")
@@ -397,29 +406,29 @@ export default function NewListingForm({
               />
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="title">Título *</Label>
+                <Label htmlFor="title">T√≠tulo *</Label>
                 <Input
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Libro Matemáticas 3º ESO"
+                  placeholder="Ej: Libro Matem√°ticas 3¬∫ ESO"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="description">Descripción *</Label>
+                <Label htmlFor="description">Descripci√≥n *</Label>
                 <Textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe el estado, editorial, edición..."
+                  placeholder="Describe el estado, editorial, edici√≥n..."
                   rows={4}
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                  <Label>Categoría *</Label>
+                  <Label>Categor√≠a *</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
@@ -503,17 +512,17 @@ export default function NewListingForm({
                               type="button"
                             >
                               <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="sr-only">Qué es el ISBN</span>
+                              <span className="sr-only">Qu√© es el ISBN</span>
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-72 text-sm" side="top">
                             <p className="font-semibold text-foreground">
-                              ¿Qué es el ISBN?
+                              ¬øQu√© es el ISBN?
                             </p>
                             <p className="mt-1 leading-relaxed text-muted-foreground">
                               ISBN son las siglas de International Standard Book
-                              Number y consiste en un código que sirve para
-                              identificar de manera única cada producto editorial.
+                              Number y consiste en un c√≥digo que sirve para
+                              identificar de manera √∫nica cada producto editorial.
                             </p>
                           </PopoverContent>
                         </Popover>
@@ -586,11 +595,11 @@ export default function NewListingForm({
               <div className="flex items-center gap-4 rounded-lg border border-border p-4">
                 <div className="flex-1">
                   <p className="font-medium text-foreground">
-                    {isDonation ? "Donación" : "Venta"}
+                    {isDonation ? "Donaci√≥n" : "Venta"}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {isDonation
-                      ? "El admin de tu centro gestionará las solicitudes"
+                      ? "El admin de tu centro gestionar√° las solicitudes"
                       : "Establece un precio para tu material"}
                   </p>
                 </div>
@@ -642,7 +651,7 @@ export default function NewListingForm({
               ) : null}
 
               <div className="flex flex-col gap-2">
-                <Label>Fotos (máx. 5)</Label>
+                <Label>Fotos (m√°x. 5)</Label>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                   {photos.map((photo, i) => (
                     <div
@@ -672,17 +681,11 @@ export default function NewListingForm({
                     >
                       <ImagePlus className="h-6 w-6 text-muted-foreground" />
                       <span className="mt-2 text-[11px] text-muted-foreground">
-                        Añadir
+                        A√±adir
                       </span>
                     </button>
                   ) : null}
                 </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Las imágenes se guardarán en el bucket público{" "}
-                  <code>listing-photos</code> y se enlazarán en la tabla{" "}
-                  <code>listing_photos</code>.
-                </p>
 
                 {photoError ? (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -695,11 +698,11 @@ export default function NewListingForm({
               <div className="rounded-lg border border-border bg-muted/50 p-3">
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <School className="h-4 w-4" />
-                  Ubicación:{" "}
+                  Ubicaci√≥n:{" "}
                   <span className="font-medium text-foreground">{schoolLabel}</span>
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Se usará el centro asociado a tu perfil en este momento.
+                  Se usar√° el centro asociado a tu perfil en este momento.
                 </p>
               </div>
 

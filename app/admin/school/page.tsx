@@ -23,7 +23,6 @@ type ListingRow = {
   grade_level: string | null;
   price: number | null;
   type: string | null;
-  listing_type?: string | null;
   status: string | null;
   condition: string | null;
   seller_id: string | null;
@@ -125,7 +124,7 @@ export default async function SchoolAdminPage() {
     supabase
       .from("listings")
       .select(
-        "id, title, category, grade_level, price, type, listing_type, status, condition, seller_id, school_id, created_at"
+        "id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at"
       )
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
@@ -203,7 +202,7 @@ export default async function SchoolAdminPage() {
                 Panel Admin - {school?.name || "Centro"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Dashboard del centro con KPIs, rankings y conversión.
+                Dashboard del centro con KPIs, rankings y conversion.
               </p>
             </div>
           </div>

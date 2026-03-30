@@ -1,933 +1,976 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { buildListingWritePayload, getNormalizedListingType } from "@/lib/marketplace/listing-type";
-import {
-  categories,
-  gradeLevels,
-  conditions,
-  bookFormats,
-  bookLanguages,
-} from "@/lib/mock-data";
+import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
-  Loader2,
-  ArrowLeft,
-  HelpCircle,
-  BookOpen,
-  ImagePlus,
-  X,
-  School,
-  AlertCircle,
+  BarChart3,
+  Eye,
+  Flag,
+  Heart,
+  KeyRound,
+  Package,
+  Percent,
+  Shield,
+  ShoppingCart,
+  TrendingUp,
+  Users,
 } from "lucide-react";
-import type {
-  ListingPhotoRow,
-  ListingRow,
-  SchoolRow,
-} from "@/lib/types/marketplace";
 
-type ExistingPhoto = {
+type SchoolRow = {
   id: string;
-  url: string;
-  sortOrder: number;
+  name: string;
+  city: string | null;
+  region: string | null;
+  postal_code: string | null;
+  school_type: string | null;
 };
 
-type NewPhoto = {
-  file: File;
-  previewUrl: string;
+type ListingRow = {
+  id: string;
+  title: string | null;
+  category: string | null;
+  grade_level: string | null;
+  price: number | null;
+  type: string | null;
+  status: string | null;
+  condition: string | null;
+  seller_id: string | null;
+  school_id: string | null;
+  created_at: string;
 };
 
-const STORAGE_BUCKET = "listing-photos";
-const MAX_FILES = 5;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-];
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  school_id: string | null;
+  user_type: string | null;
+  grade_level: string | null;
+};
 
-function sanitizeFileName(fileName: string) {
-  return fileName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/[^a-zA-Z0-9._-]/g, "");
+type ReportRow = {
+  id: string;
+  target_type: "listing" | "conversation";
+  listing_id: string | null;
+  conversation_id: string | null;
+  reason: string;
+  status: string;
+  created_at: string;
+};
+
+type SchoolAccessCodeRow = {
+  code: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+type ListingViewRow = {
+  listing_id: string;
+  viewed_at: string;
+};
+
+type SchoolAdminDashboardProps = {
+  school: SchoolRow | null;
+  listings: ListingRow[];
+  members: ProfileRow[];
+  schoolAdmins: ProfileRow[];
+  reports: ReportRow[];
+  accessCodes: SchoolAccessCodeRow[];
+  listingViews: ListingViewRow[];
+};
+
+type RangeKey = "30d" | "90d" | "180d" | "total";
+
+const CORPORATE_BLUE = "#2563eb";
+const CORPORATE_BLUE_SOFT = "#60a5fa";
+const CORPORATE_GREEN = "#16a34a";
+const CORPORATE_RED = "#dc2626";
+const CORPORATE_AMBER = "#d97706";
+
+const growthChartConfig = {
+  listings: { label: "Anuncios", color: CORPORATE_BLUE },
+  reports: { label: "Reports", color: CORPORATE_RED },
+} satisfies ChartConfig;
+
+const rankingChartConfig = {
+  percentage: { label: "%", color: CORPORATE_BLUE },
+} satisfies ChartConfig;
+
+const listingTypeChartConfig = {
+  sale: { label: "Venta", color: CORPORATE_BLUE },
+  donation: { label: "Donacion", color: CORPORATE_GREEN },
+} satisfies ChartConfig;
+
+function getInitials(name?: string | null) {
+  if (!name || !name.trim()) return "U";
+
+  return name
+    .trim()
+    .split(" ")
+    .map((part) => part[0]?.toUpperCase())
+    .slice(0, 2)
+    .join("");
 }
 
-export default function EditListingPage() {
-  const params = useParams<{ id: string }>();
-  const listingId = params?.id;
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+function getSchoolTypeLabel(schoolType?: string | null) {
+  switch (schoolType) {
+    case "school":
+      return "Colegio / Instituto";
+    case "academy":
+      return "Academia";
+    case "university":
+      return "Universidad";
+    default:
+      return "Centro";
+  }
+}
 
-  const [pageLoading, setPageLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [photoError, setPhotoError] = useState("");
-  const [notFound, setNotFound] = useState(false);
+function getUserTypeLabel(userType?: string | null) {
+  switch (userType) {
+    case "parent":
+      return "Familia / AMPA";
+    case "student":
+      return "Estudiante";
+    default:
+      return "Usuario";
+  }
+}
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedGradeLevel, setSelectedGradeLevel] = useState("");
-  const [selectedCondition, setSelectedCondition] = useState("");
-  const [isDonation, setIsDonation] = useState(false);
-  const [price, setPrice] = useState("");
-  const [originalPrice, setOriginalPrice] = useState("");
+function prettyGradeLevel(value?: string | null) {
+  if (!value || !value.trim()) return "Sin etapa";
 
-  const [isbn, setIsbn] = useState("");
-  const [author, setAuthor] = useState("");
-  const [publisher, setPublisher] = useState("");
-  const [bookFormat, setBookFormat] = useState("");
-  const [bookLanguage, setBookLanguage] = useState("");
+  return value
+    .split("_")
+    .map((part) => {
+      const normalized = part.toLowerCase();
 
-  const [schoolLabel, setSchoolLabel] = useState("Centro no asignado");
-  const [existingPhotos, setExistingPhotos] = useState<ExistingPhoto[]>([]);
-  const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
-  const [newPhotos, setNewPhotos] = useState<NewPhoto[]>([]);
+      if (normalized === "eso") return "ESO";
+      if (normalized === "bachillerato") return "Bachillerato";
+      if (normalized === "infantil") return "Infantil";
+      if (normalized === "primaria") return "Primaria";
+      if (normalized === "secundaria") return "Secundaria";
+      if (normalized === "fp") return "FP";
 
-  const isTextbook = selectedCategory === "Libros de texto";
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join(" ");
+}
 
-  const normalizedGradeLevels = useMemo(
-    () => Array.from(new Set(gradeLevels)).filter(Boolean),
-    []
+function prettyCategory(value?: string | null) {
+  return value?.trim() || "Sin categoria";
+}
+
+function prettyCondition(value?: string | null) {
+  switch (value) {
+    case "new_with_tags":
+      return "Nuevo con etiquetas";
+    case "new_without_tags":
+      return "Nuevo sin etiquetas";
+    case "like_new":
+      return "Como nuevo";
+    case "good":
+      return "En buen estado";
+    case "fair":
+      return "Con desgaste";
+    default:
+      return value?.trim() || "Sin estado de uso";
+  }
+}
+
+function prettyUserType(value?: string | null) {
+  switch (value) {
+    case "student":
+      return "Estudiantes";
+    case "parent":
+      return "Familias / tutores";
+    default:
+      return "Otros";
+  }
+}
+
+function monthKey(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    month: "short",
+    year: "2-digit",
+  }).format(parsed);
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleString("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function isWithinRange(date: string, range: RangeKey) {
+  if (range === "total") return true;
+
+  const now = new Date();
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
+  const start = new Date(now);
+  start.setDate(now.getDate() - days);
+
+  return parsed >= start;
+}
+
+function buildPercentageRanking(
+  items: Array<{ label: string; total: number }>,
+  emptyLabel = "Sin datos"
+) {
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+
+  if (total <= 0) {
+    return [{ label: emptyLabel, total: 0, percentage: 0 }];
+  }
+
+  return items
+    .filter((item) => item.total > 0)
+    .map((item) => ({
+      ...item,
+      percentage: Number(((item.total / total) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
+function RankingChart({
+  title,
+  description,
+  data,
+}: {
+  title: string;
+  description: string;
+  data: Array<{ label: string; total: number; percentage: number }>;
+}) {
+  return (
+    <Card className="border-border">
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={rankingChartConfig} className="h-[250px] w-full">
+          <BarChart data={data} layout="vertical" margin={{ left: 12, right: 12 }}>
+            <CartesianGrid horizontal={false} />
+            <XAxis
+              type="number"
+              tickFormatter={(value) => `${value}%`}
+              domain={[0, 100]}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              width={120}
+            />
+            <ChartTooltip
+              content={<ChartTooltipContent formatter={(value) => `${value}%`} />}
+            />
+            <Bar dataKey="percentage" radius={8} fill={CORPORATE_BLUE} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SchoolAdminDashboard({
+  school,
+  listings,
+  members,
+  schoolAdmins,
+  reports,
+  accessCodes,
+  listingViews,
+}: SchoolAdminDashboardProps) {
+  const [selectedRange, setSelectedRange] = useState<RangeKey>("90d");
+
+  const filteredListings = useMemo(
+    () => listings.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [listings, selectedRange]
   );
 
-  const visibleExistingPhotos = useMemo(
-    () => existingPhotos.filter((photo) => !removedPhotoIds.includes(photo.id)),
-    [existingPhotos, removedPhotoIds]
+  const filteredReports = useMemo(
+    () => reports.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [reports, selectedRange]
   );
 
-  const totalVisiblePhotos = visibleExistingPhotos.length + newPhotos.length;
+  const filteredListingViews = useMemo(
+    () => listingViews.filter((item) => isWithinRange(item.viewed_at, selectedRange)),
+    [listingViews, selectedRange]
+  );
 
-  useEffect(() => {
-    return () => {
-      newPhotos.forEach((photo) => {
-        URL.revokeObjectURL(photo.previewUrl);
-      });
-    };
-  }, [newPhotos]);
+  const donationListings = filteredListings.filter((listing) => listing.type === "donation");
+  const totalVisibleVolume = filteredListings.reduce(
+    (sum, listing) =>
+      listing.status === "available" && typeof listing.price === "number"
+        ? sum + listing.price
+        : sum,
+    0
+  );
 
-  useEffect(() => {
-    const loadListing = async () => {
-      if (!listingId || typeof listingId !== "string") {
-        setNotFound(true);
-        setPageLoading(false);
-        return;
-      }
+  const totalSales = filteredListings.reduce(
+    (sum, listing) =>
+      listing.status === "sold" && typeof listing.price === "number"
+        ? sum + listing.price
+        : sum,
+    0
+  );
 
-      setPageLoading(true);
+  const totalTransactions = filteredListings.filter(
+    (listing) => listing.status === "sold"
+  ).length;
 
-      try {
-        const supabase = createClient();
+  const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+  const conversionRate =
+    filteredListingViews.length > 0
+      ? (totalTransactions / filteredListingViews.length) * 100
+      : null;
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+  const monthlyActivityData = useMemo(() => {
+    const buckets = new Map<string, { month: string; listings: number; reports: number }>();
 
-        if (!user) {
-          window.location.assign(`/auth?next=/marketplace/edit/${listingId}`);
-          return;
-        }
+    const add = (date: string, key: "listings" | "reports") => {
+      const bucketKey = monthKey(date);
+      const current = buckets.get(bucketKey) || {
+        month: bucketKey,
+        listings: 0,
+        reports: 0,
+      };
 
-        const { data: listing, error: listingError } = await supabase
-          .from("listings")
-          .select(
-            "id, title, description, category, grade_level, condition, type, listing_type, price, original_price, seller_id, school_id, status"
-          )
-          .eq("id", listingId)
-          .maybeSingle();
-
-        if (listingError) {
-          throw listingError;
-        }
-
-        const typedListing = listing as ListingRow | null;
-
-        if (!typedListing) {
-          setNotFound(true);
-          return;
-        }
-
-        if (typedListing.seller_id !== user.id) {
-          window.location.assign("/account/listings");
-          return;
-        }
-
-        setTitle(typedListing.title || "");
-        setDescription(typedListing.description || "");
-        setSelectedCategory(typedListing.category || "");
-        setSelectedGradeLevel(typedListing.grade_level || "");
-        setSelectedCondition(typedListing.condition || "");
-        setIsDonation(getNormalizedListingType(typedListing) === "donation");
-        setPrice(
-          typeof typedListing.price === "number" ? String(typedListing.price) : ""
-        );
-        setOriginalPrice(
-          typeof typedListing.original_price === "number"
-            ? String(typedListing.original_price)
-            : ""
-        );
-
-        if (typedListing.school_id) {
-          const { data: school } = await supabase
-            .from("schools")
-            .select("id, name, city")
-            .eq("id", typedListing.school_id)
-            .maybeSingle();
-
-          const typedSchool = (school as SchoolRow | null) ?? null;
-
-          if (typedSchool) {
-            setSchoolLabel(
-              typedSchool.city
-                ? `${typedSchool.name}, ${typedSchool.city}`
-                : typedSchool.name
-            );
-          }
-        }
-
-        const { data: listingPhotos, error: photosError } = await supabase
-          .from("listing_photos")
-          .select("id, listing_id, url, sort_order")
-          .eq("listing_id", typedListing.id)
-          .order("sort_order", { ascending: true });
-
-        if (photosError) {
-          throw photosError;
-        }
-
-        const mappedPhotos = ((listingPhotos || []) as ListingPhotoRow[]).map(
-          (photo, index) => ({
-            id: photo.id,
-            url: photo.url,
-            sortOrder:
-              typeof photo.sort_order === "number" ? photo.sort_order : index,
-          })
-        );
-
-        setExistingPhotos(mappedPhotos);
-      } catch (error: any) {
-        console.error("Error cargando anuncio para editar:", error);
-        setSubmitError(
-          error?.message ||
-          error?.details ||
-          "No se pudo cargar el anuncio."
-        );
-      } finally {
-        setPageLoading(false);
-      }
+      current[key] += 1;
+      buckets.set(bucketKey, current);
     };
 
-    void loadListing();
-  }, [listingId]);
+    filteredListings.forEach((listing) => add(listing.created_at, "listings"));
+    filteredReports.forEach((report) => add(report.created_at, "reports"));
 
-  const handlePickPhoto = () => {
-    fileInputRef.current?.click();
-  };
+    return Array.from(buckets.values()).slice(-6);
+  }, [filteredListings, filteredReports]);
 
-  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const incomingFiles = Array.from(event.target.files || []);
-    setPhotoError("");
+  const listingTypeData = useMemo(() => {
+    const saleTotal = filteredListings.filter((listing) => listing.type === "sale").length;
+    const donationTotal = filteredListings.filter(
+      (listing) => listing.type === "donation"
+    ).length;
 
-    if (incomingFiles.length === 0) return;
+    return [
+      { type: "sale", total: saleTotal, fill: CORPORATE_BLUE },
+      { type: "donation", total: donationTotal, fill: CORPORATE_GREEN },
+    ].filter((item) => item.total > 0);
+  }, [filteredListings]);
 
-    const availableSlots = MAX_FILES - totalVisiblePhotos;
+  const categoryRanking = useMemo(() => {
+    const counts = new Map<string, number>();
 
-    if (availableSlots <= 0) {
-      setPhotoError("Solo puedes tener un máximo de 5 fotos.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    const nextFiles = incomingFiles.slice(0, availableSlots);
-    const accepted: NewPhoto[] = [];
-
-    for (const file of nextFiles) {
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        setPhotoError("Solo se permiten imágenes JPG, PNG, WEBP o GIF.");
-        continue;
-      }
-
-      if (file.size > MAX_FILE_SIZE) {
-        setPhotoError("Cada imagen debe pesar menos de 10 MB.");
-        continue;
-      }
-
-      accepted.push({
-        file,
-        previewUrl: URL.createObjectURL(file),
-      });
-    }
-
-    if (accepted.length > 0) {
-      setNewPhotos((prev) => [...prev, ...accepted]);
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handleRemoveExistingPhoto = (photoId: string) => {
-    setRemovedPhotoIds((prev) => [...prev, photoId]);
-  };
-
-  const handleRestoreExistingPhoto = (photoId: string) => {
-    setRemovedPhotoIds((prev) => prev.filter((id) => id !== photoId));
-  };
-
-  const handleRemoveNewPhoto = (index: number) => {
-    setNewPhotos((prev) => {
-      const target = prev[index];
-      if (target?.previewUrl) {
-        URL.revokeObjectURL(target.previewUrl);
-      }
-      return prev.filter((_, i) => i !== index);
+    filteredListings.forEach((listing) => {
+      const key = prettyCategory(listing.category);
+      counts.set(key, (counts.get(key) || 0) + 1);
     });
-  };
 
-  const validateForm = () => {
-    if (!title.trim()) return "Debes indicar un título.";
-    if (!description.trim()) return "Debes añadir una descripción.";
-    if (!selectedCategory) return "Debes seleccionar una categoría.";
-    if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
-    if (!selectedCondition) return "Debes seleccionar el estado del material.";
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [filteredListings]);
 
-    if (!isDonation) {
-      if (!price.trim()) return "Debes indicar un precio para la venta.";
+  const listingGradeLevelRanking = useMemo(() => {
+    const counts = new Map<string, number>();
 
-      const numericPrice = Number(price);
-      if (Number.isNaN(numericPrice) || numericPrice < 0) {
-        return "El precio debe ser un número válido.";
-      }
+    filteredListings.forEach((listing) => {
+      const key = prettyGradeLevel(listing.grade_level);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
 
-      if (originalPrice.trim()) {
-        const numericOriginalPrice = Number(originalPrice);
-        if (Number.isNaN(numericOriginalPrice) || numericOriginalPrice < 0) {
-          return "El precio original debe ser un número válido.";
-        }
-      }
-    }
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [filteredListings]);
 
-    return null;
-  };
+  const userGradeLevelRanking = useMemo(() => {
+    const counts = new Map<string, number>();
 
-  const uploadNewPhotos = async (listingIdValue: string) => {
-    if (newPhotos.length === 0) return [];
+    members.forEach((member) => {
+      const key = prettyGradeLevel(member.grade_level);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
 
-    const supabase = createClient();
-    const uploadedRows: { listing_id: string; url: string; sort_order: number }[] =
-      [];
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
+    ).slice(0, 8);
+  }, [members]);
 
-    const startingSortOrder = visibleExistingPhotos.length;
+  const conditionRanking = useMemo(() => {
+    const counts = new Map<string, number>();
 
-    for (let index = 0; index < newPhotos.length; index += 1) {
-      const item = newPhotos[index];
-      const file = item.file;
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(file.name);
-      const filePath = `${listingIdValue}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+    filteredListings.forEach((listing) => {
+      const key = prettyCondition(listing.condition);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
 
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(filePath);
-
-      const publicUrl = publicUrlData?.publicUrl;
-
-      if (!publicUrl) {
-        throw new Error("No se pudo obtener la URL pública de una de las imágenes.");
-      }
-
-      uploadedRows.push({
-        listing_id: listingIdValue,
-        url: publicUrl,
-        sort_order: startingSortOrder + index,
-      });
-    }
-
-    return uploadedRows;
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setSaving(true);
-    setSubmitError("");
-    setPhotoError("");
-
-    try {
-      const validationError = validateForm();
-
-      if (validationError) {
-        setSubmitError(validationError);
-        return;
-      }
-
-      if (!listingId || typeof listingId !== "string") {
-        throw new Error("Identificador de anuncio no válido.");
-      }
-
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.assign(`/auth?next=/marketplace/edit/${listingId}`);
-        return;
-      }
-
-      const { data: listingOwner } = await supabase
-        .from("listings")
-        .select("id, seller_id")
-        .eq("id", listingId)
-        .maybeSingle();
-
-      if (!listingOwner || listingOwner.seller_id !== user.id) {
-        throw new Error("No tienes permisos para editar este anuncio.");
-      }
-
-      const { error: updateError } = await supabase
-        .from("listings")
-        .update({
-          title: title.trim(),
-          description: description.trim(),
-          category: selectedCategory,
-          grade_level: selectedGradeLevel,
-          condition: selectedCondition,
-          type: isDonation ? "donation" : "sale",
-          price: isDonation ? null : Number(price),
-          original_price:
-            isDonation || !originalPrice.trim() ? null : Number(originalPrice),
-        })
-        .eq("id", listingId);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      if (removedPhotoIds.length > 0) {
-        const { error: deletePhotosError } = await supabase
-          .from("listing_photos")
-          .delete()
-          .in("id", removedPhotoIds);
-
-        if (deletePhotosError) {
-          throw deletePhotosError;
-        }
-      }
-
-      const remainingExistingPhotos = visibleExistingPhotos.map((photo, index) => ({
-        id: photo.id,
-        sort_order: index,
-      }));
-
-      for (const photo of remainingExistingPhotos) {
-        const { error: reorderError } = await supabase
-          .from("listing_photos")
-          .update({ sort_order: photo.sort_order })
-          .eq("id", photo.id);
-
-        if (reorderError) {
-          throw reorderError;
-        }
-      }
-
-      const uploadedRows = await uploadNewPhotos(listingId);
-
-      if (uploadedRows.length > 0) {
-        const { error: insertPhotosError } = await supabase
-          .from("listing_photos")
-          .insert(uploadedRows);
-
-        if (insertPhotosError) {
-          throw insertPhotosError;
-        }
-      }
-
-      router.push(`/marketplace/listing/${listingId}`);
-      router.refresh();
-    } catch (error: any) {
-      console.error("Error actualizando anuncio:", error);
-      setSubmitError(
-        error?.message ||
-        error?.details ||
-        error?.error_description ||
-        "No se pudo actualizar el anuncio."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (pageLoading) {
-    return (
-      <div className="bg-background">
-        <div className="mx-auto max-w-2xl px-4 py-6 lg:px-8">
-          <Card>
-            <CardContent className="flex items-center justify-center py-16">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Cargando anuncio...
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
-  }
+  }, [filteredListings]);
 
-  if (notFound) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-background">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-foreground">
-            Anuncio no encontrado
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            Este anuncio no existe o ha sido eliminado.
-          </p>
-          <Link href="/account/listings">
-            <Button className="mt-4">Volver a mis anuncios</Button>
-          </Link>
-        </div>
-      </div>
+  const userTypeRanking = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    members.forEach((member) => {
+      const key = prettyUserType(member.user_type);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return buildPercentageRanking(
+      Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
-  }
+  }, [members]);
 
   return (
-    <div className="bg-background">
-      <div className="mx-auto max-w-2xl px-4 py-6 lg:px-8">
-        <Link
-          href={`/marketplace/listing/${listingId}`}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver al anuncio
-        </Link>
+    <>
+      <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>{school?.city || "Ciudad no indicada"}</span>
+        {school?.region ? <span>- {school.region}</span> : null}
+        {school?.school_type ? (
+          <Badge variant="outline">{getSchoolTypeLabel(school.school_type)}</Badge>
+        ) : null}
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Rango temporal:</span>
+        {[
+          { key: "30d", label: "30 dias" },
+          { key: "90d", label: "90 dias" },
+          { key: "180d", label: "180 dias" },
+          { key: "total", label: "Total" },
+        ].map((item) => (
+          <Button
+            key={item.key}
+            type="button"
+            size="sm"
+            variant={selectedRange === item.key ? "default" : "outline"}
+            onClick={() => setSelectedRange(item.key as RangeKey)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-5">
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{filteredListings.length}</p>
+              <p className="text-xs text-muted-foreground">Anuncios</p>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-2xl text-foreground">
-              Editar anuncio
-            </CardTitle>
-            <CardDescription>
-              Actualiza la información de tu anuncio.
-            </CardDescription>
-          </CardHeader>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-2/10">
+              <Heart className="h-5 w-5 text-chart-2" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{donationListings.length}</p>
+              <p className="text-xs text-muted-foreground">Donaciones</p>
+            </div>
+          </CardContent>
+        </Card>
 
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif"
-                multiple
-                className="hidden"
-                onChange={handleFilesSelected}
-              />
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
+              <Users className="h-5 w-5 text-accent-foreground" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{members.length}</p>
+              <p className="text-xs text-muted-foreground">Miembros</p>
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="title">Título *</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Libro Matemáticas 3º ESO"
-                />
-              </div>
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
+              <Shield className="h-5 w-5 text-chart-4" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{schoolAdmins.length}</p>
+              <p className="text-xs text-muted-foreground">Admins</p>
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="description">Descripción *</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  placeholder="Describe el estado, editorial, edición..."
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label>Categoría *</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <Label>Curso / Etapa *</Label>
-                  <Select
-                    value={selectedGradeLevel}
-                    onValueChange={setSelectedGradeLevel}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {normalizedGradeLevels.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label>Estado del material *</Label>
-                <Select
-                  value={selectedCondition}
-                  onValueChange={setSelectedCondition}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {conditions.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        <div className="flex flex-col py-0.5">
-                          <span className="font-medium">{c.label}</span>
-                          <span className="text-xs leading-snug text-muted-foreground">
-                            {c.description}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {isTextbook ? (
-                <Card className="border-border bg-muted/30">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base text-foreground">
-                      <BookOpen className="h-4 w-4 text-primary" />
-                      Detalles del libro
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Campos opcionales visuales para libros de texto
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <Label htmlFor="isbn">ISBN</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 rounded-full"
-                              type="button"
-                            >
-                              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="sr-only">Qué es el ISBN</span>
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-72 text-sm" side="top">
-                            <p className="font-semibold text-foreground">
-                              ¿Qué es el ISBN?
-                            </p>
-                            <p className="mt-1 leading-relaxed text-muted-foreground">
-                              ISBN son las siglas de International Standard Book Number
-                              y consiste en un código que sirve para identificar de
-                              manera única cada producto editorial.
-                            </p>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Input
-                        id="isbn"
-                        value={isbn}
-                        onChange={(e) => setIsbn(e.target.value)}
-                        placeholder="978-84-XXXXXXXXX"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="author">Autor</Label>
-                      <Input
-                        id="author"
-                        value={author}
-                        onChange={(e) => setAuthor(e.target.value)}
-                        placeholder="Nombre del autor"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="publisher">Editorial</Label>
-                      <Input
-                        id="publisher"
-                        value={publisher}
-                        onChange={(e) => setPublisher(e.target.value)}
-                        placeholder="Ej: SM, Anaya, Santillana..."
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="flex flex-col gap-2">
-                        <Label>Formato</Label>
-                        <Select value={bookFormat} onValueChange={setBookFormat}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {bookFormats.map((f) => (
-                              <SelectItem key={f} value={f}>
-                                {f}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label>Idioma</Label>
-                        <Select value={bookLanguage} onValueChange={setBookLanguage}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {bookLanguages.map((lang) => (
-                              <SelectItem key={lang} value={lang}>
-                                {lang}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : null}
-
-              <div className="flex items-center gap-4 rounded-lg border border-border p-4">
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">
-                    {isDonation ? "Donación" : "Venta"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {isDonation
-                      ? "El admin de tu centro gestionará las solicitudes"
-                      : "Establece un precio para tu material"}
-                  </p>
-                </div>
-                <Switch checked={isDonation} onCheckedChange={setIsDonation} />
-              </div>
-
-              {!isDonation ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="price">Precio *</Label>
-                    <div className="relative">
-                      <Input
-                        id="price"
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        className="pr-8"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        &euro;
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="originalPrice">
-                      Precio original (opcional)
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="originalPrice"
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={originalPrice}
-                        onChange={(e) => setOriginalPrice(e.target.value)}
-                        className="pr-8"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        &euro;
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="flex flex-col gap-2">
-                <Label>Fotos (máx. 5)</Label>
-
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-                  {existingPhotos.map((photo) => {
-                    const isRemoved = removedPhotoIds.includes(photo.id);
-
-                    return (
-                      <div
-                        key={photo.id}
-                        className={`relative aspect-square overflow-hidden rounded-lg border ${isRemoved ? "opacity-40" : ""
-                          }`}
-                      >
-                        <img
-                          src={photo.url}
-                          alt="Foto del anuncio"
-                          className="h-full w-full object-cover"
-                        />
-
-                        {isRemoved ? (
-                          <button
-                            type="button"
-                            onClick={() => handleRestoreExistingPhoto(photo.id)}
-                            className="absolute inset-x-2 bottom-2 rounded-md bg-background/90 px-2 py-1 text-xs font-medium"
-                          >
-                            Restaurar
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExistingPhoto(photo.id)}
-                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {newPhotos.map((photo, index) => (
-                    <div
-                      key={`${photo.file.name}-${index}`}
-                      className="relative aspect-square overflow-hidden rounded-lg border"
-                    >
-                      <img
-                        src={photo.previewUrl}
-                        alt={photo.file.name}
-                        className="h-full w-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveNewPhoto(index)}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {totalVisiblePhotos < MAX_FILES ? (
-                    <button
-                      type="button"
-                      onClick={handlePickPhoto}
-                      className="flex aspect-square items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:border-primary hover:bg-primary/5"
-                    >
-                      <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                    </button>
-                  ) : null}
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Las fotos nuevas se guardarán en <code>listing-photos</code> y
-                  se enlazarán en <code>listing_photos</code>.
-                </p>
-
-                {photoError ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{photoError}</span>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-lg border border-border bg-muted/50 p-3">
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <School className="h-4 w-4" />
-                  Ubicación:{" "}
-                  <span className="font-medium text-foreground">{schoolLabel}</span>
-                </p>
-              </div>
-
-              {submitError ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {submitError}
-                </div>
-              ) : null}
-
-              <div className="flex gap-3">
-                <Button type="submit" className="flex-1" disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  Guardar cambios
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.back()}
-                  disabled={saving}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </form>
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-5/10">
+              <Flag className="h-5 w-5 text-chart-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{filteredReports.length}</p>
+              <p className="text-xs text-muted-foreground">Reports</p>
+            </div>
           </CardContent>
         </Card>
       </div>
-    </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-5">
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Eye className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">
+                {Math.round(totalVisibleVolume)} EUR
+              </p>
+              <p className="text-xs text-muted-foreground">Volumen visible</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-1/10">
+              <TrendingUp className="h-5 w-5 text-chart-1" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{Math.round(totalSales)} EUR</p>
+              <p className="text-xs text-muted-foreground">Ventas totales</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{totalTransactions}</p>
+              <p className="text-xs text-muted-foreground">Transacciones</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/20">
+              <BarChart3 className="h-5 w-5 text-secondary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">
+                {Math.round(averageTicket)} EUR
+              </p>
+              <p className="text-xs text-muted-foreground">Ticket medio</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-2/10">
+              <Percent className="h-5 w-5 text-chart-2" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">
+                {conversionRate != null ? `${conversionRate.toFixed(1)}%` : "N/D"}
+              </p>
+              <p className="text-xs text-muted-foreground">Conversion</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="overview" className="mt-6">
+        <TabsList className="flex flex-wrap">
+          <TabsTrigger value="overview">Dashboard</TabsTrigger>
+          <TabsTrigger value="listings">Anuncios</TabsTrigger>
+          <TabsTrigger value="members">Miembros</TabsTrigger>
+          <TabsTrigger value="admins">Admins</TabsTrigger>
+          <TabsTrigger value="access">Accesos</TabsTrigger>
+          <TabsTrigger value="flagged">Reportados</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <div className="grid gap-4 xl:grid-cols-3">
+            <Card className="border-border xl:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Actividad del centro
+                </CardTitle>
+                <CardDescription>
+                  Evolucion de anuncios publicados y reports recibidos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={growthChartConfig} className="h-[280px] w-full">
+                  <LineChart data={monthlyActivityData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Line type="monotone" dataKey="listings" stroke={CORPORATE_BLUE} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="reports" stroke={CORPORATE_RED} strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle>Resumen ejecutivo</CardTitle>
+                <CardDescription>Lectura rapida del estado del centro.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Anuncios disponibles
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {filteredListings.filter((listing) => listing.status === "available").length}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Stock visible en marketplace.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Miembros familia / AMPA
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {members.filter((member) => member.user_type === "parent").length}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Base adulta vinculada al centro.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Codigo activo principal
+                  </p>
+                  <p className="mt-2 font-mono text-xl font-bold text-foreground">
+                    {accessCodes[0]?.code || "Sin codigo"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Acceso actual para nuevos miembros.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <RankingChart
+              title="Ranking por categoria"
+              description="Peso porcentual de cada categoria de producto."
+              data={categoryRanking}
+            />
+
+            <RankingChart
+              title="Ranking por curso/etapa de anuncios"
+              description="Peso porcentual de cada curso o etapa en los anuncios."
+              data={listingGradeLevelRanking}
+            />
+
+            <RankingChart
+              title="Ranking por curso/etapa de usuarios"
+              description="Peso porcentual de cada curso o etapa en los usuarios."
+              data={userGradeLevelRanking}
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-base">Tipos de anuncio</CardTitle>
+                <CardDescription>
+                  Distribucion entre venta y donacion.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {listingTypeData.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    No hay datos de tipos de anuncio.
+                  </p>
+                ) : (
+                  <ChartContainer config={listingTypeChartConfig} className="mx-auto h-[240px]">
+                    <PieChart>
+                      <ChartTooltip content={<ChartTooltipContent nameKey="type" hideLabel />} />
+                      <Pie
+                        data={listingTypeData}
+                        dataKey="total"
+                        nameKey="type"
+                        innerRadius={60}
+                        outerRadius={90}
+                      >
+                        {listingTypeData.map((entry) => (
+                          <Cell key={entry.type} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <ChartLegend content={<ChartLegendContent nameKey="type" />} />
+                    </PieChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <RankingChart
+              title="Ranking por estado de producto"
+              description="Peso porcentual segun el estado de uso registrado."
+              data={conditionRanking}
+            />
+
+            <RankingChart
+              title="Ranking por tipo de usuario"
+              description="Peso porcentual entre estudiantes y familias / tutores."
+              data={userTypeRanking}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="listings" className="mt-4 flex flex-col gap-3">
+          {listings.length === 0 ? (
+            <Card className="border-border">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Aun no hay anuncios en este centro.
+              </CardContent>
+            </Card>
+          ) : (
+            listings.map((listing) => (
+              <Card key={listing.id} className="border-border">
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {listing.title || "Anuncio"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {listing.category || "Sin categoria"} - {listing.status || "Sin estado"}
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    {listing.type === "donation" ? (
+                      <Badge variant="secondary" className="text-xs">
+                        Donacion
+                      </Badge>
+                    ) : (
+                      <span className="text-sm font-bold text-foreground">
+                        {typeof listing.price === "number" ? `${listing.price} EUR` : "Consultar"}
+                      </span>
+                    )}
+
+                    <Link href={`/marketplace/listing/${listing.id}`}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Eye className="h-4 w-4" />
+                        <span className="sr-only">Ver</span>
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="members" className="mt-4 flex flex-col gap-3">
+          {members.length === 0 ? (
+            <Card className="border-border">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Aun no hay miembros vinculados a este centro.
+              </CardContent>
+            </Card>
+          ) : (
+            members.map((member) => (
+              <Card key={member.id} className="border-border">
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-primary/10 text-sm text-primary">
+                        {getInitials(member.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {member.full_name?.trim() || "Usuario"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {getUserTypeLabel(member.user_type)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge variant="outline" className="capitalize text-xs">
+                    {member.user_type || "sin definir"}
+                  </Badge>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="admins" className="mt-4 flex flex-col gap-3">
+          {schoolAdmins.length === 0 ? (
+            <Card className="border-border">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Aun no hay administradores asignados para este centro.
+              </CardContent>
+            </Card>
+          ) : (
+            schoolAdmins.map((admin) => (
+              <Card key={admin.id} className="border-border">
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-primary/10 text-sm text-primary">
+                        {getInitials(admin.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {admin.full_name?.trim() || "Administrador"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Rol administrativo real del centro
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge>school_admin</Badge>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="access" className="mt-4 flex flex-col gap-3">
+          {accessCodes.length === 0 ? (
+            <Card className="border-border">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Este centro todavia no tiene codigos activos.
+              </CardContent>
+            </Card>
+          ) : (
+            accessCodes.map((accessCode) => (
+              <Card key={`${accessCode.code}-${accessCode.created_at}`} className="border-border">
+                <CardContent className="flex items-center justify-between gap-4 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <KeyRound className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-mono text-sm font-semibold tracking-widest text-foreground">
+                        {accessCode.code}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Creado el {formatDate(accessCode.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge variant={accessCode.is_active ? "secondary" : "outline"}>
+                    {accessCode.is_active ? "Activo" : "Inactivo"}
+                  </Badge>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="flagged" className="mt-4">
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle>Contenido reportado</CardTitle>
+              <CardDescription>
+                Incidencias asociadas a anuncios del centro.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-3">
+              {reports.length === 0 ? (
+                <div className="py-10 text-center">
+                  <Flag className="mx-auto h-10 w-10 text-muted-foreground/40" />
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    No hay contenido reportado en este momento
+                  </p>
+                </div>
+              ) : (
+                reports.map((report) => (
+                  <div key={report.id} className="rounded-xl border border-border p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{report.status}</Badge>
+                      <Badge variant="secondary">Anuncio</Badge>
+                      <span className="text-sm font-medium text-foreground">
+                        {report.reason}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {formatDate(report.created_at)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }

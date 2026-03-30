@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
-import { getConditionLabel } from "@/lib/marketplace/formatters";
+import { getConditionLabel, getDiscountPercentage } from "@/lib/marketplace/formatters";
 
 type ListingCardData = {
   id: string;
@@ -41,11 +41,12 @@ export function ListingCard({
     listing.schoolId === currentSchoolId;
 
   const isDonation = listing.type === "donation";
+  const discountPercentage = getDiscountPercentage(listing.price, listing.originalPrice);
   const hasDistance = !isSameSchool && listing.distance != null;
   const mainPhoto = listing.photos?.[0] || null;
 
-  const categoryText = listing.category || "Sin categoría";
-  const titleText = listing.title || "Anuncio sin título";
+  const categoryText = listing.category || "Sin categor√≠a";
+  const titleText = listing.title || "Anuncio sin t√≠tulo";
   const gradeText = listing.gradeLevel || "Sin curso";
   const conditionText = getConditionLabel(listing.condition);
 
@@ -69,7 +70,7 @@ export function ListingCard({
 
           {isDonation ? (
             <Badge className="absolute left-2.5 top-2.5 rounded-md border-0 bg-[#7EBA28] px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">
-              Donación
+              Donaci√≥n
             </Badge>
           ) : null}
 
@@ -112,7 +113,7 @@ export function ListingCard({
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground">{gradeText}</span>
 
-          <span className="text-[10px] text-muted-foreground/40">•</span>
+          <span className="text-[10px] text-muted-foreground/40">‚Ä¢</span>
 
           <Badge
             variant="outline"
@@ -121,9 +122,9 @@ export function ListingCard({
             {conditionText}
           </Badge>
 
-          {listing.type === "sale" && listing.originalPrice && listing.price ? (
+          {listing.type === "sale" && discountPercentage != null ? (
             <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
-              -{Math.round((1 - listing.price / listing.originalPrice) * 100)}%
+              -{discountPercentage}%
             </Badge>
           ) : null}
         </div>
@@ -131,7 +132,7 @@ export function ListingCard({
         <div className="mt-2.5 flex items-center justify-end">
           {!isDonation && listing.price != null ? (
             <span className="text-[15px] font-bold text-foreground">
-              {listing.price}€
+              {listing.price}‚Ç¨
             </span>
           ) : null}
         </div>

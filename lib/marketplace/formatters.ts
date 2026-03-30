@@ -26,8 +26,23 @@ export function getUserTypeLabel(userType?: string | null) {
   }
 }
 
-export function getListingTypeLabel(listingType?: string | null) {
-  return listingType === "donation" ? "Donación" : "Venta";
+
+
+export function getDiscountPercentage(
+  price?: number | null,
+  originalPrice?: number | null
+) {
+  if (typeof price !== "number" || typeof originalPrice !== "number") {
+    return null;
+  }
+
+  if (originalPrice <= 0 || price < 0 || price >= originalPrice) {
+    return null;
+  }
+
+  const percentage = Math.round(((originalPrice - price) / originalPrice) * 100);
+
+  return percentage > 0 ? percentage : null;
 }
 
 export function getConditionLabel(value?: string | null) {

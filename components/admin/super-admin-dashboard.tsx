@@ -3,12 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
-import {
-  buildMonthlyAdminSeries,
-  buildPercentageRanking as buildSharedPercentageRanking,
-  filterRowsByRange,
-} from "@/lib/admin/dashboard-analytics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,7 +130,6 @@ type ProfileSummaryRow = {
 type ListingStatsRow = {
   id: string;
   type: string | null;
-  listing_type?: string | null;
   price: number | null;
   status: string | null;
   condition: string | null;
@@ -185,7 +178,7 @@ const rankingChartConfig = {
 
 const listingTypeChartConfig = {
   sale: { label: "Venta", color: CORPORATE_BLUE },
-  donation: { label: "Donaci√≥n", color: CORPORATE_GREEN },
+  donation: { label: "Donacion", color: CORPORATE_GREEN },
 } satisfies ChartConfig;
 
 function formatDate(date: string | null) {
@@ -208,7 +201,7 @@ function getReasonLabel(reason: string) {
     case "fraude":
       return "Fraude o estafa";
     case "descripcion_enganosa":
-      return "Descripci√≥n enga√±osa";
+      return "Descripcion enganosa";
     case "contenido_inapropiado":
       return "Contenido inapropiado";
     case "acoso":
@@ -249,6 +242,20 @@ function normalizeSchoolRequestStatus(
   return "pending";
 }
 
+function monthKey(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    month: "short",
+    year: "2-digit",
+  }).format(parsed);
+}
+
 function prettyGradeLevel(value?: string | null) {
   if (!value || !value.trim()) return "Sin etapa";
 
@@ -270,7 +277,7 @@ function prettyGradeLevel(value?: string | null) {
 }
 
 function prettyCategory(value?: string | null) {
-  return value?.trim() || "Sin categor√≠a";
+  return value?.trim() || "Sin categoria";
 }
 
 function prettyCondition(value?: string | null) {
@@ -299,6 +306,87 @@ function prettyUserType(value?: string | null) {
     default:
       return "Otros";
   }
+}
+
+function buildMonthlySeries({
+  listings,
+  supportTickets,
+  reports,
+  requests,
+}: {
+  listings: ListingStatsRow[];
+  supportTickets: SupportTicketRow[];
+  reports: ReportListItem[];
+  requests: SchoolRequestRow[];
+}) {
+  const buckets = new Map<
+    string,
+    {
+      month: string;
+      listings: number;
+      support: number;
+      reports: number;
+      requests: number;
+    }
+  >();
+
+  const add = (
+    date: string,
+    key: "listings" | "support" | "reports" | "requests"
+  ) => {
+    const bucketKey = monthKey(date);
+    const current = buckets.get(bucketKey) || {
+      month: bucketKey,
+      listings: 0,
+      support: 0,
+      reports: 0,
+      requests: 0,
+    };
+
+    current[key] += 1;
+    buckets.set(bucketKey, current);
+  };
+
+  listings.forEach((item) => add(item.created_at, "listings"));
+  supportTickets.forEach((item) => add(item.created_at, "support"));
+  reports.forEach((item) => add(item.created_at, "reports"));
+  requests.forEach((item) => add(item.created_at, "requests"));
+
+  return Array.from(buckets.values()).slice(-6);
+}
+
+function buildPercentageRanking(
+  items: Array<{ label: string; total: number }>,
+  emptyLabel = "Sin datos"
+) {
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+
+  if (total <= 0) {
+    return [{ label: emptyLabel, total: 0, percentage: 0 }];
+  }
+
+  return items
+    .filter((item) => item.total > 0)
+    .map((item) => ({
+      ...item,
+      percentage: Number(((item.total / total) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
+function isWithinRange(date: string, range: RangeKey) {
+  if (range === "total") return true;
+
+  const now = new Date();
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
+  const start = new Date(now);
+  start.setDate(now.getDate() - days);
+
+  return parsed >= start;
 }
 
 function RankingChart({
@@ -406,33 +494,28 @@ export default function SuperAdminDashboard({
     Record<string, ApprovedRequestMeta>
   >(initialApprovedRequestMeta);
 
-  const normalizedListings = useMemo(
-    () => initialListings.map((item) => ({ ...item, type: getNormalizedListingType(item) })),
-    [initialListings]
-  );
-
   const filteredListings = useMemo(
-    () => filterRowsByRange(normalizedListings, (item) => item.created_at, selectedRange),
-    [normalizedListings, selectedRange]
+    () => initialListings.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [initialListings, selectedRange]
   );
 
   const filteredSupportTickets = useMemo(
-    () => filterRowsByRange(supportTickets, (item) => item.created_at, selectedRange),
+    () => supportTickets.filter((item) => isWithinRange(item.created_at, selectedRange)),
     [selectedRange, supportTickets]
   );
 
   const filteredReports = useMemo(
-    () => filterRowsByRange(reports, (item) => item.created_at, selectedRange),
+    () => reports.filter((item) => isWithinRange(item.created_at, selectedRange)),
     [reports, selectedRange]
   );
 
   const filteredSchoolRequests = useMemo(
-    () => filterRowsByRange(schoolRequests, (item) => item.created_at, selectedRange),
+    () => schoolRequests.filter((item) => isWithinRange(item.created_at, selectedRange)),
     [schoolRequests, selectedRange]
   );
 
   const filteredListingViews = useMemo(
-    () => filterRowsByRange(initialListingViews, (item) => item.viewed_at, selectedRange),
+    () => initialListingViews.filter((item) => isWithinRange(item.viewed_at, selectedRange)),
     [initialListingViews, selectedRange]
   );
 
@@ -481,7 +564,7 @@ export default function SuperAdminDashboard({
 
   const growthData = useMemo(
     () =>
-      buildMonthlyAdminSeries({
+      buildMonthlySeries({
         listings: filteredListings,
         supportTickets: filteredSupportTickets,
         reports: filteredReports,
@@ -550,7 +633,7 @@ export default function SuperAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
   }, [filteredListings]);
@@ -563,7 +646,7 @@ export default function SuperAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
   }, [filteredListings]);
@@ -576,7 +659,7 @@ export default function SuperAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
   }, [initialProfiles]);
@@ -589,7 +672,7 @@ export default function SuperAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
   }, [filteredListings]);
@@ -602,7 +685,7 @@ export default function SuperAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
   }, [initialProfiles]);
@@ -759,9 +842,9 @@ export default function SuperAdminDashboard({
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Rango temporal:</span>
         {[
-          { key: "30d", label: "30 d√≠as" },
-          { key: "90d", label: "90 d√≠as" },
-          { key: "180d", label: "180 d√≠as" },
+          { key: "30d", label: "30 dias" },
+          { key: "90d", label: "90 dias" },
+          { key: "180d", label: "180 dias" },
           { key: "total", label: "Total" },
         ].map((item) => (
           <Button
@@ -859,7 +942,7 @@ export default function SuperAdminDashboard({
                     0
                   )
                 )}
-                ‚Ç¨
+                EUR
               </p>
               <p className="text-xs text-muted-foreground">Volumen visible</p>
             </div>
@@ -873,7 +956,7 @@ export default function SuperAdminDashboard({
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {Math.round(totalSales)}‚Ç¨
+                {Math.round(totalSales)} EUR
               </p>
               <p className="text-xs text-muted-foreground">Ventas totales</p>
             </div>
@@ -887,7 +970,7 @@ export default function SuperAdminDashboard({
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{totalTransactions}</p>
-              <p className="text-xs text-muted-foreground">N√∫mero de transacciones</p>
+              <p className="text-xs text-muted-foreground">Numero de transacciones</p>
             </div>
           </CardContent>
         </Card>
@@ -899,7 +982,7 @@ export default function SuperAdminDashboard({
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {Math.round(averageTicket)}‚Ç¨
+                {Math.round(averageTicket)} EUR
               </p>
               <p className="text-xs text-muted-foreground">Ticket medio</p>
             </div>
@@ -915,7 +998,7 @@ export default function SuperAdminDashboard({
               <p className="text-2xl font-bold text-foreground">
                 {conversionRate != null ? `${conversionRate.toFixed(1)}%` : "N/D"}
               </p>
-              <p className="text-xs text-muted-foreground">Tasa de conversi√≥n</p>
+              <p className="text-xs text-muted-foreground">Tasa de conversion</p>
             </div>
           </CardContent>
         </Card>
@@ -931,7 +1014,7 @@ export default function SuperAdminDashboard({
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="overview">Dashboard</TabsTrigger>
           <TabsTrigger value="support">Soporte</TabsTrigger>
-          <TabsTrigger value="reports">Moderaci√≥n</TabsTrigger>
+          <TabsTrigger value="reports">Moderacion</TabsTrigger>
           <TabsTrigger value="schools">Altas de centros</TabsTrigger>
         </TabsList>
 
@@ -944,7 +1027,7 @@ export default function SuperAdminDashboard({
                   Actividad operativa reciente
                 </CardTitle>
                 <CardDescription>
-                  Evoluci√≥n de anuncios, tickets, reports y solicitudes. ‚ÄúNuevos usuarios‚Äù
+                  Evolucion de anuncios, tickets, reports y solicitudes. "Nuevos usuarios"
                   queda pendiente de una fuente temporal real en perfiles.
                 </CardDescription>
               </CardHeader>
@@ -968,12 +1051,12 @@ export default function SuperAdminDashboard({
             <Card className="border-border">
               <CardHeader>
                 <CardTitle>KPIs ejecutivos</CardTitle>
-                <CardDescription>Resumen r√°pido para priorizar trabajo.</CardDescription>
+                <CardDescription>Resumen rapido para priorizar trabajo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Tasa de aprobaci√≥n
+                    Tasa de aprobacion
                   </p>
                   <p className="mt-2 text-3xl font-bold text-foreground">{approvalRate}%</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -1010,7 +1093,7 @@ export default function SuperAdminDashboard({
                     }
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Contenido en revisi√≥n.
+                    Contenido en revision.
                   </p>
                 </div>
               </CardContent>
@@ -1019,8 +1102,8 @@ export default function SuperAdminDashboard({
 
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <RankingChart
-              title="Ranking por categor√≠a"
-              description="Peso porcentual de cada categor√≠a de producto en los anuncios."
+              title="Ranking por categoria"
+              description="Peso porcentual de cada categoria de producto en los anuncios."
               data={categoryRanking}
             />
 
@@ -1042,7 +1125,7 @@ export default function SuperAdminDashboard({
               <CardHeader>
                 <CardTitle className="text-base">Tipos de anuncio</CardTitle>
                 <CardDescription>
-                  Distribuci√≥n entre venta y donaci√≥n.
+                  Distribucion entre venta y donacion.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1076,7 +1159,7 @@ export default function SuperAdminDashboard({
 
             <RankingChart
               title="Ranking por estado de producto"
-              description="Peso porcentual seg√∫n el estado de uso registrado en el anuncio."
+              description="Peso porcentual segun el estado de uso registrado en el anuncio."
               data={conditionRanking}
             />
 
@@ -1090,13 +1173,13 @@ export default function SuperAdminDashboard({
           <div className="grid gap-4 xl:grid-cols-2">
             <Card className="border-border">
               <CardHeader>
-                <CardTitle>Centros con m√°s comunidad</CardTitle>
-                <CardDescription>Top centros por miembros y cat√°logo.</CardDescription>
+                <CardTitle>Centros con mas comunidad</CardTitle>
+                <CardDescription>Top centros por miembros y catalogo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {schoolSummaries.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    A√∫n no hay centros para analizar.
+                    Aun no hay centros para analizar.
                   </p>
                 ) : (
                   schoolSummaries.map((school) => (
@@ -1106,7 +1189,7 @@ export default function SuperAdminDashboard({
                           <p className="truncate font-semibold text-foreground">{school.name}</p>
                           <p className="text-sm text-muted-foreground">
                             {school.city || "Ciudad"}
-                            {school.region ? ` ¬∑ ${school.region}` : ""}
+                            {school.region ? ` - ${school.region}` : ""}
                           </p>
                         </div>
                         <Badge variant="outline">
@@ -1130,7 +1213,7 @@ export default function SuperAdminDashboard({
                         <div className="rounded-lg bg-muted/40 p-3">
                           <p className="text-xs text-muted-foreground">Ventas</p>
                           <p className="mt-1 font-semibold text-foreground">
-                            {Math.round(school.salesVolume)}‚Ç¨
+                            {Math.round(school.salesVolume)} EUR
                           </p>
                         </div>
                       </div>
@@ -1142,8 +1225,8 @@ export default function SuperAdminDashboard({
 
             <Card className="border-border">
               <CardHeader>
-                <CardTitle>Prioridades del d√≠a</CardTitle>
-                <CardDescription>Resumen accionable para soporte y moderaci√≥n.</CardDescription>
+                <CardTitle>Prioridades del dia</CardTitle>
+                <CardDescription>Resumen accionable para soporte y moderacion.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="rounded-xl border border-border p-4">
@@ -1169,7 +1252,7 @@ export default function SuperAdminDashboard({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">Reports activos</p>
-                      <p className="text-xs text-muted-foreground">Abiertos o revis√°ndose</p>
+                      <p className="text-xs text-muted-foreground">Abiertos o revisandose</p>
                     </div>
                     <Badge variant="destructive">
                       {
@@ -1208,7 +1291,7 @@ export default function SuperAdminDashboard({
                         Visitas registradas del rango
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Base usada para la conversi√≥n
+                        Base usada para la conversion
                       </p>
                     </div>
                     <Badge variant="outline">{filteredListingViews.length}</Badge>
@@ -1234,7 +1317,7 @@ export default function SuperAdminDashboard({
             <CardContent className="space-y-4">
               {supportTickets.length === 0 ? (
                 <div className="py-16 text-center text-sm text-muted-foreground">
-                  Todav√≠a no hay tickets registrados.
+                  Todavia no hay tickets registrados.
                 </div>
               ) : (
                 supportTickets.map((ticket) => (
@@ -1335,7 +1418,7 @@ export default function SuperAdminDashboard({
                               </div>
                             ) : (
                               <p className="mt-1 text-sm text-muted-foreground">
-                                Conversaci√≥n: {report.conversation_id}
+                                Conversacion: {report.conversation_id}
                               </p>
                             )}
 
@@ -1387,7 +1470,7 @@ export default function SuperAdminDashboard({
             <CardContent className="space-y-4">
               {schoolRequests.length === 0 ? (
                 <div className="py-16 text-center text-sm text-muted-foreground">
-                  Todav√≠a no hay solicitudes de alta.
+                  Todavia no hay solicitudes de alta.
                 </div>
               ) : (
                 schoolRequests.map((request) => {
@@ -1413,7 +1496,7 @@ export default function SuperAdminDashboard({
                               </div>
 
                               <p className="mt-1 text-sm text-muted-foreground">
-                                {request.city} ¬∑ {request.region} ¬∑ {request.postal_code}
+                                {request.city} - {request.region} - {request.postal_code}
                               </p>
 
                               <p className="text-sm text-muted-foreground">
@@ -1422,14 +1505,14 @@ export default function SuperAdminDashboard({
 
                               <p className="mt-2 text-sm text-muted-foreground">
                                 Contacto: {request.contact_email || "Sin email"}
-                                {request.contact_phone ? ` ¬∑ ${request.contact_phone}` : ""}
+                                {request.contact_phone ? ` - ${request.contact_phone}` : ""}
                               </p>
 
                               {approvedMeta ? (
                                 <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                                   <p className="font-medium">Centro aprobado</p>
                                   <p className="mt-1">
-                                    C√≥digo generado:{" "}
+                                    Codigo generado:{" "}
                                     <span className="font-mono font-semibold">
                                       {approvedMeta.accessCode}
                                     </span>

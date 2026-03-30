@@ -4,7 +4,6 @@ import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
 import { Globe } from "lucide-react";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 
 const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
@@ -72,7 +71,6 @@ type SchoolSummaryRow = {
 type ListingStatsRow = {
   id: string;
   type: string | null;
-  listing_type?: string | null;
   price: number | null;
   status: string | null;
   condition: string | null;
@@ -139,7 +137,7 @@ export default async function SuperAdminPage() {
       .returns<ProfileSummaryRow[]>(),
     supabase
       .from("listings")
-      .select("id, type, listing_type, price, status, condition, school_id, category, grade_level, created_at")
+      .select("id, type, price, status, condition, school_id, category, grade_level, created_at")
       .returns<ListingStatsRow[]>(),
     supabase
       .from("support_tickets")
@@ -261,7 +259,7 @@ export default async function SuperAdminPage() {
     totalSchools: safeSchools.length,
     totalUsers: safeProfiles.length,
     totalListings: safeListings.length,
-    totalDonations: safeListings.filter((item) => getNormalizedListingType(item) === "donation").length,
+    totalDonations: safeListings.filter((item) => item.type === "donation").length,
     totalEstimatedVolume: safeListings.reduce(
       (sum, item) =>
         item.status === "available" && typeof item.price === "number" ? sum + item.price : sum,
@@ -282,7 +280,7 @@ export default async function SuperAdminPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
               <p className="text-sm text-muted-foreground">
-                Panel global con KPIs, rankings y gestión operativa.
+                Panel global con KPIs, rankings y gestion operativa.
               </p>
             </div>
           </div>

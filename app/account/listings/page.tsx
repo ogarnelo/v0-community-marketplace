@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
 import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import {
   getStatusBadgeClass,
   getStatusLabel,
@@ -61,7 +60,7 @@ export default async function MyListingsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mis anuncios</h1>
           <p className="text-muted-foreground">
-            Gestiona los artículos que has publicado en Wetudy.
+            Gestiona los art√≠culos que has publicado en Wetudy.
           </p>
         </div>
 
@@ -77,9 +76,9 @@ export default async function MyListingsPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Package className="mb-4 h-10 w-10 text-muted-foreground/40" />
-            <h3 className="text-lg font-semibold">Aún no has publicado nada</h3>
+            <h3 className="text-lg font-semibold">A√∫n no has publicado nada</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Publica tu primer artículo para empezar a reutilizar material escolar.
+              Publica tu primer art√≠culo para empezar a reutilizar material escolar.
             </p>
 
             <Link href="/marketplace/new" className="mt-6">
@@ -91,7 +90,7 @@ export default async function MyListingsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {listings.map((listing) => {
             const firstPhoto = firstPhotoMap.get(listing.id) || null;
-            const isDonation = getNormalizedListingType(listing) === "donation";
+            const isDonation = (listing.listing_type || listing.type) === "donation";
 
             return (
               <Card key={listing.id} className="overflow-hidden transition hover:shadow-lg">
@@ -117,11 +116,11 @@ export default async function MyListingsPage() {
                     <div className="min-w-0">
                       <CardTitle className="line-clamp-2 text-base">
                         <Link href={`/marketplace/listing/${listing.id}`}>
-                          {listing.title || "Anuncio sin título"}
+                          {listing.title || "Anuncio sin t√≠tulo"}
                         </Link>
                       </CardTitle>
                       <CardDescription>
-                        {listing.category || "Sin categoría"}
+                        {listing.category || "Sin categor√≠a"}
                       </CardDescription>
                     </div>
 
@@ -135,20 +134,28 @@ export default async function MyListingsPage() {
                 </CardHeader>
 
                 <CardContent>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     {isDonation ? (
-                      <Badge>Donación</Badge>
+                      <Badge>Donaci√≥n</Badge>
                     ) : listing.price != null ? (
-                      <span className="font-semibold">{listing.price}€</span>
+                      <span className="font-semibold">{listing.price}‚Ç¨</span>
                     ) : (
                       <span className="font-semibold">Consultar</span>
                     )}
 
-                    <Link href={`/marketplace/listing/${listing.id}`}>
-                      <Button variant="ghost" size="sm">
-                        Ver anuncio
-                      </Button>
-                    </Link>
+                    <div className="flex gap-2">
+                      <Link href={`/marketplace/edit/${listing.id}`}>
+                        <Button variant="outline" size="sm">
+                          Editar anuncio
+                        </Button>
+                      </Link>
+
+                      <Link href={`/marketplace/listing/${listing.id}`}>
+                        <Button variant="ghost" size="sm">
+                          Ver anuncio
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
 
                   <ListingStatusActions
