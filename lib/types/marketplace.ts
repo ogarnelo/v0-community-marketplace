@@ -9,8 +9,8 @@ export type ListingRow = {
   category: string | null;
   grade_level: string | null;
   condition: string | null;
-  type: ListingType | string | null;
-  listing_type?: ListingType | string | null;
+  type: string | null;
+  listing_type?: string | null;
   price: number | null;
   original_price?: number | null;
   estimated_retail_price?: number | null;
@@ -59,7 +59,7 @@ export type MarketplaceListing = {
   category: string | null;
   gradeLevel: string | null;
   condition: string | null;
-  type: ListingType | string | null;
+  type: string | null;
   price?: number;
   originalPrice?: number;
   photos: string[];

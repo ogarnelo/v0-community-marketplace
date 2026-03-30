@@ -2,12 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
-import {
-  buildMonthlyListingReportSeries,
-  buildPercentageRanking as buildSharedPercentageRanking,
-  filterRowsByRange,
-} from "@/lib/admin/dashboard-analytics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +63,6 @@ type ListingRow = {
   grade_level: string | null;
   price: number | null;
   type: string | null;
-  listing_type?: string | null;
   status: string | null;
   condition: string | null;
   seller_id: string | null;
@@ -225,6 +218,20 @@ function prettyUserType(value?: string | null) {
   }
 }
 
+function monthKey(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    month: "short",
+    year: "2-digit",
+  }).format(parsed);
+}
+
 function formatDate(date: string) {
   return new Date(date).toLocaleString("es-ES", {
     timeZone: "Europe/Madrid",
@@ -234,6 +241,40 @@ function formatDate(date: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function isWithinRange(date: string, range: RangeKey) {
+  if (range === "total") return true;
+
+  const now = new Date();
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
+  const start = new Date(now);
+  start.setDate(now.getDate() - days);
+
+  return parsed >= start;
+}
+
+function buildPercentageRanking(
+  items: Array<{ label: string; total: number }>,
+  emptyLabel = "Sin datos"
+) {
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+
+  if (total <= 0) {
+    return [{ label: emptyLabel, total: 0, percentage: 0 }];
+  }
+
+  return items
+    .filter((item) => item.total > 0)
+    .map((item) => ({
+      ...item,
+      percentage: Number(((item.total / total) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
 }
 
 function RankingChart({
@@ -291,23 +332,18 @@ export default function SchoolAdminDashboard({
 }: SchoolAdminDashboardProps) {
   const [selectedRange, setSelectedRange] = useState<RangeKey>("90d");
 
-  const normalizedListings = useMemo(
-    () => listings.map((item) => ({ ...item, type: getNormalizedListingType(item) })),
-    [listings]
-  );
-
   const filteredListings = useMemo(
-    () => filterRowsByRange(normalizedListings, (item) => item.created_at, selectedRange),
-    [normalizedListings, selectedRange]
+    () => listings.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [listings, selectedRange]
   );
 
   const filteredReports = useMemo(
-    () => filterRowsByRange(reports, (item) => item.created_at, selectedRange),
+    () => reports.filter((item) => isWithinRange(item.created_at, selectedRange)),
     [reports, selectedRange]
   );
 
   const filteredListingViews = useMemo(
-    () => filterRowsByRange(listingViews, (item) => item.viewed_at, selectedRange),
+    () => listingViews.filter((item) => isWithinRange(item.viewed_at, selectedRange)),
     [listingViews, selectedRange]
   );
 
@@ -338,14 +374,26 @@ export default function SchoolAdminDashboard({
       ? (totalTransactions / filteredListingViews.length) * 100
       : null;
 
-  const monthlyActivityData = useMemo(
-    () =>
-      buildMonthlyListingReportSeries({
-        listings: filteredListings,
-        reports: filteredReports,
-      }),
-    [filteredListings, filteredReports]
-  );
+  const monthlyActivityData = useMemo(() => {
+    const buckets = new Map<string, { month: string; listings: number; reports: number }>();
+
+    const add = (date: string, key: "listings" | "reports") => {
+      const bucketKey = monthKey(date);
+      const current = buckets.get(bucketKey) || {
+        month: bucketKey,
+        listings: 0,
+        reports: 0,
+      };
+
+      current[key] += 1;
+      buckets.set(bucketKey, current);
+    };
+
+    filteredListings.forEach((listing) => add(listing.created_at, "listings"));
+    filteredReports.forEach((report) => add(report.created_at, "reports"));
+
+    return Array.from(buckets.values()).slice(-6);
+  }, [filteredListings, filteredReports]);
 
   const listingTypeData = useMemo(() => {
     const saleTotal = filteredListings.filter((listing) => listing.type === "sale").length;
@@ -367,7 +415,7 @@ export default function SchoolAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
   }, [filteredListings]);
@@ -380,7 +428,7 @@ export default function SchoolAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
   }, [filteredListings]);
@@ -393,7 +441,7 @@ export default function SchoolAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
   }, [members]);
@@ -406,7 +454,7 @@ export default function SchoolAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
   }, [filteredListings]);
@@ -419,7 +467,7 @@ export default function SchoolAdminDashboard({
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
-    return buildSharedPercentageRanking(
+    return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
   }, [members]);

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { buildListingTypeColumns } from "@/lib/marketplace/listing-type";
 import {
   categories,
   gradeLevels,
@@ -75,6 +76,7 @@ type ListingInsertPayload = {
   grade_level: string;
   condition: string;
   type: string;
+  listing_type: string;
   price: number | null;
   original_price: number | null;
   seller_id: string;
@@ -323,13 +325,15 @@ export default function NewListingForm({
           ? currentProfile.school_id
           : initialSchoolId || null;
 
+      const listingType = isDonation ? "donation" : "sale";
+
       const payload: ListingInsertPayload = {
         title: title.trim(),
         description: description.trim(),
         category: selectedCategory,
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
-        type: isDonation ? "donation" : "sale",
+        ...buildListingTypeColumns(listingType),
         price: isDonation ? null : Number(price),
         original_price:
           isDonation || !originalPrice.trim() ? null : Number(originalPrice),

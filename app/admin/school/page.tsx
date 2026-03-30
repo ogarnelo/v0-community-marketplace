@@ -202,7 +202,7 @@ export default async function SchoolAdminPage() {
                 Panel Admin - {school?.name || "Centro"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Dashboard del centro con KPIs, rankings y conversion.
+                Dashboard del centro con KPIs, rankings y conversi√≥n.
               </p>
             </div>
           </div>

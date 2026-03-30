@@ -1,35 +1,20 @@
-import type { ListingType } from "@/lib/types/marketplace";
+import type { ListingRow, ListingType } from "@/lib/types/marketplace";
 
-type ListingTypeSource = {
-  type?: string | null;
-  listing_type?: string | null;
-};
-
-export function getNormalizedListingType(source?: ListingTypeSource | null): ListingType {
-  const raw = source?.listing_type || source?.type || null;
-  return raw === "donation" ? "donation" : "sale";
+export function normalizeListingType(
+  value?: string | null,
+  fallbackValue?: string | null
+): ListingType {
+  const candidate = value || fallbackValue;
+  return candidate === "donation" ? "donation" : "sale";
 }
 
-type ListingWriteBase = {
-  title: string;
-  description: string;
-  category: string;
-  grade_level: string;
-  condition: string;
-  price: number | null;
-  original_price: number | null;
-  seller_id?: string;
-  school_id?: string | null;
-  status?: string;
-};
+export function getListingTypeFromRow(listing?: Pick<ListingRow, "type" | "listing_type"> | null): ListingType {
+  return normalizeListingType(listing?.listing_type, listing?.type);
+}
 
-export function buildListingWritePayload(
-  data: ListingWriteBase,
-  listingType: ListingType
-) {
+export function buildListingTypeColumns(type: ListingType) {
   return {
-    ...data,
-    type: listingType,
-    listing_type: listingType,
+    type,
+    listing_type: type,
   };
 }

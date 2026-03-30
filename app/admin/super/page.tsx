@@ -280,7 +280,7 @@ export default async function SuperAdminPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
               <p className="text-sm text-muted-foreground">
-                Panel global con KPIs, rankings y gestion operativa.
+                Panel global con KPIs, rankings y gesti√≥n operativa.
               </p>
             </div>
           </div>

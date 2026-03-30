@@ -26,25 +26,6 @@ export function getUserTypeLabel(userType?: string | null) {
   }
 }
 
-
-
-export function getDiscountPercentage(
-  price?: number | null,
-  originalPrice?: number | null
-) {
-  if (typeof price !== "number" || typeof originalPrice !== "number") {
-    return null;
-  }
-
-  if (originalPrice <= 0 || price < 0 || price >= originalPrice) {
-    return null;
-  }
-
-  const percentage = Math.round(((originalPrice - price) / originalPrice) * 100);
-
-  return percentage > 0 ? percentage : null;
-}
-
 export function getConditionLabel(value?: string | null) {
   switch (value) {
     case "new_with_tags":
@@ -90,4 +71,17 @@ export function getStatusBadgeClass(status?: string | null) {
     default:
       return "";
   }
+}
+
+export function getDiscountPercentage(originalPrice?: number | null, salePrice?: number | null) {
+  if (originalPrice == null || salePrice == null) return null;
+  if (originalPrice <= 0) return null;
+  if (salePrice >= originalPrice) return null;
+
+  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+}
+
+export function getDiscountPercentageLabel(originalPrice?: number | null, salePrice?: number | null) {
+  const discount = getDiscountPercentage(originalPrice, salePrice);
+  return discount == null ? null : `-${discount}%`;
 }

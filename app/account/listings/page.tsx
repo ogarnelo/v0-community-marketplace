@@ -10,13 +10,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package } from "lucide-react";
+import { Pencil, Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
 import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
 import {
   getStatusBadgeClass,
   getStatusLabel,
 } from "@/lib/marketplace/formatters";
+import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 
 export default async function MyListingsPage() {
   const supabase = await createClient();
@@ -90,7 +91,7 @@ export default async function MyListingsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {listings.map((listing) => {
             const firstPhoto = firstPhotoMap.get(listing.id) || null;
-            const isDonation = (listing.listing_type || listing.type) === "donation";
+            const isDonation = getListingTypeFromRow(listing) === "donation";
 
             return (
               <Card key={listing.id} className="overflow-hidden transition hover:shadow-lg">
@@ -134,19 +135,22 @@ export default async function MyListingsPage() {
                 </CardHeader>
 
                 <CardContent>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    {isDonation ? (
-                      <Badge>Donaci√≥n</Badge>
-                    ) : listing.price != null ? (
-                      <span className="font-semibold">{listing.price}‚Ç¨</span>
-                    ) : (
-                      <span className="font-semibold">Consultar</span>
-                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      {isDonation ? (
+                        <Badge>Donaci√≥n</Badge>
+                      ) : listing.price != null ? (
+                        <span className="font-semibold">{listing.price}‚Ç¨</span>
+                      ) : (
+                        <span className="font-semibold">Consultar</span>
+                      )}
+                    </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                       <Link href={`/marketplace/edit/${listing.id}`}>
-                        <Button variant="outline" size="sm">
-                          Editar anuncio
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Pencil className="h-4 w-4" />
+                          Editar
                         </Button>
                       </Link>
 
