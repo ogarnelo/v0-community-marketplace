@@ -72,16 +72,14 @@ export function getStatusBadgeClass(status?: string | null) {
       return "";
   }
 }
+export function getDiscountPercent(originalPrice?: number | null, price?: number | null) {
+  if (typeof originalPrice !== "number" || typeof price !== "number") {
+    return 0;
+  }
 
-export function getDiscountPercentage(originalPrice?: number | null, salePrice?: number | null) {
-  if (originalPrice == null || salePrice == null) return null;
-  if (originalPrice <= 0) return null;
-  if (salePrice >= originalPrice) return null;
+  if (originalPrice <= 0 || price < 0 || originalPrice <= price) {
+    return 0;
+  }
 
-  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-}
-
-export function getDiscountPercentageLabel(originalPrice?: number | null, salePrice?: number | null) {
-  const discount = getDiscountPercentage(originalPrice, salePrice);
-  return discount == null ? null : `-${discount}%`;
+  return Math.round(((originalPrice - price) / originalPrice) * 100);
 }

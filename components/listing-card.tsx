@@ -5,10 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
-import {
-  getConditionLabel,
-  getDiscountPercentageLabel,
-} from "@/lib/marketplace/formatters";
+import { getConditionLabel, getDiscountPercent } from "@/lib/marketplace/formatters";
 
 type ListingCardData = {
   id: string;
@@ -51,10 +48,6 @@ export function ListingCard({
   const titleText = listing.title || "Anuncio sin t√≠tulo";
   const gradeText = listing.gradeLevel || "Sin curso";
   const conditionText = getConditionLabel(listing.condition);
-  const discountLabel = getDiscountPercentageLabel(
-    listing.originalPrice,
-    listing.price
-  );
 
   return (
     <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
@@ -128,11 +121,15 @@ export function ListingCard({
             {conditionText}
           </Badge>
 
-          {listing.type === "sale" && listing.originalPrice && listing.price ? (
-            <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
-              -{Math.round((1 - listing.price / listing.originalPrice) * 100)}%
-            </Badge>
-          ) : null}
+          {listing.type === "sale" ? (() => {
+            const discountPercent = getDiscountPercent(listing.originalPrice, listing.price);
+
+            return discountPercent > 0 ? (
+              <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
+                -{discountPercent}%
+              </Badge>
+            ) : null;
+          })() : null}
         </div>
 
         <div className="mt-2.5 flex items-center justify-end">

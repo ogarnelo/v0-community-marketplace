@@ -1027,7 +1027,7 @@ export default function SuperAdminDashboard({
                   Actividad operativa reciente
                 </CardTitle>
                 <CardDescription>
-                  Evoluci√≥n de anuncios, tickets, reports y solicitudes. "Nuevos usuarios"
+                  Evoluci√≥n de anuncios, tickets, reports y solicitudes. ‚ÄúNuevos usuarios‚Äù
                   queda pendiente de una fuente temporal real en perfiles.
                 </CardDescription>
               </CardHeader>

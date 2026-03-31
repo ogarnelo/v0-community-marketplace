@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { buildListingTypeColumns } from "@/lib/marketplace/listing-type";
 import {
   categories,
   gradeLevels,
@@ -325,15 +324,13 @@ export default function NewListingForm({
           ? currentProfile.school_id
           : initialSchoolId || null;
 
-      const listingType = isDonation ? "donation" : "sale";
-
       const payload: ListingInsertPayload = {
         title: title.trim(),
         description: description.trim(),
         category: selectedCategory,
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
-        ...buildListingTypeColumns(listingType),
+        type: isDonation ? "donation" : "sale",
         price: isDonation ? null : Number(price),
         original_price:
           isDonation || !originalPrice.trim() ? null : Number(originalPrice),
@@ -690,6 +687,12 @@ export default function NewListingForm({
                     </button>
                   ) : null}
                 </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Las im√°genes se guardar√°n en el bucket p√∫blico{" "}
+                  <code>listing-photos</code> y se enlazar√°n en la tabla{" "}
+                  <code>listing_photos</code>.
+                </p>
 
                 {photoError ? (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
