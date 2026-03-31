@@ -134,9 +134,6 @@ export function Navbar({
         });
       } catch (error) {
         console.error("Error sincronizando navbar:", error);
-      } finally {
-        if (!cancelled) {
-        }
       }
     };
 
@@ -282,39 +279,36 @@ export function Navbar({
         {effectiveIsLoggedIn ? (
           <>
             <nav className="hidden items-center gap-1 md:flex">
-              <Link href="/marketplace">
-                <Button variant="ghost" size="sm">
-                  Marketplace
-                </Button>
-              </Link>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/marketplace">Marketplace</Link>
+              </Button>
 
-              <Link href="/favorites">
-                <Button variant="ghost" size="sm" className="gap-1.5">
+              <Button asChild variant="ghost" size="sm" className="gap-1.5">
+                <Link href="/favorites">
                   <Heart className="h-4 w-4" />
                   Favoritos
-                </Button>
-              </Link>
+                </Link>
+              </Button>
 
-              <Link href={publishHref}>
-                <Button variant="ghost" size="sm" className="gap-1.5">
+              <Button asChild variant="ghost" size="sm" className="gap-1.5">
+                <Link href={publishHref}>
                   <Plus className="h-4 w-4" />
                   Publicar
-                </Button>
-              </Link>
+                </Link>
+              </Button>
 
-              <Link href="/messages">
-                <Button variant="ghost" size="sm" className="relative gap-1.5">
+              <Button asChild variant="ghost" size="sm" className="relative gap-1.5">
+                <Link href="/messages">
                   <MessageCircle className="h-4 w-4" />
                   Mensajes
-
                   {effectiveCurrentUserId ? (
                     <NavbarMessagesBadge
                       currentUserId={effectiveCurrentUserId}
                       initialCount={unreadMessagesCount}
                     />
                   ) : null}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </nav>
 
             <div className="hidden items-center gap-3 md:flex">
@@ -377,35 +371,31 @@ export function Navbar({
 
               <SheetContent side="right" className="w-72">
                 <nav className="flex flex-col gap-2 pt-8">
-                  <Link href="/marketplace" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/marketplace" onClick={() => setOpen(false)}>
                       <BookOpen className="h-4 w-4" />
                       Marketplace
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href="/favorites" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/favorites" onClick={() => setOpen(false)}>
                       <Heart className="h-4 w-4" />
                       Favoritos
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href={publishHref} onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href={publishHref} onClick={() => setOpen(false)}>
                       <Plus className="h-4 w-4" />
                       Publicar anuncio
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href="/messages" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="relative w-full justify-start gap-2"
-                    >
+                  <Button asChild variant="ghost" className="relative w-full justify-start gap-2">
+                    <Link href="/messages" onClick={() => setOpen(false)}>
                       <MessageCircle className="h-4 w-4" />
                       Mensajes
-
                       {effectiveCurrentUserId ? (
                         <span className="ml-auto">
                           <NavbarMessagesBadge
@@ -414,85 +404,76 @@ export function Navbar({
                           />
                         </span>
                       ) : null}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href="/account" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/account" onClick={() => setOpen(false)}>
                       <User className="h-4 w-4" />
                       Mi cuenta
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href="/account/listings" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/account/listings" onClick={() => setOpen(false)}>
                       <Package className="h-4 w-4" />
                       Mis anuncios
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
                   {effectiveCanAccessAdmin ? (
-                    <Link href={adminHref} onClick={() => setOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-2">
+                    <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                      <Link href={adminHref} onClick={() => setOpen(false)}>
                         <ShieldCheck className="h-4 w-4" />
                         Panel Admin
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   ) : null}
 
                   <div className="my-2 border-t border-border" />
 
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    className="w-full justify-start gap-2 text-destructive"
                     onClick={async () => {
                       setOpen(false);
                       const supabaseClient = createClient();
                       await supabaseClient.auth.signOut();
                       window.location.assign("/auth");
                     }}
-                    className="w-full"
                   >
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2 text-destructive"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Cerrar sesi√≥n
-                    </Button>
-                  </button>
+                    <LogOut className="h-4 w-4" />
+                    Cerrar sesi√≥n
+                  </Button>
                 </nav>
               </SheetContent>
             </Sheet>
           </>
         ) : (
           <div className="flex items-center gap-2">
-            <Link href="/marketplace" className="hidden sm:block">
-              <Button variant="ghost" size="sm">
-                Marketplace
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/marketplace">Marketplace</Link>
+            </Button>
 
-            <Link href="/auth">
-              <Button variant="ghost" size="sm">
-                Iniciar sesi√≥n
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/auth">Iniciar sesi√≥n</Link>
+            </Button>
 
-            <Link href="/auth?mode=signup">
-              <Button variant="outline" size="sm">
-                Crear cuenta
-              </Button>
-            </Link>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/auth?mode=signup">Crear cuenta</Link>
+            </Button>
 
-            <Link href={publishHref}>
-              <Button size="sm" className="gap-1.5">
+            <Button asChild size="sm" className="gap-1.5">
+              <Link href={publishHref}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Vender</span>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         )}
       </div>
     </header>
   );
 }
+

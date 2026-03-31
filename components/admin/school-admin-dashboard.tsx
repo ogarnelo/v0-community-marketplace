@@ -476,7 +476,7 @@ export default function SchoolAdminDashboard({
     <>
       <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>{school?.city || "Ciudad no indicada"}</span>
-        {school?.region ? <span>¬∑ {school.region}</span> : null}
+        {school?.region ? <span>‚Ä¢ {school.region}</span> : null}
         {school?.school_type ? (
           <Badge variant="outline">{getSchoolTypeLabel(school.school_type)}</Badge>
         ) : null}
@@ -799,7 +799,7 @@ export default function SchoolAdminDashboard({
                       {listing.title || "Anuncio"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {listing.category || "Sin categor√≠a"} ¬∑ {listing.status || "Sin estado"}
+                      {listing.category || "Sin categor√≠a"} ‚Ä¢ {listing.status || "Sin estado"}
                     </p>
                   </div>
 

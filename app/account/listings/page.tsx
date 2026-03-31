@@ -148,7 +148,7 @@ export default async function MyListingsPage() {
 
                     <div className="flex items-center gap-2">
                       <Button asChild variant="outline" size="sm" className="gap-2">
-                        <Link href={`/marketplace/edit/${listing.id}`} prefetch={false}>
+                        <Link href={`/marketplace/edit/${listing.id}`}>
                           <Pencil className="h-4 w-4" />
                           Editar
                         </Link>

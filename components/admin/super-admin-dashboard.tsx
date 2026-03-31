@@ -1189,7 +1189,7 @@ export default function SuperAdminDashboard({
                           <p className="truncate font-semibold text-foreground">{school.name}</p>
                           <p className="text-sm text-muted-foreground">
                             {school.city || "Ciudad"}
-                            {school.region ? ` ¬∑ ${school.region}` : ""}
+                            {school.region ? ` ‚Ä¢ ${school.region}` : ""}
                           </p>
                         </div>
                         <Badge variant="outline">
@@ -1496,7 +1496,7 @@ export default function SuperAdminDashboard({
                               </div>
 
                               <p className="mt-1 text-sm text-muted-foreground">
-                                {request.city} ¬∑ {request.region} ¬∑ {request.postal_code}
+                                {request.city} ‚Ä¢ {request.region} ‚Ä¢ {request.postal_code}
                               </p>
 
                               <p className="text-sm text-muted-foreground">
@@ -1505,7 +1505,7 @@ export default function SuperAdminDashboard({
 
                               <p className="mt-2 text-sm text-muted-foreground">
                                 Contacto: {request.contact_email || "Sin email"}
-                                {request.contact_phone ? ` ¬∑ ${request.contact_phone}` : ""}
+                                {request.contact_phone ? ` ‚Ä¢ ${request.contact_phone}` : ""}
                               </p>
 
                               {approvedMeta ? (

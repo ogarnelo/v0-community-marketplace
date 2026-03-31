@@ -4,7 +4,7 @@ export function normalizeListingType(
   value?: string | null,
   fallbackValue?: string | null
 ): ListingType {
-  const candidate = value ?? fallbackValue;
+  const candidate = value || fallbackValue;
   return candidate === "donation" ? "donation" : "sale";
 }
 

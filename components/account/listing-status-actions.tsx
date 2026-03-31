@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -21,7 +21,8 @@ export function ListingStatusActions({
   currentStatus,
 }: ListingStatusActionsProps) {
   const [status, setStatus] = useState(currentStatus || "available");
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     setStatus(currentStatus || "available");
@@ -31,9 +32,9 @@ export function ListingStatusActions({
   const hasChanges = status !== initialStatus;
 
   const handleSave = async () => {
-    if (saving || !hasChanges) return;
+    if (loading || isPending || !hasChanges) return;
 
-    setSaving(true);
+    setLoading(true);
 
     try {
       const supabase = createClient();
@@ -43,7 +44,7 @@ export function ListingStatusActions({
         .update({ status })
         .eq("id", listingId)
         .select("id, status")
-        .single();
+        .maybeSingle();
 
       if (error) {
         throw error;
@@ -53,19 +54,18 @@ export function ListingStatusActions({
         throw new Error("No se pudo actualizar el estado del anuncio.");
       }
 
-      window.location.reload();
+      setStatus(data.status || status);
+
+      startTransition(() => {
+        window.location.reload();
+      });
     } catch (error: any) {
       console.error("Error actualizando estado:", error);
-
-      const message =
-        error?.message ||
-        error?.details ||
-        error?.error_description ||
-        "No se pudo actualizar el anuncio.";
-
-      alert(`Error actualizando estado: ${message}`);
+      alert(
+        `Error actualizando estado: ${error?.message || "No se pudo actualizar el anuncio"}`
+      );
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
@@ -73,9 +73,9 @@ export function ListingStatusActions({
     <div className="mt-4 flex items-center gap-2">
       <select
         value={status}
-        onChange={(event) => setStatus(event.target.value)}
+        onChange={(e) => setStatus(e.target.value)}
         className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-        disabled={saving}
+        disabled={loading || isPending}
       >
         {STATUS_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
@@ -88,9 +88,9 @@ export function ListingStatusActions({
         type="button"
         variant="outline"
         onClick={handleSave}
-        disabled={saving || !hasChanges}
+        disabled={loading || isPending || !hasChanges}
       >
-        {saving ? "Guardando..." : "Guardar"}
+        {loading || isPending ? "Guardando..." : "Guardar"}
       </Button>
     </div>
   );
