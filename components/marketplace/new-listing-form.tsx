@@ -688,11 +688,6 @@ export default function NewListingForm({
                   ) : null}
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  Las im√°genes se guardar√°n en el bucket p√∫blico{" "}
-                  <code>listing-photos</code> y se enlazar√°n en la tabla{" "}
-                  <code>listing_photos</code>.
-                </p>
 
                 {photoError ? (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -745,3 +740,4 @@ export default function NewListingForm({
     </div>
   );
 }
+

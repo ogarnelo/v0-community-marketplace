@@ -57,7 +57,6 @@ export function Navbar({
   currentUserId,
 }: NavbarProps) {
   const [open, setOpen] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
   const [resolvedState, setResolvedState] = useState<NavbarResolvedState>({
     isLoggedIn: Boolean(isLoggedIn),
     userName,
@@ -97,7 +96,6 @@ export function Navbar({
             isSuperAdmin: false,
             currentUserId: undefined,
           });
-          setHydrated(true);
           return;
         }
 
@@ -138,7 +136,6 @@ export function Navbar({
         console.error("Error sincronizando navbar:", error);
       } finally {
         if (!cancelled) {
-          setHydrated(true);
         }
       }
     };
@@ -282,13 +279,7 @@ export function Navbar({
           </span>
         </Link>
 
-        {!hydrated ? (
-          <div className="flex items-center gap-2 opacity-0">
-            <Button variant="ghost" size="sm">
-              Placeholder
-            </Button>
-          </div>
-        ) : effectiveIsLoggedIn ? (
+        {effectiveIsLoggedIn ? (
           <>
             <nav className="hidden items-center gap-1 md:flex">
               <Link href="/marketplace">
@@ -380,7 +371,7 @@ export function Navbar({
               <SheetTrigger asChild className="md:hidden">
                 <Button variant="ghost" size="icon">
                   <Menu className="h-5 w-5" />
-                  <span className="sr-only">Abrir menú</span>
+                  <span className="sr-only">Abrir men√∫</span>
                 </Button>
               </SheetTrigger>
 
@@ -466,7 +457,7 @@ export function Navbar({
                       className="w-full justify-start gap-2 text-destructive"
                     >
                       <LogOut className="h-4 w-4" />
-                      Cerrar sesión
+                      Cerrar sesi√≥n
                     </Button>
                   </button>
                 </nav>
@@ -483,7 +474,7 @@ export function Navbar({
 
             <Link href="/auth">
               <Button variant="ghost" size="sm">
-                Iniciar sesión
+                Iniciar sesi√≥n
               </Button>
             </Link>
 

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -21,45 +20,52 @@ export function ListingStatusActions({
   listingId,
   currentStatus,
 }: ListingStatusActionsProps) {
-  const router = useRouter();
   const [status, setStatus] = useState(currentStatus || "available");
-  const [loading, setLoading] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setStatus(currentStatus || "available");
   }, [currentStatus]);
 
-  const hasChanges = status !== (currentStatus || "available");
+  const initialStatus = currentStatus || "available";
+  const hasChanges = status !== initialStatus;
 
   const handleSave = async () => {
-    if (loading || isPending || !hasChanges) return;
+    if (saving || !hasChanges) return;
 
-    setLoading(true);
+    setSaving(true);
 
     try {
       const supabase = createClient();
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("listings")
         .update({ status })
-        .eq("id", listingId);
+        .eq("id", listingId)
+        .select("id, status")
+        .single();
 
       if (error) {
         throw error;
       }
 
-      startTransition(() => {
-        router.refresh();
-      });
+      if (!data) {
+        throw new Error("No se pudo actualizar el estado del anuncio.");
+      }
+
+      window.location.reload();
     } catch (error: any) {
       console.error("Error actualizando estado:", error);
-      alert(
-        `Error actualizando estado: ${error?.message || "No se pudo actualizar el anuncio"
-        }`
-      );
+
+      const message =
+        error?.message ||
+        error?.details ||
+        error?.error_description ||
+        "No se pudo actualizar el anuncio.";
+
+      alert(`Error actualizando estado: ${message}`);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -67,9 +73,9 @@ export function ListingStatusActions({
     <div className="mt-4 flex items-center gap-2">
       <select
         value={status}
-        onChange={(e) => setStatus(e.target.value)}
+        onChange={(event) => setStatus(event.target.value)}
         className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-        disabled={loading || isPending}
+        disabled={saving}
       >
         {STATUS_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
@@ -82,10 +88,11 @@ export function ListingStatusActions({
         type="button"
         variant="outline"
         onClick={handleSave}
-        disabled={loading || isPending || !hasChanges}
+        disabled={saving || !hasChanges}
       >
-        {loading || isPending ? "Guardando..." : "Guardar"}
+        {saving ? "Guardando..." : "Guardar"}
       </Button>
     </div>
   );
 }
+

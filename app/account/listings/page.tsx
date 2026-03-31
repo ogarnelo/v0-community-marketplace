@@ -65,12 +65,12 @@ export default async function MyListingsPage() {
           </p>
         </div>
 
-        <Link href="/marketplace/new">
-          <Button className="gap-2">
+        <Button asChild className="gap-2">
+          <Link href="/marketplace/new">
             <Plus className="h-4 w-4" />
             Publicar anuncio
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
       {listings.length === 0 ? (
@@ -82,9 +82,9 @@ export default async function MyListingsPage() {
               Publica tu primer art√≠culo para empezar a reutilizar material escolar.
             </p>
 
-            <Link href="/marketplace/new" className="mt-6">
-              <Button>Crear primer anuncio</Button>
-            </Link>
+            <Button asChild className="mt-6">
+              <Link href="/marketplace/new">Crear primer anuncio</Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -147,18 +147,16 @@ export default async function MyListingsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Link href={`/marketplace/edit/${listing.id}`}>
-                        <Button variant="outline" size="sm" className="gap-2">
+                      <Button asChild variant="outline" size="sm" className="gap-2">
+                        <Link href={`/marketplace/edit/${listing.id}`} prefetch={false}>
                           <Pencil className="h-4 w-4" />
                           Editar
-                        </Button>
-                      </Link>
+                        </Link>
+                      </Button>
 
-                      <Link href={`/marketplace/listing/${listing.id}`}>
-                        <Button variant="ghost" size="sm">
-                          Ver anuncio
-                        </Button>
-                      </Link>
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/marketplace/listing/${listing.id}`}>Ver anuncio</Link>
+                      </Button>
                     </div>
                   </div>
 
@@ -175,3 +173,4 @@ export default async function MyListingsPage() {
     </div>
   );
 }
+
