@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 
 export const dynamic = "force-dynamic";
 
@@ -10,43 +11,16 @@ export default async function MessagesLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const userName = user?.user_metadata?.full_name || user?.email || "Mi cuenta";
-
-  let unreadMessagesCount = 0;
-
-  if (user) {
-    const { data: conversations } = await supabase
-      .from("conversations")
-      .select("id")
-      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
-
-    const conversationIds = (conversations || []).map((c: any) => c.id);
-
-    if (conversationIds.length > 0) {
-      const { data: unreadMessages } = await supabase
-        .from("messages")
-        .select("id")
-        .in("conversation_id", conversationIds)
-        .neq("sender_id", user.id)
-        .is("read_at", null);
-
-      unreadMessagesCount = unreadMessages?.length || 0;
-    }
-  }
+  const navbarData = await getNavbarData(supabase);
 
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar
-        isLoggedIn={!!user}
-        userName={userName}
-        isAdmin={false}
-        unreadMessagesCount={unreadMessagesCount}
-        currentUserId={user?.id}
+        isLoggedIn={navbarData.isLoggedIn}
+        userName={navbarData.userName}
+        isAdmin={navbarData.isAdmin}
+        unreadMessagesCount={navbarData.unreadMessagesCount}
+        currentUserId={navbarData.currentUserId}
       />
 
       <main className="flex-1">{children}</main>
@@ -54,3 +28,4 @@ export default async function MessagesLayout({
     </div>
   );
 }
+

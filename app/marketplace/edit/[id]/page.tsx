@@ -572,7 +572,7 @@ export default function EditListingPage() {
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Libro Matem√°ticas 3¬∫ ESO"
+                  placeholder="Ej: Libro Matem√°ticas 3.¬∫ ESO"
                 />
               </div>
 
@@ -678,7 +678,7 @@ export default function EditListingPage() {
                           </PopoverTrigger>
                           <PopoverContent className="w-72 text-sm" side="top">
                             <p className="font-semibold text-foreground">
-                              ¬øQu√© es el ISBN?
+                              ¬¨√∏Qu√© es el ISBN?
                             </p>
                             <p className="mt-1 leading-relaxed text-muted-foreground">
                               ISBN son las siglas de International Standard Book Number
@@ -927,4 +927,5 @@ export default function EditListingPage() {
     </div>
   );
 }
+
 

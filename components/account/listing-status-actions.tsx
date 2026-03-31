@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -20,6 +21,7 @@ export function ListingStatusActions({
   listingId,
   currentStatus,
 }: ListingStatusActionsProps) {
+  const router = useRouter();
   const [status, setStatus] = useState(currentStatus || "available");
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -38,31 +40,31 @@ export function ListingStatusActions({
 
     try {
       const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      const { data, error } = await supabase
+      if (!user) {
+        throw new Error("Debes iniciar sesi√≥n para actualizar el anuncio.");
+      }
+
+      const { error } = await supabase
         .from("listings")
         .update({ status })
         .eq("id", listingId)
-        .select("id, status")
-        .maybeSingle();
+        .eq("seller_id", user.id);
 
       if (error) {
         throw error;
       }
 
-      if (!data) {
-        throw new Error("No se pudo actualizar el estado del anuncio.");
-      }
-
-      setStatus(data.status || status);
-
       startTransition(() => {
-        window.location.reload();
+        router.refresh();
       });
     } catch (error: any) {
       console.error("Error actualizando estado:", error);
       alert(
-        `Error actualizando estado: ${error?.message || "No se pudo actualizar el anuncio"}`
+        `Error actualizando estado: ${error?.message || "No se pudo actualizar el anuncio."}`
       );
     } finally {
       setLoading(false);

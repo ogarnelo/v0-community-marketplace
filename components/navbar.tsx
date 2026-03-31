@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
@@ -38,7 +38,6 @@ interface NavbarProps {
 
 type ProfileUpdatedEventDetail = {
   full_name?: string | null;
-  user_type?: string | null;
 };
 
 type NavbarResolvedState = {
@@ -77,16 +76,10 @@ export function Navbar({
     }));
   }, [isLoggedIn, userName, isAdmin, currentUserId]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const syncSessionAndRoles = async () => {
+  const hydrateUserState = useCallback(
+    async (userOverride?: { id: string; email?: string | null; user_metadata?: Record<string, any> } | null) => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (cancelled) return;
+        const user = userOverride ?? (await supabase.auth.getUser()).data.user;
 
         if (!user) {
           setResolvedState({
@@ -100,11 +93,7 @@ export function Navbar({
         }
 
         const [{ data: profile }, { data: roles }] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", user.id)
-            .maybeSingle<{ full_name: string | null }>(),
+          supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
           supabase
             .from("user_roles")
             .select("role, school_id")
@@ -112,22 +101,18 @@ export function Navbar({
             .returns<AdminRoleRow[]>(),
         ]);
 
-        if (cancelled) return;
-
         const adminFlags = getAdminFlags({
           email: user.email,
           roles: (roles || []) as AdminRoleRow[],
         });
 
-        const nextUserName =
-          profile?.full_name?.trim() ||
-          user.user_metadata?.full_name ||
-          user.email ||
-          "Mi cuenta";
-
         setResolvedState({
           isLoggedIn: true,
-          userName: nextUserName,
+          userName:
+            profile?.full_name?.trim() ||
+            user.user_metadata?.full_name ||
+            user.email ||
+            "Mi cuenta",
           isAdmin: adminFlags.canAccessAdmin,
           isSuperAdmin: adminFlags.isSuperAdmin,
           currentUserId: user.id,
@@ -135,60 +120,31 @@ export function Navbar({
       } catch (error) {
         console.error("Error sincronizando navbar:", error);
       }
-    };
+    },
+    [supabase]
+  );
 
-    void syncSessionAndRoles();
+  useEffect(() => {
+    void hydrateUserState();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) {
-        setResolvedState({
-          isLoggedIn: false,
-          userName: "Mi cuenta",
-          isAdmin: false,
-          isSuperAdmin: false,
-          currentUserId: undefined,
-        });
-        return;
-      }
-
-      const [{ data: profile }, { data: roles }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", session.user.id)
-          .maybeSingle<{ full_name: string | null }>(),
-        supabase
-          .from("user_roles")
-          .select("role, school_id")
-          .eq("user_id", session.user.id)
-          .returns<AdminRoleRow[]>(),
-      ]);
-
-      const adminFlags = getAdminFlags({
-        email: session.user.email,
-        roles: (roles || []) as AdminRoleRow[],
-      });
-
-      setResolvedState({
-        isLoggedIn: true,
-        userName:
-          profile?.full_name?.trim() ||
-          session.user.user_metadata?.full_name ||
-          session.user.email ||
-          "Mi cuenta",
-        isAdmin: adminFlags.canAccessAdmin,
-        isSuperAdmin: adminFlags.isSuperAdmin,
-        currentUserId: session.user.id,
-      });
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void hydrateUserState(
+        session?.user
+          ? {
+            id: session.user.id,
+            email: session.user.email,
+            user_metadata: session.user.user_metadata,
+          }
+          : null
+      );
     });
 
     return () => {
-      cancelled = true;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [hydrateUserState, supabase]);
 
   useEffect(() => {
     const handleProfileUpdated = (event: Event) => {
@@ -210,42 +166,6 @@ export function Navbar({
       window.removeEventListener("profile-updated", handleProfileUpdated);
     };
   }, []);
-
-  useEffect(() => {
-    if (!resolvedState.currentUserId) return;
-
-    const channel = supabase
-      .channel(`navbar-profile-${resolvedState.currentUserId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "profiles",
-          filter: `id=eq.${resolvedState.currentUserId}`,
-        },
-        (payload) => {
-          const nextProfile = payload.new as {
-            full_name?: string | null;
-          };
-
-          const nextName =
-            nextProfile?.full_name && nextProfile.full_name.trim().length > 0
-              ? nextProfile.full_name.trim()
-              : "Mi cuenta";
-
-          setResolvedState((prev) => ({
-            ...prev,
-            userName: nextName,
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [resolvedState.currentUserId, supabase]);
 
   const effectiveIsLoggedIn = resolvedState.isLoggedIn;
   const effectiveUserName = resolvedState.userName;
@@ -350,7 +270,7 @@ export function Navbar({
                     <DropdownMenuItem asChild>
                       <Link href={adminHref} className="gap-2">
                         <ShieldCheck className="h-4 w-4" />
-                        Panel Admin
+                        Panel admin
                       </Link>
                     </DropdownMenuItem>
                   ) : null}
@@ -425,7 +345,7 @@ export function Navbar({
                     <Button asChild variant="ghost" className="w-full justify-start gap-2">
                       <Link href={adminHref} onClick={() => setOpen(false)}>
                         <ShieldCheck className="h-4 w-4" />
-                        Panel Admin
+                        Panel admin
                       </Link>
                     </Button>
                   ) : null}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -43,54 +44,8 @@ export default async function PublicProfilePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const navbarData = await getNavbarData(supabase);
 
-  let navbarUserName = "Mi cuenta";
-  let unreadMessagesCount = 0;
-  let isAdmin = false;
-
-  if (user) {
-    const [{ data: currentProfile }, { data: conversations }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, full_name, user_type")
-        .eq("id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("conversations")
-        .select("id")
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
-    ]);
-
-    const typedCurrentProfile = (currentProfile as ProfileRow | null) ?? null;
-
-    navbarUserName =
-      typedCurrentProfile?.full_name?.trim() ||
-      user.user_metadata?.full_name ||
-      user.email ||
-      "Mi cuenta";
-
-    isAdmin =
-      typedCurrentProfile?.user_type === "school_admin" ||
-      typedCurrentProfile?.user_type === "super_admin";
-
-    const conversationIds = (conversations || []).map(
-      (conversation: { id: string }) => conversation.id
-    );
-
-    if (conversationIds.length > 0) {
-      const { data: unreadMessages } = await supabase
-        .from("messages")
-        .select("id")
-        .in("conversation_id", conversationIds)
-        .neq("sender_id", user.id)
-        .is("read_at", null);
-
-      unreadMessagesCount = unreadMessages?.length || 0;
-    }
-  }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -162,11 +117,11 @@ export default async function PublicProfilePage({
   return (
     <>
       <Navbar
-        isLoggedIn={!!user}
-        userName={navbarUserName}
-        currentUserId={user?.id}
-        unreadMessagesCount={unreadMessagesCount}
-        isAdmin={isAdmin}
+        isLoggedIn={navbarData.isLoggedIn}
+        userName={navbarData.userName}
+        currentUserId={navbarData.currentUserId}
+        unreadMessagesCount={navbarData.unreadMessagesCount}
+        isAdmin={navbarData.isAdmin}
       />
 
       <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -196,7 +151,7 @@ export default async function PublicProfilePage({
                   </p>
 
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Badge variant="secondary">Perfil público</Badge>
+                    <Badge variant="secondary">Perfil p√∫blico</Badge>
                     <Badge variant="outline">Miembro Wetudy</Badge>
                   </div>
                 </div>
@@ -228,17 +183,17 @@ export default async function PublicProfilePage({
               <CardHeader>
                 <CardTitle>Confianza del vendedor</CardTitle>
                 <CardDescription>
-                  Información pública visible para otros usuarios.
+                  Informaci√≥n p√∫blica visible para otros usuarios.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
                 <div className="rounded-2xl border p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                     <Star className="h-4 w-4" />
-                    Valoración media
+                    Valoraci√≥n media
                   </div>
                   <p className="text-2xl font-bold">
-                    {averageRating ? averageRating.toFixed(1) : "—"}
+                    {averageRating ? averageRating.toFixed(1) : "‚Äî"}
                   </p>
                 </div>
 
@@ -303,7 +258,7 @@ export default async function PublicProfilePage({
                           <div className="p-4">
                             <div className="mb-3 flex flex-wrap gap-2">
                               <Badge variant="secondary">
-                                {listing.category || "Sin categoría"}
+                                {listing.category || "Sin categor√≠a"}
                               </Badge>
                               <Badge variant="outline">
                                 {getConditionLabel(listing.condition)}
@@ -311,7 +266,7 @@ export default async function PublicProfilePage({
                             </div>
 
                             <h3 className="line-clamp-2 font-semibold">
-                              {listing.title || "Anuncio sin título"}
+                              {listing.title || "Anuncio sin t√≠tulo"}
                             </h3>
 
                             <div className="mt-2 text-sm text-muted-foreground">
@@ -322,7 +277,7 @@ export default async function PublicProfilePage({
                               {isDonation
                                 ? "Gratis"
                                 : listing.price != null
-                                  ? `${listing.price}€`
+                                  ? `${listing.price}‚Ç¨`
                                   : "Consultar"}
                             </div>
                           </div>
@@ -338,13 +293,13 @@ export default async function PublicProfilePage({
               <CardHeader>
                 <CardTitle>Opiniones recibidas</CardTitle>
                 <CardDescription>
-                  Valoraciones públicas de otros usuarios.
+                  Valoraciones p√∫blicas de otros usuarios.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {typedReviews.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Este usuario todavía no tiene valoraciones.
+                    Este usuario todav√≠a no tiene valoraciones.
                   </p>
                 ) : (
                   <div className="space-y-4">
@@ -352,7 +307,7 @@ export default async function PublicProfilePage({
                       <div key={index} className="rounded-2xl border p-4">
                         <div className="mb-2 flex items-center justify-between gap-4">
                           <p className="text-sm font-medium">
-                            {"⭐".repeat(review.rating)}
+                            {"‚≠ê".repeat(review.rating)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {review.created_at
@@ -383,3 +338,4 @@ export default async function PublicProfilePage({
     </>
   );
 }
+

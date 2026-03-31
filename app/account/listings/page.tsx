@@ -14,6 +14,7 @@ import { Pencil, Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
 import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
 import {
+  formatPrice,
   getStatusBadgeClass,
   getStatusLabel,
 } from "@/lib/marketplace/formatters";
@@ -140,7 +141,7 @@ export default async function MyListingsPage() {
                       {isDonation ? (
                         <Badge>Donaci√≥n</Badge>
                       ) : listing.price != null ? (
-                        <span className="font-semibold">{listing.price}‚Ç¨</span>
+                        <span className="font-semibold">{formatPrice(listing.price)}</span>
                       ) : (
                         <span className="font-semibold">Consultar</span>
                       )}

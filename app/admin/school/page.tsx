@@ -224,3 +224,4 @@ export default async function SchoolAdminPage() {
   );
 }
 
+
