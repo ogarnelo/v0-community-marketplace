@@ -7,7 +7,17 @@ interface SupabaseLike {
   from: (table: string) => any;
 }
 
-export async function getNavbarData(supabase: SupabaseLike) {
+export type NavbarData = {
+  isLoggedIn: boolean;
+  userName: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  adminHref?: string;
+  unreadMessagesCount: number;
+  currentUserId?: string;
+};
+
+export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -17,8 +27,10 @@ export async function getNavbarData(supabase: SupabaseLike) {
       isLoggedIn: false,
       userName: "Mi cuenta",
       isAdmin: false,
+      isSuperAdmin: false,
+      adminHref: undefined,
       unreadMessagesCount: 0,
-      currentUserId: undefined as string | undefined,
+      currentUserId: undefined,
     };
   }
 
@@ -29,10 +41,7 @@ export async function getNavbarData(supabase: SupabaseLike) {
       .select("role, school_id")
       .eq("user_id", user.id)
       .returns<AdminRoleRow[]>(),
-    supabase
-      .from("conversations")
-      .select("id")
-      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
+    supabase.from("conversations").select("id").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
   ]);
 
   const conversationIds = Array.isArray(conversations)
@@ -65,6 +74,8 @@ export async function getNavbarData(supabase: SupabaseLike) {
       user.email ||
       "Mi cuenta",
     isAdmin: adminFlags.canAccessAdmin,
+    isSuperAdmin: adminFlags.isSuperAdmin,
+    adminHref: adminFlags.isSuperAdmin ? "/admin/super" : adminFlags.canAccessAdmin ? "/admin/school" : undefined,
     unreadMessagesCount,
     currentUserId: user.id as string,
   };

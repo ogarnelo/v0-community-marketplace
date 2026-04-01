@@ -162,7 +162,7 @@ export default function NewListingForm({
     const availableSlots = MAX_FILES - photos.length;
 
     if (availableSlots <= 0) {
-      setPhotoError("Solo puedes subir un m√°ximo de 5 fotos.");
+      setPhotoError("Solo puedes subir un máximo de 5 fotos.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -172,7 +172,7 @@ export default function NewListingForm({
 
     for (const file of nextFiles) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        setPhotoError("Solo se permiten im√°genes JPG, PNG, WEBP o GIF.");
+        setPhotoError("Solo se permiten imágenes JPG, PNG, WEBP o GIF.");
         continue;
       }
 
@@ -207,9 +207,9 @@ export default function NewListingForm({
   };
 
   const validateForm = () => {
-    if (!title.trim()) return "Debes indicar un t√≠tulo.";
-    if (!description.trim()) return "Debes a√±adir una descripci√≥n.";
-    if (!selectedCategory) return "Debes seleccionar una categor√≠a.";
+    if (!title.trim()) return "Debes indicar un título.";
+    if (!description.trim()) return "Debes añadir una descripción.";
+    if (!selectedCategory) return "Debes seleccionar una categoría.";
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
 
@@ -218,13 +218,13 @@ export default function NewListingForm({
 
       const numericPrice = Number(price);
       if (Number.isNaN(numericPrice) || numericPrice < 0) {
-        return "El precio debe ser un n√∫mero v√°lido.";
+        return "El precio debe ser un número válido.";
       }
 
       if (originalPrice.trim()) {
         const numericOriginalPrice = Number(originalPrice);
         if (Number.isNaN(numericOriginalPrice) || numericOriginalPrice < 0) {
-          return "El precio original debe ser un n√∫mero v√°lido.";
+          return "El precio original debe ser un número válido.";
         }
       }
     }
@@ -263,7 +263,7 @@ export default function NewListingForm({
       const publicUrl = publicUrlData?.publicUrl;
 
       if (!publicUrl) {
-        throw new Error("No se pudo obtener la URL p√∫blica de una de las im√°genes.");
+        throw new Error("No se pudo obtener la URL pública de una de las imágenes.");
       }
 
       uploadedPhotoRows.push({
@@ -407,29 +407,29 @@ export default function NewListingForm({
               />
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="title">T√≠tulo *</Label>
+                <Label htmlFor="title">Título *</Label>
                 <Input
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Libro Matem√°ticas 3.¬∫ ESO"
+                  placeholder="Ej: Libro Matemáticas 3.¬∫ ESO"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="description">Descripci√≥n *</Label>
+                <Label htmlFor="description">Descripción *</Label>
                 <Textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe el estado, editorial, edici√≥n..."
+                  placeholder="Describe el estado, editorial, edición..."
                   rows={4}
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                  <Label>Categor√≠a *</Label>
+                  <Label>Categoría *</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
@@ -513,17 +513,17 @@ export default function NewListingForm({
                               type="button"
                             >
                               <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="sr-only">Qu√© es el ISBN</span>
+                              <span className="sr-only">Qué es el ISBN</span>
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-72 text-sm" side="top">
                             <p className="font-semibold text-foreground">
-                              ¬¨√∏Qu√© es el ISBN?
+                              ¿Qué es el ISBN?
                             </p>
                             <p className="mt-1 leading-relaxed text-muted-foreground">
                               ISBN son las siglas de International Standard Book
-                              Number y consiste en un c√≥digo que sirve para
-                              identificar de manera √∫nica cada producto editorial.
+                              Number y consiste en un código que sirve para
+                              identificar de manera única cada producto editorial.
                             </p>
                           </PopoverContent>
                         </Popover>
@@ -596,11 +596,11 @@ export default function NewListingForm({
               <div className="flex items-center gap-4 rounded-lg border border-border p-4">
                 <div className="flex-1">
                   <p className="font-medium text-foreground">
-                    {isDonation ? "Donaci√≥n" : "Venta"}
+                    {isDonation ? "Donación" : "Venta"}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {isDonation
-                      ? "El admin de tu centro gestionar√° las solicitudes"
+                      ? "El admin de tu centro gestionará las solicitudes"
                       : "Establece un precio para tu material"}
                   </p>
                 </div>
@@ -652,7 +652,7 @@ export default function NewListingForm({
               ) : null}
 
               <div className="flex flex-col gap-2">
-                <Label>Fotos (m√°x. 5)</Label>
+                <Label>Fotos (máx. 5)</Label>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                   {photos.map((photo, i) => (
                     <div
@@ -682,7 +682,7 @@ export default function NewListingForm({
                     >
                       <ImagePlus className="h-6 w-6 text-muted-foreground" />
                       <span className="mt-2 text-[11px] text-muted-foreground">
-                        A√±adir
+                        Añadir
                       </span>
                     </button>
                   ) : null}
@@ -700,11 +700,11 @@ export default function NewListingForm({
               <div className="rounded-lg border border-border bg-muted/50 p-3">
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <School className="h-4 w-4" />
-                  Ubicaci√≥n:{" "}
+                  Ubicación:{" "}
                   <span className="font-medium text-foreground">{schoolLabel}</span>
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Se usar√° el centro asociado a tu perfil en este momento.
+                  Se usará el centro asociado a tu perfil en este momento.
                 </p>
               </div>
 

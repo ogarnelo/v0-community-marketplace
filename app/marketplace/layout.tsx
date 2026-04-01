@@ -19,6 +19,8 @@ export default async function MarketplaceLayout({
         isLoggedIn={navbarData.isLoggedIn}
         userName={navbarData.userName}
         isAdmin={navbarData.isAdmin}
+        isSuperAdmin={navbarData.isSuperAdmin}
+        adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
         currentUserId={navbarData.currentUserId}
       />

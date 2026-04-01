@@ -269,7 +269,7 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName={navbarUserName} isAdmin currentUserId={user.id} />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/super" currentUserId={user.id} />
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
@@ -280,7 +280,7 @@ export default async function SuperAdminPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
               <p className="text-sm text-muted-foreground">
-                Panel global con KPIs, rankings y gesti√≥n operativa.
+                Panel global con KPIs, rankings y gestión operativa.
               </p>
             </div>
           </div>

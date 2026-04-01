@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
 import { createClient } from "@/lib/supabase/client";
-import { getAdminFlags, type AdminRoleRow } from "@/lib/admin/roles";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -32,6 +32,8 @@ interface NavbarProps {
   isLoggedIn?: boolean;
   userName?: string;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
+  adminHref?: string;
   unreadMessagesCount?: number;
   currentUserId?: string;
 }
@@ -40,124 +42,32 @@ type ProfileUpdatedEventDetail = {
   full_name?: string | null;
 };
 
-type NavbarResolvedState = {
-  isLoggedIn: boolean;
-  userName: string;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-  currentUserId?: string;
-};
-
 export function Navbar({
-  isLoggedIn,
+  isLoggedIn = false,
   userName = "Mi cuenta",
   isAdmin = false,
+  isSuperAdmin = false,
+  adminHref,
   unreadMessagesCount = 0,
   currentUserId,
 }: NavbarProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [resolvedState, setResolvedState] = useState<NavbarResolvedState>({
-    isLoggedIn: Boolean(isLoggedIn),
-    userName,
-    isAdmin,
-    isSuperAdmin: false,
-    currentUserId,
-  });
-
-  const supabase = useMemo(() => createClient(), []);
+  const [displayName, setDisplayName] = useState(userName);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    setResolvedState((prev) => ({
-      ...prev,
-      isLoggedIn: Boolean(isLoggedIn),
-      userName,
-      isAdmin,
-      currentUserId,
-    }));
-  }, [isLoggedIn, userName, isAdmin, currentUserId]);
-
-  const hydrateUserState = useCallback(
-    async (userOverride?: { id: string; email?: string | null; user_metadata?: Record<string, any> } | null) => {
-      try {
-        const user = userOverride ?? (await supabase.auth.getUser()).data.user;
-
-        if (!user) {
-          setResolvedState({
-            isLoggedIn: false,
-            userName: "Mi cuenta",
-            isAdmin: false,
-            isSuperAdmin: false,
-            currentUserId: undefined,
-          });
-          return;
-        }
-
-        const [{ data: profile }, { data: roles }] = await Promise.all([
-          supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-          supabase
-            .from("user_roles")
-            .select("role, school_id")
-            .eq("user_id", user.id)
-            .returns<AdminRoleRow[]>(),
-        ]);
-
-        const adminFlags = getAdminFlags({
-          email: user.email,
-          roles: (roles || []) as AdminRoleRow[],
-        });
-
-        setResolvedState({
-          isLoggedIn: true,
-          userName:
-            profile?.full_name?.trim() ||
-            user.user_metadata?.full_name ||
-            user.email ||
-            "Mi cuenta",
-          isAdmin: adminFlags.canAccessAdmin,
-          isSuperAdmin: adminFlags.isSuperAdmin,
-          currentUserId: user.id,
-        });
-      } catch (error) {
-        console.error("Error sincronizando navbar:", error);
-      }
-    },
-    [supabase]
-  );
-
-  useEffect(() => {
-    void hydrateUserState();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      void hydrateUserState(
-        session?.user
-          ? {
-            id: session.user.id,
-            email: session.user.email,
-            user_metadata: session.user.user_metadata,
-          }
-          : null
-      );
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [hydrateUserState, supabase]);
+    setDisplayName(userName || "Mi cuenta");
+  }, [userName]);
 
   useEffect(() => {
     const handleProfileUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<ProfileUpdatedEventDetail>;
-      const nextName =
-        customEvent.detail?.full_name && customEvent.detail.full_name.trim().length > 0
-          ? customEvent.detail.full_name.trim()
-          : "Mi cuenta";
+      const nextName = customEvent.detail?.full_name?.trim();
 
-      setResolvedState((prev) => ({
-        ...prev,
-        userName: nextName,
-      }));
+      if (nextName) {
+        setDisplayName(nextName);
+      }
     };
 
     window.addEventListener("profile-updated", handleProfileUpdated);
@@ -167,22 +77,40 @@ export function Navbar({
     };
   }, []);
 
-  const effectiveIsLoggedIn = resolvedState.isLoggedIn;
-  const effectiveUserName = resolvedState.userName;
-  const effectiveCurrentUserId = resolvedState.currentUserId;
-  const effectiveIsSuperAdmin = resolvedState.isSuperAdmin;
-  const effectiveCanAccessAdmin = resolvedState.isAdmin || resolvedState.isSuperAdmin;
+  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
+  const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
+  const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
+  const showMessagesBadge = Boolean(currentUserId);
 
-  const publishHref = effectiveIsLoggedIn
-    ? "/marketplace/new"
-    : "/auth?next=/marketplace/new";
+  const navItems = useMemo(
+    () => [
+      { href: "/marketplace", label: "Marketplace", icon: BookOpen },
+      { href: "/favorites", label: "Favoritos", icon: Heart },
+      { href: publishHref, label: "Publicar", icon: Plus },
+      { href: "/messages", label: "Mensajes", icon: MessageCircle },
+    ],
+    [publishHref]
+  );
 
-  const adminHref = effectiveIsSuperAdmin ? "/admin/super" : "/admin/school";
+  const handleMobileLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.assign("/auth");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
-  const avatarLetter =
-    effectiveUserName && effectiveUserName.trim().length > 0
-      ? effectiveUserName.trim().charAt(0).toUpperCase()
-      : "U";
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (href === "/marketplace") return pathname?.startsWith("/marketplace");
+    if (href === "/messages") return pathname?.startsWith("/messages");
+    if (href === "/favorites") return pathname?.startsWith("/favorites");
+    if (href === "/marketplace/new") return pathname === "/marketplace/new";
+    return pathname === href;
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
@@ -191,44 +119,32 @@ export function Navbar({
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <BookOpen className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="font-mono text-xl font-bold tracking-tight text-foreground">
-            Wetudy
-          </span>
+          <span className="font-mono text-xl font-bold tracking-tight text-foreground">Wetudy</span>
         </Link>
 
-        {effectiveIsLoggedIn ? (
+        {isLoggedIn ? (
           <>
             <nav className="hidden items-center gap-1 md:flex">
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/marketplace">Marketplace</Link>
-              </Button>
-
-              <Button asChild variant="ghost" size="sm" className="gap-1.5">
-                <Link href="/favorites">
-                  <Heart className="h-4 w-4" />
-                  Favoritos
-                </Link>
-              </Button>
-
-              <Button asChild variant="ghost" size="sm" className="gap-1.5">
-                <Link href={publishHref}>
-                  <Plus className="h-4 w-4" />
-                  Publicar
-                </Link>
-              </Button>
-
-              <Button asChild variant="ghost" size="sm" className="relative gap-1.5">
-                <Link href="/messages">
-                  <MessageCircle className="h-4 w-4" />
-                  Mensajes
-                  {effectiveCurrentUserId ? (
-                    <NavbarMessagesBadge
-                      currentUserId={effectiveCurrentUserId}
-                      initialCount={unreadMessagesCount}
-                    />
-                  ) : null}
-                </Link>
-              </Button>
+              {navItems.map(({ href, label, icon: Icon }) => (
+                <Button
+                  key={href + label}
+                  asChild
+                  variant={isActive(href) ? "secondary" : "ghost"}
+                  size="sm"
+                  className="gap-1.5"
+                >
+                  <Link href={href}>
+                    <Icon className="h-4 w-4" />
+                    {label}
+                    {href === "/messages" && showMessagesBadge ? (
+                      <NavbarMessagesBadge
+                        currentUserId={currentUserId as string}
+                        initialCount={unreadMessagesCount}
+                      />
+                    ) : null}
+                  </Link>
+                </Button>
+              ))}
             </nav>
 
             <div className="hidden items-center gap-3 md:flex">
@@ -240,11 +156,11 @@ export function Navbar({
                         {avatarLetter}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{effectiveUserName}</span>
+                    <span className="max-w-[180px] truncate text-sm font-medium">{displayName}</span>
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuItem asChild>
                     <Link href="/account" className="gap-2">
                       <User className="h-4 w-4" />
@@ -266,9 +182,9 @@ export function Navbar({
                     </Link>
                   </DropdownMenuItem>
 
-                  {effectiveCanAccessAdmin ? (
+                  {effectiveAdminHref ? (
                     <DropdownMenuItem asChild>
-                      <Link href={adminHref} className="gap-2">
+                      <Link href={effectiveAdminHref} className="gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         Panel admin
                       </Link>
@@ -285,47 +201,38 @@ export function Navbar({
               <SheetTrigger asChild className="md:hidden">
                 <Button variant="ghost" size="icon">
                   <Menu className="h-5 w-5" />
-                  <span className="sr-only">Abrir men√∫</span>
+                  <span className="sr-only">Abrir menú</span>
                 </Button>
               </SheetTrigger>
 
               <SheetContent side="right" className="w-72">
-                <nav className="flex flex-col gap-2 pt-8">
-                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                    <Link href="/marketplace" onClick={() => setOpen(false)}>
-                      <BookOpen className="h-4 w-4" />
-                      Marketplace
-                    </Link>
-                  </Button>
+                <div className="flex items-center gap-3 border-b border-border pb-4 pt-2">
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className="bg-primary text-primary-foreground">{avatarLetter}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+                    <p className="text-xs text-muted-foreground">Tu espacio personal</p>
+                  </div>
+                </div>
 
-                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                    <Link href="/favorites" onClick={() => setOpen(false)}>
-                      <Heart className="h-4 w-4" />
-                      Favoritos
-                    </Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                    <Link href={publishHref} onClick={() => setOpen(false)}>
-                      <Plus className="h-4 w-4" />
-                      Publicar anuncio
-                    </Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" className="relative w-full justify-start gap-2">
-                    <Link href="/messages" onClick={() => setOpen(false)}>
-                      <MessageCircle className="h-4 w-4" />
-                      Mensajes
-                      {effectiveCurrentUserId ? (
-                        <span className="ml-auto">
-                          <NavbarMessagesBadge
-                            currentUserId={effectiveCurrentUserId}
-                            initialCount={unreadMessagesCount}
-                          />
-                        </span>
-                      ) : null}
-                    </Link>
-                  </Button>
+                <nav className="flex flex-col gap-2 pt-6">
+                  {navItems.map(({ href, label, icon: Icon }) => (
+                    <Button key={href + label} asChild variant="ghost" className="w-full justify-start gap-2">
+                      <Link href={href} onClick={() => setOpen(false)}>
+                        <Icon className="h-4 w-4" />
+                        {label}
+                        {href === "/messages" && showMessagesBadge ? (
+                          <span className="ml-auto">
+                            <NavbarMessagesBadge
+                              currentUserId={currentUserId as string}
+                              initialCount={unreadMessagesCount}
+                            />
+                          </span>
+                        ) : null}
+                      </Link>
+                    </Button>
+                  ))}
 
                   <Button asChild variant="ghost" className="w-full justify-start gap-2">
                     <Link href="/account" onClick={() => setOpen(false)}>
@@ -341,9 +248,9 @@ export function Navbar({
                     </Link>
                   </Button>
 
-                  {effectiveCanAccessAdmin ? (
+                  {effectiveAdminHref ? (
                     <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                      <Link href={adminHref} onClick={() => setOpen(false)}>
+                      <Link href={effectiveAdminHref} onClick={() => setOpen(false)}>
                         <ShieldCheck className="h-4 w-4" />
                         Panel admin
                       </Link>
@@ -356,15 +263,11 @@ export function Navbar({
                     type="button"
                     variant="ghost"
                     className="w-full justify-start gap-2 text-destructive"
-                    onClick={async () => {
-                      setOpen(false);
-                      const supabaseClient = createClient();
-                      await supabaseClient.auth.signOut();
-                      window.location.assign("/auth");
-                    }}
+                    disabled={isLoggingOut}
+                    onClick={handleMobileLogout}
                   >
                     <LogOut className="h-4 w-4" />
-                    Cerrar sesi√≥n
+                    {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
                   </Button>
                 </nav>
               </SheetContent>
@@ -377,7 +280,7 @@ export function Navbar({
             </Button>
 
             <Button asChild variant="ghost" size="sm">
-              <Link href="/auth">Iniciar sesi√≥n</Link>
+              <Link href="/auth">Iniciar sesión</Link>
             </Button>
 
             <Button asChild variant="outline" size="sm">
@@ -396,4 +299,3 @@ export function Navbar({
     </header>
   );
 }
-

@@ -62,7 +62,7 @@ export default async function MyListingsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mis anuncios</h1>
           <p className="text-muted-foreground">
-            Gestiona los art√≠culos que has publicado en Wetudy.
+            Gestiona los artículos que has publicado en Wetudy.
           </p>
         </div>
 
@@ -78,9 +78,9 @@ export default async function MyListingsPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Package className="mb-4 h-10 w-10 text-muted-foreground/40" />
-            <h3 className="text-lg font-semibold">A√∫n no has publicado nada</h3>
+            <h3 className="text-lg font-semibold">Aún no has publicado nada</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Publica tu primer art√≠culo para empezar a reutilizar material escolar.
+              Publica tu primer artículo para empezar a reutilizar material escolar.
             </p>
 
             <Button asChild className="mt-6">
@@ -118,11 +118,11 @@ export default async function MyListingsPage() {
                     <div className="min-w-0">
                       <CardTitle className="line-clamp-2 text-base">
                         <Link href={`/marketplace/listing/${listing.id}`}>
-                          {listing.title || "Anuncio sin t√≠tulo"}
+                          {listing.title || "Anuncio sin título"}
                         </Link>
                       </CardTitle>
                       <CardDescription>
-                        {listing.category || "Sin categor√≠a"}
+                        {listing.category || "Sin categoría"}
                       </CardDescription>
                     </div>
 
@@ -139,7 +139,7 @@ export default async function MyListingsPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       {isDonation ? (
-                        <Badge>Donaci√≥n</Badge>
+                        <Badge>Donación</Badge>
                       ) : listing.price != null ? (
                         <span className="font-semibold">{formatPrice(listing.price)}</span>
                       ) : (

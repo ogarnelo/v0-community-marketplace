@@ -189,7 +189,7 @@ export default async function SchoolAdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName={navbarUserName} isAdmin currentUserId={user.id} />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/school" currentUserId={user.id} />
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
@@ -202,7 +202,7 @@ export default async function SchoolAdminPage() {
                 Panel Admin - {school?.name || "Centro"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Dashboard del centro con KPIs, rankings y conversi√≥n.
+                Dashboard del centro con KPIs, rankings y conversión.
               </p>
             </div>
           </div>

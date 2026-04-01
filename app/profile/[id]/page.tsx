@@ -122,6 +122,8 @@ export default async function PublicProfilePage({
         currentUserId={navbarData.currentUserId}
         unreadMessagesCount={navbarData.unreadMessagesCount}
         isAdmin={navbarData.isAdmin}
+        isSuperAdmin={navbarData.isSuperAdmin}
+        adminHref={navbarData.adminHref}
       />
 
       <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -151,7 +153,7 @@ export default async function PublicProfilePage({
                   </p>
 
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Badge variant="secondary">Perfil p√∫blico</Badge>
+                    <Badge variant="secondary">Perfil público</Badge>
                     <Badge variant="outline">Miembro Wetudy</Badge>
                   </div>
                 </div>
@@ -183,17 +185,17 @@ export default async function PublicProfilePage({
               <CardHeader>
                 <CardTitle>Confianza del vendedor</CardTitle>
                 <CardDescription>
-                  Informaci√≥n p√∫blica visible para otros usuarios.
+                  Información pública visible para otros usuarios.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
                 <div className="rounded-2xl border p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                     <Star className="h-4 w-4" />
-                    Valoraci√≥n media
+                    Valoración media
                   </div>
                   <p className="text-2xl font-bold">
-                    {averageRating ? averageRating.toFixed(1) : "‚Äî"}
+                    {averageRating ? averageRating.toFixed(1) : "—"}
                   </p>
                 </div>
 
@@ -258,7 +260,7 @@ export default async function PublicProfilePage({
                           <div className="p-4">
                             <div className="mb-3 flex flex-wrap gap-2">
                               <Badge variant="secondary">
-                                {listing.category || "Sin categor√≠a"}
+                                {listing.category || "Sin categoría"}
                               </Badge>
                               <Badge variant="outline">
                                 {getConditionLabel(listing.condition)}
@@ -266,7 +268,7 @@ export default async function PublicProfilePage({
                             </div>
 
                             <h3 className="line-clamp-2 font-semibold">
-                              {listing.title || "Anuncio sin t√≠tulo"}
+                              {listing.title || "Anuncio sin título"}
                             </h3>
 
                             <div className="mt-2 text-sm text-muted-foreground">
@@ -277,7 +279,7 @@ export default async function PublicProfilePage({
                               {isDonation
                                 ? "Gratis"
                                 : listing.price != null
-                                  ? `${listing.price}‚Ç¨`
+                                  ? `${listing.price}€`
                                   : "Consultar"}
                             </div>
                           </div>
@@ -293,13 +295,13 @@ export default async function PublicProfilePage({
               <CardHeader>
                 <CardTitle>Opiniones recibidas</CardTitle>
                 <CardDescription>
-                  Valoraciones p√∫blicas de otros usuarios.
+                  Valoraciones públicas de otros usuarios.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {typedReviews.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Este usuario todav√≠a no tiene valoraciones.
+                    Este usuario todavía no tiene valoraciones.
                   </p>
                 ) : (
                   <div className="space-y-4">

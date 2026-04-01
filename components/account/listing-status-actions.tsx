@@ -45,7 +45,7 @@ export function ListingStatusActions({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        throw new Error("Debes iniciar sesi√≥n para actualizar el anuncio.");
+        throw new Error("Debes iniciar sesión para actualizar el anuncio.");
       }
 
       const { error } = await supabase

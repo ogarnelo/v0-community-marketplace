@@ -32,7 +32,7 @@ export function ContactSellerButton({
       }
 
       if (user.id === sellerId) {
-        alert("No puedes iniciar una conversaci√≥n contigo mismo.");
+        alert("No puedes iniciar una conversación contigo mismo.");
         return;
       }
 
@@ -47,7 +47,7 @@ export function ContactSellerButton({
       }
 
       if (!listing) {
-        throw new Error("El anuncio ya no est√° disponible.");
+        throw new Error("El anuncio ya no está disponible.");
       }
 
       const { data: existingConversation, error: existingError } = await supabase
@@ -69,7 +69,7 @@ export function ContactSellerButton({
 
       if (listing.status !== "available") {
         throw new Error(
-          "No puedes iniciar una conversaci√≥n nueva porque este anuncio ya no est√° disponible."
+          "No puedes iniciar una conversación nueva porque este anuncio ya no está disponible."
         );
       }
 
@@ -88,7 +88,7 @@ export function ContactSellerButton({
       }
 
       if (!newConversation?.id) {
-        throw new Error("No se pudo abrir la conversaci√≥n.");
+        throw new Error("No se pudo abrir la conversación.");
       }
 
       const { error: updateConversationError } = await supabase
@@ -102,15 +102,15 @@ export function ContactSellerButton({
 
       window.location.assign(`/messages/${newConversation.id}`);
     } catch (error: any) {
-      console.error("Error creando conversaci√≥n:", error);
+      console.error("Error creando conversación:", error);
 
       const message =
         error?.message ||
         error?.error_description ||
         error?.details ||
-        "No se pudo abrir la conversaci√≥n.";
+        "No se pudo abrir la conversación.";
 
-      alert(`Error creando conversaci√≥n: ${message}`);
+      alert(`Error creando conversación: ${message}`);
     } finally {
       setLoading(false);
     }

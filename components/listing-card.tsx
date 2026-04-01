@@ -48,8 +48,8 @@ export function ListingCard({
   const hasDistance = !isSameSchool && listing.distance != null;
   const mainPhoto = listing.photos?.[0] || null;
 
-  const categoryText = listing.category || "Sin categor√≠a";
-  const titleText = listing.title || "Anuncio sin t√≠tulo";
+  const categoryText = listing.category || "Sin categoría";
+  const titleText = listing.title || "Anuncio sin título";
   const gradeText = listing.gradeLevel || "Sin curso";
   const conditionText = getConditionLabel(listing.condition);
   const discountPercent = getDiscountPercent(listing.originalPrice, listing.price);
@@ -70,7 +70,7 @@ export function ListingCard({
 
           {isDonation ? (
             <Badge className="absolute left-2.5 top-2.5 rounded-md border-0 bg-[#7EBA28] px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">
-              Donaci√≥n
+              Donación
             </Badge>
           ) : null}
 
@@ -113,7 +113,7 @@ export function ListingCard({
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground">{gradeText}</span>
 
-          <span className="text-[10px] text-muted-foreground/40">‚Ä¢</span>
+          <span className="text-[10px] text-muted-foreground/40">•</span>
 
           <Badge
             variant="outline"
