@@ -76,6 +76,7 @@ type ListingInsertPayload = {
   condition: string;
   type: string;
   listing_type: string;
+  isbn: string | null;
   price: number | null;
   original_price: number | null;
   seller_id: string;
@@ -89,6 +90,15 @@ type ListingPhotoInsertPayload = {
   sort_order: number;
 };
 
+
+function normalizeIsbn(value: string) {
+  return value.replace(/[^0-9xX]/g, "").toUpperCase();
+}
+
+function isValidIsbn(value: string) {
+  if (!value) return true;
+  return /^(?:\d{9}[\dX]|\d{13})$/.test(normalizeIsbn(value));
+}
 function sanitizeFileName(fileName: string) {
   return fileName
     .normalize("NFD")
@@ -213,6 +223,8 @@ export default function NewListingForm({
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
 
+    if (!isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
+
     if (!isDonation) {
       if (!price.trim()) return "Debes indicar un precio para la venta.";
 
@@ -331,6 +343,8 @@ export default function NewListingForm({
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
         type: isDonation ? "donation" : "sale",
+        listing_type: isDonation ? "donation" : "sale",
+        isbn: isbn.trim() ? normalizeIsbn(isbn) : null,
         price: isDonation ? null : Number(price),
         original_price:
           isDonation || !originalPrice.trim() ? null : Number(originalPrice),

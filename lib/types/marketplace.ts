@@ -11,6 +11,7 @@ export type ListingRow = {
   condition: string | null;
   type: string | null;
   listing_type?: string | null;
+  isbn?: string | null;
   price: number | null;
   original_price?: number | null;
   estimated_retail_price?: number | null;
@@ -60,6 +61,7 @@ export type MarketplaceListing = {
   gradeLevel: string | null;
   condition: string | null;
   type: string | null;
+  isbn?: string | null;
   price?: number;
   originalPrice?: number;
   photos: string[];
@@ -88,6 +90,31 @@ export type AccountProfileRow = {
   postal_code: string | null;
   school_id: string | null;
   created_at: string | null;
+};
+
+export type ListingOfferRow = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  offered_price: number;
+  status: string | null;
+  counter_price: number | null;
+  created_at: string | null;
+  responded_at: string | null;
+};
+
+export type DonationRequestRow = {
+  id: string;
+  listing_id: string | null;
+  requester_id: string | null;
+  assigned_to_requester_id: string | null;
+  approved_by_admin_id: string | null;
+  status: string | null;
+  note: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  school_id: string | null;
 };
 
 export function buildPhotosMap(rows: ListingPhotoRow[]) {

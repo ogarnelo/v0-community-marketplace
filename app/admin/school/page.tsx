@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
+import { Shield } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import SchoolAdminDashboard from "@/components/admin/school-admin-dashboard";
-import { Shield } from "lucide-react";
+import { DonationRequestsPanel, type DonationRequestAdminItem } from "@/components/admin/donation-requests-panel";
 
 const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
@@ -70,8 +72,22 @@ type ListingViewRow = {
   viewed_at: string;
 };
 
+type DonationRequestRow = {
+  id: string;
+  listing_id: string | null;
+  requester_id: string | null;
+  assigned_to_requester_id: string | null;
+  approved_by_admin_id: string | null;
+  status: string | null;
+  note: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  school_id: string | null;
+};
+
 export default async function SchoolAdminPage() {
   const supabase = await createClient();
+  const adminSupabase = createAdminClient();
 
   const {
     data: { user },
@@ -85,16 +101,8 @@ export default async function SchoolAdminPage() {
   const isSuperAdmin = SUPERADMIN_EMAILS.includes(email);
 
   const [{ data: profile }, { data: roles }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("full_name, school_id")
-      .eq("id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("user_roles")
-      .select("role, school_id")
-      .eq("user_id", user.id)
-      .returns<RoleRow[]>(),
+    supabase.from("profiles").select("full_name, school_id").eq("id", user.id).maybeSingle(),
+    supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<RoleRow[]>(),
   ]);
 
   const schoolAdminRole = (roles || []).find((role) => role.role === "school_admin");
@@ -115,44 +123,49 @@ export default async function SchoolAdminPage() {
     { data: reports },
     { data: accessCodes },
     { data: schoolAdminRoles },
+    { data: donationRequests },
   ] = await Promise.all([
-    supabase
+    adminSupabase
       .from("schools")
       .select("id, name, city, region, postal_code, school_type")
       .eq("id", effectiveSchoolId)
       .maybeSingle<SchoolRow>(),
-    supabase
+    adminSupabase
       .from("listings")
-      .select(
-        "id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at"
-      )
+      .select("id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at")
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<ListingRow[]>(),
-    supabase
+    adminSupabase
       .from("profiles")
       .select("id, full_name, school_id, user_type, grade_level")
       .eq("school_id", effectiveSchoolId)
       .returns<ProfileRow[]>(),
-    supabase
+    adminSupabase
       .from("reports")
       .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
       .eq("target_type", "listing")
       .order("created_at", { ascending: false })
       .returns<ReportRow[]>(),
-    supabase
+    adminSupabase
       .from("school_access_codes")
       .select("code, is_active, created_at")
       .eq("school_id", effectiveSchoolId)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .returns<SchoolAccessCodeRow[]>(),
-    supabase
+    adminSupabase
       .from("user_roles")
       .select("user_id, role, school_id")
       .eq("school_id", effectiveSchoolId)
       .eq("role", "school_admin")
       .returns<SchoolAdminRoleRow[]>(),
+    adminSupabase
+      .from("donation_requests")
+      .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
+      .eq("school_id", effectiveSchoolId)
+      .order("created_at", { ascending: false })
+      .returns<DonationRequestRow[]>(),
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
@@ -160,12 +173,13 @@ export default async function SchoolAdminPage() {
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
   const safeReports = (reports || []) as ReportRow[];
+  const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
 
   const listingIds = safeListings.map((item) => item.id);
 
   const { data: listingViews } =
     listingIds.length > 0
-      ? await supabase
+      ? await adminSupabase
         .from("listing_views")
         .select("listing_id, viewed_at")
         .in("listing_id", listingIds)
@@ -174,13 +188,43 @@ export default async function SchoolAdminPage() {
       : { data: [] as ListingViewRow[] };
 
   const safeListingViews = (listingViews || []) as ListingViewRow[];
-
   const safeListingReports = safeReports.filter((report) =>
     safeListings.some((listing) => listing.id === report.listing_id)
   );
 
   const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
   const schoolAdmins = safeMembers.filter((member) => schoolAdminIds.includes(member.id));
+
+  const requesterIds = Array.from(
+    new Set(
+      safeDonationRequests.map((request) => request.requester_id).filter((value): value is string => !!value)
+    )
+  );
+
+  const requesterNameMap = new Map<string, string>();
+
+  if (requesterIds.length > 0) {
+    const { data: requesterProfiles } = await adminSupabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", requesterIds);
+
+    for (const profileRow of (requesterProfiles || []) as Array<{ id: string; full_name: string | null }>) {
+      requesterNameMap.set(profileRow.id, profileRow.full_name || "Usuario");
+    }
+  }
+
+  const listingTitleMap = new Map(safeListings.map((listing) => [listing.id, listing.title || "Anuncio sin título"]));
+
+  const pendingDonationRequests: DonationRequestAdminItem[] = safeDonationRequests.map((request) => ({
+    id: request.id,
+    listingId: request.listing_id || "",
+    listingTitle: request.listing_id ? listingTitleMap.get(request.listing_id) || "Anuncio" : "Anuncio",
+    requesterName: request.requester_id ? requesterNameMap.get(request.requester_id) || "Usuario" : "Usuario",
+    status: request.status,
+    note: request.note,
+    createdAt: request.created_at,
+  }));
 
   const navbarUserName =
     (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
@@ -198,12 +242,8 @@ export default async function SchoolAdminPage() {
               <Shield className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                Panel Admin - {school?.name || "Centro"}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Dashboard del centro con KPIs, rankings y conversión.
-              </p>
+              <h1 className="text-2xl font-bold text-foreground">Panel Admin - {school?.name || "Centro"}</h1>
+              <p className="text-sm text-muted-foreground">Dashboard del centro con KPIs, rankings y conversión.</p>
             </div>
           </div>
 
@@ -216,6 +256,8 @@ export default async function SchoolAdminPage() {
             accessCodes={safeAccessCodes}
             listingViews={safeListingViews}
           />
+
+          <DonationRequestsPanel requests={pendingDonationRequests} />
         </div>
       </main>
 
@@ -223,5 +265,3 @@ export default async function SchoolAdminPage() {
     </div>
   );
 }
-
-

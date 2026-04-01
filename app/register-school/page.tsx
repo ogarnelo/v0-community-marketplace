@@ -169,7 +169,8 @@ export default function RegisterSchoolPage() {
                 </h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
                   Gracias. Hemos registrado tu solicitud y aparecerá en el panel de
-                  superadmin para su revisión.
+                  superadmin para su revisión. Cuando se apruebe, enviaremos una invitación
+                  al email del centro para activar el acceso admin.
                 </p>
                 <Link href="/" className="mt-6">
                   <Button variant="outline">Volver al inicio</Button>
@@ -187,7 +188,7 @@ export default function RegisterSchoolPage() {
                 </CardTitle>
                 <CardDescription className="leading-relaxed">
                   Si tu centro o AMPA aun no tiene codigo de acceso, completa este
-                  formulario y el superadmin podrá aprobar su alta.
+                  formulario y el superadmin podrá aprobar su alta. Tras la aprobación, el centro recibirá un email de invitación para activar su acceso.
                 </CardDescription>
               </CardHeader>
 

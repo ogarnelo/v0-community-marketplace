@@ -1,0 +1,136 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const listingId = typeof body?.listingId === "string" ? body.listingId.trim() : "";
+    const note = typeof body?.note === "string" ? body.note.trim() : "";
+
+    if (!listingId) {
+      return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
+    }
+
+    const adminSupabase = createAdminClient();
+
+    const { data: listing, error: listingError } = await adminSupabase
+      .from("listings")
+      .select("id, title, seller_id, school_id, status, type, listing_type")
+      .eq("id", listingId)
+      .maybeSingle();
+
+    if (listingError || !listing) {
+      return NextResponse.json({ error: "El anuncio no existe." }, { status: 404 });
+    }
+
+    if (getListingTypeFromRow(listing as any) !== "donation") {
+      return NextResponse.json({ error: "Solo puedes solicitar anuncios de donación." }, { status: 400 });
+    }
+
+    if (listing.status !== "available") {
+      return NextResponse.json({ error: "La donación ya no está disponible." }, { status: 400 });
+    }
+
+    if (!listing.seller_id || user.id === listing.seller_id) {
+      return NextResponse.json({ error: "No puedes solicitar tu propia donación." }, { status: 400 });
+    }
+
+    const { data: existingRequest } = await adminSupabase
+      .from("donation_requests")
+      .select("id, status")
+      .eq("listing_id", listingId)
+      .eq("requester_id", user.id)
+      .in("status", ["pending", "approved", "completed"])
+      .maybeSingle();
+
+    if (existingRequest) {
+      return NextResponse.json({ error: "Ya has solicitado esta donación." }, { status: 400 });
+    }
+
+    const { data: insertedRequest, error: insertRequestError } = await adminSupabase
+      .from("donation_requests")
+      .insert({
+        listing_id: listingId,
+        requester_id: user.id,
+        school_id: listing.school_id || null,
+        status: "pending",
+        note: note || null,
+      })
+      .select("id")
+      .single();
+
+    if (insertRequestError) {
+      return NextResponse.json({ error: insertRequestError.message }, { status: 400 });
+    }
+
+    const { data: existingConversation } = await adminSupabase
+      .from("conversations")
+      .select("id")
+      .eq("listing_id", listingId)
+      .eq("buyer_id", user.id)
+      .eq("seller_id", listing.seller_id)
+      .maybeSingle();
+
+    let conversationId = existingConversation?.id || null;
+
+    if (!conversationId) {
+      const { data: newConversation, error: insertConversationError } = await adminSupabase
+        .from("conversations")
+        .insert({
+          listing_id: listingId,
+          buyer_id: user.id,
+          seller_id: listing.seller_id,
+        })
+        .select("id")
+        .single();
+
+      if (insertConversationError) {
+        return NextResponse.json({ error: insertConversationError.message }, { status: 400 });
+      }
+
+      conversationId = newConversation?.id || null;
+    }
+
+    if (conversationId) {
+      const introMessage = note
+        ? `He solicitado esta donación. Mensaje para el centro: ${note}`
+        : "He solicitado esta donación. Quedo pendiente de la revisión del centro.";
+
+      await adminSupabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        body: introMessage,
+      });
+
+      await adminSupabase
+        .from("conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      requestId: insertedRequest?.id || null,
+      conversationId,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        error:
+          error?.message || error?.details || "No se pudo solicitar la donación.",
+      },
+      { status: 500 }
+    );
+  }
+}

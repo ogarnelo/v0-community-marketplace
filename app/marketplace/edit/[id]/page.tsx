@@ -73,6 +73,15 @@ const ALLOWED_IMAGE_TYPES = [
   "image/gif",
 ];
 
+
+function normalizeIsbn(value: string) {
+  return value.replace(/[^0-9xX]/g, "").toUpperCase();
+}
+
+function isValidIsbn(value: string) {
+  if (!value) return true;
+  return /^(?:\d{9}[\dX]|\d{13})$/.test(normalizeIsbn(value));
+}
 function sanitizeFileName(fileName: string) {
   return fileName
     .normalize("NFD")
@@ -160,7 +169,7 @@ export default function EditListingPage() {
         const { data: listing, error: listingError } = await supabase
           .from("listings")
           .select(
-            "id, title, description, category, grade_level, condition, type, listing_type, price, original_price, seller_id, school_id, status"
+            "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, seller_id, school_id, status"
           )
           .eq("id", listingId)
           .maybeSingle();
@@ -187,6 +196,7 @@ export default function EditListingPage() {
         setSelectedGradeLevel(typedListing.grade_level || "");
         setSelectedCondition(typedListing.condition || "");
         setIsDonation(getListingTypeFromRow(typedListing) === "donation");
+        setIsbn(typedListing.isbn || "");
         setPrice(
           typeof typedListing.price === "number" ? String(typedListing.price) : ""
         );
@@ -321,6 +331,8 @@ export default function EditListingPage() {
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
 
+    if (!isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
+
     if (!isDonation) {
       if (!price.trim()) return "Debes indicar un precio para la venta.";
 
@@ -434,7 +446,8 @@ export default function EditListingPage() {
           category: selectedCategory,
           grade_level: selectedGradeLevel,
           condition: selectedCondition,
-          type: isDonation ? "donation" : "sale",
+          ...buildListingTypeColumns(isDonation ? "donation" : "sale"),
+          isbn: isbn.trim() ? normalizeIsbn(isbn) : null,
           price: isDonation ? null : Number(price),
           original_price:
             isDonation || !originalPrice.trim() ? null : Number(originalPrice),

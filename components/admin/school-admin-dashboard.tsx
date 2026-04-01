@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +21,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Bar,
   BarChart,
@@ -35,42 +35,91 @@ import {
 } from "recharts";
 import {
   BarChart3,
+  CheckCircle2,
+  Euro,
+  ExternalLink,
   Eye,
   Flag,
   Heart,
-  KeyRound,
+  Loader2,
+  MessageSquareText,
   Package,
   Percent,
-  Shield,
+  School,
+  School as SchoolIcon,
   ShoppingCart,
   TrendingUp,
   Users,
+  XCircle,
 } from "lucide-react";
 
-type SchoolRow = {
+type SupportTicketRow = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  message: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  created_at: string;
+};
+
+type ReportRow = {
+  id: string;
+  reporter_id: string;
+  target_type: "listing" | "conversation";
+  listing_id: string | null;
+  conversation_id: string | null;
+  reason: string;
+  details: string | null;
+  status: "open" | "reviewing" | "resolved" | "dismissed";
+  created_at: string;
+};
+
+type SchoolRequestRow = {
+  id: string;
+  school_name: string;
+  school_type: string | null;
+  address: string;
+  city: string;
+  postal_code: string;
+  region: string;
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: "pending" | "approved" | "rejected" | "new" | null;
+  review_notes: string | null;
+  approved_school_id: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+};
+
+type DashboardStats = {
+  totalSchools: number;
+  totalUsers: number;
+  totalListings: number;
+  totalDonations: number;
+  totalEstimatedVolume: number;
+};
+
+type ReportListItem = ReportRow & {
+  reporter_name: string;
+  listing_title: string | null;
+};
+
+type ApprovedRequestMeta = {
+  schoolId: string;
+  accessCode: string;
+};
+
+type SchoolSummaryRow = {
   id: string;
   name: string;
   city: string | null;
   region: string | null;
-  postal_code: string | null;
   school_type: string | null;
 };
 
-type ListingRow = {
-  id: string;
-  title: string | null;
-  category: string | null;
-  grade_level: string | null;
-  price: number | null;
-  type: string | null;
-  status: string | null;
-  condition: string | null;
-  seller_id: string | null;
-  school_id: string | null;
-  created_at: string;
-};
-
-type ProfileRow = {
+type ProfileSummaryRow = {
   id: string;
   full_name: string | null;
   school_id: string | null;
@@ -78,19 +127,15 @@ type ProfileRow = {
   grade_level: string | null;
 };
 
-type ReportRow = {
+type ListingStatsRow = {
   id: string;
-  target_type: "listing" | "conversation";
-  listing_id: string | null;
-  conversation_id: string | null;
-  reason: string;
-  status: string;
-  created_at: string;
-};
-
-type SchoolAccessCodeRow = {
-  code: string;
-  is_active: boolean;
+  type: string | null;
+  price: number | null;
+  status: string | null;
+  condition: string | null;
+  school_id: string | null;
+  category: string | null;
+  grade_level: string | null;
   created_at: string;
 };
 
@@ -99,14 +144,16 @@ type ListingViewRow = {
   viewed_at: string;
 };
 
-type SchoolAdminDashboardProps = {
-  school: SchoolRow | null;
-  listings: ListingRow[];
-  members: ProfileRow[];
-  schoolAdmins: ProfileRow[];
-  reports: ReportRow[];
-  accessCodes: SchoolAccessCodeRow[];
-  listingViews: ListingViewRow[];
+type SuperAdminDashboardProps = {
+  stats: DashboardStats;
+  initialSupportTickets: SupportTicketRow[];
+  initialReports: ReportListItem[];
+  initialSchoolRequests: SchoolRequestRow[];
+  initialApprovedRequestMeta: Record<string, ApprovedRequestMeta>;
+  initialSchools: SchoolSummaryRow[];
+  initialProfiles: ProfileSummaryRow[];
+  initialListings: ListingStatsRow[];
+  initialListingViews: ListingViewRow[];
 };
 
 type RangeKey = "30d" | "90d" | "180d" | "total";
@@ -116,10 +163,13 @@ const CORPORATE_BLUE_SOFT = "#60a5fa";
 const CORPORATE_GREEN = "#16a34a";
 const CORPORATE_RED = "#dc2626";
 const CORPORATE_AMBER = "#d97706";
+const CORPORATE_SLATE = "#64748b";
 
 const growthChartConfig = {
   listings: { label: "Anuncios", color: CORPORATE_BLUE },
+  support: { label: "Tickets", color: CORPORATE_BLUE_SOFT },
   reports: { label: "Reports", color: CORPORATE_RED },
+  requests: { label: "Solicitudes", color: CORPORATE_GREEN },
 } satisfies ChartConfig;
 
 const rankingChartConfig = {
@@ -131,15 +181,36 @@ const listingTypeChartConfig = {
   donation: { label: "Donación", color: CORPORATE_GREEN },
 } satisfies ChartConfig;
 
-function getInitials(name?: string | null) {
-  if (!name || !name.trim()) return "U";
+function formatDate(date: string | null) {
+  if (!date) return "Sin fecha";
 
-  return name
-    .trim()
-    .split(" ")
-    .map((part) => part[0]?.toUpperCase())
-    .slice(0, 2)
-    .join("");
+  return new Date(date).toLocaleString("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getReasonLabel(reason: string) {
+  switch (reason) {
+    case "spam":
+      return "Spam";
+    case "fraude":
+      return "Fraude o estafa";
+    case "descripcion_enganosa":
+      return "Descripción engañosa";
+    case "contenido_inapropiado":
+      return "Contenido inapropiado";
+    case "acoso":
+      return "Acoso o trato inapropiado";
+    case "otro":
+      return "Otro";
+    default:
+      return reason;
+  }
 }
 
 function getSchoolTypeLabel(schoolType?: string | null) {
@@ -151,19 +222,38 @@ function getSchoolTypeLabel(schoolType?: string | null) {
     case "university":
       return "Universidad";
     default:
-      return "Centro";
+      return "Sin definir";
   }
 }
 
-function getUserTypeLabel(userType?: string | null) {
-  switch (userType) {
-    case "parent":
-      return "Familia / AMPA";
-    case "student":
-      return "Estudiante";
-    default:
-      return "Usuario";
+function getStatusBadgeVariant(status: string) {
+  if (status === "open" || status === "pending") return "destructive" as const;
+  if (status === "in_progress" || status === "reviewing") return "secondary" as const;
+  return "outline" as const;
+}
+
+function normalizeSchoolRequestStatus(
+  status: SchoolRequestRow["status"]
+): "pending" | "approved" | "rejected" {
+  if (status === "approved" || status === "rejected") {
+    return status;
   }
+
+  return "pending";
+}
+
+function monthKey(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    month: "short",
+    year: "2-digit",
+  }).format(parsed);
 }
 
 function prettyGradeLevel(value?: string | null) {
@@ -218,44 +308,51 @@ function prettyUserType(value?: string | null) {
   }
 }
 
-function monthKey(date: string) {
-  const parsed = new Date(date);
+function buildMonthlySeries({
+  listings,
+  supportTickets,
+  reports,
+  requests,
+}: {
+  listings: ListingStatsRow[];
+  supportTickets: SupportTicketRow[];
+  reports: ReportListItem[];
+  requests: SchoolRequestRow[];
+}) {
+  const buckets = new Map<
+    string,
+    {
+      month: string;
+      listings: number;
+      support: number;
+      reports: number;
+      requests: number;
+    }
+  >();
 
-  if (Number.isNaN(parsed.getTime())) {
-    return "Sin fecha";
-  }
+  const add = (
+    date: string,
+    key: "listings" | "support" | "reports" | "requests"
+  ) => {
+    const bucketKey = monthKey(date);
+    const current = buckets.get(bucketKey) || {
+      month: bucketKey,
+      listings: 0,
+      support: 0,
+      reports: 0,
+      requests: 0,
+    };
 
-  return new Intl.DateTimeFormat("es-ES", {
-    timeZone: "Europe/Madrid",
-    month: "short",
-    year: "2-digit",
-  }).format(parsed);
-}
+    current[key] += 1;
+    buckets.set(bucketKey, current);
+  };
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleString("es-ES", {
-    timeZone: "Europe/Madrid",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+  listings.forEach((item) => add(item.created_at, "listings"));
+  supportTickets.forEach((item) => add(item.created_at, "support"));
+  reports.forEach((item) => add(item.created_at, "reports"));
+  requests.forEach((item) => add(item.created_at, "requests"));
 
-function isWithinRange(date: string, range: RangeKey) {
-  if (range === "total") return true;
-
-  const now = new Date();
-  const parsed = new Date(date);
-
-  if (Number.isNaN(parsed.getTime())) return false;
-
-  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
-  const start = new Date(now);
-  start.setDate(now.getDate() - days);
-
-  return parsed >= start;
+  return Array.from(buckets.values()).slice(-6);
 }
 
 function buildPercentageRanking(
@@ -277,6 +374,21 @@ function buildPercentageRanking(
     .sort((a, b) => b.percentage - a.percentage);
 }
 
+function isWithinRange(date: string, range: RangeKey) {
+  if (range === "total") return true;
+
+  const now = new Date();
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const days = range === "30d" ? 30 : range === "90d" ? 90 : 180;
+  const start = new Date(now);
+  start.setDate(now.getDate() - days);
+
+  return parsed >= start;
+}
+
 function RankingChart({
   title,
   description,
@@ -293,7 +405,7 @@ function RankingChart({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={rankingChartConfig} className="h-[250px] w-full">
+        <ChartContainer config={rankingChartConfig} className="h-[260px] w-full">
           <BarChart data={data} layout="vertical" margin={{ left: 12, right: 12 }}>
             <CartesianGrid horizontal={false} />
             <XAxis
@@ -321,20 +433,75 @@ function RankingChart({
   );
 }
 
-export default function SchoolAdminDashboard({
-  school,
-  listings,
-  members,
-  schoolAdmins,
-  reports,
-  accessCodes,
-  listingViews,
-}: SchoolAdminDashboardProps) {
+function StatusActionGroup({
+  currentStatus,
+  options,
+  loading,
+  onChange,
+}: {
+  currentStatus: string;
+  options: string[];
+  loading: boolean;
+  onChange: (nextStatus: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((status) => {
+        const isActive = currentStatus === status;
+
+        return (
+          <Button
+            key={status}
+            type="button"
+            size="sm"
+            variant={isActive ? "default" : "outline"}
+            disabled={loading || isActive}
+            onClick={() => onChange(status)}
+            className="h-8"
+          >
+            {loading && isActive ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : null}
+            {status}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function SuperAdminDashboard({
+  stats,
+  initialSupportTickets,
+  initialReports,
+  initialSchoolRequests,
+  initialApprovedRequestMeta,
+  initialSchools,
+  initialProfiles,
+  initialListings,
+  initialListingViews,
+}: SuperAdminDashboardProps) {
+  const supabase = useMemo(() => createClient(), []);
   const [selectedRange, setSelectedRange] = useState<RangeKey>("90d");
+  const [supportTickets, setSupportTickets] = useState(initialSupportTickets);
+  const [reports, setReports] = useState(initialReports);
+  const [schoolRequests, setSchoolRequests] = useState(initialSchoolRequests);
+  const [loadingTicketId, setLoadingTicketId] = useState<string | null>(null);
+  const [loadingReportId, setLoadingReportId] = useState<string | null>(null);
+  const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState("");
+  const [approvedRequestMeta, setApprovedRequestMeta] = useState<
+    Record<string, ApprovedRequestMeta>
+  >(initialApprovedRequestMeta);
 
   const filteredListings = useMemo(
-    () => listings.filter((item) => isWithinRange(item.created_at, selectedRange)),
-    [listings, selectedRange]
+    () => initialListings.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [initialListings, selectedRange]
+  );
+
+  const filteredSupportTickets = useMemo(
+    () => supportTickets.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [selectedRange, supportTickets]
   );
 
   const filteredReports = useMemo(
@@ -342,70 +509,121 @@ export default function SchoolAdminDashboard({
     [reports, selectedRange]
   );
 
+  const filteredSchoolRequests = useMemo(
+    () => schoolRequests.filter((item) => isWithinRange(item.created_at, selectedRange)),
+    [schoolRequests, selectedRange]
+  );
+
   const filteredListingViews = useMemo(
-    () => listingViews.filter((item) => isWithinRange(item.viewed_at, selectedRange)),
-    [listingViews, selectedRange]
+    () => initialListingViews.filter((item) => isWithinRange(item.viewed_at, selectedRange)),
+    [initialListingViews, selectedRange]
   );
 
-  const donationListings = filteredListings.filter((listing) => listing.type === "donation");
-  const totalVisibleVolume = filteredListings.reduce(
-    (sum, listing) =>
-      listing.status === "available" && typeof listing.price === "number"
-        ? sum + listing.price
-        : sum,
-    0
+  const schoolSummaries = useMemo(() => {
+    const bySchoolId = new Map<
+      string,
+      { members: number; listings: number; salesVolume: number }
+    >();
+
+    initialSchools.forEach((school) => {
+      bySchoolId.set(school.id, {
+        members: 0,
+        listings: 0,
+        salesVolume: 0,
+      });
+    });
+
+    initialProfiles.forEach((profile) => {
+      if (!profile.school_id || !bySchoolId.has(profile.school_id)) return;
+      bySchoolId.get(profile.school_id)!.members += 1;
+    });
+
+    filteredListings.forEach((listing) => {
+      if (!listing.school_id || !bySchoolId.has(listing.school_id)) return;
+
+      const bucket = bySchoolId.get(listing.school_id)!;
+      bucket.listings += 1;
+
+      if (listing.status === "sold" && typeof listing.price === "number") {
+        bucket.salesVolume += listing.price;
+      }
+    });
+
+    return initialSchools
+      .map((school) => ({
+        ...school,
+        ...(bySchoolId.get(school.id) || {
+          members: 0,
+          listings: 0,
+          salesVolume: 0,
+        }),
+      }))
+      .sort((a, b) => b.members - a.members || b.listings - a.listings)
+      .slice(0, 5);
+  }, [filteredListings, initialProfiles, initialSchools]);
+
+  const growthData = useMemo(
+    () =>
+      buildMonthlySeries({
+        listings: filteredListings,
+        supportTickets: filteredSupportTickets,
+        reports: filteredReports,
+        requests: filteredSchoolRequests,
+      }),
+    [filteredListings, filteredReports, filteredSchoolRequests, filteredSupportTickets]
   );
 
-  const totalSales = filteredListings.reduce(
-    (sum, listing) =>
-      listing.status === "sold" && typeof listing.price === "number"
-        ? sum + listing.price
-        : sum,
-    0
+  const incidentUserIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    filteredSupportTickets.forEach((ticket) => {
+      if (ticket.user_id) ids.add(ticket.user_id);
+    });
+
+    filteredReports.forEach((report) => {
+      if (report.reporter_id) ids.add(report.reporter_id);
+    });
+
+    return ids;
+  }, [filteredReports, filteredSupportTickets]);
+
+  const totalSales = useMemo(
+    () =>
+      filteredListings.reduce(
+        (sum, listing) =>
+          listing.status === "sold" && typeof listing.price === "number"
+            ? sum + listing.price
+            : sum,
+        0
+      ),
+    [filteredListings]
   );
 
-  const totalTransactions = filteredListings.filter(
-    (listing) => listing.status === "sold"
-  ).length;
+  const totalTransactions = useMemo(
+    () => filteredListings.filter((listing) => listing.status === "sold").length,
+    [filteredListings]
+  );
 
   const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+
+  const incidentRate =
+    stats.totalUsers > 0 ? (incidentUserIds.size / stats.totalUsers) * 100 : 0;
+
   const conversionRate =
     filteredListingViews.length > 0
       ? (totalTransactions / filteredListingViews.length) * 100
       : null;
 
-  const monthlyActivityData = useMemo(() => {
-    const buckets = new Map<string, { month: string; listings: number; reports: number }>();
-
-    const add = (date: string, key: "listings" | "reports") => {
-      const bucketKey = monthKey(date);
-      const current = buckets.get(bucketKey) || {
-        month: bucketKey,
-        listings: 0,
-        reports: 0,
-      };
-
-      current[key] += 1;
-      buckets.set(bucketKey, current);
-    };
-
-    filteredListings.forEach((listing) => add(listing.created_at, "listings"));
-    filteredReports.forEach((report) => add(report.created_at, "reports"));
-
-    return Array.from(buckets.values()).slice(-6);
-  }, [filteredListings, filteredReports]);
-
-  const listingTypeData = useMemo(() => {
-    const saleTotal = filteredListings.filter((listing) => listing.type === "sale").length;
-    const donationTotal = filteredListings.filter(
-      (listing) => listing.type === "donation"
-    ).length;
-
-    return [
-      { type: "sale", total: saleTotal, fill: CORPORATE_BLUE },
-      { type: "donation", total: donationTotal, fill: CORPORATE_GREEN },
-    ].filter((item) => item.total > 0);
-  }, [filteredListings]);
+  const approvalRate =
+    filteredSchoolRequests.length > 0
+      ? Math.round(
+        (filteredSchoolRequests.filter(
+          (request) => normalizeSchoolRequestStatus(request.status) === "approved"
+        ).length /
+          filteredSchoolRequests.length) *
+        100
+      )
+      : 0;
 
   const categoryRanking = useMemo(() => {
     const counts = new Map<string, number>();
@@ -436,15 +654,15 @@ export default function SchoolAdminDashboard({
   const userGradeLevelRanking = useMemo(() => {
     const counts = new Map<string, number>();
 
-    members.forEach((member) => {
-      const key = prettyGradeLevel(member.grade_level);
+    initialProfiles.forEach((profile) => {
+      const key = prettyGradeLevel(profile.grade_level);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
     return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     ).slice(0, 8);
-  }, [members]);
+  }, [initialProfiles]);
 
   const conditionRanking = useMemo(() => {
     const counts = new Map<string, number>();
@@ -462,26 +680,188 @@ export default function SchoolAdminDashboard({
   const userTypeRanking = useMemo(() => {
     const counts = new Map<string, number>();
 
-    members.forEach((member) => {
-      const key = prettyUserType(member.user_type);
+    initialProfiles.forEach((profile) => {
+      const key = prettyUserType(profile.user_type);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
     return buildPercentageRanking(
       Array.from(counts.entries()).map(([label, total]) => ({ label, total }))
     );
-  }, [members]);
+  }, [initialProfiles]);
+
+  const listingTypeData = useMemo(() => {
+    const saleTotal = filteredListings.filter((listing) => listing.type === "sale").length;
+    const donationTotal = filteredListings.filter(
+      (listing) => listing.type === "donation"
+    ).length;
+
+    return [
+      {
+        type: "sale",
+        total: saleTotal,
+        fill: CORPORATE_BLUE,
+      },
+      {
+        type: "donation",
+        total: donationTotal,
+        fill: CORPORATE_GREEN,
+      },
+    ].filter((item) => item.total > 0);
+  }, [filteredListings]);
+
+  const updateSupportTicketStatus = async (
+    ticketId: string,
+    nextStatus: SupportTicketRow["status"]
+  ) => {
+    setGlobalError("");
+    setLoadingTicketId(ticketId);
+
+    try {
+      const { error } = await supabase
+        .from("support_tickets")
+        .update({ status: nextStatus })
+        .eq("id", ticketId);
+
+      if (error) throw error;
+
+      setSupportTickets((prev) =>
+        prev.map((ticket) =>
+          ticket.id === ticketId ? { ...ticket, status: nextStatus } : ticket
+        )
+      );
+    } catch (error: any) {
+      setGlobalError(error?.message || error?.details || "No se pudo actualizar el ticket.");
+    } finally {
+      setLoadingTicketId(null);
+    }
+  };
+
+  const updateReportStatus = async (
+    reportId: string,
+    nextStatus: ReportRow["status"]
+  ) => {
+    setGlobalError("");
+    setLoadingReportId(reportId);
+
+    try {
+      const { error } = await supabase
+        .from("reports")
+        .update({ status: nextStatus })
+        .eq("id", reportId);
+
+      if (error) throw error;
+
+      setReports((prev) =>
+        prev.map((report) =>
+          report.id === reportId ? { ...report, status: nextStatus } : report
+        )
+      );
+    } catch (error: any) {
+      setGlobalError(error?.message || error?.details || "No se pudo actualizar el reporte.");
+    } finally {
+      setLoadingReportId(null);
+    }
+  };
+
+  const approveSchoolRequest = async (requestId: string) => {
+    setGlobalError("");
+    setLoadingRequestId(requestId);
+
+    try {
+      const { data, error } = await supabase.rpc(
+        "approve_school_registration_request",
+        { request_id: requestId }
+      );
+
+      if (error) throw error;
+
+      const result = Array.isArray(data) ? data[0] : data;
+
+      setSchoolRequests((prev) =>
+        prev.map((request) =>
+          request.id === requestId
+            ? {
+              ...request,
+              status: "approved",
+              approved_school_id: result?.school_id || request.approved_school_id,
+              reviewed_at: new Date().toISOString(),
+            }
+            : request
+        )
+      );
+
+      if (result?.school_id && result?.access_code) {
+        setApprovedRequestMeta((prev) => ({
+          ...prev,
+          [requestId]: {
+            schoolId: result.school_id,
+            accessCode: result.access_code,
+          },
+        }));
+      }
+
+      const approvedRequest = schoolRequests.find((request) => request.id === requestId);
+
+      if (approvedRequest?.contact_email && result?.school_id) {
+        const inviteResponse = await fetch("/api/admin/invite-school-admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: approvedRequest.contact_email,
+            schoolId: result.school_id,
+            schoolName: approvedRequest.school_name,
+          }),
+        });
+
+        const invitePayload = await inviteResponse.json().catch(() => null);
+
+        if (!inviteResponse.ok) {
+          throw new Error(
+            invitePayload?.error ||
+            "La solicitud se aprobó, pero no se pudo enviar la invitación de acceso."
+          );
+        }
+      }
+    } catch (error: any) {
+      setGlobalError(error?.message || error?.details || "No se pudo aprobar la solicitud.");
+    } finally {
+      setLoadingRequestId(null);
+    }
+  };
+
+  const rejectSchoolRequest = async (requestId: string) => {
+    setGlobalError("");
+    setLoadingRequestId(requestId);
+
+    try {
+      const { error } = await supabase.rpc("reject_school_registration_request", {
+        request_id: requestId,
+        notes: null,
+      });
+
+      if (error) throw error;
+
+      setSchoolRequests((prev) =>
+        prev.map((request) =>
+          request.id === requestId
+            ? {
+              ...request,
+              status: "rejected",
+              reviewed_at: new Date().toISOString(),
+            }
+            : request
+        )
+      );
+    } catch (error: any) {
+      setGlobalError(error?.message || error?.details || "No se pudo rechazar la solicitud.");
+    } finally {
+      setLoadingRequestId(null);
+    }
+  };
 
   return (
     <>
-      <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <span>{school?.city || "Ciudad no indicada"}</span>
-        {school?.region ? <span>• {school.region}</span> : null}
-        {school?.school_type ? (
-          <Badge variant="outline">{getSchoolTypeLabel(school.school_type)}</Badge>
-        ) : null}
-      </div>
-
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Rango temporal:</span>
         {[
@@ -506,7 +886,31 @@ export default function SchoolAdminDashboard({
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Package className="h-5 w-5 text-primary" />
+              <SchoolIcon className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.totalSchools}</p>
+              <p className="text-xs text-muted-foreground">Centros activos</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/20">
+              <Users className="h-5 w-5 text-secondary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.totalUsers}</p>
+              <p className="text-xs text-muted-foreground">Usuarios</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
+              <Package className="h-5 w-5 text-accent-foreground" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{filteredListings.length}</p>
@@ -521,7 +925,9 @@ export default function SchoolAdminDashboard({
               <Heart className="h-5 w-5 text-chart-2" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{donationListings.length}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {filteredListings.filter((item) => item.type === "donation").length}
+              </p>
               <p className="text-xs text-muted-foreground">Donaciones</p>
             </div>
           </CardContent>
@@ -529,36 +935,14 @@ export default function SchoolAdminDashboard({
 
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-              <Users className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{members.length}</p>
-              <p className="text-xs text-muted-foreground">Miembros</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
-              <Shield className="h-5 w-5 text-chart-4" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{schoolAdmins.length}</p>
-              <p className="text-xs text-muted-foreground">Admins</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border">
-          <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-5/10">
-              <Flag className="h-5 w-5 text-chart-5" />
+              <Percent className="h-5 w-5 text-chart-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{filteredReports.length}</p>
-              <p className="text-xs text-muted-foreground">Reports</p>
+              <p className="text-2xl font-bold text-foreground">
+                {incidentRate.toFixed(1)}%
+              </p>
+              <p className="text-xs text-muted-foreground">Tasa de incidencias</p>
             </div>
           </CardContent>
         </Card>
@@ -567,12 +951,21 @@ export default function SchoolAdminDashboard({
       <div className="mt-4 grid gap-4 md:grid-cols-5">
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Eye className="h-5 w-5 text-primary" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
+              <Eye className="h-5 w-5 text-chart-4" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {Math.round(totalVisibleVolume)}€
+                {Math.round(
+                  filteredListings.reduce(
+                    (sum, item) =>
+                      item.status === "available" && typeof item.price === "number"
+                        ? sum + item.price
+                        : sum,
+                    0
+                  )
+                )}
+                €
               </p>
               <p className="text-xs text-muted-foreground">Volumen visible</p>
             </div>
@@ -582,10 +975,12 @@ export default function SchoolAdminDashboard({
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-1/10">
-              <TrendingUp className="h-5 w-5 text-chart-1" />
+              <Euro className="h-5 w-5 text-chart-1" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{Math.round(totalSales)}€</p>
+              <p className="text-2xl font-bold text-foreground">
+                {Math.round(totalSales)}€
+              </p>
               <p className="text-xs text-muted-foreground">Ventas totales</p>
             </div>
           </CardContent>
@@ -598,7 +993,7 @@ export default function SchoolAdminDashboard({
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{totalTransactions}</p>
-              <p className="text-xs text-muted-foreground">Transacciones</p>
+              <p className="text-xs text-muted-foreground">Número de transacciones</p>
             </div>
           </CardContent>
         </Card>
@@ -619,27 +1014,31 @@ export default function SchoolAdminDashboard({
 
         <Card className="border-border">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-2/10">
-              <Percent className="h-5 w-5 text-chart-2" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
                 {conversionRate != null ? `${conversionRate.toFixed(1)}%` : "N/D"}
               </p>
-              <p className="text-xs text-muted-foreground">Conversión</p>
+              <p className="text-xs text-muted-foreground">Tasa de conversión</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {globalError ? (
+        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {globalError}
+        </div>
+      ) : null}
+
       <Tabs defaultValue="overview" className="mt-6">
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="overview">Dashboard</TabsTrigger>
-          <TabsTrigger value="listings">Anuncios</TabsTrigger>
-          <TabsTrigger value="members">Miembros</TabsTrigger>
-          <TabsTrigger value="admins">Admins</TabsTrigger>
-          <TabsTrigger value="access">Accesos</TabsTrigger>
-          <TabsTrigger value="flagged">Reportados</TabsTrigger>
+          <TabsTrigger value="support">Soporte</TabsTrigger>
+          <TabsTrigger value="reports">Moderación</TabsTrigger>
+          <TabsTrigger value="schools">Altas de centros</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -648,22 +1047,25 @@ export default function SchoolAdminDashboard({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Actividad del centro
+                  Actividad operativa reciente
                 </CardTitle>
                 <CardDescription>
-                  Evolución de anuncios publicados y reports recibidos.
+                  Evolución de anuncios, tickets, reports y solicitudes. “Nuevos usuarios”
+                  queda pendiente de una fuente temporal real en perfiles.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ChartContainer config={growthChartConfig} className="h-[280px] w-full">
-                  <LineChart data={monthlyActivityData}>
+                  <LineChart data={growthData}>
                     <CartesianGrid vertical={false} />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                     <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
                     <ChartLegend content={<ChartLegendContent />} />
                     <Line type="monotone" dataKey="listings" stroke={CORPORATE_BLUE} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="support" stroke={CORPORATE_BLUE_SOFT} strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="reports" stroke={CORPORATE_RED} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="requests" stroke={CORPORATE_GREEN} strokeWidth={2} dot={false} />
                   </LineChart>
                 </ChartContainer>
               </CardContent>
@@ -671,43 +1073,50 @@ export default function SchoolAdminDashboard({
 
             <Card className="border-border">
               <CardHeader>
-                <CardTitle>Resumen ejecutivo</CardTitle>
-                <CardDescription>Lectura rápida del estado del centro.</CardDescription>
+                <CardTitle>KPIs ejecutivos</CardTitle>
+                <CardDescription>Resumen rápido para priorizar trabajo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Anuncios disponibles
+                    Tasa de aprobación
                   </p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">
-                    {filteredListings.filter((listing) => listing.status === "available").length}
-                  </p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">{approvalRate}%</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Stock visible en marketplace.
+                    Sobre {filteredSchoolRequests.length} solicitudes del rango.
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Miembros familia / AMPA
+                    Tickets a mover
                   </p>
                   <p className="mt-2 text-3xl font-bold text-foreground">
-                    {members.filter((member) => member.user_type === "parent").length}
+                    {
+                      filteredSupportTickets.filter(
+                        (ticket) => ticket.status === "open" || ticket.status === "in_progress"
+                      ).length
+                    }
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Base adulta vinculada al centro.
+                    Abiertos o en curso.
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Código activo principal
+                    Reports activos
                   </p>
-                  <p className="mt-2 font-mono text-xl font-bold text-foreground">
-                    {accessCodes[0]?.code || "Sin código"}
+                  <p className="mt-2 text-3xl font-bold text-foreground">
+                    {
+                      filteredReports.filter(
+                        (report) =>
+                          report.status === "open" || report.status === "reviewing"
+                      ).length
+                    }
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Acceso actual para nuevos miembros.
+                    Contenido en revisión.
                   </p>
                 </div>
               </CardContent>
@@ -717,7 +1126,7 @@ export default function SchoolAdminDashboard({
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <RankingChart
               title="Ranking por categoría"
-              description="Peso porcentual de cada categoría de producto."
+              description="Peso porcentual de cada categoría de producto en los anuncios."
               data={categoryRanking}
             />
 
@@ -729,7 +1138,7 @@ export default function SchoolAdminDashboard({
 
             <RankingChart
               title="Ranking por curso/etapa de usuarios"
-              description="Peso porcentual de cada curso o etapa en los usuarios."
+              description="Peso porcentual de cada curso o etapa dentro de los usuarios actuales."
               data={userGradeLevelRanking}
             />
           </div>
@@ -750,7 +1159,9 @@ export default function SchoolAdminDashboard({
                 ) : (
                   <ChartContainer config={listingTypeChartConfig} className="mx-auto h-[240px]">
                     <PieChart>
-                      <ChartTooltip content={<ChartTooltipContent nameKey="type" hideLabel />} />
+                      <ChartTooltip
+                        content={<ChartTooltipContent nameKey="type" hideLabel />}
+                      />
                       <Pie
                         data={listingTypeData}
                         dataKey="total"
@@ -771,7 +1182,7 @@ export default function SchoolAdminDashboard({
 
             <RankingChart
               title="Ranking por estado de producto"
-              description="Peso porcentual según el estado de uso registrado."
+              description="Peso porcentual según el estado de uso registrado en el anuncio."
               data={conditionRanking}
             />
 
@@ -781,191 +1192,406 @@ export default function SchoolAdminDashboard({
               data={userTypeRanking}
             />
           </div>
-        </TabsContent>
 
-        <TabsContent value="listings" className="mt-4 flex flex-col gap-3">
-          {listings.length === 0 ? (
+          <div className="grid gap-4 xl:grid-cols-2">
             <Card className="border-border">
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Aún no hay anuncios en este centro.
+              <CardHeader>
+                <CardTitle>Centros con más comunidad</CardTitle>
+                <CardDescription>Top centros por miembros y catálogo.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {schoolSummaries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Aún no hay centros para analizar.
+                  </p>
+                ) : (
+                  schoolSummaries.map((school) => (
+                    <div key={school.id} className="rounded-xl border border-border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-foreground">{school.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {school.city || "Ciudad"}
+                            {school.region ? ` • ${school.region}` : ""}
+                          </p>
+                        </div>
+                        <Badge variant="outline">
+                          {getSchoolTypeLabel(school.school_type)}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <p className="text-xs text-muted-foreground">Miembros</p>
+                          <p className="mt-1 font-semibold text-foreground">
+                            {school.members}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <p className="text-xs text-muted-foreground">Anuncios</p>
+                          <p className="mt-1 font-semibold text-foreground">
+                            {school.listings}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <p className="text-xs text-muted-foreground">Ventas</p>
+                          <p className="mt-1 font-semibold text-foreground">
+                            {Math.round(school.salesVolume)}€
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
-          ) : (
-            listings.map((listing) => (
-              <Card key={listing.id} className="border-border">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      {listing.title || "Anuncio"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {listing.category || "Sin categoría"} • {listing.status || "Sin estado"}
-                    </p>
-                  </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {listing.type === "donation" ? (
-                      <Badge variant="secondary" className="text-xs">
-                        Donación
-                      </Badge>
-                    ) : (
-                      <span className="text-sm font-bold text-foreground">
-                        {typeof listing.price === "number" ? `${listing.price}€` : "Consultar"}
-                      </span>
-                    )}
-
-                    <Link href={`/marketplace/listing/${listing.id}`}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Eye className="h-4 w-4" />
-                        <span className="sr-only">Ver</span>
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="members" className="mt-4 flex flex-col gap-3">
-          {members.length === 0 ? (
             <Card className="border-border">
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Aún no hay miembros vinculados a este centro.
-              </CardContent>
-            </Card>
-          ) : (
-            members.map((member) => (
-              <Card key={member.id} className="border-border">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10 text-sm text-primary">
-                        {getInitials(member.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-
+              <CardHeader>
+                <CardTitle>Prioridades del día</CardTitle>
+                <CardDescription>Resumen accionable para soporte y moderación.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        {member.full_name?.trim() || "Usuario"}
+                      <p className="text-sm font-medium text-foreground">
+                        Tickets pendientes de mover
+                      </p>
+                      <p className="text-xs text-muted-foreground">Abiertos o en curso</p>
+                    </div>
+                    <Badge variant="secondary">
+                      {
+                        filteredSupportTickets.filter(
+                          (ticket) =>
+                            ticket.status === "open" || ticket.status === "in_progress"
+                        ).length
+                      }
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Reports activos</p>
+                      <p className="text-xs text-muted-foreground">Abiertos o revisándose</p>
+                    </div>
+                    <Badge variant="destructive">
+                      {
+                        filteredReports.filter(
+                          (report) =>
+                            report.status === "open" || report.status === "reviewing"
+                        ).length
+                      }
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Altas de centros por revisar
+                      </p>
+                      <p className="text-xs text-muted-foreground">Solicitudes pendientes</p>
+                    </div>
+                    <Badge variant="outline">
+                      {
+                        filteredSchoolRequests.filter(
+                          (request) =>
+                            normalizeSchoolRequestStatus(request.status) === "pending"
+                        ).length
+                      }
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Visitas registradas del rango
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {getUserTypeLabel(member.user_type)}
+                        Base usada para la conversión
                       </p>
                     </div>
+                    <Badge variant="outline">{filteredListingViews.length}</Badge>
                   </div>
-
-                  <Badge variant="outline" className="capitalize text-xs">
-                    {member.user_type || "sin definir"}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="admins" className="mt-4 flex flex-col gap-3">
-          {schoolAdmins.length === 0 ? (
-            <Card className="border-border">
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Aún no hay administradores asignados para este centro.
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            schoolAdmins.map((admin) => (
-              <Card key={admin.id} className="border-border">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10 text-sm text-primary">
-                        {getInitials(admin.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        {admin.full_name?.trim() || "Administrador"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Rol administrativo real del centro
-                      </p>
-                    </div>
-                  </div>
-
-                  <Badge>school_admin</Badge>
-                </CardContent>
-              </Card>
-            ))
-          )}
+          </div>
         </TabsContent>
 
-        <TabsContent value="access" className="mt-4 flex flex-col gap-3">
-          {accessCodes.length === 0 ? (
-            <Card className="border-border">
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Este centro todavía no tiene códigos activos.
-              </CardContent>
-            </Card>
-          ) : (
-            accessCodes.map((accessCode) => (
-              <Card key={`${accessCode.code}-${accessCode.created_at}`} className="border-border">
-                <CardContent className="flex items-center justify-between gap-4 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <KeyRound className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-mono text-sm font-semibold tracking-widest text-foreground">
-                        {accessCode.code}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Creado el {formatDate(accessCode.created_at)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <Badge variant={accessCode.is_active ? "secondary" : "outline"}>
-                    {accessCode.is_active ? "Activo" : "Inactivo"}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="flagged" className="mt-4">
+        <TabsContent value="support" className="mt-4">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle>Contenido reportado</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquareText className="h-5 w-5" />
+                Support tickets
+              </CardTitle>
               <CardDescription>
-                Incidencias asociadas a anuncios del centro.
+                Consultas enviadas desde el centro de ayuda.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              {supportTickets.length === 0 ? (
+                <div className="py-16 text-center text-sm text-muted-foreground">
+                  Todavía no hay tickets registrados.
+                </div>
+              ) : (
+                supportTickets.map((ticket) => (
+                  <Card key={ticket.id} className="border-border">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-foreground">{ticket.name}</p>
+                              <Badge variant={getStatusBadgeVariant(ticket.status)}>
+                                {ticket.status}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{ticket.email}</p>
+                            <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
+                              {ticket.message}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 text-xs text-muted-foreground">
+                            {formatDate(ticket.created_at)}
+                          </div>
+                        </div>
+
+                        <StatusActionGroup
+                          currentStatus={ticket.status}
+                          options={["open", "in_progress", "resolved", "closed"]}
+                          loading={loadingTicketId === ticket.id}
+                          onChange={(nextStatus) =>
+                            updateSupportTicketStatus(
+                              ticket.id,
+                              nextStatus as SupportTicketRow["status"]
+                            )
+                          }
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-4">
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Flag className="h-5 w-5" />
+                Reports
+              </CardTitle>
+              <CardDescription>
+                Reportes enviados por los usuarios sobre anuncios y chats.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
               {reports.length === 0 ? (
-                <div className="py-10 text-center">
-                  <Flag className="mx-auto h-10 w-10 text-muted-foreground/40" />
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    No hay contenido reportado en este momento
-                  </p>
+                <div className="py-16 text-center text-sm text-muted-foreground">
+                  No hay incidencias registradas.
                 </div>
               ) : (
                 reports.map((report) => (
-                  <div key={report.id} className="rounded-xl border border-border p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{report.status}</Badge>
-                      <Badge variant="secondary">Anuncio</Badge>
-                      <span className="text-sm font-medium text-foreground">
-                        {report.reason}
-                      </span>
-                    </div>
+                  <Card key={report.id} className="border-border">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={getStatusBadgeVariant(report.status)}>
+                                {report.status}
+                              </Badge>
+                              <Badge variant="outline">
+                                {report.target_type === "listing" ? "Anuncio" : "Chat"}
+                              </Badge>
+                              <span className="text-sm font-medium text-foreground">
+                                {getReasonLabel(report.reason)}
+                              </span>
+                            </div>
 
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {formatDate(report.created_at)}
-                    </p>
-                  </div>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              Reportado por: {report.reporter_name}
+                            </p>
+
+                            {report.target_type === "listing" ? (
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                <span>Anuncio: {report.listing_title || "Anuncio"}</span>
+                                {report.listing_id ? (
+                                  <Link
+                                    href={`/marketplace/listing/${report.listing_id}`}
+                                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    Ver anuncio
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Link>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Conversación: {report.conversation_id}
+                              </p>
+                            )}
+
+                            {report.details ? (
+                              <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
+                                {report.details}
+                              </p>
+                            ) : (
+                              <p className="mt-3 text-sm text-muted-foreground">
+                                Sin detalles adicionales.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 text-xs text-muted-foreground">
+                            {formatDate(report.created_at)}
+                          </div>
+                        </div>
+
+                        <StatusActionGroup
+                          currentStatus={report.status}
+                          options={["open", "reviewing", "resolved", "dismissed"]}
+                          loading={loadingReportId === report.id}
+                          onChange={(nextStatus) =>
+                            updateReportStatus(report.id, nextStatus as ReportRow["status"])
+                          }
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="schools" className="mt-4">
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <School className="h-5 w-5" />
+                Solicitudes de centros
+              </CardTitle>
+              <CardDescription>
+                Altas enviadas desde el formulario de centros.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {schoolRequests.length === 0 ? (
+                <div className="py-16 text-center text-sm text-muted-foreground">
+                  Todavía no hay solicitudes de alta.
+                </div>
+              ) : (
+                schoolRequests.map((request) => {
+                  const normalizedStatus = normalizeSchoolRequestStatus(request.status);
+                  const approvedMeta = approvedRequestMeta[request.id];
+
+                  return (
+                    <Card key={request.id} className="border-border">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col gap-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-foreground">
+                                  {request.school_name}
+                                </p>
+                                <Badge variant={getStatusBadgeVariant(normalizedStatus)}>
+                                  {normalizedStatus}
+                                </Badge>
+                                <Badge variant="outline">
+                                  {getSchoolTypeLabel(request.school_type)}
+                                </Badge>
+                              </div>
+
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {request.city} • {request.region} • {request.postal_code}
+                              </p>
+
+                              <p className="text-sm text-muted-foreground">
+                                {request.address}
+                              </p>
+
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                Contacto: {request.contact_email || "Sin email"}
+                                {request.contact_phone ? ` • ${request.contact_phone}` : ""}
+                              </p>
+
+                              {approvedMeta ? (
+                                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                  <p className="font-medium">Centro aprobado</p>
+                                  <p className="mt-1">
+                                    Código generado:{" "}
+                                    <span className="font-mono font-semibold">
+                                      {approvedMeta.accessCode}
+                                    </span>
+                                  </p>
+                                  <p className="mt-1 text-xs">
+                                    School ID: {approvedMeta.schoolId}
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              {request.review_notes ? (
+                                <p className="mt-3 text-sm text-muted-foreground">
+                                  Notas: {request.review_notes}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <div className="shrink-0 text-xs text-muted-foreground">
+                              {formatDate(request.created_at)}
+                            </div>
+                          </div>
+
+                          {normalizedStatus !== "approved" &&
+                            normalizedStatus !== "rejected" ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={loadingRequestId === request.id}
+                                onClick={() => approveSchoolRequest(request.id)}
+                              >
+                                {loadingRequestId === request.id ? (
+                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                                )}
+                                Aprobar y crear centro
+                              </Button>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={loadingRequestId === request.id}
+                                onClick={() => rejectSchoolRequest(request.id)}
+                              >
+                                <XCircle className="mr-2 h-3.5 w-3.5" />
+                                Rechazar
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </CardContent>
           </Card>
