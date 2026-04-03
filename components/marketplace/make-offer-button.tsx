@@ -47,13 +47,14 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
         throw new Error(payload?.error || "No se pudo enviar la oferta.");
       }
 
-      alert("Oferta enviada correctamente. También se ha abierto el chat con el vendedor.");
       setOpen(false);
 
       if (payload?.conversationId) {
         window.location.assign(`/messages/${payload.conversationId}`);
         return;
       }
+
+      alert("Oferta enviada correctamente.");
     } catch (error: any) {
       alert(error?.message || "No se pudo enviar la oferta.");
     } finally {
@@ -72,7 +73,8 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
         <DialogHeader>
           <DialogTitle>Enviar oferta</DialogTitle>
           <DialogDescription>
-            El vendedor podrá aceptarla, rechazarla o proponerte otro precio.
+            La oferta se enviará al chat en tiempo real para que el vendedor pueda aceptarla,
+            rechazarla o proponerte otro precio.
           </DialogDescription>
         </DialogHeader>
 

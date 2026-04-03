@@ -17,6 +17,14 @@ type MessageRealtimePayload = {
   read_at?: string | null;
 };
 
+type ConversationRealtimeRow = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  updated_at: string | null;
+};
+
 function getInitials(name?: string | null) {
   if (!name || !name.trim()) return "U";
 
@@ -42,13 +50,8 @@ function formatSidebarDate(date: string | null) {
 
 function sortConversations(items: ConversationSummary[]) {
   return [...items].sort((a, b) => {
-    const aTime = a.latestMessageCreatedAt
-      ? new Date(a.latestMessageCreatedAt).getTime()
-      : 0;
-    const bTime = b.latestMessageCreatedAt
-      ? new Date(b.latestMessageCreatedAt).getTime()
-      : 0;
-
+    const aTime = a.latestMessageCreatedAt ? new Date(a.latestMessageCreatedAt).getTime() : 0;
+    const bTime = b.latestMessageCreatedAt ? new Date(b.latestMessageCreatedAt).getTime() : 0;
     return bTime - aTime;
   });
 }
@@ -81,8 +84,7 @@ export function ConversationsSidebar({
     setItems(
       conversations.map((item) => ({
         ...item,
-        unreadCount:
-          item.id === selectedConversationId ? 0 : item.unreadCount || 0,
+        unreadCount: item.id === selectedConversationId ? 0 : item.unreadCount || 0,
       }))
     );
   }, [conversations, selectedConversationId]);
@@ -90,9 +92,7 @@ export function ConversationsSidebar({
   useEffect(() => {
     const loadUnreadCounts = async () => {
       if (items.length === 0) return;
-
       const conversationIds = items.map((item) => item.id);
-
       const { data: unreadMessages, error } = await supabase
         .from("messages")
         .select("conversation_id")
@@ -106,7 +106,6 @@ export function ConversationsSidebar({
       }
 
       const unreadCountMap = new Map<string, number>();
-
       for (const message of unreadMessages || []) {
         unreadCountMap.set(
           message.conversation_id,
@@ -117,63 +116,96 @@ export function ConversationsSidebar({
       setItems((prev) =>
         prev.map((item) => ({
           ...item,
-          unreadCount:
-            item.id === selectedConversationId
-              ? 0
-              : unreadCountMap.get(item.id) || 0,
+          unreadCount: item.id === selectedConversationId ? 0 : unreadCountMap.get(item.id) || 0,
         }))
       );
     };
 
-    void loadUnreadCounts();
+    const hydrateConversationSummary = async (conversationId: string) => {
+      const { data: conversation } = await supabase
+        .from("conversations")
+        .select("id, listing_id, buyer_id, seller_id, updated_at")
+        .eq("id", conversationId)
+        .maybeSingle<ConversationRealtimeRow>();
 
-    const knownConversationIds = new Set(items.map((item) => item.id));
+      if (!conversation) return;
+      if (conversation.buyer_id !== currentUserId && conversation.seller_id !== currentUserId) return;
+
+      const otherUserId = conversation.buyer_id === currentUserId ? conversation.seller_id : conversation.buyer_id;
+
+      const [{ data: listing }, { data: profile }, { data: latestMessage }] = await Promise.all([
+        supabase.from("listings").select("title").eq("id", conversation.listing_id).maybeSingle(),
+        supabase.from("profiles").select("full_name").eq("id", otherUserId).maybeSingle(),
+        supabase
+          .from("messages")
+          .select("body, created_at, attachment_name")
+          .eq("conversation_id", conversation.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const summary: ConversationSummary = {
+        id: conversation.id,
+        otherName: profile?.full_name?.trim() || "Usuario",
+        listingTitle: listing?.title || "Anuncio",
+        latestMessageBody: buildPreviewText(latestMessage || {}),
+        latestMessageCreatedAt: latestMessage?.created_at || conversation.updated_at,
+        unreadCount: 0,
+      };
+
+      setItems((prev) => {
+        const exists = prev.some((item) => item.id === summary.id);
+        const next = exists ? prev.map((item) => (item.id === summary.id ? { ...item, ...summary } : item)) : [summary, ...prev];
+        return sortConversations(next);
+      });
+    };
+
+    void loadUnreadCounts();
 
     const channel = supabase
       .channel(`conversations-sidebar:${currentUserId}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
+        { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           const newMessage = payload.new as MessageRealtimePayload;
-
-          if (!knownConversationIds.has(newMessage.conversation_id)) return;
+          const knownConversationIds = new Set(items.map((item) => item.id));
+          if (!knownConversationIds.has(newMessage.conversation_id)) {
+            void hydrateConversationSummary(newMessage.conversation_id);
+            return;
+          }
 
           const previewText = buildPreviewText(newMessage);
-
           setItems((prev) => {
             const updated = prev.map((item) => {
               if (item.id !== newMessage.conversation_id) return item;
-
-              const shouldIncreaseUnread =
-                newMessage.sender_id !== currentUserId &&
-                item.id !== selectedConversationId;
-
+              const shouldIncreaseUnread = newMessage.sender_id !== currentUserId && item.id !== selectedConversationId;
               return {
                 ...item,
                 latestMessageBody: previewText,
                 latestMessageCreatedAt: newMessage.created_at,
-                unreadCount: shouldIncreaseUnread
-                  ? item.unreadCount + 1
-                  : item.unreadCount,
+                unreadCount: shouldIncreaseUnread ? item.unreadCount + 1 : item.unreadCount,
               };
             });
-
             return sortConversations(updated);
           });
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-        },
+        { event: "INSERT", schema: "public", table: "conversations" },
+        (payload) => {
+          const newConversation = payload.new as ConversationRealtimeRow;
+          if (newConversation.buyer_id !== currentUserId && newConversation.seller_id !== currentUserId) {
+            return;
+          }
+          void hydrateConversationSummary(newConversation.id);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
         () => {
           void loadUnreadCounts();
         }
@@ -189,54 +221,35 @@ export function ConversationsSidebar({
     <div className="overflow-hidden rounded-2xl border bg-white">
       <div className="border-b px-5 py-4">
         <h1 className="text-2xl font-bold tracking-tight">Mensajes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {items.length} conversaciones
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{items.length} conversaciones</p>
       </div>
 
       <div className="max-h-[70vh] overflow-y-auto">
         {items.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-muted-foreground">
-            Aún no tienes conversaciones.
-          </div>
+          <div className="px-5 py-8 text-sm text-muted-foreground">Aún no tienes conversaciones.</div>
         ) : (
           items.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
-
             return (
-              <div
-                key={conversation.id}
-                className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}
-              >
+              <div key={conversation.id} className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}>
                 <div className="flex items-start gap-3">
-                  <Link
-                    href={`/messages/${conversation.id}`}
-                    className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50"
-                  >
+                  <Link href={`/messages/${conversation.id}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50">
                     <div className="flex items-start gap-3 rounded-xl p-1">
                       <Avatar className="h-10 w-10 shrink-0">
-                        <AvatarFallback>
-                          {getInitials(conversation.otherName)}
-                        </AvatarFallback>
+                        <AvatarFallback>{getInitials(conversation.otherName)}</AvatarFallback>
                       </Avatar>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate font-semibold">
-                              {conversation.otherName}
-                            </p>
-                            <p className="truncate text-sm text-muted-foreground">
-                              {conversation.listingTitle}
-                            </p>
+                            <p className="truncate font-semibold">{conversation.otherName}</p>
+                            <p className="truncate text-sm text-muted-foreground">{conversation.listingTitle}</p>
                           </div>
 
                           <div className="flex shrink-0 flex-col items-end gap-2">
                             {conversation.latestMessageCreatedAt ? (
                               <span className="text-xs text-muted-foreground">
-                                {formatSidebarDate(
-                                  conversation.latestMessageCreatedAt
-                                )}
+                                {formatSidebarDate(conversation.latestMessageCreatedAt)}
                               </span>
                             ) : null}
 
@@ -248,12 +261,7 @@ export function ConversationsSidebar({
                           </div>
                         </div>
 
-                        <p
-                          className={`mt-2 truncate text-sm ${conversation.unreadCount > 0
-                              ? "font-medium text-slate-900"
-                              : "text-muted-foreground"
-                            }`}
-                        >
+                        <p className={`mt-2 truncate text-sm ${conversation.unreadCount > 0 ? "font-medium text-slate-900" : "text-muted-foreground"}`}>
                           {conversation.latestMessageBody || "Sin mensajes todavía"}
                         </p>
                       </div>
@@ -267,9 +275,7 @@ export function ConversationsSidebar({
                     variant="ghost"
                     className="shrink-0 text-muted-foreground hover:text-destructive"
                     onHidden={(hiddenConversationId) => {
-                      setItems((prev) =>
-                        prev.filter((item) => item.id !== hiddenConversationId)
-                      );
+                      setItems((prev) => prev.filter((item) => item.id !== hiddenConversationId));
                     }}
                   />
                 </div>

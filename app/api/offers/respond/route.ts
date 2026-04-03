@@ -1,7 +1,43 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotification } from "@/lib/notifications";
+
+async function getOrCreateConversationId(params: {
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+}) {
+  const adminSupabase = createAdminClient();
+  const { listingId, buyerId, sellerId } = params;
+
+  const { data: existingConversation } = await adminSupabase
+    .from("conversations")
+    .select("id")
+    .eq("listing_id", listingId)
+    .eq("buyer_id", buyerId)
+    .eq("seller_id", sellerId)
+    .maybeSingle();
+
+  if (existingConversation?.id) {
+    return existingConversation.id;
+  }
+
+  const { data: newConversation, error: conversationError } = await adminSupabase
+    .from("conversations")
+    .insert({
+      listing_id: listingId,
+      buyer_id: buyerId,
+      seller_id: sellerId,
+    })
+    .select("id")
+    .single();
+
+  if (conversationError || !newConversation?.id) {
+    throw new Error(conversationError?.message || "No se pudo recuperar la conversación de la oferta.");
+  }
+
+  return newConversation.id;
+}
 
 export async function POST(request: Request) {
   try {
@@ -45,29 +81,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes responder a esta oferta." }, { status: 403 });
     }
 
-    const { data: existingConversation } = await adminSupabase
-      .from("conversations")
-      .select("id")
-      .eq("listing_id", offer.listing_id)
-      .eq("buyer_id", offer.buyer_id)
-      .eq("seller_id", offer.seller_id)
-      .maybeSingle();
-
-    let conversationId = existingConversation?.id || null;
-
-    if (!conversationId) {
-      const { data: newConversation } = await adminSupabase
-        .from("conversations")
-        .insert({
-          listing_id: offer.listing_id,
-          buyer_id: offer.buyer_id,
-          seller_id: offer.seller_id,
-        })
-        .select("id")
-        .single();
-
-      conversationId = newConversation?.id || null;
-    }
+    const conversationId = await getOrCreateConversationId({
+      listingId: offer.listing_id,
+      buyerId: offer.buyer_id,
+      sellerId: offer.seller_id,
+    });
 
     const now = new Date().toISOString();
 
@@ -89,31 +107,16 @@ export async function POST(request: Request) {
         .update({ status: "reserved" })
         .eq("id", offer.listing_id);
 
-      if (conversationId) {
-        await adminSupabase.from("messages").insert({
-          conversation_id: conversationId,
-          sender_id: offer.seller_id,
-          body: `✅ Oferta aceptada: ${offer.offered_price} €. Seguimos por aquí.`,
-        });
-
-        await adminSupabase
-          .from("conversations")
-          .update({ updated_at: now })
-          .eq("id", conversationId);
-      }
-
-      await createNotification(adminSupabase, {
-        user_id: offer.buyer_id,
-        kind: "offer_accepted",
-        title: "Han aceptado tu oferta",
-        body: `Tu oferta de ${offer.offered_price} € ha sido aceptada.`,
-        href: conversationId ? `/messages/${conversationId}` : "/messages",
-        metadata: {
-          offer_id: offer.id,
-          listing_id: offer.listing_id,
-          conversation_id: conversationId,
-        },
+      await adminSupabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: offer.seller_id,
+        body: `💰 OFERTA|accepted|${offer.id}|${offer.offered_price}`,
       });
+
+      await adminSupabase
+        .from("conversations")
+        .update({ updated_at: now })
+        .eq("id", conversationId);
 
       return NextResponse.json({ ok: true, conversationId });
     }
@@ -124,31 +127,16 @@ export async function POST(request: Request) {
         .update({ status: "rejected", responded_at: now })
         .eq("id", offerId);
 
-      if (conversationId) {
-        await adminSupabase.from("messages").insert({
-          conversation_id: conversationId,
-          sender_id: offer.seller_id,
-          body: "❌ Oferta rechazada.",
-        });
-
-        await adminSupabase
-          .from("conversations")
-          .update({ updated_at: now })
-          .eq("id", conversationId);
-      }
-
-      await createNotification(adminSupabase, {
-        user_id: offer.buyer_id,
-        kind: "offer_rejected",
-        title: "Han rechazado tu oferta",
-        body: `Tu oferta de ${offer.offered_price} € no ha sido aceptada.`,
-        href: conversationId ? `/messages/${conversationId}` : "/messages",
-        metadata: {
-          offer_id: offer.id,
-          listing_id: offer.listing_id,
-          conversation_id: conversationId,
-        },
+      await adminSupabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: offer.seller_id,
+        body: `💰 OFERTA|rejected|${offer.id}|${offer.offered_price}`,
       });
+
+      await adminSupabase
+        .from("conversations")
+        .update({ updated_at: now })
+        .eq("id", conversationId);
 
       return NextResponse.json({ ok: true, conversationId });
     }
@@ -162,31 +150,16 @@ export async function POST(request: Request) {
       })
       .eq("id", offerId);
 
-    if (conversationId) {
-      await adminSupabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: offer.seller_id,
-        body: `🔁 Contraoferta: ${counterPrice} €`,
-      });
-
-      await adminSupabase
-        .from("conversations")
-        .update({ updated_at: now })
-        .eq("id", conversationId);
-    }
-
-    await createNotification(adminSupabase, {
-      user_id: offer.buyer_id,
-      kind: "offer_countered",
-      title: "Has recibido una contraoferta",
-      body: `Nueva contraoferta de ${counterPrice} € para el anuncio.`,
-      href: conversationId ? `/messages/${conversationId}` : "/messages",
-      metadata: {
-        offer_id: offer.id,
-        listing_id: offer.listing_id,
-        conversation_id: conversationId,
-      },
+    await adminSupabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: offer.seller_id,
+      body: `💰 OFERTA|countered|${offer.id}|${counterPrice}`,
     });
+
+    await adminSupabase
+      .from("conversations")
+      .update({ updated_at: now })
+      .eq("id", conversationId);
 
     return NextResponse.json({ ok: true, conversationId });
   } catch (error: any) {

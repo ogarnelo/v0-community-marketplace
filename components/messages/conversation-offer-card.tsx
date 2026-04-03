@@ -1,33 +1,42 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/marketplace/formatters";
 
-type OfferStatus = "pending" | "accepted" | "rejected" | "countered" | "withdrawn";
-
-export interface ConversationOfferCardData {
-  id: string;
-  listingId: string;
-  buyerId: string;
-  sellerId: string;
-  offeredPrice: number;
-  counterPrice: number | null;
-  status: OfferStatus | string | null;
-  createdAt: string | null;
-}
+type OfferStatus = "pending" | "countered" | "accepted" | "rejected" | "withdrawn" | string;
 
 interface ConversationOfferCardProps {
-  offer: ConversationOfferCardData;
+  offerId: string;
+  listingId: string;
   currentUserId: string;
+  sellerId: string;
+  buyerId: string;
+  offeredPrice: number;
+  counterPrice: number | null;
+  status: OfferStatus;
 }
 
-function getOfferStatusLabel(status: string | null) {
+function getBadgeVariant(status: OfferStatus) {
   switch (status) {
+    case "accepted":
+      return "default" as const;
+    case "rejected":
+      return "secondary" as const;
+    case "countered":
+      return "outline" as const;
+    default:
+      return "outline" as const;
+  }
+}
+
+function getStatusLabel(status: OfferStatus) {
+  switch (status) {
+    case "pending":
+      return "Pendiente";
     case "accepted":
       return "Aceptada";
     case "rejected":
@@ -37,72 +46,76 @@ function getOfferStatusLabel(status: string | null) {
     case "withdrawn":
       return "Retirada";
     default:
-      return "Pendiente";
+      return status || "Pendiente";
   }
 }
 
-export function ConversationOfferCard({ offer, currentUserId }: ConversationOfferCardProps) {
-  const router = useRouter();
-  const [counterPrice, setCounterPrice] = useState(
-    offer.counterPrice != null ? String(offer.counterPrice) : ""
+export function ConversationOfferCard(props: ConversationOfferCardProps) {
+  const {
+    offerId,
+    currentUserId,
+    sellerId,
+    offeredPrice,
+    counterPrice,
+    status,
+  } = props;
+
+  const isSeller = currentUserId === sellerId;
+  const [loading, setLoading] = useState(false);
+  const [counterValue, setCounterValue] = useState(
+    counterPrice != null ? String(counterPrice) : String(offeredPrice)
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isSeller = currentUserId === offer.sellerId;
-  const effectivePrice = offer.counterPrice ?? offer.offeredPrice;
-  const canRespond = isSeller && (offer.status === "pending" || offer.status === "countered");
-
-  const summary = useMemo(() => {
-    if (offer.status === "countered" && offer.counterPrice != null) {
-      return `Contraoferta actual: ${formatPrice(offer.counterPrice)}`;
-    }
-
-    return `Oferta actual: ${formatPrice(effectivePrice)}`;
-  }, [effectivePrice, offer.counterPrice, offer.status]);
+  const canRespond = isSeller && (status === "pending" || status === "countered");
 
   const submitAction = async (action: "accept" | "reject" | "counter") => {
-    if (isSubmitting) return;
+    if (loading) return;
 
-    setIsSubmitting(true);
+    setLoading(true);
+
     try {
       const response = await fetch("/api/offers/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          offerId: offer.id,
+          offerId,
           action,
-          counterPrice: action === "counter" ? counterPrice : undefined,
+          counterPrice: action === "counter" ? counterValue : undefined,
         }),
       });
 
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(payload?.error || "No se pudo responder a la oferta.");
+        throw new Error(payload?.error || "No se pudo procesar la oferta.");
       }
 
-      router.refresh();
+      window.location.reload();
     } catch (error: any) {
-      alert(error?.message || "No se pudo responder a la oferta.");
+      alert(error?.message || "No se pudo procesar la oferta.");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <Card className="mb-4 border-dashed bg-muted/40">
+    <Card className="mb-4 border-dashed bg-amber-50/50">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base">Oferta vinculada al anuncio</CardTitle>
-          <Badge variant="outline">{getOfferStatusLabel(offer.status)}</Badge>
+          <CardTitle className="text-base">Oferta en esta conversación</CardTitle>
+          <Badge variant={getBadgeVariant(status)}>{getStatusLabel(status)}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-1">
-          <p className="text-sm font-medium">{summary}</p>
-          <p className="text-xs text-muted-foreground">
-            Creada {offer.createdAt ? new Date(offer.createdAt).toLocaleString("es-ES") : "recientemente"}
+        <div className="text-sm text-muted-foreground">
+          <p>
+            Oferta enviada: <span className="font-medium text-foreground">{formatPrice(offeredPrice)}</span>
           </p>
+          {counterPrice != null ? (
+            <p>
+              Contraoferta actual: <span className="font-medium text-foreground">{formatPrice(counterPrice)}</span>
+            </p>
+          ) : null}
         </div>
 
         {canRespond ? (
@@ -112,29 +125,29 @@ export function ConversationOfferCard({ offer, currentUserId }: ConversationOffe
                 type="number"
                 min="1"
                 step="0.01"
-                value={counterPrice}
-                onChange={(event) => setCounterPrice(event.target.value)}
+                value={counterValue}
+                onChange={(event) => setCounterValue(event.target.value)}
                 placeholder="Contraoferta (€)"
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => submitAction("counter")}
-                disabled={isSubmitting}
+                disabled={loading}
               >
                 Contraofertar
               </Button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => submitAction("accept")} disabled={isSubmitting}>
+            <div className="flex gap-2">
+              <Button type="button" onClick={() => submitAction("accept")} disabled={loading}>
                 Aceptar
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => submitAction("reject")}
-                disabled={isSubmitting}
+                disabled={loading}
               >
                 Rechazar
               </Button>
@@ -143,8 +156,8 @@ export function ConversationOfferCard({ offer, currentUserId }: ConversationOffe
         ) : (
           <p className="text-sm text-muted-foreground">
             {isSeller
-              ? "Esta oferta ya fue gestionada."
-              : "El vendedor gestionará la oferta desde este hilo."}
+              ? "Esta oferta ya no admite más acciones desde el hilo."
+              : "Sigue el estado de la oferta desde esta conversación en tiempo real."}
           </p>
         )}
       </CardContent>

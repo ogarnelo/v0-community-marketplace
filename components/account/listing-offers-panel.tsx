@@ -118,7 +118,7 @@ export function ListingOffersPanel({ listingId, offers }: ListingOffersPanelProp
                     onClick={() => submitAction(offer.id, "accept")}
                     disabled={loadingOfferId === offer.id}
                   >
-                    Aceptar
+                    Aceptar en el chat
                   </Button>
                   <Button
                     type="button"

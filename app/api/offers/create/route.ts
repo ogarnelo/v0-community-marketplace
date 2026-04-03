@@ -1,8 +1,44 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotification } from "@/lib/notifications";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
+
+async function getOrCreateConversationId(params: {
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+}) {
+  const adminSupabase = createAdminClient();
+  const { listingId, buyerId, sellerId } = params;
+
+  const { data: existingConversation } = await adminSupabase
+    .from("conversations")
+    .select("id")
+    .eq("listing_id", listingId)
+    .eq("buyer_id", buyerId)
+    .eq("seller_id", sellerId)
+    .maybeSingle();
+
+  if (existingConversation?.id) {
+    return existingConversation.id;
+  }
+
+  const { data: newConversation, error: conversationError } = await adminSupabase
+    .from("conversations")
+    .insert({
+      listing_id: listingId,
+      buyer_id: buyerId,
+      seller_id: sellerId,
+    })
+    .select("id")
+    .single();
+
+  if (conversationError || !newConversation?.id) {
+    throw new Error(conversationError?.message || "No se pudo abrir la conversación de la oferta.");
+  }
+
+  return newConversation.id;
+}
 
 export async function POST(request: Request) {
   try {
@@ -59,33 +95,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ya tienes una oferta activa para este anuncio." }, { status: 400 });
     }
 
-    const { data: existingConversation } = await adminSupabase
-      .from("conversations")
-      .select("id")
-      .eq("listing_id", listingId)
-      .eq("buyer_id", user.id)
-      .eq("seller_id", listing.seller_id)
-      .maybeSingle();
+    const conversationId = await getOrCreateConversationId({
+      listingId,
+      buyerId: user.id,
+      sellerId: listing.seller_id,
+    });
 
-    let conversationId = existingConversation?.id || null;
-
-    if (!conversationId) {
-      const { data: newConversation, error: conversationError } = await adminSupabase
-        .from("conversations")
-        .insert({
-          listing_id: listingId,
-          buyer_id: user.id,
-          seller_id: listing.seller_id,
-        })
-        .select("id")
-        .single();
-
-      if (conversationError) {
-        return NextResponse.json({ error: conversationError.message }, { status: 400 });
-      }
-
-      conversationId = newConversation?.id || null;
-    }
+    const now = new Date().toISOString();
 
     const { data: offer, error: offerError } = await adminSupabase
       .from("listing_offers")
@@ -103,35 +119,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: offerError.message }, { status: 400 });
     }
 
-    const now = new Date().toISOString();
+    const offerBody = `💰 OFERTA|pending|${offer?.id || ""}|${offeredPrice}`;
 
-    if (conversationId) {
-      await adminSupabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        body: `💰 Oferta enviada: ${offeredPrice} €`,
-      });
-
-      await adminSupabase
-        .from("conversations")
-        .update({ updated_at: now })
-        .eq("id", conversationId);
-    }
-
-    await createNotification(adminSupabase, {
-      user_id: listing.seller_id,
-      kind: "offer_received",
-      title: "Nueva oferta recibida",
-      body: `${user.user_metadata?.full_name || user.email || "Un usuario"} ha ofrecido ${offeredPrice} € por ${listing.title || "tu anuncio"}.`,
-      href: conversationId ? `/messages/${conversationId}` : "/account/listings",
-      metadata: {
-        listing_id: listingId,
-        offer_id: offer?.id || null,
-        conversation_id: conversationId,
-      },
+    await adminSupabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      body: offerBody,
     });
 
-    return NextResponse.json({ ok: true, offerId: offer?.id || null, conversationId });
+    await adminSupabase
+      .from("conversations")
+      .update({ updated_at: now })
+      .eq("id", conversationId);
+
+    return NextResponse.json({
+      ok: true,
+      offerId: offer?.id || null,
+      conversationId,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || error?.details || "No se pudo crear la oferta." },

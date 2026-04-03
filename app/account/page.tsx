@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { gradeLevels } from "@/lib/mock-data";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   Mail,
   MapPin,
@@ -14,14 +14,8 @@ import {
   Building2,
 } from "lucide-react";
 import AccountProfileForm from "@/components/account/account-profile-form";
-import type {
-  AccountProfileRow,
-  SchoolRow,
-} from "@/lib/types/marketplace";
-import {
-  getInitials,
-  getUserTypeLabel,
-} from "@/lib/marketplace/formatters";
+import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
+import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 
 type SafeUserMetadata = {
   full_name?: string;
@@ -48,9 +42,7 @@ export default async function AccountPage() {
     await Promise.all([
       supabase
         .from("profiles")
-        .select(
-          "id, full_name, user_type, grade_level, postal_code, school_id, created_at"
-        )
+        .select("id, full_name, user_type, grade_level, postal_code, school_id, created_at")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -68,12 +60,9 @@ export default async function AccountPage() {
   }
 
   const typedProfile = (profile || null) as AccountProfileRow | null;
-  const schoolOptions: SchoolRow[] = Array.isArray(schoolsData)
-    ? (schoolsData as SchoolRow[])
-    : [];
+  const schoolOptions: SchoolRow[] = Array.isArray(schoolsData) ? (schoolsData as SchoolRow[]) : [];
 
-  const fullName =
-    typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
+  const fullName = typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
   const email = user.email || "Sin email";
   const userType = typedProfile?.user_type || metadata.user_type || null;
   const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
@@ -95,18 +84,22 @@ export default async function AccountPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mi cuenta</h1>
           <p className="mt-2 text-muted-foreground">
-            Gestiona tu perfil y revisa la información asociada a tu cuenta de
-            Wetudy.
+            Gestiona tu perfil y revisa la información asociada a tu cuenta de Wetudy.
           </p>
         </div>
 
-        <Button asChild variant="outline">
-          <Link href="/account/activity">Ver actividad</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link href="/account/activity">Ver actividad</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/account/listings">Mis anuncios</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -155,7 +148,7 @@ export default async function AccountPage() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <CalendarDays className="h-4 w-4" />
                   <span>
-                    Miembro desde{" "}
+                    Miembro desde {" "}
                     {new Date(createdAt).toLocaleDateString("es-ES", {
                       day: "2-digit",
                       month: "2-digit",
