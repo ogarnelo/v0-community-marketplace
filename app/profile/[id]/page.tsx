@@ -121,6 +121,8 @@ export default async function PublicProfilePage({
         userName={navbarData.userName}
         currentUserId={navbarData.currentUserId}
         unreadMessagesCount={navbarData.unreadMessagesCount}
+        unreadNotificationsCount={navbarData.unreadNotificationsCount}
+        notifications={navbarData.notifications}
         isAdmin={navbarData.isAdmin}
         isSuperAdmin={navbarData.isSuperAdmin}
         adminHref={navbarData.adminHref}

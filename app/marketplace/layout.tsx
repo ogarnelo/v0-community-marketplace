@@ -22,6 +22,8 @@ export default async function MarketplaceLayout({
         isSuperAdmin={navbarData.isSuperAdmin}
         adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
+        unreadNotificationsCount={navbarData.unreadNotificationsCount}
+        notifications={navbarData.notifications}
         currentUserId={navbarData.currentUserId}
       />
 

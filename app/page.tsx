@@ -7,52 +7,12 @@ import { BenefitsSchools } from "@/components/landing/benefits-schools";
 import { ImpactSection } from "@/components/landing/impact-section";
 import { CTASection } from "@/components/landing/cta-section";
 import { createClient } from "@/lib/supabase/server";
-
-type SafeUserMetadata = {
-  full_name?: string;
-};
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 
 export default async function LandingPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let navbarProps: {
-    isLoggedIn?: boolean;
-    userName?: string;
-    isAdmin?: boolean;
-    unreadMessagesCount?: number;
-    currentUserId?: string;
-  } = {};
-
-  if (user) {
-    const metadata = (user.user_metadata || {}) as SafeUserMetadata;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .maybeSingle<{ full_name: string | null }>();
-
-    const fullName =
-      (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
-        ? profile.full_name.trim()
-        : null) ||
-      (typeof metadata.full_name === "string" && metadata.full_name.trim().length > 0
-        ? metadata.full_name.trim()
-        : null) ||
-      user.email ||
-      "Mi cuenta";
-
-    navbarProps = {
-      isLoggedIn: true,
-      userName: fullName,
-      unreadMessagesCount: 0,
-      currentUserId: user.id,
-    };
-  }
+  const navbarProps = await getNavbarData(supabase);
 
   return (
     <div className="flex min-h-screen flex-col">

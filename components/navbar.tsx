@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
+import { NavbarNotificationsBell } from "@/components/notifications/navbar-notifications-bell";
 import { createClient } from "@/lib/supabase/client";
+import type { AppNotificationRow } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,6 +28,7 @@ import {
   Package,
   ShieldCheck,
   Heart,
+  Activity,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -35,6 +38,8 @@ interface NavbarProps {
   isSuperAdmin?: boolean;
   adminHref?: string;
   unreadMessagesCount?: number;
+  unreadNotificationsCount?: number;
+  notifications?: AppNotificationRow[];
   currentUserId?: string;
 }
 
@@ -49,6 +54,8 @@ export function Navbar({
   isSuperAdmin = false,
   adminHref,
   unreadMessagesCount = 0,
+  unreadNotificationsCount = 0,
+  notifications = [],
   currentUserId,
 }: NavbarProps) {
   const pathname = usePathname();
@@ -109,6 +116,7 @@ export function Navbar({
     if (href === "/messages") return pathname?.startsWith("/messages");
     if (href === "/favorites") return pathname?.startsWith("/favorites");
     if (href === "/marketplace/new") return pathname === "/marketplace/new";
+    if (href === "/account/activity") return pathname?.startsWith("/account/activity");
     return pathname === href;
   };
 
@@ -133,7 +141,7 @@ export function Navbar({
                   size="sm"
                   className="gap-1.5"
                 >
-                  <Link href={href}>
+                  <Link href={href} className="relative">
                     <Icon className="h-4 w-4" />
                     {label}
                     {href === "/messages" && showMessagesBadge ? (
@@ -147,7 +155,15 @@ export function Navbar({
               ))}
             </nav>
 
-            <div className="hidden items-center gap-3 md:flex">
+            <div className="hidden items-center gap-2 md:flex">
+              {currentUserId ? (
+                <NavbarNotificationsBell
+                  currentUserId={currentUserId}
+                  initialNotifications={notifications}
+                  initialUnreadCount={unreadNotificationsCount}
+                />
+              ) : null}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2 px-2">
@@ -160,11 +176,18 @@ export function Navbar({
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem asChild>
                     <Link href="/account" className="gap-2">
                       <User className="h-4 w-4" />
                       Mi cuenta
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem asChild>
+                    <Link href="/account/activity" className="gap-2">
+                      <Activity className="h-4 w-4" />
+                      Actividad
                     </Link>
                   </DropdownMenuItem>
 
@@ -238,6 +261,18 @@ export function Navbar({
                     <Link href="/account" onClick={() => setOpen(false)}>
                       <User className="h-4 w-4" />
                       Mi cuenta
+                    </Link>
+                  </Button>
+
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/account/activity" onClick={() => setOpen(false)}>
+                      <Activity className="h-4 w-4" />
+                      Actividad
+                      {unreadNotificationsCount > 0 ? (
+                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
+                          {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
+                        </span>
+                      ) : null}
                     </Link>
                   </Button>
 

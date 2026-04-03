@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotifications } from "@/lib/notifications";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 
 export async function POST(request: Request) {
@@ -102,6 +103,8 @@ export async function POST(request: Request) {
       conversationId = newConversation?.id || null;
     }
 
+    const now = new Date().toISOString();
+
     if (conversationId) {
       const introMessage = note
         ? `He solicitado esta donación. Mensaje para el centro: ${note}`
@@ -115,9 +118,43 @@ export async function POST(request: Request) {
 
       await adminSupabase
         .from("conversations")
-        .update({ updated_at: new Date().toISOString() })
+        .update({ updated_at: now })
         .eq("id", conversationId);
     }
+
+    const { data: schoolAdmins } = listing.school_id
+      ? await adminSupabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("school_id", listing.school_id)
+        .eq("role", "school_admin")
+      : { data: [] as Array<{ user_id: string }> };
+
+    await createNotifications(adminSupabase, [
+      {
+        user_id: listing.seller_id,
+        kind: "donation_requested",
+        title: "Han solicitado tu donación",
+        body: `${user.user_metadata?.full_name || user.email || "Un usuario"} ha solicitado ${listing.title || "tu anuncio"}.`,
+        href: conversationId ? `/messages/${conversationId}` : "/messages",
+        metadata: {
+          listing_id: listingId,
+          donation_request_id: insertedRequest?.id || null,
+          conversation_id: conversationId,
+        },
+      },
+      ...((schoolAdmins || []).map((admin) => ({
+        user_id: admin.user_id,
+        kind: "donation_review_needed",
+        title: "Nueva solicitud de donación",
+        body: `Hay una solicitud pendiente para ${listing.title || "una donación"}.`,
+        href: "/admin/school",
+        metadata: {
+          listing_id: listingId,
+          donation_request_id: insertedRequest?.id || null,
+        },
+      }))),
+    ]);
 
     return NextResponse.json({
       ok: true,

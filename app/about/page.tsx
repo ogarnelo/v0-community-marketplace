@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,28 +74,20 @@ const howSteps = [
 export default async function AboutPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let userName = "Mi cuenta";
-
-  if (user?.id) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .maybeSingle<{ full_name: string | null }>();
-
-    userName = profile?.full_name?.trim() || user.email || "Mi cuenta";
-  }
+  const navbarData = await getNavbarData(supabase);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar
-        isLoggedIn={Boolean(user)}
-        userName={userName}
-        currentUserId={user?.id}
+        isLoggedIn={navbarData.isLoggedIn}
+        userName={navbarData.userName}
+        isAdmin={navbarData.isAdmin}
+        isSuperAdmin={navbarData.isSuperAdmin}
+        adminHref={navbarData.adminHref}
+        unreadMessagesCount={navbarData.unreadMessagesCount}
+        unreadNotificationsCount={navbarData.unreadNotificationsCount}
+        notifications={navbarData.notifications}
+        currentUserId={navbarData.currentUserId}
       />
       <main className="flex-1">
         <section className="border-b border-border bg-card">

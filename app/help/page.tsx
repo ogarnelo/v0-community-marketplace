@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { HelpContactForm } from "@/components/help/help-contact-form";
 import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { HelpCircle, ShoppingBag, Gift, ArrowLeft } from "lucide-react";
 
 const marketplaceFAQs = [
@@ -60,52 +61,10 @@ export default async function HelpPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const navbarProps = await getNavbarData(supabase);
 
-  let navbarProps: {
-    isLoggedIn?: boolean;
-    userName?: string;
-    isAdmin?: boolean;
-    unreadMessagesCount?: number;
-    currentUserId?: string;
-  } = {};
-
-  let initialName = "";
-  let initialEmail = "";
-
-  if (user) {
-    const metadata = (user.user_metadata || {}) as SafeUserMetadata;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, user_type")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const fullName =
-      (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
-        ? profile.full_name.trim()
-        : null) ||
-      (typeof metadata.full_name === "string" && metadata.full_name.trim().length > 0
-        ? metadata.full_name.trim()
-        : null) ||
-      user.email ||
-      "Mi cuenta";
-
-    const userType =
-      (typeof profile?.user_type === "string" ? profile.user_type : null) ||
-      (typeof metadata.user_type === "string" ? metadata.user_type : null);
-
-    navbarProps = {
-      isLoggedIn: true,
-      userName: fullName,
-      isAdmin: userType === "school_admin" || userType === "super_admin",
-      unreadMessagesCount: 0,
-      currentUserId: user.id,
-    };
-
-    initialName = typeof fullName === "string" ? fullName : "";
-    initialEmail = user.email || "";
-  }
+  let initialName = navbarProps.userName || "";
+  let initialEmail = user?.email || "";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

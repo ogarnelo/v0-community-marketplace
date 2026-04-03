@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
+import { ConversationOfferCard, type ConversationOfferCardData } from "@/components/messages/conversation-offer-card";
 import {
   canSendNewMessageToListing,
   isValidListingStatus,
@@ -39,6 +40,18 @@ type LatestMessageRow = {
   created_at: string;
   sender_id: string;
   attachment_name?: string | null;
+};
+
+
+type ListingOfferConversationRow = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  offered_price: number;
+  status: string | null;
+  counter_price: number | null;
+  created_at: string | null;
 };
 
 type MessageRow = {
@@ -176,6 +189,15 @@ export default async function ConversationPage({
     .eq("conversation_id", typedConversation.id)
     .order("created_at", { ascending: true });
 
+  const { data: offers } = await supabase
+    .from("listing_offers")
+    .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at")
+    .eq("listing_id", typedConversation.listing_id)
+    .eq("buyer_id", typedConversation.buyer_id)
+    .eq("seller_id", typedConversation.seller_id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
   const listingsMap = new Map(
     ((listings || []) as ListingChatRow[]).map((l) => [l.id, l])
   );
@@ -252,6 +274,19 @@ export default async function ConversationPage({
 
   const listingStatus = getSafeListingStatus(listing?.status);
   const canSendMessages = canSendNewMessageToListing(listingStatus);
+  const activeOffer = ((offers || []) as ListingOfferConversationRow[])[0] || null;
+  const conversationOffer: ConversationOfferCardData | null = activeOffer
+    ? {
+      id: activeOffer.id,
+      listingId: activeOffer.listing_id,
+      buyerId: activeOffer.buyer_id,
+      sellerId: activeOffer.seller_id,
+      offeredPrice: activeOffer.offered_price,
+      counterPrice: activeOffer.counter_price,
+      status: activeOffer.status,
+      createdAt: activeOffer.created_at,
+    }
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
@@ -306,6 +341,10 @@ export default async function ConversationPage({
           </div>
 
           <div className="flex-1 px-5 py-5">
+            {conversationOffer ? (
+              <ConversationOfferCard offer={conversationOffer} currentUserId={user.id} />
+            ) : null}
+
             <RealtimeChatMessages
               conversationId={typedConversation.id}
               currentUserId={user.id}

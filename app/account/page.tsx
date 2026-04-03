@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { gradeLevels } from "@/lib/mock-data";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -93,12 +95,18 @@ export default async function AccountPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Mi cuenta</h1>
-        <p className="mt-2 text-muted-foreground">
-          Gestiona tu perfil y revisa la información asociada a tu cuenta de
-          Wetudy.
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Mi cuenta</h1>
+          <p className="mt-2 text-muted-foreground">
+            Gestiona tu perfil y revisa la información asociada a tu cuenta de
+            Wetudy.
+          </p>
+        </div>
+
+        <Button asChild variant="outline">
+          <Link href="/account/activity">Ver actividad</Link>
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

@@ -22,6 +22,8 @@ export default async function MessagesLayout({
         isSuperAdmin={navbarData.isSuperAdmin}
         adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
+        unreadNotificationsCount={navbarData.unreadNotificationsCount}
+        notifications={navbarData.notifications}
         currentUserId={navbarData.currentUserId}
       />
 

@@ -1,4 +1,5 @@
 import { getAdminFlags, type AdminRoleRow } from "@/lib/admin/roles";
+import type { AppNotificationRow } from "@/lib/notifications";
 
 interface SupabaseLike {
   auth: {
@@ -14,6 +15,8 @@ export type NavbarData = {
   isSuperAdmin: boolean;
   adminHref?: string;
   unreadMessagesCount: number;
+  unreadNotificationsCount: number;
+  notifications: AppNotificationRow[];
   currentUserId?: string;
 };
 
@@ -30,11 +33,13 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
       isSuperAdmin: false,
       adminHref: undefined,
       unreadMessagesCount: 0,
+      unreadNotificationsCount: 0,
+      notifications: [],
       currentUserId: undefined,
     };
   }
 
-  const [{ data: profile }, { data: roles }, { data: conversations }] = await Promise.all([
+  const [{ data: profile }, { data: roles }, { data: conversations }, { data: notifications }] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
     supabase
       .from("user_roles")
@@ -42,6 +47,12 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
       .eq("user_id", user.id)
       .returns<AdminRoleRow[]>(),
     supabase.from("conversations").select("id").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
+    supabase
+      .from("notifications")
+      .select("id, user_id, kind, title, body, href, metadata, read_at, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
 
   const conversationIds = Array.isArray(conversations)
@@ -61,6 +72,8 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     unreadMessagesCount = unreadMessages?.length || 0;
   }
 
+  const typedNotifications = (notifications || []) as AppNotificationRow[];
+
   const adminFlags = getAdminFlags({
     email: user.email,
     roles: (roles || []) as AdminRoleRow[],
@@ -77,6 +90,8 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     isSuperAdmin: adminFlags.isSuperAdmin,
     adminHref: adminFlags.isSuperAdmin ? "/admin/super" : adminFlags.canAccessAdmin ? "/admin/school" : undefined,
     unreadMessagesCount,
+    unreadNotificationsCount: typedNotifications.filter((item) => !item.read_at).length,
+    notifications: typedNotifications,
     currentUserId: user.id as string,
   };
 }

@@ -22,6 +22,8 @@ export default async function FavoritesLayout({
         isSuperAdmin={navbarData.isSuperAdmin}
         adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
+        unreadNotificationsCount={navbarData.unreadNotificationsCount}
+        notifications={navbarData.notifications}
         currentUserId={navbarData.currentUserId}
       />
       <main className="flex-1">{children}</main>

@@ -47,8 +47,13 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
         throw new Error(payload?.error || "No se pudo enviar la oferta.");
       }
 
-      alert("Oferta enviada correctamente.");
+      alert("Oferta enviada correctamente. También se ha abierto el chat con el vendedor.");
       setOpen(false);
+
+      if (payload?.conversationId) {
+        window.location.assign(`/messages/${payload.conversationId}`);
+        return;
+      }
     } catch (error: any) {
       alert(error?.message || "No se pudo enviar la oferta.");
     } finally {

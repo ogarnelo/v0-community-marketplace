@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotifications } from "@/lib/notifications";
 import { getAdminFlags } from "@/lib/admin/roles";
 
 export async function POST(request: Request) {
@@ -58,6 +59,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes revisar solicitudes de otro centro." }, { status: 403 });
     }
 
+    const { data: listing } = await adminSupabase
+      .from("listings")
+      .select("id, title, seller_id")
+      .eq("id", donationRequest.listing_id)
+      .maybeSingle();
+
+    const { data: existingConversation } = await adminSupabase
+      .from("conversations")
+      .select("id")
+      .eq("listing_id", donationRequest.listing_id)
+      .eq("buyer_id", donationRequest.requester_id)
+      .eq("seller_id", listing?.seller_id || "")
+      .maybeSingle();
+
+    const conversationId = existingConversation?.id || null;
+
     if (action === "approve") {
       const now = new Date().toISOString();
 
@@ -87,16 +104,100 @@ export async function POST(request: Request) {
         .from("listings")
         .update({ status: "archived" })
         .eq("id", donationRequest.listing_id);
+
+      if (conversationId) {
+        await adminSupabase.from("messages").insert({
+          conversation_id: conversationId,
+          sender_id: listing?.seller_id || user.id,
+          body: note
+            ? `🎁 Donación aprobada por el centro. Nota: ${note}`
+            : "🎁 Donación aprobada por el centro.",
+        });
+
+        await adminSupabase
+          .from("conversations")
+          .update({ updated_at: now })
+          .eq("id", conversationId);
+      }
+
+      await createNotifications(adminSupabase, [
+        donationRequest.requester_id
+          ? {
+            user_id: donationRequest.requester_id,
+            kind: "donation_approved",
+            title: "Han aprobado tu solicitud de donación",
+            body: `${listing?.title || "La donación"} ha sido asignada a tu usuario.`,
+            href: conversationId ? `/messages/${conversationId}` : "/messages",
+            metadata: {
+              donation_request_id: donationRequestId,
+              listing_id: donationRequest.listing_id,
+            },
+          }
+          : null,
+        listing?.seller_id
+          ? {
+            user_id: listing.seller_id,
+            kind: "donation_reviewed",
+            title: "La donación ya tiene destinatario",
+            body: `El centro ha aprobado la solicitud para ${listing.title || "tu anuncio"}.`,
+            href: conversationId ? `/messages/${conversationId}` : "/messages",
+            metadata: {
+              donation_request_id: donationRequestId,
+              listing_id: donationRequest.listing_id,
+            },
+          }
+          : null,
+      ].filter(Boolean) as Array<{
+        user_id: string;
+        kind: string;
+        title: string;
+        body: string;
+        href: string;
+        metadata: Record<string, unknown>;
+      }>);
     } else {
+      const now = new Date().toISOString();
+
       await adminSupabase
         .from("donation_requests")
         .update({
           status: "rejected",
           approved_by_admin_id: user.id,
           note: note || null,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         })
         .eq("id", donationRequestId);
+
+      if (conversationId) {
+        await adminSupabase.from("messages").insert({
+          conversation_id: conversationId,
+          sender_id: listing?.seller_id || user.id,
+          body: note
+            ? `❌ Solicitud de donación rechazada. Nota del centro: ${note}`
+            : "❌ Solicitud de donación rechazada por el centro.",
+        });
+
+        await adminSupabase
+          .from("conversations")
+          .update({ updated_at: now })
+          .eq("id", conversationId);
+      }
+
+      if (donationRequest.requester_id) {
+        await createNotifications(adminSupabase, [
+          {
+            user_id: donationRequest.requester_id,
+            kind: "donation_rejected",
+            title: "Han rechazado tu solicitud de donación",
+            body: note || `La solicitud para ${listing?.title || "la donación"} ha sido rechazada.`,
+            href: conversationId ? `/messages/${conversationId}` : "/messages",
+            metadata: {
+              donation_request_id: donationRequestId,
+              listing_id: donationRequest.listing_id,
+            },
+          },
+        ]);
+      }
     }
 
     return NextResponse.json({ ok: true });
