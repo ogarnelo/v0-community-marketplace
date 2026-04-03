@@ -21,6 +21,7 @@ import {
   User2,
   Search,
   Check,
+  KeyRound,
 } from "lucide-react";
 import {
   Select,
@@ -54,6 +55,16 @@ type AccountProfileFormProps = {
   schoolOptions: SchoolOption[];
 };
 
+type SchoolAccessCodeResult = {
+  school_id: string;
+  schools: {
+    id: string;
+    name: string;
+    city: string | null;
+    postal_code: string | null;
+  } | null;
+};
+
 export default function AccountProfileForm({
   initialFullName,
   initialUserType,
@@ -75,6 +86,8 @@ export default function AccountProfileForm({
   const [selectedSchoolId, setSelectedSchoolId] = useState(initialSchoolId);
   const [schoolSearch, setSchoolSearch] = useState("");
   const [schoolPopoverOpen, setSchoolPopoverOpen] = useState(false);
+  const [schoolAccessCode, setSchoolAccessCode] = useState("");
+  const [accessCodeLoading, setAccessCodeLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -106,6 +119,54 @@ export default function AccountProfileForm({
     () => Array.from(new Set(gradeLevelOptions)).filter(Boolean),
     [gradeLevelOptions]
   );
+
+  const applySchoolAccessCode = async () => {
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    const normalizedCode = schoolAccessCode.trim().toUpperCase();
+
+    if (!normalizedCode) {
+      setErrorMessage("Introduce un código de centro para validarlo.");
+      return;
+    }
+
+    setAccessCodeLoading(true);
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("school_access_codes")
+        .select("school_id, schools(id, name, city, postal_code)")
+        .eq("code", normalizedCode)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      const result = (data as SchoolAccessCodeResult | null) ?? null;
+
+      if (!result?.schools?.id) {
+        throw new Error("Ese código de centro no existe o ya no está activo.");
+      }
+
+      setSelectedSchoolId(result.schools.id);
+      setSuccessMessage(
+        `Código aplicado correctamente. Nuevo centro: ${result.schools.name}.`
+      );
+    } catch (error: any) {
+      console.error("Error validando código de centro:", error);
+      setErrorMessage(
+        error?.message ||
+        error?.details ||
+        "No se pudo validar el código del centro."
+      );
+    } finally {
+      setAccessCodeLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,6 +225,7 @@ export default function AccountProfileForm({
           grade_level: gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
           school_name: selectedSchoolName,
+          school_id: normalizedSchoolId || null,
         },
       });
 
@@ -261,10 +323,7 @@ export default function AccountProfileForm({
 
             <div className="flex flex-col gap-2">
               <Label>Curso / etapa</Label>
-              <Select
-                value={gradeLevel || undefined}
-                onValueChange={setGradeLevel}
-              >
+              <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar..." />
                 </SelectTrigger>
@@ -276,6 +335,37 @@ export default function AccountProfileForm({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="schoolAccessCode">Código de centro</Label>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Input
+                  id="schoolAccessCode"
+                  value={schoolAccessCode}
+                  onChange={(e) => setSchoolAccessCode(e.target.value.toUpperCase())}
+                  placeholder="Introduce el código del colegio"
+                  autoCapitalize="characters"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={applySchoolAccessCode}
+                  disabled={accessCodeLoading}
+                >
+                  {accessCodeLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-4 w-4" />
+                  )}
+                  Aplicar código
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Puedes cambiar de centro introduciendo un nuevo código o dejar el
+                centro vacío desde el selector inferior.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2 sm:col-span-2">

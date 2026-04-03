@@ -769,36 +769,46 @@ export default function SuperAdminDashboard({
     setLoadingRequestId(requestId);
 
     try {
-      const { data, error } = await supabase.rpc(
-        "approve_school_registration_request",
-        { request_id: requestId }
-      );
+      const response = await fetch("/api/admin/approve-school-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ requestId }),
+      });
 
-      if (error) throw error;
+      const payload = await response.json().catch(() => null);
 
-      const result = Array.isArray(data) ? data[0] : data;
-
+      if (!response.ok) {
+        throw new Error(
+          payload?.error || payload?.message || "No se pudo aprobar la solicitud."
+        );
+      }
       setSchoolRequests((prev) =>
         prev.map((request) =>
           request.id === requestId
             ? {
               ...request,
               status: "approved",
-              approved_school_id: result?.school_id || request.approved_school_id,
+              approved_school_id: payload?.school_id || request.approved_school_id,
               reviewed_at: new Date().toISOString(),
             }
             : request
         )
       );
 
-      if (result?.school_id && result?.access_code) {
+      if (payload?.school_id && payload?.access_code) {
         setApprovedRequestMeta((prev) => ({
           ...prev,
           [requestId]: {
-            schoolId: result.school_id,
-            accessCode: result.access_code,
+            schoolId: payload.school_id,
+            accessCode: payload.access_code,
           },
         }));
+      }
+
+      if (payload?.invite_message) {
+        setGlobalError(payload.invite_message);
       }
     } catch (error: any) {
       setGlobalError(error?.message || error?.details || "No se pudo aprobar la solicitud.");

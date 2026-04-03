@@ -20,42 +20,34 @@ export async function GET(request: Request) {
 
   if (user) {
     const metadata = user.user_metadata || {};
+    const invitedSchoolId =
+      typeof metadata.invited_school_id === "string" &&
+        metadata.invited_school_id.trim().length > 0
+        ? metadata.invited_school_id.trim()
+        : null;
+    const invitedRole =
+      typeof metadata.invited_role === "string" && metadata.invited_role.trim().length > 0
+        ? metadata.invited_role.trim()
+        : null;
 
     await supabase.from("profiles").upsert(
       {
         id: user.id,
-        full_name:
-          typeof metadata.full_name === "string" && metadata.full_name.trim().length > 0
-            ? metadata.full_name.trim()
-            : null,
+        full_name: metadata.full_name || null,
         user_type:
           metadata.user_type === "parent" || metadata.user_type === "student"
             ? metadata.user_type
             : null,
-        grade_level:
-          typeof metadata.grade_level === "string" && metadata.grade_level.trim().length > 0
-            ? metadata.grade_level.trim()
-            : null,
-        postal_code:
-          typeof metadata.postal_code === "string" && metadata.postal_code.trim().length > 0
-            ? metadata.postal_code.trim()
-            : null,
+        grade_level: metadata.grade_level || null,
+        postal_code: metadata.postal_code || null,
+        school_id: invitedSchoolId,
       },
       {
         onConflict: "id",
       }
     );
 
-    const pendingRole =
-      typeof metadata.pending_school_admin_role === "string"
-        ? metadata.pending_school_admin_role
-        : null;
-    const pendingSchoolId =
-      typeof metadata.pending_school_admin_school_id === "string"
-        ? metadata.pending_school_admin_school_id
-        : null;
-
-    if (pendingRole === "school_admin" && pendingSchoolId) {
+    if (invitedSchoolId && invitedRole === "school_admin") {
       const adminSupabase = createAdminClient();
 
       const { data: existingRole } = await adminSupabase
@@ -63,20 +55,20 @@ export async function GET(request: Request) {
         .select("user_id")
         .eq("user_id", user.id)
         .eq("role", "school_admin")
-        .eq("school_id", pendingSchoolId)
+        .eq("school_id", invitedSchoolId)
         .maybeSingle();
 
       if (!existingRole) {
         await adminSupabase.from("user_roles").insert({
           user_id: user.id,
           role: "school_admin",
-          school_id: pendingSchoolId,
+          school_id: invitedSchoolId,
         });
       }
 
       await adminSupabase
         .from("profiles")
-        .update({ school_id: pendingSchoolId })
+        .update({ school_id: invitedSchoolId })
         .eq("id", user.id);
     }
   }
