@@ -4,6 +4,9 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Download, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import type { ListingOfferRow } from "@/lib/types/marketplace";
+import { parseOfferChatBody } from "@/lib/offers/chat-message";
+import { ConversationOfferCard } from "@/components/messages/conversation-offer-card";
 
 type Message = {
   id: string;
@@ -24,6 +27,7 @@ type RealtimeChatMessagesProps = {
   currentUserId: string;
   initialMessages: Message[];
   initialUnreadMessageIds?: string[];
+  initialOffers?: ListingOfferRow[];
 };
 
 function formatMessageDate(date: string) {
@@ -52,17 +56,25 @@ export default function RealtimeChatMessages({
   currentUserId,
   initialMessages,
   initialUnreadMessageIds = [],
+  initialOffers = [],
 }: RealtimeChatMessagesProps) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(
     new Set(initialUnreadMessageIds)
   );
+  const [offersById, setOffersById] = useState<Record<string, ListingOfferRow>>(
+    () => Object.fromEntries(initialOffers.map((offer) => [offer.id, offer]))
+  );
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
+
+  useEffect(() => {
+    setOffersById(Object.fromEntries(initialOffers.map((offer) => [offer.id, offer])));
+  }, [initialOffers]);
 
   useEffect(() => {
     setHighlightedIds(new Set(initialUnreadMessageIds));
@@ -97,6 +109,21 @@ export default function RealtimeChatMessages({
       }
     };
 
+    const ensureOfferLoaded = async (body: string | null | undefined) => {
+      const parsed = parseOfferChatBody(body);
+      if (!parsed || offersById[parsed.offerId]) return;
+
+      const { data, error } = await supabase
+        .from("listing_offers")
+        .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
+        .eq("id", parsed.offerId)
+        .maybeSingle();
+
+      if (!error && data) {
+        setOffersById((prev) => ({ ...prev, [data.id]: data as ListingOfferRow }));
+      }
+    };
+
     const channel = supabase
       .channel(`messages:${conversationId}`)
       .on(
@@ -115,6 +142,8 @@ export default function RealtimeChatMessages({
             if (exists) return prev;
             return [...prev, newMessage];
           });
+
+          void ensureOfferLoaded(newMessage.body);
 
           if (newMessage.sender_id !== currentUserId) {
             setHighlightedIds((prev) => {
@@ -150,7 +179,7 @@ export default function RealtimeChatMessages({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [conversationId, currentUserId, supabase]);
+  }, [conversationId, currentUserId, supabase, offersById]);
 
   const lastOwnMessageId = [...messages]
     .reverse()
@@ -165,6 +194,8 @@ export default function RealtimeChatMessages({
         const isImage = isImageAttachment(message.attachment_type);
         const showSeen =
           isMine && message.id === lastOwnMessageId && !!message.read_at;
+        const parsedOffer = parseOfferChatBody(message.body);
+        const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
 
         return (
           <div
@@ -173,10 +204,10 @@ export default function RealtimeChatMessages({
           >
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine
-                  ? "bg-sky-500 text-white"
-                  : isHighlighted
-                    ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
-                    : "bg-slate-100 text-slate-900"
+                ? "bg-sky-500 text-white"
+                : isHighlighted
+                  ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
+                  : "bg-slate-100 text-slate-900"
                 }`}
             >
               {!isMine && isHighlighted ? (
@@ -209,8 +240,8 @@ export default function RealtimeChatMessages({
                   target="_blank"
                   rel="noreferrer"
                   className={`mb-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition ${isMine
-                      ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40"
-                      : "border-slate-200 bg-white hover:bg-slate-50"
+                    ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
@@ -238,14 +269,18 @@ export default function RealtimeChatMessages({
                 </a>
               ) : null}
 
-              {message.body ? <p className="text-sm">{message.body}</p> : null}
+              {parsedOffer && relatedOffer ? (
+                <ConversationOfferCard offer={relatedOffer} currentUserId={currentUserId} />
+              ) : message.body ? (
+                <p className="text-sm">{message.body}</p>
+              ) : null}
 
               <div
                 className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
-                    ? "text-sky-100"
-                    : isHighlighted
-                      ? "text-emerald-700"
-                      : "text-slate-500"
+                  ? "text-sky-100"
+                  : isHighlighted
+                    ? "text-emerald-700"
+                    : "text-slate-500"
                   }`}
               >
                 <span>{formatMessageDate(message.created_at)}</span>

@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { HideConversationButton } from "@/components/messages/hide-conversation-button";
 import type { ConversationSummary } from "@/lib/types/marketplace";
+import { getOfferChatPreview } from "@/lib/offers/chat-message";
 
 type MessageRealtimePayload = {
   id: string;
@@ -17,7 +18,7 @@ type MessageRealtimePayload = {
   read_at?: string | null;
 };
 
-type ConversationRealtimeRow = {
+type ConversationRealtimePayload = {
   id: string;
   listing_id: string;
   buyer_id: string;
@@ -56,14 +57,8 @@ function sortConversations(items: ConversationSummary[]) {
   });
 }
 
-function buildPreviewText(message: {
-  body?: string | null;
-  attachment_name?: string | null;
-}) {
-  return (
-    message.body?.trim() ||
-    (message.attachment_name ? `📎 ${message.attachment_name}` : "Nuevo mensaje")
-  );
+function buildPreviewText(message: { body?: string | null; attachment_name?: string | null }) {
+  return getOfferChatPreview(message.body?.trim()) || (message.attachment_name ? `📎 ${message.attachment_name}` : "Nuevo mensaje");
 }
 
 interface ConversationsSidebarProps {
@@ -92,6 +87,7 @@ export function ConversationsSidebar({
   useEffect(() => {
     const loadUnreadCounts = async () => {
       if (items.length === 0) return;
+
       const conversationIds = items.map((item) => item.id);
       const { data: unreadMessages, error } = await supabase
         .from("messages")
@@ -124,9 +120,9 @@ export function ConversationsSidebar({
     const hydrateConversationSummary = async (conversationId: string) => {
       const { data: conversation } = await supabase
         .from("conversations")
-        .select("id, listing_id, buyer_id, seller_id, updated_at")
+        .select("id, listing_id, buyer_id, seller_id")
         .eq("id", conversationId)
-        .maybeSingle<ConversationRealtimeRow>();
+        .maybeSingle();
 
       if (!conversation) return;
       if (conversation.buyer_id !== currentUserId && conversation.seller_id !== currentUserId) return;
@@ -134,30 +130,37 @@ export function ConversationsSidebar({
       const otherUserId = conversation.buyer_id === currentUserId ? conversation.seller_id : conversation.buyer_id;
 
       const [{ data: listing }, { data: profile }, { data: latestMessage }] = await Promise.all([
-        supabase.from("listings").select("title").eq("id", conversation.listing_id).maybeSingle(),
-        supabase.from("profiles").select("full_name").eq("id", otherUserId).maybeSingle(),
+        supabase
+          .from("listings")
+          .select("title")
+          .eq("id", conversation.listing_id)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", otherUserId)
+          .maybeSingle(),
         supabase
           .from("messages")
           .select("body, created_at, attachment_name")
-          .eq("conversation_id", conversation.id)
+          .eq("conversation_id", conversationId)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
       ]);
 
-      const summary: ConversationSummary = {
+      const newItem: ConversationSummary = {
         id: conversation.id,
         otherName: profile?.full_name?.trim() || "Usuario",
         listingTitle: listing?.title || "Anuncio",
-        latestMessageBody: buildPreviewText(latestMessage || {}),
-        latestMessageCreatedAt: latestMessage?.created_at || conversation.updated_at,
+        latestMessageBody: latestMessage ? buildPreviewText(latestMessage) : "Sin mensajes todavía",
+        latestMessageCreatedAt: latestMessage?.created_at || null,
         unreadCount: 0,
       };
 
       setItems((prev) => {
-        const exists = prev.some((item) => item.id === summary.id);
-        const next = exists ? prev.map((item) => (item.id === summary.id ? { ...item, ...summary } : item)) : [summary, ...prev];
-        return sortConversations(next);
+        if (prev.some((item) => item.id === newItem.id)) return prev;
+        return sortConversations([newItem, ...prev]);
       });
     };
 
@@ -167,20 +170,27 @@ export function ConversationsSidebar({
       .channel(`conversations-sidebar:${currentUserId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
         (payload) => {
           const newMessage = payload.new as MessageRealtimePayload;
           const knownConversationIds = new Set(items.map((item) => item.id));
+
           if (!knownConversationIds.has(newMessage.conversation_id)) {
             void hydrateConversationSummary(newMessage.conversation_id);
             return;
           }
 
           const previewText = buildPreviewText(newMessage);
+
           setItems((prev) => {
             const updated = prev.map((item) => {
               if (item.id !== newMessage.conversation_id) return item;
               const shouldIncreaseUnread = newMessage.sender_id !== currentUserId && item.id !== selectedConversationId;
+
               return {
                 ...item,
                 latestMessageBody: previewText,
@@ -188,24 +198,32 @@ export function ConversationsSidebar({
                 unreadCount: shouldIncreaseUnread ? item.unreadCount + 1 : item.unreadCount,
               };
             });
+
             return sortConversations(updated);
           });
         }
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "conversations" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversations",
+        },
         (payload) => {
-          const newConversation = payload.new as ConversationRealtimeRow;
-          if (newConversation.buyer_id !== currentUserId && newConversation.seller_id !== currentUserId) {
-            return;
+          const conversation = payload.new as ConversationRealtimePayload;
+          if (conversation.buyer_id === currentUserId || conversation.seller_id === currentUserId) {
+            void hydrateConversationSummary(conversation.id);
           }
-          void hydrateConversationSummary(newConversation.id);
         }
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+        },
         () => {
           void loadUnreadCounts();
         }
@@ -230,10 +248,17 @@ export function ConversationsSidebar({
         ) : (
           items.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
+
             return (
-              <div key={conversation.id} className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}>
+              <div
+                key={conversation.id}
+                className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}
+              >
                 <div className="flex items-start gap-3">
-                  <Link href={`/messages/${conversation.id}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50">
+                  <Link
+                    href={`/messages/${conversation.id}`}
+                    className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50"
+                  >
                     <div className="flex items-start gap-3 rounded-xl p-1">
                       <Avatar className="h-10 w-10 shrink-0">
                         <AvatarFallback>{getInitials(conversation.otherName)}</AvatarFallback>
@@ -261,23 +286,17 @@ export function ConversationsSidebar({
                           </div>
                         </div>
 
-                        <p className={`mt-2 truncate text-sm ${conversation.unreadCount > 0 ? "font-medium text-slate-900" : "text-muted-foreground"}`}>
+                        <p
+                          className={`mt-2 truncate text-sm ${conversation.unreadCount > 0 ? "font-medium text-slate-900" : "text-muted-foreground"
+                            }`}
+                        >
                           {conversation.latestMessageBody || "Sin mensajes todavía"}
                         </p>
                       </div>
                     </div>
                   </Link>
 
-                  <HideConversationButton
-                    conversationId={conversation.id}
-                    iconOnly
-                    size="icon"
-                    variant="ghost"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    onHidden={(hiddenConversationId) => {
-                      setItems((prev) => prev.filter((item) => item.id !== hiddenConversationId));
-                    }}
-                  />
+                  <HideConversationButton conversationId={conversation.id} size="sm" variant="ghost" />
                 </div>
               </div>
             );

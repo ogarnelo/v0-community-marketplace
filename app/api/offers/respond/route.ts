@@ -1,43 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-async function getOrCreateConversationId(params: {
-  listingId: string;
-  buyerId: string;
-  sellerId: string;
-}) {
-  const adminSupabase = createAdminClient();
-  const { listingId, buyerId, sellerId } = params;
-
-  const { data: existingConversation } = await adminSupabase
-    .from("conversations")
-    .select("id")
-    .eq("listing_id", listingId)
-    .eq("buyer_id", buyerId)
-    .eq("seller_id", sellerId)
-    .maybeSingle();
-
-  if (existingConversation?.id) {
-    return existingConversation.id;
-  }
-
-  const { data: newConversation, error: conversationError } = await adminSupabase
-    .from("conversations")
-    .insert({
-      listing_id: listingId,
-      buyer_id: buyerId,
-      seller_id: sellerId,
-    })
-    .select("id")
-    .single();
-
-  if (conversationError || !newConversation?.id) {
-    throw new Error(conversationError?.message || "No se pudo recuperar la conversación de la oferta.");
-  }
-
-  return newConversation.id;
-}
+import { buildOfferChatBody } from "@/lib/offers/chat-message";
 
 export async function POST(request: Request) {
   try {
@@ -81,11 +45,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes responder a esta oferta." }, { status: 403 });
     }
 
-    const conversationId = await getOrCreateConversationId({
-      listingId: offer.listing_id,
-      buyerId: offer.buyer_id,
-      sellerId: offer.seller_id,
-    });
+    if (!['pending', 'countered'].includes(offer.status || '')) {
+      return NextResponse.json({ error: "Esta oferta ya no admite cambios." }, { status: 400 });
+    }
+
+    const { data: existingConversation } = await adminSupabase
+      .from("conversations")
+      .select("id")
+      .eq("listing_id", offer.listing_id)
+      .eq("buyer_id", offer.buyer_id)
+      .eq("seller_id", offer.seller_id)
+      .maybeSingle();
+
+    let conversationId = existingConversation?.id || null;
+
+    if (!conversationId) {
+      const { data: newConversation } = await adminSupabase
+        .from("conversations")
+        .insert({
+          listing_id: offer.listing_id,
+          buyer_id: offer.buyer_id,
+          seller_id: offer.seller_id,
+        })
+        .select("id")
+        .single();
+
+      conversationId = newConversation?.id || null;
+    }
 
     const now = new Date().toISOString();
 
@@ -102,21 +88,36 @@ export async function POST(request: Request) {
         .neq("id", offerId)
         .in("status", ["pending", "countered"]);
 
-      await adminSupabase
-        .from("listings")
-        .update({ status: "reserved" })
-        .eq("id", offer.listing_id);
+      await adminSupabase.from("listings").update({ status: "reserved" }).eq("id", offer.listing_id);
 
-      await adminSupabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: offer.seller_id,
-        body: `💰 OFERTA|accepted|${offer.id}|${offer.offered_price}`,
-      });
+      if (conversationId) {
+        await adminSupabase.from("messages").insert({
+          conversation_id: conversationId,
+          sender_id: offer.seller_id,
+          body: `He aceptado tu oferta de ${offer.offered_price} €. Seguimos por aquí.`,
+        });
 
-      await adminSupabase
-        .from("conversations")
-        .update({ updated_at: now })
-        .eq("id", conversationId);
+        await adminSupabase
+          .from("conversations")
+          .update({ updated_at: now })
+          .eq("id", conversationId);
+      }
+
+      await adminSupabase.from("payment_intents").upsert(
+        {
+          listing_id: offer.listing_id,
+          conversation_id: conversationId,
+          offer_id: offer.id,
+          buyer_id: offer.buyer_id,
+          seller_id: offer.seller_id,
+          amount: offer.offered_price,
+          currency: "EUR",
+          provider: "stripe",
+          status: "draft",
+          updated_at: now,
+        },
+        { onConflict: 'offer_id' }
+      );
 
       return NextResponse.json({ ok: true, conversationId });
     }
@@ -127,16 +128,18 @@ export async function POST(request: Request) {
         .update({ status: "rejected", responded_at: now })
         .eq("id", offerId);
 
-      await adminSupabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: offer.seller_id,
-        body: `💰 OFERTA|rejected|${offer.id}|${offer.offered_price}`,
-      });
+      if (conversationId) {
+        await adminSupabase.from("messages").insert({
+          conversation_id: conversationId,
+          sender_id: offer.seller_id,
+          body: "He rechazado la oferta. Si quieres, puedes enviarme una nueva propuesta.",
+        });
 
-      await adminSupabase
-        .from("conversations")
-        .update({ updated_at: now })
-        .eq("id", conversationId);
+        await adminSupabase
+          .from("conversations")
+          .update({ updated_at: now })
+          .eq("id", conversationId);
+      }
 
       return NextResponse.json({ ok: true, conversationId });
     }
@@ -150,16 +153,22 @@ export async function POST(request: Request) {
       })
       .eq("id", offerId);
 
-    await adminSupabase.from("messages").insert({
-      conversation_id: conversationId,
-      sender_id: offer.seller_id,
-      body: `💰 OFERTA|countered|${offer.id}|${counterPrice}`,
-    });
+    if (conversationId) {
+      await adminSupabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: offer.seller_id,
+        body: buildOfferChatBody({
+          offerId: offer.id,
+          amount: counterPrice || 0,
+          status: "countered",
+        }),
+      });
 
-    await adminSupabase
-      .from("conversations")
-      .update({ updated_at: now })
-      .eq("id", conversationId);
+      await adminSupabase
+        .from("conversations")
+        .update({ updated_at: now })
+        .eq("id", conversationId);
+    }
 
     return NextResponse.json({ ok: true, conversationId });
   } catch (error: any) {

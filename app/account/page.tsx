@@ -45,10 +45,7 @@ export default async function AccountPage() {
         .select("id, full_name, user_type, grade_level, postal_code, school_id, created_at")
         .eq("id", user.id)
         .maybeSingle(),
-      supabase
-        .from("schools")
-        .select("id, name, city, postal_code")
-        .order("name", { ascending: true }),
+      supabase.from("schools").select("id, name, city, postal_code").order("name", { ascending: true }),
     ]);
 
   if (profileError) {
@@ -84,7 +81,7 @@ export default async function AccountPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mi cuenta</h1>
           <p className="mt-2 text-muted-foreground">
@@ -92,7 +89,7 @@ export default async function AccountPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
             <Link href="/account/activity">Ver actividad</Link>
           </Button>
@@ -148,12 +145,7 @@ export default async function AccountPage() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <CalendarDays className="h-4 w-4" />
                   <span>
-                    Miembro desde {" "}
-                    {new Date(createdAt).toLocaleDateString("es-ES", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                    Miembro desde {new Date(createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </span>
                 </div>
               ) : null}
@@ -164,11 +156,7 @@ export default async function AccountPage() {
         <div className="lg:col-span-2">
           <AccountProfileForm
             initialFullName={typedProfile?.full_name || ""}
-            initialUserType={
-              typedProfile?.user_type === "parent" || typedProfile?.user_type === "student"
-                ? typedProfile.user_type
-                : ""
-            }
+            initialUserType={typedProfile?.user_type === "parent" || typedProfile?.user_type === "student" ? typedProfile.user_type : ""}
             initialGradeLevel={typedProfile?.grade_level || ""}
             initialPostalCode={typedProfile?.postal_code || ""}
             initialSchoolId={typedProfile?.school_id || ""}

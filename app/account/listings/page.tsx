@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
-import type { ListingPhotoRow, ListingRow } from "@/lib/types/marketplace";
+import { ListingOffersPanel, type SellerOfferItem } from "@/components/account/listing-offers-panel";
+import type { ListingOfferRow, ListingPhotoRow, ListingRow, ProfileRow } from "@/lib/types/marketplace";
 import {
   formatPrice,
   getStatusBadgeClass,
@@ -41,19 +42,54 @@ export default async function MyListingsPage() {
   const listingIds = listings.map((listing) => listing.id);
 
   const firstPhotoMap = new Map<string, string>();
+  let sellerOffers: SellerOfferItem[] = [];
 
   if (listingIds.length > 0) {
-    const { data: photosData } = await supabase
-      .from("listing_photos")
-      .select("id, listing_id, url, sort_order")
-      .in("listing_id", listingIds)
-      .order("sort_order", { ascending: true });
+    const [{ data: photosData }, { data: offersData }] = await Promise.all([
+      supabase
+        .from("listing_photos")
+        .select("id, listing_id, url, sort_order")
+        .in("listing_id", listingIds)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("listing_offers")
+        .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
+        .in("listing_id", listingIds)
+        .order("created_at", { ascending: false }),
+    ]);
 
     for (const photo of (photosData || []) as ListingPhotoRow[]) {
       if (!firstPhotoMap.has(photo.listing_id)) {
         firstPhotoMap.set(photo.listing_id, photo.url);
       }
     }
+
+    const offers = (offersData || []) as ListingOfferRow[];
+    const buyerIds = Array.from(new Set(offers.map((offer) => offer.buyer_id)));
+
+    let profilesMap = new Map<string, ProfileRow>();
+
+    if (buyerIds.length > 0) {
+      const { data: buyersData } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", buyerIds);
+
+      profilesMap = new Map(
+        ((buyersData || []) as ProfileRow[]).map((profile) => [profile.id, profile])
+      );
+    }
+
+    sellerOffers = offers.map((offer) => ({
+      id: offer.id,
+      listingId: offer.listing_id,
+      buyerId: offer.buyer_id,
+      buyerName: profilesMap.get(offer.buyer_id)?.full_name?.trim() || "Comprador",
+      offeredPrice: offer.offered_price,
+      status: offer.status,
+      counterPrice: offer.counter_price,
+      createdAt: offer.created_at,
+    }));
   }
 
   return (
@@ -66,12 +102,17 @@ export default async function MyListingsPage() {
           </p>
         </div>
 
-        <Button asChild className="gap-2">
-          <Link href="/marketplace/new">
-            <Plus className="h-4 w-4" />
-            Publicar anuncio
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/account/activity">Actividad</Link>
+          </Button>
+          <Button asChild className="gap-2">
+            <Link href="/marketplace/new">
+              <Plus className="h-4 w-4" />
+              Publicar anuncio
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {listings.length === 0 ? (
@@ -96,16 +137,9 @@ export default async function MyListingsPage() {
 
             return (
               <Card key={listing.id} className="overflow-hidden transition hover:shadow-lg">
-                <div
-                  className="flex items-center justify-center bg-muted"
-                  style={{ aspectRatio: "4 / 3" }}
-                >
+                <div className="flex items-center justify-center bg-muted" style={{ aspectRatio: "4 / 3" }}>
                   {firstPhoto ? (
-                    <img
-                      src={firstPhoto}
-                      alt={listing.title || "Anuncio"}
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={firstPhoto} alt={listing.title || "Anuncio"} className="h-full w-full object-cover" />
                   ) : (
                     <span className="select-none font-mono text-5xl text-muted-foreground/15">
                       {(listing.category || "A").charAt(0)}
@@ -121,15 +155,10 @@ export default async function MyListingsPage() {
                           {listing.title || "Anuncio sin título"}
                         </Link>
                       </CardTitle>
-                      <CardDescription>
-                        {listing.category || "Sin categoría"}
-                      </CardDescription>
+                      <CardDescription>{listing.category || "Sin categoría"}</CardDescription>
                     </div>
 
-                    <Badge
-                      variant="outline"
-                      className={getStatusBadgeClass(listing.status)}
-                    >
+                    <Badge variant="outline" className={getStatusBadgeClass(listing.status)}>
                       {getStatusLabel(listing.status)}
                     </Badge>
                   </div>
@@ -161,10 +190,9 @@ export default async function MyListingsPage() {
                     </div>
                   </div>
 
-                  <ListingStatusActions
-                    listingId={listing.id}
-                    currentStatus={listing.status}
-                  />
+                  <ListingStatusActions listingId={listing.id} currentStatus={listing.status} />
+
+                  {!isDonation ? <ListingOffersPanel listingId={listing.id} offers={sellerOffers} /> : null}
                 </CardContent>
               </Card>
             );
@@ -174,4 +202,3 @@ export default async function MyListingsPage() {
     </div>
   );
 }
-

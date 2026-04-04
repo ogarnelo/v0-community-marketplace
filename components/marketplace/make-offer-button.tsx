@@ -35,10 +35,7 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
       const response = await fetch("/api/offers/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          listingId,
-          offeredPrice: offerPrice,
-        }),
+        body: JSON.stringify({ listingId, offeredPrice: offerPrice }),
       });
 
       const payload = await response.json();
@@ -73,8 +70,7 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
         <DialogHeader>
           <DialogTitle>Enviar oferta</DialogTitle>
           <DialogDescription>
-            La oferta se enviará al chat en tiempo real para que el vendedor pueda aceptarla,
-            rechazarla o proponerte otro precio.
+            El vendedor podrá aceptarla, rechazarla o proponerte otro precio. Se abrirá el chat automáticamente.
           </DialogDescription>
         </DialogHeader>
 
