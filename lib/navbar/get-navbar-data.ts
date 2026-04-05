@@ -39,26 +39,20 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     };
   }
 
-  const [{ data: profile }, { data: roles }, { data: conversations }, { data: notifications }] = await Promise.all([
+  const [{ data: profile }, { data: roles }, { data: conversations }, { data: notifications }, { count: unreadNotificationsCount }] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    supabase
-      .from("user_roles")
-      .select("role, school_id")
-      .eq("user_id", user.id)
-      .returns<AdminRoleRow[]>(),
+    supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<AdminRoleRow[]>(),
     supabase.from("conversations").select("id").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
     supabase
       .from("notifications")
       .select("id, user_id, kind, title, body, href, metadata, read_at, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(20),
+    supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null),
   ]);
 
-  const conversationIds = Array.isArray(conversations)
-    ? conversations.map((conversation: { id: string }) => conversation.id)
-    : [];
-
+  const conversationIds = Array.isArray(conversations) ? conversations.map((conversation: { id: string }) => conversation.id) : [];
   let unreadMessagesCount = 0;
 
   if (conversationIds.length > 0) {
@@ -73,24 +67,16 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
   }
 
   const typedNotifications = (notifications || []) as AppNotificationRow[];
-
-  const adminFlags = getAdminFlags({
-    email: user.email,
-    roles: (roles || []) as AdminRoleRow[],
-  });
+  const adminFlags = getAdminFlags({ email: user.email, roles: (roles || []) as AdminRoleRow[] });
 
   return {
     isLoggedIn: true,
-    userName:
-      profile?.full_name?.trim() ||
-      user.user_metadata?.full_name ||
-      user.email ||
-      "Mi cuenta",
+    userName: profile?.full_name?.trim() || user.user_metadata?.full_name || user.email || "Mi cuenta",
     isAdmin: adminFlags.canAccessAdmin,
     isSuperAdmin: adminFlags.isSuperAdmin,
     adminHref: adminFlags.isSuperAdmin ? "/admin/super" : adminFlags.canAccessAdmin ? "/admin/school" : undefined,
     unreadMessagesCount,
-    unreadNotificationsCount: typedNotifications.filter((item) => !item.read_at).length,
+    unreadNotificationsCount: unreadNotificationsCount || 0,
     notifications: typedNotifications,
     currentUserId: user.id as string,
   };
