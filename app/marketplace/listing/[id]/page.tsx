@@ -264,7 +264,7 @@ export default async function ListingDetailPage({
                       <div className="mt-2 text-xs text-muted-foreground">{item.grade_level || "Sin curso"}</div>
                       <div className="mt-3 font-semibold">
                         {getNormalizedListingType(item) === "donation"
-                          ? "Gratis"
+                          ? "Donación"
                           : item.price != null
                             ? formatPrice(item.price)
                             : "Consultar"}
@@ -286,7 +286,7 @@ export default async function ListingDetailPage({
               </div>
 
               {type === "donation" ? (
-                <p className="text-3xl font-bold text-primary">Gratis</p>
+                <p className="text-3xl font-bold text-primary">Donación</p>
               ) : (
                 <div className="flex items-end gap-3">
                   <p className="text-3xl font-bold">{price != null ? formatPrice(price) : "Consultar"}</p>
