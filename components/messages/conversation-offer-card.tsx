@@ -8,8 +8,13 @@ import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { ListingOfferRow } from "@/lib/types/marketplace";
 
+type ConversationOfferLike = Pick<
+  ListingOfferRow,
+  "id" | "listing_id" | "buyer_id" | "seller_id" | "offered_price" | "status" | "counter_price"
+>;
+
 interface ConversationOfferCardProps {
-  offer: ListingOfferRow;
+  offer: ConversationOfferLike;
   currentUserId: string;
 }
 
@@ -38,7 +43,7 @@ export function ConversationOfferCard({ offer, currentUserId }: ConversationOffe
   );
   const [localStatus, setLocalStatus] = useState<string | null>(offer.status);
 
-  const isSeller = currentUserId === offer.seller_id;
+  const isSeller = !!offer.seller_id && currentUserId === offer.seller_id;
   const canRespond = isSeller && (localStatus === "pending" || localStatus === "countered");
 
   const headline = useMemo(() => {
@@ -71,7 +76,9 @@ export function ConversationOfferCard({ offer, currentUserId }: ConversationOffe
         throw new Error(payload?.error || "No se pudo responder a la oferta.");
       }
 
-      setLocalStatus(action === "accept" ? "accepted" : action === "reject" ? "rejected" : "countered");
+      setLocalStatus(
+        action === "accept" ? "accepted" : action === "reject" ? "rejected" : "countered"
+      );
       router.refresh();
     } catch (error: any) {
       alert(error?.message || "No se pudo responder a la oferta.");
@@ -141,7 +148,7 @@ export function ConversationOfferCard({ offer, currentUserId }: ConversationOffe
         </p>
       ) : null}
 
-      {!isSeller ? (
+      {!isSeller && offer.listing_id ? (
         <div className="mt-3">
           <Button asChild size="sm" variant="ghost" className="px-0 text-slate-700 hover:text-slate-900">
             <Link href={`/marketplace/listing/${offer.listing_id}`}>Abrir anuncio</Link>

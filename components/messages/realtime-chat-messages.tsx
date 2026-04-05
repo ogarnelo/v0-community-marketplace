@@ -25,6 +25,9 @@ type Message = {
 type RealtimeChatMessagesProps = {
   conversationId: string;
   currentUserId: string;
+  conversationListingId: string;
+  conversationBuyerId: string;
+  conversationSellerId: string;
   initialMessages: Message[];
   initialUnreadMessageIds?: string[];
   initialOffers?: ListingOfferRow[];
@@ -54,6 +57,9 @@ function isImageAttachment(type?: string | null) {
 export default function RealtimeChatMessages({
   conversationId,
   currentUserId,
+  conversationListingId,
+  conversationBuyerId,
+  conversationSellerId,
   initialMessages,
   initialUnreadMessageIds = [],
   initialOffers = [],
@@ -195,7 +201,19 @@ export default function RealtimeChatMessages({
         const showSeen =
           isMine && message.id === lastOwnMessageId && !!message.read_at;
         const parsedOffer = parseOfferChatBody(message.body);
-        const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
+        const relatedOffer = parsedOffer
+          ? offersById[parsedOffer.offerId] || {
+            id: parsedOffer.offerId,
+            listing_id: conversationListingId,
+            buyer_id: conversationBuyerId,
+            seller_id: conversationSellerId,
+            offered_price: parsedOffer.amount,
+            status: parsedOffer.status,
+            counter_price: parsedOffer.status === "countered" ? parsedOffer.amount : null,
+            created_at: null,
+            responded_at: null,
+          }
+          : null;
 
         return (
           <div
