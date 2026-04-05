@@ -7,29 +7,44 @@ import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DonationRequestRow, ListingOfferRow, ListingRow, ProfileRow } from "@/lib/types/marketplace";
 
+
 function getActivityStatusLabel(status: string | null) {
   switch (status) {
-    case "pending": return "Pendiente";
-    case "countered": return "Contraoferta";
-    case "accepted": return "Aceptada";
-    case "rejected": return "Rechazada";
-    case "completed": return "Completada";
-    case "approved": return "Aprobada";
-    case "cancelled": return "Cancelada";
-    default: return status || "Sin estado";
+    case "pending":
+      return "Pendiente";
+    case "countered":
+      return "Contraoferta";
+    case "accepted":
+      return "Aceptada";
+    case "rejected":
+      return "Rechazada";
+    case "completed":
+      return "Completada";
+    case "approved":
+      return "Aprobada";
+    case "cancelled":
+      return "Cancelada";
+    default:
+      return status || "Sin estado";
   }
 }
 
 function getActivityStatusClass(status: string | null) {
   switch (status) {
-    case "pending": return "border-amber-200 bg-amber-50 text-amber-700";
-    case "countered": return "border-sky-200 bg-sky-50 text-sky-700";
+    case "pending":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "countered":
+      return "border-sky-200 bg-sky-50 text-sky-700";
     case "accepted":
-    case "approved": return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "approved":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "rejected":
-    case "cancelled": return "border-rose-200 bg-rose-50 text-rose-700";
-    case "completed": return "border-slate-200 bg-slate-100 text-slate-700";
-    default: return "";
+    case "cancelled":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "completed":
+      return "border-slate-200 bg-slate-100 text-slate-700";
+    default:
+      return "";
   }
 }
 
@@ -47,29 +62,38 @@ function formatDate(value: string | null) {
 export default async function AccountActivityPage() {
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const [sentOffersResult, receivedOffersResult, myListingsResult, sentDonationResult] = await Promise.all([
-    adminSupabase
-      .from("listing_offers")
-      .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
-      .eq("buyer_id", user.id)
-      .order("created_at", { ascending: false }),
-    adminSupabase
-      .from("listing_offers")
-      .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
-      .eq("seller_id", user.id)
-      .order("created_at", { ascending: false }),
-    adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id),
-    adminSupabase
-      .from("donation_requests")
-      .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
-      .eq("requester_id", user.id)
-      .order("created_at", { ascending: false }),
-  ]);
+  if (!user) {
+    redirect("/auth");
+  }
 
-  const myListings = (myListingsResult.data || []) as ListingRow[];
+  const [{ data: sentOffersData }, { data: receivedOffersData }, { data: myListingsData }, { data: sentDonationData }] =
+    await Promise.all([
+      adminSupabase
+        .from("listing_offers")
+        .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
+        .eq("buyer_id", user.id)
+        .order("created_at", { ascending: false }),
+      adminSupabase
+        .from("listing_offers")
+        .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
+        .eq("seller_id", user.id)
+        .order("created_at", { ascending: false }),
+      adminSupabase
+        .from("listings")
+        .select("id, title, seller_id")
+        .eq("seller_id", user.id),
+      adminSupabase
+        .from("donation_requests")
+        .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
+        .eq("requester_id", user.id)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  const myListings = (myListingsData || []) as ListingRow[];
   const myListingIds = myListings.map((listing) => listing.id);
 
   let receivedDonationData: DonationRequestRow[] = [];
@@ -79,27 +103,31 @@ export default async function AccountActivityPage() {
       .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
       .in("listing_id", myListingIds)
       .order("created_at", { ascending: false });
+
     receivedDonationData = (data || []) as DonationRequestRow[];
   }
 
-  const sentOffers = (sentOffersResult.data || []) as ListingOfferRow[];
-  const receivedOffers = (receivedOffersResult.data || []) as ListingOfferRow[];
-  const sentDonations = (sentDonationResult.data || []) as DonationRequestRow[];
-  const receivedDonations = receivedDonationData;
+  const allOffers = [...((sentOffersData || []) as ListingOfferRow[]), ...((receivedOffersData || []) as ListingOfferRow[])];
+  const allDonations = [...((sentDonationData || []) as DonationRequestRow[]), ...receivedDonationData];
 
-  const listingIds = Array.from(new Set([
-    ...sentOffers.map((offer) => offer.listing_id),
-    ...receivedOffers.map((offer) => offer.listing_id),
-    ...sentDonations.map((request) => request.listing_id).filter(Boolean),
-    ...receivedDonations.map((request) => request.listing_id).filter(Boolean),
-  ])) as string[];
+  const listingIds = Array.from(
+    new Set([
+      ...allOffers.map((offer) => offer.listing_id),
+      ...allDonations
+        .map((request) => request.listing_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0),
+    ])
+  ) as string[];
 
-  const profileIds = Array.from(new Set([
-    ...sentOffers.map((offer) => offer.seller_id),
-    ...receivedOffers.map((offer) => offer.buyer_id),
-    ...sentDonations.map((request) => request.requester_id).filter(Boolean),
-    ...receivedDonations.map((request) => request.requester_id).filter(Boolean),
-  ])) as string[];
+  const profileIds = Array.from(
+    new Set([
+      ...allOffers.map((offer) => offer.buyer_id),
+      ...allOffers.map((offer) => offer.seller_id),
+      ...allDonations
+        .map((request) => request.requester_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0),
+    ].filter(Boolean))
+  ) as string[];
 
   const [listingsResult, profilesResult] = await Promise.all([
     listingIds.length > 0
@@ -112,6 +140,11 @@ export default async function AccountActivityPage() {
 
   const listingsMap = new Map((listingsResult.data || []).map((row: any) => [row.id, row.title || "Anuncio"]));
   const profilesMap = new Map((profilesResult.data || []).map((row: any) => [row.id, row.full_name || "Usuario"]));
+
+  const sentOffers = (sentOffersData || []) as ListingOfferRow[];
+  const receivedOffers = (receivedOffersData || []) as ListingOfferRow[];
+  const sentDonations = (sentDonationData || []) as DonationRequestRow[];
+  const receivedDonations = receivedDonationData;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -171,8 +204,8 @@ export default async function AccountActivityPage() {
               <div key={request.id} className="rounded-xl border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium">{listingsMap.get(request.listing_id || "") || "Donación"}</p>
-                    <p className="text-sm text-muted-foreground">Solicitante: tú</p>
+                    <p className="font-medium">{listingsMap.get(request.listing_id || "") || "Anuncio"}</p>
+                    <p className="text-sm text-muted-foreground">Estado: {request.status || "pending"}</p>
                     {request.note ? <p className="text-sm text-muted-foreground">Nota: {request.note}</p> : null}
                   </div>
                   <Badge variant="outline" className={getActivityStatusClass(request.status)}>{getActivityStatusLabel(request.status)}</Badge>
@@ -190,7 +223,7 @@ export default async function AccountActivityPage() {
               <div key={request.id} className="rounded-xl border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium">{listingsMap.get(request.listing_id || "") || "Donación"}</p>
+                    <p className="font-medium">{listingsMap.get(request.listing_id || "") || "Anuncio"}</p>
                     <p className="text-sm text-muted-foreground">Solicitante: {profilesMap.get(request.requester_id || "") || "Usuario"}</p>
                     {request.note ? <p className="text-sm text-muted-foreground">Nota: {request.note}</p> : null}
                   </div>

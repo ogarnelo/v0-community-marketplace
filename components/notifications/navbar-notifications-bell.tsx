@@ -25,15 +25,27 @@ function formatRelativeDate(value: string) {
   const date = new Date(value);
   const diffMs = Date.now() - date.getTime();
   const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+
   if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
+
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) return `Hace ${diffHours} h`;
+
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `Hace ${diffDays} d`;
-  return date.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" });
+
+  return date.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
 
-export function NavbarNotificationsBell({ currentUserId, initialNotifications = [], initialUnreadCount = 0 }: NavbarNotificationsBellProps) {
+export function NavbarNotificationsBell({
+  currentUserId,
+  initialNotifications = [],
+  initialUnreadCount = 0,
+}: NavbarNotificationsBellProps) {
   const supabase = useMemo(() => createClient(), []);
   const [notifications, setNotifications] = useState<AppNotificationRow[]>(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
@@ -41,30 +53,50 @@ export function NavbarNotificationsBell({ currentUserId, initialNotifications = 
 
   useEffect(() => {
     let isMounted = true;
+
     const loadNotifications = async () => {
-      const [{ data: items }, { count }] = await Promise.all([
-        supabase
-          .from("notifications")
-          .select("id, user_id, kind, title, body, href, metadata, read_at, created_at")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
-          .limit(20),
-        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", currentUserId).is("read_at", null),
-      ]);
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, user_id, kind, title, body, href, metadata, read_at, created_at")
+        .eq("user_id", currentUserId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
       if (!isMounted) return;
-      setNotifications((items || []) as AppNotificationRow[]);
+
+      const nextItems = (data || []) as AppNotificationRow[];
+      setNotifications(nextItems);
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", currentUserId)
+        .is("read_at", null);
+      if (!isMounted) return;
       setUnreadCount(count || 0);
     };
+
     void loadNotifications();
+
     const channel = supabase
       .channel(`navbar-notifications-${currentUserId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${currentUserId}` },
-        async () => { await loadNotifications(); }
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        async () => {
+          await loadNotifications();
+        }
       )
       .subscribe();
-    return () => { isMounted = false; supabase.removeChannel(channel); };
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, [currentUserId, supabase]);
 
   const markAllRead = async () => {
@@ -86,9 +118,15 @@ export function NavbarNotificationsBell({ currentUserId, initialNotifications = 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId: notification.id }),
       });
-      setNotifications((prev) => prev.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item
+        )
+      );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
+
     window.location.assign(notification.href || "/account/activity");
   };
 
@@ -97,34 +135,68 @@ export function NavbarNotificationsBell({ currentUserId, initialNotifications = 
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
-          {unreadCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span> : null}
+          {unreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          ) : null}
           <span className="sr-only">Notificaciones</span>
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent align="end" className="w-96">
         <div className="flex items-center justify-between px-2 py-1.5">
           <DropdownMenuLabel className="p-0">Notificaciones</DropdownMenuLabel>
-          <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={markAllRead} disabled={markingAllRead || unreadCount === 0}>
-            <CheckCheck className="h-4 w-4" /> Marcar todo
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1 px-2"
+            onClick={markAllRead}
+            disabled={markingAllRead || unreadCount === 0}
+          >
+            <CheckCheck className="h-4 w-4" />
+            Marcar todo
           </Button>
         </div>
         <DropdownMenuSeparator />
+
         {notifications.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Aún no tienes notificaciones.</div>
-        ) : notifications.map((notification) => (
-          <DropdownMenuItem key={notification.id} className="block cursor-pointer space-y-1 py-3" onSelect={(event) => { event.preventDefault(); void openNotification(notification); }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{notification.title}</p>
-                {notification.body ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{notification.body}</p> : null}
+          <div className="px-3 py-6 text-sm text-muted-foreground">
+            Aún no tienes notificaciones.
+          </div>
+        ) : (
+          notifications.map((notification) => (
+            <DropdownMenuItem
+              key={notification.id}
+              className="block cursor-pointer space-y-1 py-3"
+              onSelect={(event) => {
+                event.preventDefault();
+                void openNotification(notification);
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{notification.title}</p>
+                  {notification.body ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {notification.body}
+                    </p>
+                  ) : null}
+                </div>
+                {!notification.read_at ? (
+                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                ) : null}
               </div>
-              {!notification.read_at ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-600" /> : null}
-            </div>
-            <p className="text-[11px] text-muted-foreground">{formatRelativeDate(notification.created_at)}</p>
-          </DropdownMenuItem>
-        ))}
+              <p className="text-[11px] text-muted-foreground">{formatRelativeDate(notification.created_at)}</p>
+            </DropdownMenuItem>
+          ))
+        )}
+
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild><Link href="/account/activity">Ver toda la actividad</Link></DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account/activity">Ver toda la actividad</Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

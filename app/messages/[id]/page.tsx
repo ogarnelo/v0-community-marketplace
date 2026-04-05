@@ -1,25 +1,26 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { ExternalLink } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import RealtimeChatMessages from "@/components/messages/realtime-chat-messages";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
-import { ConversationListingState } from "@/components/messages/conversation-listing-state";
+import ConversationListingState from "@/components/messages/conversation-listing-state";
 import { HideConversationButton } from "@/components/messages/hide-conversation-button";
 import { ReportConversationButton } from "@/components/messages/report-conversation-button";
+import Link from "next/link";
+import { redirect, notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
 import {
   canSendNewMessageToListing,
   isValidListingStatus,
   type ListingStatus,
 } from "@/lib/marketplace/listing-status";
-import type { ConversationSummary, DonationRequestRow, ListingOfferRow, ProfileRow } from "@/lib/types/marketplace";
+import type { ConversationSummary, ListingOfferRow, ProfileRow } from "@/lib/types/marketplace";
 import { getOfferChatPreview } from "@/lib/offers/chat-message";
 import { getDonationChatPreview } from "@/lib/donations/chat-message";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { DonationRequestRow } from "@/lib/types/marketplace";
 
 type ConversationRow = {
   id: string;
@@ -60,6 +61,7 @@ type MessageRow = {
 
 function getInitials(name?: string | null) {
   if (!name || !name.trim()) return "U";
+
   return name
     .trim()
     .split(" ")
@@ -72,7 +74,11 @@ function getSafeListingStatus(status: unknown): ListingStatus {
   return isValidListingStatus(status) ? status : "available";
 }
 
-export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ConversationPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
@@ -81,24 +87,45 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/auth");
+  if (!user) {
+    redirect("/auth");
+  }
 
   const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
     supabase
       .from("conversations")
-      .select("id, listing_id, buyer_id, seller_id, updated_at")
+      .select("*")
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
       .order("updated_at", { ascending: false }),
-    supabase.from("hidden_conversations").select("conversation_id").eq("user_id", user.id),
+    supabase
+      .from("hidden_conversations")
+      .select("conversation_id")
+      .eq("user_id", user.id),
   ]);
 
-  const hiddenConversationIds = new Set((hiddenRows || []).map((row: { conversation_id: string }) => row.conversation_id));
+  const hiddenConversationIds = new Set(
+    (hiddenRows || []).map((row: { conversation_id: string }) => row.conversation_id)
+  );
+
   const safeConversations = ((conversations || []) as ConversationRow[]).filter(
     (conversation) => !hiddenConversationIds.has(conversation.id)
   );
 
-  const typedConversation = safeConversations.find((conversation) => conversation.id === id) || null;
-  if (!typedConversation) notFound();
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  const typedConversation = (conversation as ConversationRow | null) ?? null;
+
+  if (
+    !typedConversation ||
+    hiddenConversationIds.has(typedConversation.id) ||
+    (typedConversation.buyer_id !== user.id && typedConversation.seller_id !== user.id)
+  ) {
+    notFound();
+  }
 
   const { data: unreadBeforeOpen } = await supabase
     .from("messages")
@@ -107,7 +134,9 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     .neq("sender_id", user.id)
     .is("read_at", null);
 
-  const initialUnreadMessageIds = (unreadBeforeOpen || []).map((message: { id: string }) => message.id);
+  const initialUnreadMessageIds = (unreadBeforeOpen || []).map(
+    (message: { id: string }) => message.id
+  );
 
   await supabase
     .from("messages")
@@ -117,51 +146,78 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     .is("read_at", null);
 
   const listingIds = safeConversations.map((c) => c.listing_id);
-  const otherUserIds = safeConversations.map((c) => (c.buyer_id === user.id ? c.seller_id : c.buyer_id));
+  const otherUserIds = safeConversations.map((c) =>
+    c.buyer_id === user.id ? c.seller_id : c.buyer_id
+  );
   const conversationIds = safeConversations.map((c) => c.id);
 
-  const [listingsResult, profilesResult, latestMessagesResult, unreadMessagesResult, messagesResult, offersResult, donationsResult] =
-    await Promise.all([
-      supabase.from("listings").select("id, title, price, status").in("id", listingIds),
-      supabase.from("profiles").select("id, full_name, user_type").in("id", otherUserIds),
-      supabase
-        .from("messages")
-        .select("conversation_id, body, created_at, sender_id, attachment_name")
-        .in("conversation_id", conversationIds)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("messages")
-        .select("conversation_id")
-        .in("conversation_id", conversationIds)
-        .neq("sender_id", user.id)
-        .is("read_at", null),
-      supabase.from("messages").select("*").eq("conversation_id", typedConversation.id).order("created_at", { ascending: true }),
-      adminSupabase
-        .from("listing_offers")
-        .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
-        .eq("listing_id", typedConversation.listing_id)
-        .eq("buyer_id", typedConversation.buyer_id)
-        .eq("seller_id", typedConversation.seller_id)
-        .order("created_at", { ascending: false }),
-      adminSupabase
-        .from("donation_requests")
-        .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
-        .eq("listing_id", typedConversation.listing_id)
-        .eq("requester_id", typedConversation.buyer_id)
-        .order("created_at", { ascending: false }),
-    ]);
+  const { data: listings } = await supabase
+    .from("listings")
+    .select("id, title, price, status")
+    .in("id", listingIds);
 
-  const listingsMap = new Map(((listingsResult.data || []) as ListingChatRow[]).map((l) => [l.id, l]));
-  const profilesMap = new Map(((profilesResult.data || []) as ProfileRow[]).map((p) => [p.id, p]));
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, user_type")
+    .in("id", otherUserIds);
+
+  const { data: latestMessages } = await supabase
+    .from("messages")
+    .select("conversation_id, body, created_at, sender_id, attachment_name")
+    .in("conversation_id", conversationIds)
+    .order("created_at", { ascending: false });
+
+  const { data: unreadMessages } = await supabase
+    .from("messages")
+    .select("conversation_id")
+    .in("conversation_id", conversationIds)
+    .neq("sender_id", user.id)
+    .is("read_at", null);
+
+  const { data: messages } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("conversation_id", typedConversation.id)
+    .order("created_at", { ascending: true });
+
+  const [{ data: offers }, { data: donationRequests }] = await Promise.all([
+    adminSupabase
+      .from("listing_offers")
+      .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
+      .eq("listing_id", typedConversation.listing_id)
+      .eq("buyer_id", typedConversation.buyer_id)
+      .eq("seller_id", typedConversation.seller_id)
+      .order("created_at", { ascending: false }),
+    adminSupabase
+      .from("donation_requests")
+      .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
+      .eq("listing_id", typedConversation.listing_id)
+      .eq("requester_id", typedConversation.buyer_id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const listingsMap = new Map(
+    ((listings || []) as ListingChatRow[]).map((l) => [l.id, l])
+  );
+  const profilesMap = new Map(
+    ((profiles || []) as ProfileRow[]).map((p) => [p.id, p])
+  );
 
   const latestMessageMap = new Map<string, LatestMessageRow>();
-  for (const message of (latestMessagesResult.data || []) as LatestMessageRow[]) {
-    if (!latestMessageMap.has(message.conversation_id)) latestMessageMap.set(message.conversation_id, message);
+
+  for (const message of (latestMessages || []) as LatestMessageRow[]) {
+    if (!latestMessageMap.has(message.conversation_id)) {
+      latestMessageMap.set(message.conversation_id, message);
+    }
   }
 
   const unreadCountMap = new Map<string, number>();
-  for (const message of unreadMessagesResult.data || []) {
-    unreadCountMap.set(message.conversation_id, (unreadCountMap.get(message.conversation_id) || 0) + 1);
+
+  for (const message of unreadMessages || []) {
+    unreadCountMap.set(
+      message.conversation_id,
+      (unreadCountMap.get(message.conversation_id) || 0) + 1
+    );
   }
 
   const conversationSummaries: ConversationSummary[] = safeConversations.map((item) => {
@@ -170,6 +226,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     const listing = listingsMap.get(item.listing_id);
     const latestMessage = latestMessageMap.get(item.id);
     const unreadCount = unreadCountMap.get(item.id) || 0;
+
     const latestMessageBody =
       getOfferChatPreview(latestMessage?.body?.trim()) ||
       getDonationChatPreview(latestMessage?.body?.trim()) ||
@@ -177,7 +234,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
     return {
       id: item.id,
-      otherName: otherProfile?.full_name?.trim() || "Usuario",
+      otherName:
+        otherProfile?.full_name && otherProfile.full_name.trim().length > 0
+          ? otherProfile.full_name.trim()
+          : "Usuario",
       listingTitle: listing?.title || "Anuncio",
       latestMessageBody,
       latestMessageCreatedAt: latestMessage?.created_at || null,
@@ -185,25 +245,48 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     };
   });
 
-  const otherUserId = typedConversation.buyer_id === user.id ? typedConversation.seller_id : typedConversation.buyer_id;
+  const otherUserId =
+    typedConversation.buyer_id === user.id ? typedConversation.seller_id : typedConversation.buyer_id;
+
   const otherProfile = profilesMap.get(otherUserId);
   const listing = listingsMap.get(typedConversation.listing_id);
-  const otherName = otherProfile?.full_name?.trim() || "Usuario";
-  const otherRole = otherProfile?.user_type === "parent" ? "Familia / Tutor legal" : otherProfile?.user_type === "student" ? "Estudiante" : "Miembro de Wetudy";
+
+  const otherName =
+    otherProfile?.full_name && otherProfile.full_name.trim().length > 0
+      ? otherProfile.full_name.trim()
+      : "Usuario";
+
+  const otherRole =
+    otherProfile?.user_type === "parent"
+      ? "Familia / Tutor legal"
+      : otherProfile?.user_type === "student"
+        ? "Estudiante"
+        : "Miembro de Wetudy";
+
   const listingStatus = getSafeListingStatus(listing?.status);
   const canSendMessages = canSendNewMessageToListing(listingStatus);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <ConversationsSidebar conversations={conversationSummaries} selectedConversationId={typedConversation.id} currentUserId={user.id} />
+        <ConversationsSidebar
+          conversations={conversationSummaries}
+          selectedConversationId={typedConversation.id}
+          currentUserId={user.id}
+        />
 
         <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
           <div className="border-b px-5 py-4">
             <div className="flex items-center justify-between gap-4">
-              <Link href={`/profile/${otherUserId}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40">
+              <Link
+                href={`/profile/${otherUserId}`}
+                className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"
+              >
                 <div className="flex items-center gap-3 rounded-xl p-2">
-                  <Avatar className="h-11 w-11"><AvatarFallback>{getInitials(otherName)}</AvatarFallback></Avatar>
+                  <Avatar className="h-11 w-11">
+                    <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
+                  </Avatar>
+
                   <div className="min-w-0">
                     <p className="truncate text-lg font-semibold">{otherName}</p>
                     <p className="truncate text-sm text-muted-foreground">{otherRole}</p>
@@ -214,7 +297,13 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
               <div className="flex items-center gap-2">
                 <ReportConversationButton conversationId={typedConversation.id} />
-                <HideConversationButton conversationId={typedConversation.id} variant="outline" size="sm" />
+
+                <HideConversationButton
+                  conversationId={typedConversation.id}
+                  variant="outline"
+                  size="sm"
+                />
+
                 <Link href={`/profile/${otherUserId}`}>
                   <Button variant="outline" size="sm" className="gap-2">
                     Ver perfil
@@ -232,10 +321,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
               conversationListingId={typedConversation.listing_id}
               conversationBuyerId={typedConversation.buyer_id}
               conversationSellerId={typedConversation.seller_id}
-              initialMessages={(messagesResult.data || []) as MessageRow[]}
+              initialMessages={(messages || []) as MessageRow[]}
               initialUnreadMessageIds={initialUnreadMessageIds}
-              initialOffers={(offersResult.data || []) as ListingOfferRow[]}
-              initialDonationRequests={(donationsResult.data || []) as DonationRequestRow[]}
+              initialOffers={(offers || []) as ListingOfferRow[]}
+              initialDonationRequests={(donationRequests || []) as DonationRequestRow[]}
             />
           </div>
 

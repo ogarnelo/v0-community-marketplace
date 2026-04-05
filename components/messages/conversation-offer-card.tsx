@@ -16,6 +16,7 @@ type ConversationOfferLike = Pick<
 interface ConversationOfferCardProps {
   offer: ConversationOfferLike;
   currentUserId: string;
+  canRespond?: boolean;
 }
 
 function getOfferStatusLabel(status: string | null) {
@@ -35,7 +36,7 @@ function getOfferStatusLabel(status: string | null) {
   }
 }
 
-export function ConversationOfferCard({ offer, currentUserId }: ConversationOfferCardProps) {
+export function ConversationOfferCard({ offer, currentUserId, canRespond: canRespondOverride }: ConversationOfferCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<null | "accept" | "reject" | "counter">(null);
   const [counterPrice, setCounterPrice] = useState(
@@ -44,7 +45,7 @@ export function ConversationOfferCard({ offer, currentUserId }: ConversationOffe
   const [localStatus, setLocalStatus] = useState<string | null>(offer.status);
 
   const isSeller = !!offer.seller_id && currentUserId === offer.seller_id;
-  const canRespond = isSeller && (localStatus === "pending" || localStatus === "countered");
+  const canRespond = (typeof canRespondOverride === "boolean" ? canRespondOverride : isSeller) && (localStatus === "pending" || localStatus === "countered");
 
   const headline = useMemo(() => {
     if (localStatus === "countered" && offer.counter_price != null) {
