@@ -98,10 +98,27 @@ export type ListingOfferRow = {
   buyer_id: string;
   seller_id: string;
   offered_price: number;
+  current_amount?: number | null;
+  current_actor?: string | null;
+  rounds_count?: number | null;
+  accepted_amount?: number | null;
   status: string | null;
   counter_price: number | null;
   created_at: string | null;
   responded_at: string | null;
+};
+
+export type ListingOfferEventRow = {
+  id: string;
+  offer_id: string;
+  conversation_id: string | null;
+  actor_id: string;
+  actor_role: string | null;
+  event_type: string;
+  amount: number | null;
+  round_number: number | null;
+  status_snapshot: string | null;
+  created_at: string | null;
 };
 
 export type DonationRequestRow = {
@@ -115,6 +132,17 @@ export type DonationRequestRow = {
   created_at: string | null;
   updated_at: string | null;
   school_id: string | null;
+};
+
+export type DonationRequestEventRow = {
+  id: string;
+  request_id: string;
+  conversation_id: string | null;
+  actor_id: string;
+  event_type: string;
+  note: string | null;
+  status_snapshot: string | null;
+  created_at: string | null;
 };
 
 export function buildPhotosMap(rows: ListingPhotoRow[]) {

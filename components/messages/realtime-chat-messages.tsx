@@ -24,7 +24,7 @@ type Message = {
   attachment_size?: number | null;
 };
 
-type RealtimeChatMessagesProps = {
+type Props = {
   conversationId: string;
   currentUserId: string;
   conversationListingId: string;
@@ -34,6 +34,8 @@ type RealtimeChatMessagesProps = {
   initialUnreadMessageIds?: string[];
   initialOffers?: ListingOfferRow[];
   initialDonationRequests?: DonationRequestRow[];
+  initialOfferLatestEventIds?: Record<string, string>;
+  initialDonationLatestEventIds?: Record<string, string>;
 };
 
 function formatMessageDate(date: string) {
@@ -67,43 +69,28 @@ export default function RealtimeChatMessages({
   initialUnreadMessageIds = [],
   initialOffers = [],
   initialDonationRequests = [],
-}: RealtimeChatMessagesProps) {
+  initialOfferLatestEventIds = {},
+  initialDonationLatestEventIds = {},
+}: Props) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(
-    new Set(initialUnreadMessageIds)
-  );
-  const [offersById, setOffersById] = useState<Record<string, ListingOfferRow>>(
-    () => Object.fromEntries(initialOffers.map((offer) => [offer.id, offer]))
-  );
-  const [donationsById, setDonationsById] = useState<Record<string, DonationRequestRow>>(
-    () => Object.fromEntries(initialDonationRequests.map((request) => [request.id, request]))
-  );
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set(initialUnreadMessageIds));
+  const [offersById, setOffersById] = useState<Record<string, ListingOfferRow>>(() => Object.fromEntries(initialOffers.map((offer) => [offer.id, offer])));
+  const [requestsById, setRequestsById] = useState<Record<string, DonationRequestRow>>(() => Object.fromEntries(initialDonationRequests.map((request) => [request.id, request])));
+  const [offerLatestEventIds, setOfferLatestEventIds] = useState<Record<string, string>>(initialOfferLatestEventIds);
+  const [donationLatestEventIds, setDonationLatestEventIds] = useState<Record<string, string>>(initialDonationLatestEventIds);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    setMessages(initialMessages);
-  }, [initialMessages]);
-
-  useEffect(() => {
-    setOffersById(Object.fromEntries(initialOffers.map((offer) => [offer.id, offer])));
-  }, [initialOffers]);
-
-  useEffect(() => {
-    setDonationsById(Object.fromEntries(initialDonationRequests.map((request) => [request.id, request])));
-  }, [initialDonationRequests]);
-
-  useEffect(() => {
-    setHighlightedIds(new Set(initialUnreadMessageIds));
-  }, [initialUnreadMessageIds]);
+  useEffect(() => setMessages(initialMessages), [initialMessages]);
+  useEffect(() => setOffersById(Object.fromEntries(initialOffers.map((offer) => [offer.id, offer]))), [initialOffers]);
+  useEffect(() => setRequestsById(Object.fromEntries(initialDonationRequests.map((request) => [request.id, request]))), [initialDonationRequests]);
+  useEffect(() => setOfferLatestEventIds(initialOfferLatestEventIds), [initialOfferLatestEventIds]);
+  useEffect(() => setDonationLatestEventIds(initialDonationLatestEventIds), [initialDonationLatestEventIds]);
+  useEffect(() => setHighlightedIds(new Set(initialUnreadMessageIds)), [initialUnreadMessageIds]);
 
   useEffect(() => {
     if (highlightedIds.size === 0) return;
-
-    const timeout = setTimeout(() => {
-      setHighlightedIds(new Set());
-    }, 5000);
-
+    const timeout = setTimeout(() => setHighlightedIds(new Set()), 5000);
     return () => clearTimeout(timeout);
   }, [highlightedIds]);
 
@@ -113,97 +100,79 @@ export default function RealtimeChatMessages({
 
   useEffect(() => {
     const markMessageAsRead = async (messageId: string) => {
-      const { error } = await supabase
+      await supabase
         .from("messages")
         .update({ read_at: new Date().toISOString() })
         .eq("id", messageId)
         .eq("conversation_id", conversationId)
         .neq("sender_id", currentUserId)
         .is("read_at", null);
-
-      if (error) {
-        console.error("Error marcando mensaje como leído:", error);
-      }
-    };
-
-    const ensureOfferLoaded = async (body: string | null | undefined) => {
-      const parsed = parseOfferChatBody(body);
-      if (!parsed || offersById[parsed.offerId]) return;
-
-      const { data, error } = await supabase
-        .from("listing_offers")
-        .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
-        .eq("id", parsed.offerId)
-        .maybeSingle();
-
-      if (!error && data) {
-        setOffersById((prev) => ({ ...prev, [data.id]: data as ListingOfferRow }));
-      }
-    };
-
-    const ensureDonationLoaded = async (body: string | null | undefined) => {
-      const parsed = parseDonationChatBody(body);
-      if (!parsed || donationsById[parsed.requestId]) return;
-
-      const { data, error } = await supabase
-        .from("donation_requests")
-        .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
-        .eq("id", parsed.requestId)
-        .maybeSingle();
-
-      if (!error && data) {
-        setDonationsById((prev) => ({ ...prev, [data.id]: data as DonationRequestRow }));
-      }
     };
 
     const channel = supabase
       .channel(`messages:${conversationId}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
+        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           const newMessage = payload.new as Message;
+          setMessages((prev) => (prev.some((msg) => msg.id === newMessage.id) ? prev : [...prev, newMessage]));
 
-          setMessages((prev) => {
-            const exists = prev.some((msg) => msg.id === newMessage.id);
-            if (exists) return prev;
-            return [...prev, newMessage];
-          });
+          const parsedOffer = parseOfferChatBody(newMessage.body);
+          if (parsedOffer) {
+            setOfferLatestEventIds((prev) => ({ ...prev, [parsedOffer.offerId]: parsedOffer.eventId }));
+            setOffersById((prev) => ({
+              ...prev,
+              [parsedOffer.offerId]: {
+                id: parsedOffer.offerId,
+                listing_id: conversationListingId,
+                buyer_id: conversationBuyerId,
+                seller_id: conversationSellerId,
+                offered_price: parsedOffer.amount,
+                current_amount: parsedOffer.amount,
+                current_actor: parsedOffer.currentActor === "closed" ? null : parsedOffer.currentActor,
+                rounds_count: parsedOffer.round,
+                accepted_amount: parsedOffer.status === "accepted" ? parsedOffer.amount : null,
+                status: parsedOffer.status,
+                counter_price: parsedOffer.actorRole === "seller" ? parsedOffer.amount : null,
+                created_at: null,
+                responded_at: null,
+              },
+            }));
+          }
 
-          void Promise.all([ensureOfferLoaded(newMessage.body), ensureDonationLoaded(newMessage.body)]);
+          const parsedDonation = parseDonationChatBody(newMessage.body);
+          if (parsedDonation) {
+            setDonationLatestEventIds((prev) => ({ ...prev, [parsedDonation.requestId]: parsedDonation.eventId }));
+            setRequestsById((prev) => ({
+              ...prev,
+              [parsedDonation.requestId]: {
+                id: parsedDonation.requestId,
+                listing_id: conversationListingId,
+                requester_id: conversationBuyerId,
+                assigned_to_requester_id: parsedDonation.status === "approved" ? conversationBuyerId : null,
+                approved_by_admin_id: null,
+                status: parsedDonation.status,
+                note: parsedDonation.note || null,
+                created_at: null,
+                updated_at: null,
+                school_id: null,
+              },
+            }));
+          }
 
           if (newMessage.sender_id !== currentUserId) {
-            setHighlightedIds((prev) => {
-              const next = new Set(prev);
-              next.add(newMessage.id);
-              return next;
-            });
-
+            setHighlightedIds((prev) => new Set(prev).add(newMessage.id));
             void markMessageAsRead(newMessage.id);
           }
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
+        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           const updatedMessage = payload.new as Message;
-
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
-            )
-          );
+          setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg)));
         }
       )
       .subscribe();
@@ -211,11 +180,9 @@ export default function RealtimeChatMessages({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [conversationId, currentUserId, supabase, offersById, donationsById]);
+  }, [conversationId, conversationListingId, conversationBuyerId, conversationSellerId, currentUserId, supabase]);
 
-  const lastOwnMessageId = [...messages]
-    .reverse()
-    .find((message) => message.sender_id === currentUserId)?.id;
+  const lastOwnMessageId = [...messages].reverse().find((message) => message.sender_id === currentUserId)?.id;
 
   return (
     <div className="space-y-3">
@@ -224,108 +191,32 @@ export default function RealtimeChatMessages({
         const isHighlighted = highlightedIds.has(message.id);
         const hasAttachment = !!message.attachment_url;
         const isImage = isImageAttachment(message.attachment_type);
-        const showSeen =
-          isMine && message.id === lastOwnMessageId && !!message.read_at;
+        const showSeen = isMine && message.id === lastOwnMessageId && !!message.read_at;
         const parsedOffer = parseOfferChatBody(message.body);
-        const relatedOffer = parsedOffer
-          ? offersById[parsedOffer.offerId] || {
-            id: parsedOffer.offerId,
-            listing_id: conversationListingId,
-            buyer_id: conversationBuyerId,
-            seller_id: conversationSellerId,
-            offered_price: parsedOffer.amount,
-            status: parsedOffer.status,
-            counter_price: parsedOffer.status === "countered" ? parsedOffer.amount : null,
-            created_at: null,
-            responded_at: null,
-          }
-          : null;
         const parsedDonation = parseDonationChatBody(message.body);
-        const relatedDonation = parsedDonation
-          ? donationsById[parsedDonation.requestId] || {
-            id: parsedDonation.requestId,
-            listing_id: conversationListingId,
-            requester_id: conversationBuyerId,
-            assigned_to_requester_id: parsedDonation.status === "approved" ? conversationBuyerId : null,
-            approved_by_admin_id: null,
-            status: parsedDonation.status,
-            note: parsedDonation.note,
-            created_at: null,
-            updated_at: null,
-            school_id: null,
-          }
-          : null;
-        const canRespondToOffer = currentUserId === conversationSellerId;
-        const canRespondToDonation = currentUserId === conversationSellerId;
+        const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
+        const relatedRequest = parsedDonation ? requestsById[parsedDonation.requestId] : null;
 
         return (
-          <div
-            key={message.id}
-            className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine
-                ? "bg-sky-500 text-white"
-                : isHighlighted
-                  ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
-                  : "bg-slate-100 text-slate-900"
-                }`}
-            >
-              {!isMine && isHighlighted ? (
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-                  Nuevo
-                </p>
-              ) : null}
+          <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine ? "bg-sky-500 text-white" : isHighlighted ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100" : "bg-slate-100 text-slate-900"}`}>
+              {!isMine && isHighlighted ? <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Nuevo</p> : null}
 
               {hasAttachment && isImage && message.attachment_url ? (
-                <a
-                  href={message.attachment_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mb-3 block overflow-hidden rounded-xl"
-                >
-                  <Image
-                    src={message.attachment_url}
-                    alt={message.attachment_name || "Imagen adjunta"}
-                    width={500}
-                    height={350}
-                    className="h-auto w-full rounded-xl object-cover"
-                    unoptimized
-                  />
+                <a href={message.attachment_url} target="_blank" rel="noreferrer" className="mb-3 block overflow-hidden rounded-xl">
+                  <Image src={message.attachment_url} alt={message.attachment_name || "Imagen adjunta"} width={500} height={350} className="h-auto w-full rounded-xl object-cover" unoptimized />
                 </a>
               ) : null}
 
               {hasAttachment && !isImage && message.attachment_url ? (
-                <a
-                  href={message.attachment_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`mb-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition ${isMine
-                    ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                >
+                <a href={message.attachment_url} target="_blank" rel="noreferrer" className={`mb-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition ${isMine ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <div
-                      className={`rounded-lg p-2 ${isMine ? "bg-sky-500/30" : "bg-slate-100"
-                        }`}
-                    >
-                      <FileText className="h-4 w-4" />
-                    </div>
-
+                    <div className={`rounded-lg p-2 ${isMine ? "bg-sky-500/30" : "bg-slate-100"}`}><FileText className="h-4 w-4" /></div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {message.attachment_name || "Archivo adjunto"}
-                      </p>
-                      <p
-                        className={`text-xs ${isMine ? "text-sky-100" : "text-muted-foreground"
-                          }`}
-                      >
-                        {formatFileSize(message.attachment_size)}
-                      </p>
+                      <p className="truncate text-sm font-medium">{message.attachment_name || "Archivo adjunto"}</p>
+                      <p className={`text-xs ${isMine ? "text-sky-100" : "text-muted-foreground"}`}>{formatFileSize(message.attachment_size)}</p>
                     </div>
                   </div>
-
                   <Download className="h-4 w-4 shrink-0" />
                 </a>
               ) : null}
@@ -334,39 +225,35 @@ export default function RealtimeChatMessages({
                 <ConversationOfferCard
                   offer={relatedOffer}
                   currentUserId={currentUserId}
-                  canRespond={canRespondToOffer}
+                  eventId={parsedOffer.eventId}
+                  latestEventId={offerLatestEventIds[parsedOffer.offerId] || null}
+                  eventType={parsedOffer.eventType}
+                  actorRole={parsedOffer.actorRole}
+                  amount={parsedOffer.amount}
+                  round={parsedOffer.round}
                 />
-              ) : parsedDonation && relatedDonation ? (
+              ) : parsedDonation && relatedRequest ? (
                 <ConversationDonationCard
-                  request={relatedDonation}
-                  canRespond={canRespondToDonation}
+                  request={relatedRequest}
+                  currentUserId={currentUserId}
+                  ownerUserId={conversationSellerId}
+                  eventId={parsedDonation.eventId}
+                  latestEventId={donationLatestEventIds[parsedDonation.requestId] || null}
+                  eventType={parsedDonation.eventType}
+                  note={parsedDonation.note}
                 />
               ) : message.body ? (
                 <p className="text-sm">{message.body}</p>
               ) : null}
 
-              <div
-                className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
-                  ? "text-sky-100"
-                  : isHighlighted
-                    ? "text-emerald-700"
-                    : "text-slate-500"
-                  }`}
-              >
+              <div className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine ? "text-sky-100" : isHighlighted ? "text-emerald-700" : "text-slate-500"}`}>
                 <span>{formatMessageDate(message.created_at)}</span>
-
-                {showSeen ? (
-                  <span className="inline-flex items-center gap-1">
-                    <CheckCheck className="h-3.5 w-3.5" />
-                    Visto
-                  </span>
-                ) : null}
+                {showSeen ? <span className="inline-flex items-center gap-1"><CheckCheck className="h-3.5 w-3.5" />Visto</span> : null}
               </div>
             </div>
           </div>
         );
       })}
-
       <div ref={bottomRef} />
     </div>
   );
