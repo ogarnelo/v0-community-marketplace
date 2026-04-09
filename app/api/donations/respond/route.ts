@@ -72,12 +72,27 @@ export async function POST(request: Request) {
 
       await adminSupabase.from("listings").update({ status: "archived" }).eq("id", donationRequest.listing_id);
 
+      const { data: event } = await adminSupabase
+        .from("donation_request_events")
+        .insert({
+          request_id: requestId,
+          conversation_id: conversationId,
+          actor_id: user.id,
+          event_type: "approved",
+          note: "He aceptado tu solicitud de donación. Podemos cerrar por aquí la entrega en mano o el envío.",
+          status_snapshot: "approved",
+        })
+        .select("id")
+        .single();
+
       if (conversationId) {
         await adminSupabase.from("messages").insert({
           conversation_id: conversationId,
           sender_id: user.id,
           body: buildDonationChatBody({
+            eventId: event?.id,
             requestId,
+            eventType: "approved",
             status: "approved",
             note: "He aceptado tu solicitud de donación. Podemos cerrar por aquí la entrega en mano o el envío.",
           }),
@@ -102,12 +117,27 @@ export async function POST(request: Request) {
       .update({ status: "rejected", approved_by_admin_id: user.id, updated_at: now })
       .eq("id", requestId);
 
+    const { data: event } = await adminSupabase
+      .from("donation_request_events")
+      .insert({
+        request_id: requestId,
+        conversation_id: conversationId,
+        actor_id: user.id,
+        event_type: "rejected",
+        note: "He rechazado tu solicitud de donación. Puedes seguir buscando otras opciones.",
+        status_snapshot: "rejected",
+      })
+      .select("id")
+      .single();
+
     if (conversationId) {
       await adminSupabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: user.id,
         body: buildDonationChatBody({
+          eventId: event?.id,
           requestId,
+          eventType: "rejected",
           status: "rejected",
           note: "He rechazado tu solicitud de donación. Puedes seguir buscando otras opciones.",
         }),

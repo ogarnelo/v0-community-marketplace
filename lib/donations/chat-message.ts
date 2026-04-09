@@ -4,15 +4,27 @@ export type DonationRealtimeStatus = "pending" | "approved" | "rejected" | "canc
 const DONATION_PREFIX_V2 = "🎁 DONATION_EVENT|";
 const DONATION_PREFIX_LEGACY = "🎁 DONATION|";
 
-export function buildDonationChatBody(params: {
-  eventId: string;
+type BuildDonationChatBodyParams = {
+  eventId?: string;
   requestId: string;
-  eventType: DonationEventType;
+  eventType?: DonationEventType;
   status: DonationRealtimeStatus;
   note?: string | null;
-}) {
+};
+
+export function buildDonationChatBody(params: BuildDonationChatBodyParams) {
+  const eventType =
+    params.eventType ??
+    (params.status === "approved"
+      ? "approved"
+      : params.status === "rejected"
+        ? "rejected"
+        : params.status === "cancelled"
+          ? "cancelled"
+          : "request_created");
+  const eventId = params.eventId || `legacy-${params.requestId}-${eventType}-${Date.now()}`;
   const safeNote = typeof params.note === "string" ? params.note.replace(/\|/g, "/").trim() : "";
-  return `${DONATION_PREFIX_V2}${params.eventId}|${params.requestId}|${params.eventType}|${params.status}|${safeNote}`;
+  return `${DONATION_PREFIX_V2}${eventId}|${params.requestId}|${eventType}|${params.status}|${safeNote}`;
 }
 
 export function parseDonationChatBody(body?: string | null): {

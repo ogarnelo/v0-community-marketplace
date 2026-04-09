@@ -37,7 +37,7 @@ export function ConversationDonationCard({
 }: ConversationDonationCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<null | "accept" | "reject">(null);
-  const [localStatus, setLocalStatus] = useState<string | null>(request.status ?? messageStatus);
+  const [localStatus, setLocalStatus] = useState<string | null>(messageStatus);
   const isRequester = !!request.requester_id && currentUserId === request.requester_id;
 
   const submitAction = async (action: "accept" | "reject") => {
@@ -69,11 +69,11 @@ export function ConversationDonationCard({
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-slate-900">
       <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Solicitud de donación</p>
       <p className="mt-1 text-sm text-slate-700">
-        Estado: <span className="font-semibold">{getStatusLabel(messageStatus)}</span>
+        Estado: <span className="font-semibold">{getStatusLabel(localStatus)}</span>
       </p>
       {messageNote ? <p className="mt-2 text-sm text-slate-600">Mensaje: {messageNote}</p> : null}
 
-      {canRespond && messageStatus === "pending" ? (
+      {canRespond && localStatus === "pending" ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" onClick={() => submitAction("accept")} disabled={loading !== null}>
             {loading === "accept" ? "Aceptando..." : "Aceptar"}

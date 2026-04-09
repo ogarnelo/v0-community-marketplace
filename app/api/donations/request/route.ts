@@ -72,8 +72,8 @@ export async function POST(request: Request) {
       .select("id")
       .single();
 
-    if (insertRequestError) {
-      return NextResponse.json({ error: insertRequestError.message }, { status: 400 });
+    if (insertRequestError || !insertedRequest) {
+      return NextResponse.json({ error: insertRequestError?.message || "No se pudo crear la solicitud." }, { status: 400 });
     }
 
     const { data: existingConversation } = await adminSupabase
@@ -97,11 +97,11 @@ export async function POST(request: Request) {
         .select("id")
         .single();
 
-      if (insertConversationError) {
-        return NextResponse.json({ error: insertConversationError.message }, { status: 400 });
+      if (insertConversationError || !newConversation) {
+        return NextResponse.json({ error: insertConversationError?.message || "No se pudo abrir el chat." }, { status: 400 });
       }
 
-      conversationId = newConversation?.id || null;
+      conversationId = newConversation.id;
     }
 
     if (conversationId) {
@@ -113,13 +113,27 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
+    const { data: event } = await adminSupabase
+      .from("donation_request_events")
+      .insert({
+        request_id: insertedRequest.id,
+        conversation_id: conversationId,
+        actor_id: user.id,
+        event_type: "request_created",
+        note: note || "Me gustaría solicitar esta donación",
+        status_snapshot: "pending",
+      })
+      .select("id")
+      .single();
 
     if (conversationId) {
       await adminSupabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: user.id,
         body: buildDonationChatBody({
+          eventId: event?.id,
           requestId: insertedRequest.id,
+          eventType: "request_created",
           status: "pending",
           note: note || "Me gustaría solicitar esta donación",
         }),

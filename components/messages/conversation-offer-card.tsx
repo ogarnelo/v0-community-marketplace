@@ -48,7 +48,7 @@ export function ConversationOfferCard({
   const router = useRouter();
   const [loading, setLoading] = useState<null | "accept" | "reject" | "counter">(null);
   const [counterPrice, setCounterPrice] = useState(messageStatus === "countered" ? String(messageAmount) : "");
-  const [localStatus, setLocalStatus] = useState<string | null>(offer.status);
+  const [localStatus, setLocalStatus] = useState<string | null>(messageStatus);
 
   const isSeller = !!offer.seller_id && currentUserId === offer.seller_id;
   const isBuyer = !!offer.buyer_id && currentUserId === offer.buyer_id;

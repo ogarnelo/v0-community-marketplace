@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const offerId = typeof body?.offerId === "string" ? body.offerId.trim() : "";
     const action = ["accept", "reject", "counter"].includes(body?.action) ? body.action : null;
-    const counterPrice = body?.counterPrice == null ? null : Number(body.counterPrice);
+    const counterPrice = body?.counterPrice == null || body?.counterPrice === "" ? null : Number(body.counterPrice);
 
     if (!offerId || !action) {
       return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
@@ -30,7 +30,9 @@ export async function POST(request: Request) {
     const adminSupabase = createAdminClient();
     const { data: offer } = await adminSupabase
       .from("listing_offers")
-      .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price")
+      .select(
+        "id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price"
+      )
       .eq("id", offerId)
       .maybeSingle();
 
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
 
     const actingAsSeller = user.id === offer.seller_id;
     const actingAsBuyer = user.id === offer.buyer_id;
-    const currentTurn = offer.status === "countered" ? "buyer" : "seller";
+    const currentTurn = offer.current_actor === "buyer" ? "buyer" : "seller";
 
     if ((currentTurn === "seller" && !actingAsSeller) || (currentTurn === "buyer" && !actingAsBuyer)) {
       return NextResponse.json({ error: "No puedes responder a esta oferta en este momento." }, { status: 403 });
@@ -81,12 +83,19 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
-    const acceptedAmount = offer.status === "countered" ? offer.counter_price ?? offer.offered_price : offer.offered_price;
+    const acceptedAmount = Number(offer.current_amount ?? offer.counter_price ?? offer.offered_price ?? 0);
+    const currentRound = Number(offer.rounds_count ?? 1);
 
     if (action === "accept") {
       await adminSupabase
         .from("listing_offers")
-        .update({ status: "accepted", responded_at: now })
+        .update({
+          status: "accepted",
+          accepted_amount: acceptedAmount,
+          current_amount: acceptedAmount,
+          current_actor: null,
+          responded_at: now,
+        })
         .eq("id", offerId);
 
       await adminSupabase
@@ -98,13 +107,35 @@ export async function POST(request: Request) {
 
       await adminSupabase.from("listings").update({ status: "reserved" }).eq("id", offer.listing_id);
 
+      const { data: event } = await adminSupabase
+        .from("listing_offer_events")
+        .insert({
+          offer_id: offer.id,
+          conversation_id: conversationId,
+          actor_id: user.id,
+          actor_role: actingAsSeller ? "seller" : "buyer",
+          event_type: "accepted",
+          amount: acceptedAmount,
+          round_number: currentRound,
+          status_snapshot: "accepted",
+        })
+        .select("id")
+        .single();
+
       if (conversationId) {
         await adminSupabase.from("messages").insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          body: actingAsSeller
-            ? `He aceptado tu oferta de ${offer.offered_price} €. Seguimos por aquí.`
-            : `He aceptado tu contraoferta de ${acceptedAmount} €. Seguimos por aquí.`,
+          body: buildOfferChatBody({
+            eventId: event?.id,
+            offerId: offer.id,
+            eventType: "accepted",
+            actorRole: actingAsSeller ? "seller" : "buyer",
+            amount: acceptedAmount,
+            round: currentRound,
+            status: "accepted",
+            currentActor: "closed",
+          }),
         });
 
         await adminSupabase.from("conversations").update({ updated_at: now }).eq("id", conversationId);
@@ -132,16 +163,38 @@ export async function POST(request: Request) {
     if (action === "reject") {
       await adminSupabase
         .from("listing_offers")
-        .update({ status: "rejected", responded_at: now })
+        .update({ status: "rejected", current_actor: null, responded_at: now })
         .eq("id", offerId);
+
+      const { data: event } = await adminSupabase
+        .from("listing_offer_events")
+        .insert({
+          offer_id: offer.id,
+          conversation_id: conversationId,
+          actor_id: user.id,
+          actor_role: actingAsSeller ? "seller" : "buyer",
+          event_type: "rejected",
+          amount: acceptedAmount,
+          round_number: currentRound,
+          status_snapshot: "rejected",
+        })
+        .select("id")
+        .single();
 
       if (conversationId) {
         await adminSupabase.from("messages").insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          body: actingAsSeller
-            ? "He rechazado la oferta. Si quieres, puedes enviarme una nueva propuesta desde el anuncio."
-            : "He rechazado la contraoferta. Si quiero seguir negociando, volveré al anuncio para empezar una oferta nueva.",
+          body: buildOfferChatBody({
+            eventId: event?.id,
+            offerId: offer.id,
+            eventType: "rejected",
+            actorRole: actingAsSeller ? "seller" : "buyer",
+            amount: acceptedAmount,
+            round: currentRound,
+            status: "rejected",
+            currentActor: "closed",
+          }),
         });
         await adminSupabase.from("conversations").update({ updated_at: now }).eq("id", conversationId);
       }
@@ -149,26 +202,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, conversationId });
     }
 
-    if (actingAsSeller) {
-      await adminSupabase
-        .from("listing_offers")
-        .update({ status: "countered", counter_price: counterPrice, responded_at: now })
-        .eq("id", offerId);
-    } else {
-      await adminSupabase
-        .from("listing_offers")
-        .update({ status: "pending", offered_price: counterPrice, counter_price: null, responded_at: now })
-        .eq("id", offerId);
+    if (currentRound >= 10) {
+      return NextResponse.json({ error: "Se ha alcanzado el máximo de 10 rondas de negociación." }, { status: 400 });
     }
+
+    const nextStatus = actingAsSeller ? "countered" : "pending";
+    const nextActor = actingAsSeller ? "buyer" : "seller";
+    const nextRound = currentRound + 1;
+
+    await adminSupabase
+      .from("listing_offers")
+      .update({
+        status: nextStatus,
+        current_amount: counterPrice,
+        current_actor: nextActor,
+        rounds_count: nextRound,
+        ...(actingAsSeller ? { counter_price: counterPrice } : { offered_price: counterPrice, counter_price: null }),
+        responded_at: now,
+      })
+      .eq("id", offerId);
+
+    const { data: event } = await adminSupabase
+      .from("listing_offer_events")
+      .insert({
+        offer_id: offer.id,
+        conversation_id: conversationId,
+        actor_id: user.id,
+        actor_role: actingAsSeller ? "seller" : "buyer",
+        event_type: "counter_sent",
+        amount: counterPrice,
+        round_number: nextRound,
+        status_snapshot: nextStatus,
+      })
+      .select("id")
+      .single();
 
     if (conversationId) {
       await adminSupabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: user.id,
         body: buildOfferChatBody({
+          eventId: event?.id,
           offerId: offer.id,
+          eventType: "counter_sent",
+          actorRole: actingAsSeller ? "seller" : "buyer",
           amount: counterPrice || 0,
-          status: actingAsSeller ? "countered" : "pending",
+          round: nextRound,
+          status: nextStatus,
+          currentActor: nextActor,
         }),
       });
       await adminSupabase.from("conversations").update({ updated_at: now }).eq("id", conversationId);

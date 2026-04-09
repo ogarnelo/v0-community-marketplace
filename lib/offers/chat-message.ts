@@ -11,26 +11,52 @@ export type OfferActorRole = "buyer" | "seller";
 const OFFER_PREFIX_V2 = "💰 OFFER_EVENT|";
 const OFFER_PREFIX_LEGACY = "💰 OFERTA|";
 
-export function buildOfferChatBody(params: {
-  eventId: string;
+type BuildOfferChatBodyParams = {
+  eventId?: string;
   offerId: string;
-  eventType: OfferEventType;
-  actorRole: OfferActorRole;
+  eventType?: OfferEventType;
+  actorRole?: OfferActorRole;
   amount: number;
-  round: number;
+  round?: number;
   status: OfferRealtimeStatus;
-  currentActor: OfferActorRole | "closed";
-}) {
+  currentActor?: OfferActorRole | "closed";
+};
+
+export function buildOfferChatBody(params: BuildOfferChatBodyParams) {
   const safeAmount = Number(params.amount);
+  const status = params.status;
+  const eventType =
+    params.eventType ??
+    (status === "countered"
+      ? "counter_sent"
+      : status === "accepted"
+        ? "accepted"
+        : status === "rejected"
+          ? "rejected"
+          : status === "withdrawn"
+            ? "withdrawn"
+            : "offer_created");
+
+  const actorRole =
+    params.actorRole ??
+    (eventType === "offer_created" ? "buyer" : eventType === "counter_sent" ? "seller" : "seller");
+
+  const round = Number.isFinite(Number(params.round)) ? Number(params.round) : 1;
+  const currentActor =
+    params.currentActor ??
+    (status === "pending" ? "seller" : status === "countered" ? "buyer" : "closed");
+
+  const eventId = params.eventId || `legacy-${params.offerId}-${eventType}-${Date.now()}`;
+
   const serialized = [
-    params.eventId,
+    eventId,
     params.offerId,
-    params.eventType,
-    params.actorRole,
+    eventType,
+    actorRole,
     Number.isFinite(safeAmount) ? safeAmount.toString() : "0",
-    params.round.toString(),
-    params.status,
-    params.currentActor,
+    round.toString(),
+    status,
+    currentActor,
   ].join("|");
 
   return `${OFFER_PREFIX_V2}${serialized}`;
