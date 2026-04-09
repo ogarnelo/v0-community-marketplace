@@ -264,7 +264,7 @@ export default async function ListingDetailPage({
                       <div className="mt-2 text-xs text-muted-foreground">{item.grade_level || "Sin curso"}</div>
                       <div className="mt-3 font-semibold">
                         {getNormalizedListingType(item) === "donation"
-                          ? "Donación"
+                          ? "Gratis"
                           : item.price != null
                             ? formatPrice(item.price)
                             : "Consultar"}

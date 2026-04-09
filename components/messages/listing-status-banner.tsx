@@ -1,13 +1,12 @@
+import Link from "next/link";
 import { Archive, CheckCircle2, Clock3, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  getListingStatusConfig,
-  type ListingStatus,
-} from "@/lib/marketplace/listing-status";
+import { getListingStatusConfig, type ListingStatus } from "@/lib/marketplace/listing-status";
 
 type ListingStatusBannerProps = {
   status: ListingStatus;
   title?: string | null;
+  titleHref?: string;
   price?: number | null;
   className?: string;
 };
@@ -27,33 +26,25 @@ function getStatusIcon(status: ListingStatus) {
   }
 }
 
-export default function ListingStatusBanner({
-  status,
-  title,
-  price,
-  className,
-}: ListingStatusBannerProps) {
+export default function ListingStatusBanner({ status, title, titleHref, price, className }: ListingStatusBannerProps) {
   const config = getListingStatusConfig(status);
 
   return (
-    <div
-      className={cn(
-        "rounded-2xl border px-4 py-3 shadow-sm",
-        config.containerClassName,
-        className
-      )}
-    >
+    <div className={cn("rounded-2xl border px-4 py-3 shadow-sm", config.containerClassName, className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {title ? <p className="truncate text-sm font-semibold">{title}</p> : null}
+          {title ? (
+            titleHref ? (
+              <Link href={titleHref} className="block truncate text-sm font-semibold hover:underline underline-offset-2">
+                {title}
+              </Link>
+            ) : (
+              <p className="truncate text-sm font-semibold">{title}</p>
+            )
+          ) : null}
 
           <div className="mt-1 flex items-center gap-2">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
-                config.badgeClassName
-              )}
-            >
+            <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", config.badgeClassName)}>
               {getStatusIcon(status)}
               {config.label}
             </span>
@@ -71,9 +62,7 @@ export default function ListingStatusBanner({
         </div>
       </div>
 
-      <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        {config.description}
-      </p>
+      <p className="mt-2 text-sm leading-5 text-muted-foreground">{config.description}</p>
     </div>
   );
 }

@@ -18,12 +18,17 @@ interface RequestDonationButtonProps {
   listingId: string;
 }
 
-const DEFAULT_MESSAGE = "Me gustaría solicitar esta donación";
+const DEFAULT_DONATION_MESSAGE = "Me gustaría solicitar esta donación";
 
 export function RequestDonationButton({ listingId }: RequestDonationButtonProps) {
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState(DEFAULT_MESSAGE);
+  const [note, setNote] = useState(DEFAULT_DONATION_MESSAGE);
   const [loading, setLoading] = useState(false);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) setNote(DEFAULT_DONATION_MESSAGE);
+  };
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -35,10 +40,18 @@ export function RequestDonationButton({ listingId }: RequestDonationButtonProps)
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ listingId, note }),
       });
+
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || "No se pudo solicitar la donación.");
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo solicitar la donación.");
+      }
+
+      alert("Solicitud enviada. También se ha abierto el chat con el propietario.");
       setOpen(false);
-      if (payload?.conversationId) window.location.assign(`/messages/${payload.conversationId}`);
+
+      if (payload?.conversationId) {
+        window.location.assign(`/messages/${payload.conversationId}`);
+      }
     } catch (error: any) {
       alert(error?.message || "No se pudo solicitar la donación.");
     } finally {
@@ -47,33 +60,41 @@ export function RequestDonationButton({ listingId }: RequestDonationButtonProps)
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="lg" variant="outline" className="mt-3 w-full">Solicitar donación</Button>
+        <Button size="lg" variant="outline" className="mt-3 w-full">
+          Solicitar donación
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Solicitar donación</DialogTitle>
           <DialogDescription>
-            Se abrirá un chat con la persona donante para acordar la entrega o el envío.
+            También se abrirá un chat con el propietario para acordar la entrega si acepta.
           </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-2">
-          <Label htmlFor="donationNote">Mensaje opcional para la persona donante</Label>
+          <Label htmlFor="donationNote">Mensaje para el propietario</Label>
           <Textarea
             id="donationNote"
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder={DEFAULT_MESSAGE}
+            placeholder="Me gustaría solicitar esta donación"
             rows={4}
           />
           <p className="text-xs text-muted-foreground">
-            Puedes dejar el mensaje sugerido, ampliarlo o borrarlo por completo y escribir uno nuevo.
+            Puedes dejar este mensaje, añadir más información o borrarlo entero y escribir el tuyo.
           </p>
         </div>
+
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button type="button" onClick={handleSubmit} disabled={loading}>{loading ? "Enviando..." : "Enviar solicitud"}</Button>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={handleSubmit} disabled={loading}>
+            {loading ? "Enviando..." : "Enviar solicitud"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

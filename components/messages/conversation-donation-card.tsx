@@ -4,16 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { DonationRequestRow } from "@/lib/types/marketplace";
-import type { DonationEventType } from "@/lib/donations/chat-message";
 
 interface ConversationDonationCardProps {
   request: DonationRequestRow;
   currentUserId: string;
-  ownerUserId: string;
-  eventId: string;
-  latestEventId: string | null;
-  eventType: DonationEventType;
-  note: string;
+  messageStatus: "pending" | "approved" | "rejected";
+  messageNote: string;
+  canRespond: boolean;
 }
 
 function getStatusLabel(status: string | null) {
@@ -34,27 +31,16 @@ function getStatusLabel(status: string | null) {
 export function ConversationDonationCard({
   request,
   currentUserId,
-  ownerUserId,
-  eventId,
-  latestEventId,
-  eventType,
-  note,
+  messageStatus,
+  messageNote,
+  canRespond,
 }: ConversationDonationCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<null | "accept" | "reject">(null);
+  const [localStatus, setLocalStatus] = useState<string | null>(request.status ?? messageStatus);
+  const isRequester = !!request.requester_id && currentUserId === request.requester_id;
 
-  const isOwner = currentUserId === ownerUserId;
-  const isLatestEvent = !latestEventId || latestEventId === eventId;
-  const canRespond = isOwner && isLatestEvent && request.status === "pending";
-
-  const title =
-    eventType === "approved"
-      ? "Donación aceptada"
-      : eventType === "rejected"
-        ? "Donación rechazada"
-        : "Solicitud de donación";
-
-  async function submitAction(action: "accept" | "reject") {
+  const submitAction = async (action: "accept" | "reject") => {
     if (loading) return;
     setLoading(action);
 
@@ -70,21 +56,24 @@ export function ConversationDonationCard({
         throw new Error(payload?.error || "No se pudo responder a la solicitud.");
       }
 
+      setLocalStatus(action === "accept" ? "approved" : "rejected");
       router.refresh();
     } catch (error: any) {
       alert(error?.message || "No se pudo responder a la solicitud.");
     } finally {
       setLoading(null);
     }
-  }
+  };
 
   return (
-    <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-slate-900">
-      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{title}</p>
-      <p className="mt-2 text-sm text-slate-700">Estado: <span className="font-semibold">{getStatusLabel(request.status)}</span></p>
-      {note ? <p className="mt-2 text-sm text-slate-700">{note}</p> : null}
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-slate-900">
+      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Solicitud de donación</p>
+      <p className="mt-1 text-sm text-slate-700">
+        Estado: <span className="font-semibold">{getStatusLabel(messageStatus)}</span>
+      </p>
+      {messageNote ? <p className="mt-2 text-sm text-slate-600">Mensaje: {messageNote}</p> : null}
 
-      {canRespond ? (
+      {canRespond && messageStatus === "pending" ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" onClick={() => submitAction("accept")} disabled={loading !== null}>
             {loading === "accept" ? "Aceptando..." : "Aceptar"}
@@ -93,6 +82,12 @@ export function ConversationDonationCard({
             {loading === "reject" ? "Rechazando..." : "Rechazar"}
           </Button>
         </div>
+      ) : null}
+
+      {isRequester && localStatus === "approved" ? (
+        <p className="mt-3 text-xs text-slate-600">
+          La donación ha sido aceptada. Puedes usar este chat para cerrar la entrega en mano o el envío.
+        </p>
       ) : null}
     </div>
   );

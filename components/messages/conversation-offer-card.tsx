@@ -1,48 +1,36 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { ListingOfferRow } from "@/lib/types/marketplace";
-import type { OfferActorRole, OfferEventType } from "@/lib/offers/chat-message";
 
-type OfferLike = Pick<
+type ConversationOfferLike = Pick<
   ListingOfferRow,
-  | "id"
-  | "listing_id"
-  | "buyer_id"
-  | "seller_id"
-  | "offered_price"
-  | "current_amount"
-  | "current_actor"
-  | "rounds_count"
-  | "status"
-  | "counter_price"
+  "id" | "listing_id" | "buyer_id" | "seller_id" | "offered_price" | "status" | "counter_price"
 >;
 
 interface ConversationOfferCardProps {
-  offer: OfferLike;
+  offer: ConversationOfferLike;
   currentUserId: string;
-  eventId: string;
-  latestEventId: string | null;
-  eventType: OfferEventType;
-  actorRole: OfferActorRole;
-  amount: number;
-  round: number;
+  messageStatus: "pending" | "countered";
+  messageAmount: number;
+  isActionable: boolean;
 }
 
-function getStatusLabel(status: string | null) {
+function getOfferStatusLabel(status: string | null) {
   switch (status) {
-    case "pending":
-      return "Pendiente";
-    case "countered":
-      return "En negociación";
     case "accepted":
       return "Aceptada";
     case "rejected":
       return "Rechazada";
+    case "countered":
+      return "Contraoferta enviada";
+    case "pending":
+      return "Pendiente";
     case "withdrawn":
       return "Retirada";
     default:
@@ -53,66 +41,30 @@ function getStatusLabel(status: string | null) {
 export function ConversationOfferCard({
   offer,
   currentUserId,
-  eventId,
-  latestEventId,
-  eventType,
-  actorRole,
-  amount,
-  round,
+  messageStatus,
+  messageAmount,
+  isActionable,
 }: ConversationOfferCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<null | "accept" | "reject" | "counter">(null);
-  const [counterPrice, setCounterPrice] = useState(String(offer.current_amount ?? amount ?? offer.offered_price));
+  const [counterPrice, setCounterPrice] = useState(messageStatus === "countered" ? String(messageAmount) : "");
+  const [localStatus, setLocalStatus] = useState<string | null>(offer.status);
 
-  const isBuyer = currentUserId === offer.buyer_id;
-  const isSeller = currentUserId === offer.seller_id;
-  const currentActor = offer.current_actor === "buyer" || offer.current_actor === "seller" ? offer.current_actor : null;
-  const roundsCount = offer.rounds_count ?? 1;
-  const isLatestEvent = !latestEventId || latestEventId === eventId;
-  const isOpen = offer.status === "pending" || offer.status === "countered";
-  const canAct = isLatestEvent && isOpen && ((currentActor === "buyer" && isBuyer) || (currentActor === "seller" && isSeller));
-  const canCounter = canAct && roundsCount < 10;
+  const isSeller = !!offer.seller_id && currentUserId === offer.seller_id;
+  const isBuyer = !!offer.buyer_id && currentUserId === offer.buyer_id;
+  const canSellerRespond = isActionable && isSeller && messageStatus === "pending";
+  const canBuyerRespond = isActionable && isBuyer && messageStatus === "countered";
+  const canRespond = canSellerRespond || canBuyerRespond;
 
-  const title = useMemo(() => {
-    if (eventType === "offer_created") {
-      return actorRole === "buyer" ? "Oferta enviada" : "Oferta inicial";
-    }
+  const headline = useMemo(() => {
+    return messageStatus === "countered"
+      ? `Contraoferta: ${formatPrice(messageAmount)}`
+      : `Oferta: ${formatPrice(messageAmount)}`;
+  }, [messageAmount, messageStatus]);
 
-    if (eventType === "counter_sent") {
-      return actorRole === "seller" ? "Contraoferta del vendedor" : "Nueva propuesta del comprador";
-    }
-
-    if (eventType === "accepted") return "Oferta aceptada";
-    if (eventType === "rejected") return "Oferta rechazada";
-    return "Oferta";
-  }, [actorRole, eventType]);
-
-  const description = useMemo(() => {
-    if (eventType === "accepted") {
-      return `Se ha aceptado ${formatPrice(amount)}.`;
-    }
-
-    if (eventType === "rejected") {
-      return isBuyer
-        ? "El vendedor ha cerrado esta negociación. Puedes volver al anuncio y empezar una oferta nueva."
-        : "Has cerrado esta negociación. El comprador tendrá que volver al anuncio para enviar una nueva oferta.";
-    }
-
-    if (!canAct) {
-      if (offer.status === "accepted") return "Esta negociación ya ha terminado.";
-      if (offer.status === "rejected") return "Esta negociación está cerrada.";
-      return currentActor === "buyer"
-        ? "Esperando respuesta del comprador."
-        : "Esperando respuesta del vendedor.";
-    }
-
-    return currentActor === "buyer"
-      ? "Es tu turno. Puedes aceptar, rechazar o enviar una nueva contraoferta."
-      : "Es tu turno. Puedes aceptar, rechazar o enviar una contraoferta.";
-  }, [amount, canAct, currentActor, eventType, isBuyer, offer.status]);
-
-  async function submitAction(action: "accept" | "reject" | "counter") {
+  const submitAction = async (action: "accept" | "reject" | "counter") => {
     if (loading) return;
+
     setLoading(action);
 
     try {
@@ -127,54 +79,70 @@ export function ConversationOfferCard({
       });
 
       const payload = await response.json();
+
       if (!response.ok) {
         throw new Error(payload?.error || "No se pudo responder a la oferta.");
       }
 
+      setLocalStatus(
+        action === "accept" ? "accepted" : action === "reject" ? "rejected" : messageStatus === "pending" ? "countered" : "pending"
+      );
       router.refresh();
     } catch (error: any) {
       alert(error?.message || "No se pudo responder a la oferta.");
     } finally {
       setLoading(null);
     }
-  }
+  };
 
   return (
-    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-slate-900">
-      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">{title}</p>
-      <p className="mt-2 text-base font-semibold">{formatPrice(amount)}</p>
-      <p className="mt-1 text-xs text-slate-600">Estado: {getStatusLabel(offer.status)}</p>
-      <p className="mt-1 text-xs text-slate-500">Ronda {round}</p>
-      <p className="mt-3 text-sm text-slate-700">{description}</p>
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-slate-900">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Oferta en negociación</p>
+          <p className="mt-1 text-sm font-semibold">{headline}</p>
+          <p className="mt-1 text-xs text-slate-600">Estado actual: {getOfferStatusLabel(localStatus)}</p>
+        </div>
+      </div>
 
-      {canAct ? (
+      {canRespond ? (
         <div className="mt-4 space-y-3">
-          {canCounter ? (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                type="number"
-                min="0.5"
-                step="0.01"
-                value={counterPrice}
-                onChange={(event) => setCounterPrice(event.target.value)}
-                placeholder="Nuevo importe (€)"
-              />
-              <Button type="button" variant="outline" onClick={() => submitAction("counter")} disabled={loading !== null}>
-                {loading === "counter" ? "Enviando..." : isBuyer ? "Hacer contraoferta" : "Contraofertar"}
-              </Button>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500">Se ha alcanzado el máximo de 10 rondas de negociación.</p>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="number"
+              min="1"
+              step="0.01"
+              placeholder="Nueva propuesta (€)"
+              value={counterPrice}
+              onChange={(event) => setCounterPrice(event.target.value)}
+            />
+            <Button type="button" variant="outline" onClick={() => submitAction("counter")} disabled={loading !== null}>
+              {loading === "counter" ? "Enviando..." : canSellerRespond ? "Contraofertar" : "Responder con precio"}
+            </Button>
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => submitAction("accept")} disabled={loading !== null}>
-              {loading === "accept" ? "Aceptando..." : "Aceptar"}
+              {loading === "accept" ? "Aceptando..." : canSellerRespond ? "Aceptar" : "Aceptar contraoferta"}
             </Button>
             <Button type="button" variant="outline" onClick={() => submitAction("reject")} disabled={loading !== null}>
               {loading === "reject" ? "Rechazando..." : "Rechazar"}
             </Button>
           </div>
+        </div>
+      ) : null}
+
+      {isBuyer && localStatus === "rejected" ? (
+        <p className="mt-3 text-xs text-slate-600">
+          Esta negociación se ha cerrado. Para volver a negociar, abre el anuncio y envía una nueva oferta.
+        </p>
+      ) : null}
+
+      {offer.listing_id ? (
+        <div className="mt-3">
+          <Button asChild size="sm" variant="ghost" className="px-0 text-slate-700 hover:text-slate-900">
+            <Link href={`/marketplace/listing/${offer.listing_id}`}>Abrir anuncio</Link>
+          </Button>
         </div>
       ) : null}
     </div>

@@ -21,6 +21,7 @@ import {
 interface SendMessageFormProps {
   conversationId: string;
   disabled?: boolean;
+  allowUnavailableConversationMessaging?: boolean;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -52,6 +53,7 @@ function getSafeListingStatus(status: unknown): ListingStatus {
 export function SendMessageForm({
   conversationId,
   disabled = false,
+  allowUnavailableConversationMessaging = false,
 }: SendMessageFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -161,7 +163,7 @@ export function SendMessageForm({
 
       const safeStatus = getSafeListingStatus(listing.status);
 
-      if (!canSendNewMessageToListing(safeStatus)) {
+      if (!canSendNewMessageToListing(safeStatus) && !allowUnavailableConversationMessaging) {
         throw new Error(
           "Este anuncio ya no permite enviar mensajes nuevos."
         );
