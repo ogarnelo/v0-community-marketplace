@@ -126,35 +126,47 @@ export default function RealtimeChatMessages({
       }
     };
 
-    const ensureStructuredItemLoaded = async (body: string | null | undefined) => {
-      const parsedOffer = parseOfferChatBody(body);
-      if (parsedOffer && !offersById[parsedOffer.offerId]) {
-        const { data, error } = await supabase
-          .from("listing_offers")
-          .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
-          .eq("id", parsedOffer.offerId)
-          .maybeSingle();
+    const loadOffer = async (offerId: string) => {
+      const { data, error } = await supabase
+        .from("listing_offers")
+        .select(
+          "id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at"
+        )
+        .eq("id", offerId)
+        .maybeSingle();
 
-        if (!error && data) {
-          setOffersById((prev) => ({ ...prev, [data.id]: data as ListingOfferRow }));
-        }
-      }
-
-      const parsedDonation = parseDonationChatBody(body);
-      if (parsedDonation && !donationRequestsById[parsedDonation.requestId]) {
-        const { data, error } = await supabase
-          .from("donation_requests")
-          .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
-          .eq("id", parsedDonation.requestId)
-          .maybeSingle();
-
-        if (!error && data) {
-          setDonationRequestsById((prev) => ({ ...prev, [data.id]: data as DonationRequestRow }));
-        }
+      if (!error && data) {
+        setOffersById((prev) => ({ ...prev, [data.id]: data as ListingOfferRow }));
       }
     };
 
-    const channel = supabase
+    const loadDonationRequest = async (requestId: string) => {
+      const { data, error } = await supabase
+        .from("donation_requests")
+        .select(
+          "id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id"
+        )
+        .eq("id", requestId)
+        .maybeSingle();
+
+      if (!error && data) {
+        setDonationRequestsById((prev) => ({ ...prev, [data.id]: data as DonationRequestRow }));
+      }
+    };
+
+    const ensureStructuredItemLoaded = async (body: string | null | undefined) => {
+      const parsedOffer = parseOfferChatBody(body);
+      if (parsedOffer?.offerId) {
+        await loadOffer(parsedOffer.offerId);
+      }
+
+      const parsedDonation = parseDonationChatBody(body);
+      if (parsedDonation?.requestId) {
+        await loadDonationRequest(parsedDonation.requestId);
+      }
+    };
+
+    const messagesChannel = supabase
       .channel(`messages:${conversationId}`)
       .on(
         "postgres_changes",
@@ -202,14 +214,86 @@ export default function RealtimeChatMessages({
               msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
             )
           );
+
+          void ensureStructuredItemLoaded(updatedMessage.body);
+        }
+      )
+      .subscribe();
+
+    const offersChannel = supabase
+      .channel(`offer-updates:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "listing_offers",
+        },
+        (payload) => {
+          const row = payload.new as Partial<ListingOfferRow> | null;
+          if (!row?.id) return;
+          if (
+            row.listing_id !== conversationListingId ||
+            row.buyer_id !== conversationBuyerId ||
+            row.seller_id !== conversationSellerId
+          ) {
+            return;
+          }
+
+          setOffersById((prev) => ({
+            ...prev,
+            [row.id as string]: {
+              ...(prev[row.id as string] || {}),
+              ...(row as ListingOfferRow),
+            },
+          }));
+        }
+      )
+      .subscribe();
+
+    const donationChannel = supabase
+      .channel(`donation-updates:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "donation_requests",
+        },
+        (payload) => {
+          const row = payload.new as Partial<DonationRequestRow> | null;
+          if (!row?.id) return;
+          if (
+            row.listing_id !== conversationListingId ||
+            row.requester_id !== conversationBuyerId
+          ) {
+            return;
+          }
+
+          setDonationRequestsById((prev) => ({
+            ...prev,
+            [row.id as string]: {
+              ...(prev[row.id as string] || {}),
+              ...(row as DonationRequestRow),
+            },
+          }));
         }
       )
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void supabase.removeChannel(messagesChannel);
+      void supabase.removeChannel(offersChannel);
+      void supabase.removeChannel(donationChannel);
     };
-  }, [conversationId, currentUserId, supabase, offersById, donationRequestsById]);
+  }, [
+    conversationId,
+    currentUserId,
+    supabase,
+    conversationListingId,
+    conversationBuyerId,
+    conversationSellerId,
+  ]);
 
   const lastOwnMessageId = [...messages]
     .reverse()
@@ -228,17 +312,18 @@ export default function RealtimeChatMessages({
         const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
         const relatedDonationRequest = parsedDonation ? donationRequestsById[parsedDonation.requestId] : null;
 
+        const offerCurrentAmount = Number(relatedOffer?.current_amount ?? relatedOffer?.counter_price ?? relatedOffer?.offered_price ?? 0);
         const isActionableOfferCard = !!(
           parsedOffer &&
           relatedOffer &&
-          ((relatedOffer.status === "pending" && parsedOffer.status === "pending" && Number(relatedOffer.offered_price) === Number(parsedOffer.amount)) ||
-            (relatedOffer.status === "countered" && parsedOffer.status === "countered" && Number(relatedOffer.counter_price || 0) === Number(parsedOffer.amount)))
+          relatedOffer.status === parsedOffer.status &&
+          offerCurrentAmount === Number(parsedOffer.amount)
         );
 
         const isActionableDonationCard = !!(
           parsedDonation &&
           relatedDonationRequest &&
-          relatedDonationRequest.status === "pending" &&
+          relatedDonationRequest.status === parsedDonation.status &&
           parsedDonation.status === "pending"
         );
 
@@ -313,9 +398,13 @@ export default function RealtimeChatMessages({
                       listing_id: conversationListingId,
                       buyer_id: conversationBuyerId,
                       seller_id: conversationSellerId,
-                      offered_price: parsedOffer.status === "pending" ? parsedOffer.amount : 0,
+                      offered_price: parsedOffer.actorRole === "buyer" ? parsedOffer.amount : 0,
+                      current_amount: parsedOffer.amount,
+                      current_actor: parsedOffer.currentActor,
+                      rounds_count: parsedOffer.round,
+                      accepted_amount: parsedOffer.status === "accepted" ? parsedOffer.amount : null,
                       status: parsedOffer.status,
-                      counter_price: parsedOffer.status === "countered" ? parsedOffer.amount : null,
+                      counter_price: parsedOffer.actorRole === "seller" ? parsedOffer.amount : null,
                       created_at: null,
                       responded_at: null,
                     }
@@ -323,6 +412,9 @@ export default function RealtimeChatMessages({
                   currentUserId={currentUserId}
                   messageStatus={parsedOffer.status}
                   messageAmount={parsedOffer.amount}
+                  messageEventType={parsedOffer.eventType}
+                  messageActorRole={parsedOffer.actorRole}
+                  messageRound={parsedOffer.round}
                   isActionable={isActionableOfferCard}
                 />
               ) : parsedDonation ? (

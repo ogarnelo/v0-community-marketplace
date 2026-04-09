@@ -187,7 +187,7 @@ export default async function ConversationPage({
   const [{ data: offers }, { data: donationRequests }] = await Promise.all([
     adminSupabase
       .from("listing_offers")
-      .select("id, listing_id, buyer_id, seller_id, offered_price, status, counter_price, created_at, responded_at")
+      .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at")
       .eq("listing_id", typedConversation.listing_id)
       .eq("buyer_id", typedConversation.buyer_id)
       .eq("seller_id", typedConversation.seller_id)

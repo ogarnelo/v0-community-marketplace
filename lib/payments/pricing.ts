@@ -1,3 +1,4 @@
+export type DeliveryMethod = "in_person" | "shipping";
 export type ShipmentTier = "none" | "small" | "medium" | "large";
 
 const BUYER_PROTECTION_FIXED = 0.7;
@@ -20,16 +21,26 @@ export function getShippingAmount(tier: ShipmentTier) {
 
 export function buildMarketplacePricing(params: {
   itemAmount: number;
+  deliveryMethod?: DeliveryMethod;
   shipmentTier?: ShipmentTier;
 }) {
   const itemAmount = roundCurrency(params.itemAmount);
-  const shipmentTier = params.shipmentTier ?? "none";
-  const buyerFeeAmount = roundCurrency(itemAmount * BUYER_PROTECTION_RATE + BUYER_PROTECTION_FIXED);
-  const shippingAmount = getShippingAmount(shipmentTier);
+  const deliveryMethod = params.deliveryMethod ?? "shipping";
+  const shipmentTier = deliveryMethod === "shipping" ? params.shipmentTier ?? "small" : "none";
+
+  const buyerFeeAmount =
+    deliveryMethod === "shipping"
+      ? roundCurrency(itemAmount * BUYER_PROTECTION_RATE + BUYER_PROTECTION_FIXED)
+      : 0;
+
+  const shippingAmount =
+    deliveryMethod === "shipping" ? getShippingAmount(shipmentTier) : 0;
+
   const totalBuyerAmount = roundCurrency(itemAmount + buyerFeeAmount + shippingAmount);
 
   return {
     itemAmount,
+    deliveryMethod,
     buyerFeeAmount,
     shippingAmount,
     shipmentTier,
