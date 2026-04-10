@@ -154,17 +154,25 @@ export default function RealtimeChatMessages({
       }
     };
 
-    const ensureStructuredItemLoaded = async (body: string | null | undefined) => {
+    const refreshStructuredMessageState = (body: string | null | undefined) => {
       const parsedOffer = parseOfferChatBody(body);
       if (parsedOffer?.offerId) {
-        await loadOffer(parsedOffer.offerId);
+        void loadOffer(parsedOffer.offerId);
+        window.setTimeout(() => void loadOffer(parsedOffer.offerId), 400);
+        window.setTimeout(() => void loadOffer(parsedOffer.offerId), 1200);
       }
 
       const parsedDonation = parseDonationChatBody(body);
       if (parsedDonation?.requestId) {
-        await loadDonationRequest(parsedDonation.requestId);
+        void loadDonationRequest(parsedDonation.requestId);
+        window.setTimeout(() => void loadDonationRequest(parsedDonation.requestId), 400);
+        window.setTimeout(() => void loadDonationRequest(parsedDonation.requestId), 1200);
       }
     };
+
+    for (const message of initialMessages) {
+      refreshStructuredMessageState(message.body);
+    }
 
     const messagesChannel = supabase
       .channel(`messages:${conversationId}`)
@@ -185,7 +193,7 @@ export default function RealtimeChatMessages({
             return [...prev, newMessage];
           });
 
-          void ensureStructuredItemLoaded(newMessage.body);
+          refreshStructuredMessageState(newMessage.body);
 
           if (newMessage.sender_id !== currentUserId) {
             setHighlightedIds((prev) => {
@@ -210,12 +218,10 @@ export default function RealtimeChatMessages({
           const updatedMessage = payload.new as Message;
 
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg
-            )
+            prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg))
           );
 
-          void ensureStructuredItemLoaded(updatedMessage.body);
+          refreshStructuredMessageState(updatedMessage.body);
         }
       )
       .subscribe();
@@ -263,10 +269,7 @@ export default function RealtimeChatMessages({
         (payload) => {
           const row = payload.new as Partial<DonationRequestRow> | null;
           if (!row?.id) return;
-          if (
-            row.listing_id !== conversationListingId ||
-            row.requester_id !== conversationBuyerId
-          ) {
+          if (row.listing_id !== conversationListingId || row.requester_id !== conversationBuyerId) {
             return;
           }
 
@@ -293,7 +296,30 @@ export default function RealtimeChatMessages({
     conversationListingId,
     conversationBuyerId,
     conversationSellerId,
+    initialMessages,
   ]);
+
+  const latestOfferEventIdByOfferId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const message of messages) {
+      const parsed = parseOfferChatBody(message.body);
+      if (parsed) {
+        map.set(parsed.offerId, parsed.eventId);
+      }
+    }
+    return map;
+  }, [messages]);
+
+  const latestDonationEventIdByRequestId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const message of messages) {
+      const parsed = parseDonationChatBody(message.body);
+      if (parsed) {
+        map.set(parsed.requestId, parsed.eventId);
+      }
+    }
+    return map;
+  }, [messages]);
 
   const lastOwnMessageId = [...messages]
     .reverse()
@@ -312,29 +338,37 @@ export default function RealtimeChatMessages({
         const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
         const relatedDonationRequest = parsedDonation ? donationRequestsById[parsedDonation.requestId] : null;
 
-        const offerCurrentAmount = Number(relatedOffer?.current_amount ?? relatedOffer?.counter_price ?? relatedOffer?.offered_price ?? 0);
+        const isLatestOfferMessage = !!(
+          parsedOffer && latestOfferEventIdByOfferId.get(parsedOffer.offerId) === parsedOffer.eventId
+        );
+
+        const isLatestDonationMessage = !!(
+          parsedDonation &&
+          latestDonationEventIdByRequestId.get(parsedDonation.requestId) === parsedDonation.eventId
+        );
+
         const isActionableOfferCard = !!(
           parsedOffer &&
           relatedOffer &&
-          relatedOffer.status === parsedOffer.status &&
-          offerCurrentAmount === Number(parsedOffer.amount)
+          isLatestOfferMessage &&
+          ["pending", "countered"].includes(relatedOffer.status ?? "")
         );
 
         const isActionableDonationCard = !!(
           parsedDonation &&
-          relatedDonationRequest &&
-          relatedDonationRequest.status === parsedDonation.status &&
-          parsedDonation.status === "pending"
+          isLatestDonationMessage &&
+          parsedDonation.status === "pending" &&
+          currentUserId !== conversationBuyerId
         );
 
         return (
           <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine
-                  ? "bg-sky-500 text-white"
-                  : isHighlighted
-                    ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
-                    : "bg-slate-100 text-slate-900"
+                ? "bg-sky-500 text-white"
+                : isHighlighted
+                  ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
+                  : "bg-slate-100 text-slate-900"
                 }`}
             >
               {!isMine && isHighlighted ? (
@@ -367,8 +401,8 @@ export default function RealtimeChatMessages({
                   target="_blank"
                   rel="noreferrer"
                   className={`mb-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition ${isMine
-                      ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40"
-                      : "border-slate-200 bg-white hover:bg-slate-50"
+                    ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
@@ -444,10 +478,10 @@ export default function RealtimeChatMessages({
 
               <div
                 className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
-                    ? "text-sky-100"
-                    : isHighlighted
-                      ? "text-emerald-700"
-                      : "text-slate-500"
+                  ? "text-sky-100"
+                  : isHighlighted
+                    ? "text-emerald-700"
+                    : "text-slate-500"
                   }`}
               >
                 <span>{formatMessageDate(message.created_at)}</span>

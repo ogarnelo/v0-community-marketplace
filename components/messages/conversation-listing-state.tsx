@@ -42,6 +42,20 @@ export default function ConversationListingState({
   }, [initialStatus]);
 
   useEffect(() => {
+    const refreshStatus = async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("status")
+        .eq("id", listingId)
+        .maybeSingle();
+
+      if (!error && isValidListingStatus(data?.status)) {
+        setStatus(data.status);
+      }
+    };
+
+    void refreshStatus();
+
     const channel = supabase
       .channel(`listing-status-${listingId}`)
       .on(
@@ -56,12 +70,34 @@ export default function ConversationListingState({
           const nextStatus = payload.new?.status;
           if (isValidListingStatus(nextStatus)) {
             setStatus(nextStatus);
+          } else {
+            void refreshStatus();
           }
         }
       )
       .subscribe();
 
+    const pollTimeout = window.setTimeout(() => {
+      const interval = window.setInterval(() => {
+        void refreshStatus();
+      }, 2000);
+
+      window.setTimeout(() => {
+        window.clearInterval(interval);
+      }, 15000);
+    }, 300);
+
+    const onFocus = () => {
+      void refreshStatus();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
     return () => {
+      window.clearTimeout(pollTimeout);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
       void supabase.removeChannel(channel);
     };
   }, [listingId, supabase]);
