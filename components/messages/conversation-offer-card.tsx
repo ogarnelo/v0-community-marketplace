@@ -196,9 +196,17 @@ export function ConversationOfferCard({
       ) : null}
 
       {messageEventType === "accepted" ? (
-        <p className="mt-3 text-xs text-slate-600">
-          La negociación ha terminado con acuerdo. Podéis seguir usando este chat para resolver dudas, concretar la entrega o gestionar el envío.
-        </p>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-slate-600">
+            La negociación ha terminado con acuerdo. Podéis seguir usando este chat para resolver dudas, concretar la entrega o gestionar el envío.
+          </p>
+
+          {isBuyer ? (
+            <Button asChild size="sm">
+              <Link href={`/checkout/${offer.id}`}>Preparar pago</Link>
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {offer.listing_id ? (
