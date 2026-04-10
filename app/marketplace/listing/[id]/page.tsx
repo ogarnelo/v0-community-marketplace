@@ -19,6 +19,7 @@ import { ReportListingButton } from "@/components/marketplace/report-listing-but
 import { ListingViewTracker } from "@/components/marketplace/listing-view-tracker";
 import { MakeOfferButton } from "@/components/marketplace/make-offer-button";
 import { RequestDonationButton } from "@/components/marketplace/request-donation-button";
+import { BuyNowButton } from "@/components/marketplace/buy-now-button";
 import type {
   ListingPhotoRow,
   ListingRow,
@@ -221,13 +222,16 @@ export default async function ListingDetailPage({
               </div>
 
               <div className="shrink-0">
-                <FavoriteButton
-                  listingId={listing.id}
-                  initialIsFavorite={isFavorite}
-                  showLabel
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-[#7EBA28] hover:text-[#7EBA28]"
-                  iconClassName="h-4 w-4"
-                />
+                <div className="flex items-center gap-2">
+                  <FavoriteButton
+                    listingId={listing.id}
+                    initialIsFavorite={isFavorite}
+                    showLabel
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full border bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-[#7EBA28] hover:text-[#7EBA28]"
+                    iconClassName="h-4 w-4"
+                  />
+                  <ReportListingButton listingId={listing.id} compact />
+                </div>
               </div>
             </div>
           </div>
@@ -297,14 +301,20 @@ export default async function ListingDetailPage({
               )}
 
               {sellerId && canStartNewInteraction ? (
-                <>
-                  <ContactSellerButton listingId={listing.id} sellerId={sellerId} />
+                <div className="mt-6 space-y-3">
                   {type === "sale" ? (
-                    <MakeOfferButton listingId={listing.id} currentPrice={price} />
+                    <>
+                      <BuyNowButton listingId={listing.id} currentPrice={price} />
+                      <MakeOfferButton listingId={listing.id} currentPrice={price} />
+                      <ContactSellerButton listingId={listing.id} sellerId={sellerId} />
+                    </>
                   ) : (
-                    <RequestDonationButton listingId={listing.id} />
+                    <>
+                      <RequestDonationButton listingId={listing.id} />
+                      <ContactSellerButton listingId={listing.id} sellerId={sellerId} />
+                    </>
                   )}
-                </>
+                </div>
               ) : (
                 <Button size="lg" className="mt-6 w-full" disabled>
                   {isOwner
@@ -316,10 +326,6 @@ export default async function ListingDetailPage({
                         : "Anuncio archivado"}
                 </Button>
               )}
-
-              <div className="mt-3">
-                <ReportListingButton listingId={listing.id} />
-              </div>
             </CardContent>
           </Card>
 

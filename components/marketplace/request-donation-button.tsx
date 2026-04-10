@@ -62,7 +62,7 @@ export function RequestDonationButton({ listingId }: RequestDonationButtonProps)
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="lg" variant="outline" className="mt-3 w-full">
+        <Button size="lg" variant="outline" className="w-full">
           Solicitar donación
         </Button>
       </DialogTrigger>

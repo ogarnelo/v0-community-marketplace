@@ -62,13 +62,13 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" variant="outline" className="mt-3 w-full">
-          Hacer oferta
+        <Button size="lg" variant="outline" className="w-full">
+          Contraofertar
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Enviar oferta</DialogTitle>
+          <DialogTitle>Enviar contraoferta</DialogTitle>
           <DialogDescription>
             El vendedor podrá aceptarla, rechazarla o proponerte otro precio. Se abrirá el chat automáticamente.
           </DialogDescription>
@@ -91,7 +91,7 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
             Cancelar
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={loading}>
-            {loading ? "Enviando..." : "Enviar oferta"}
+            {loading ? "Enviando..." : "Enviar contraoferta"}
           </Button>
         </DialogFooter>
       </DialogContent>

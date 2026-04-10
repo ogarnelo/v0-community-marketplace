@@ -25,10 +25,12 @@ import { Flag, Loader2 } from "lucide-react";
 
 type ReportListingButtonProps = {
   listingId: string;
+  compact?: boolean;
 };
 
 export function ReportListingButton({
   listingId,
+  compact = false,
 }: ReportListingButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -89,9 +91,7 @@ export function ReportListingButton({
     } catch (error: any) {
       console.error("Error reportando anuncio:", error);
       setErrorMessage(
-        error?.message ||
-        error?.details ||
-        "No se pudo enviar el reporte."
+        error?.message || error?.details || "No se pudo enviar el reporte."
       );
     } finally {
       setLoading(false);
@@ -115,10 +115,21 @@ export function ReportListingButton({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full gap-2">
-          <Flag className="h-4 w-4" />
-          Reportar anuncio
-        </Button>
+        {compact ? (
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white text-slate-700 transition hover:border-rose-400 hover:text-rose-500"
+            aria-label="Reportar anuncio"
+            title="Reportar anuncio"
+          >
+            <Flag className="h-4 w-4" />
+          </button>
+        ) : (
+          <Button variant="outline" className="w-full gap-2">
+            <Flag className="h-4 w-4" />
+            Reportar anuncio
+          </Button>
+        )}
       </DialogTrigger>
 
       <DialogContent>
