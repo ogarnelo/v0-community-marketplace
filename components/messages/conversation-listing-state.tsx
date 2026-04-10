@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Lock, MessageCircleMore } from "lucide-react";
 import ListingStatusBanner from "@/components/messages/listing-status-banner";
 import { createClient } from "@/lib/supabase/client";
+import { parseOfferChatBody } from "@/lib/offers/chat-message";
+import { parseDonationChatBody } from "@/lib/donations/chat-message";
 import {
   canSendNewMessageToListing,
   isValidListingStatus,
@@ -13,6 +15,7 @@ import {
 
 type ConversationListingStateProps = {
   listingId: string;
+  conversationId?: string;
   listingHref?: string;
   initialStatus: ListingStatus;
   title?: string | null;
@@ -25,6 +28,7 @@ type ConversationListingStateProps = {
 
 export default function ConversationListingState({
   listingId,
+  conversationId,
   listingHref,
   initialStatus,
   title,
@@ -42,21 +46,7 @@ export default function ConversationListingState({
   }, [initialStatus]);
 
   useEffect(() => {
-    const refreshStatus = async () => {
-      const { data, error } = await supabase
-        .from("listings")
-        .select("status")
-        .eq("id", listingId)
-        .maybeSingle();
-
-      if (!error && isValidListingStatus(data?.status)) {
-        setStatus(data.status);
-      }
-    };
-
-    void refreshStatus();
-
-    const channel = supabase
+    const listingChannel = supabase
       .channel(`listing-status-${listingId}`)
       .on(
         "postgres_changes",
@@ -70,37 +60,49 @@ export default function ConversationListingState({
           const nextStatus = payload.new?.status;
           if (isValidListingStatus(nextStatus)) {
             setStatus(nextStatus);
-          } else {
-            void refreshStatus();
           }
         }
       )
       .subscribe();
 
-    const pollTimeout = window.setTimeout(() => {
-      const interval = window.setInterval(() => {
-        void refreshStatus();
-      }, 2000);
+    let messageChannel: ReturnType<typeof supabase.channel> | null = null;
 
-      window.setTimeout(() => {
-        window.clearInterval(interval);
-      }, 15000);
-    }, 300);
+    if (conversationId) {
+      messageChannel = supabase
+        .channel(`conversation-status-hints-${conversationId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const body = typeof payload.new?.body === "string" ? payload.new.body : null;
+            const parsedOffer = parseOfferChatBody(body);
+            const parsedDonation = parseDonationChatBody(body);
 
-    const onFocus = () => {
-      void refreshStatus();
-    };
+            if (parsedDonation?.status === "approved") {
+              setStatus("archived");
+              return;
+            }
 
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+            if (parsedOffer?.status === "accepted") {
+              setStatus("reserved");
+            }
+          }
+        )
+        .subscribe();
+    }
 
     return () => {
-      window.clearTimeout(pollTimeout);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-      void supabase.removeChannel(channel);
+      void supabase.removeChannel(listingChannel);
+      if (messageChannel) {
+        void supabase.removeChannel(messageChannel);
+      }
     };
-  }, [listingId, supabase]);
+  }, [conversationId, listingId, supabase]);
 
   const isUnavailable = !canSendNewMessageToListing(status);
   const isLocked = lockChildrenWhenUnavailable && isUnavailable && !allowConversationMessagingWhenUnavailable;

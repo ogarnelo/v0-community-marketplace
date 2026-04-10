@@ -322,6 +322,7 @@ export default async function ConversationPage({
           <div className="border-t px-5 py-4">
             <ConversationListingState
               listingId={typedConversation.listing_id}
+              conversationId={typedConversation.id}
               listingHref={`/marketplace/listing/${typedConversation.listing_id}`}
               initialStatus={listingStatus}
               title={listing?.title || "Anuncio"}

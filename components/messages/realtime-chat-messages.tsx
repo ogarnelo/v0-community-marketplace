@@ -57,6 +57,67 @@ function isImageAttachment(type?: string | null) {
   return !!type && type.startsWith("image/");
 }
 
+function buildOfferSnapshot(params: {
+  parsed: NonNullable<ReturnType<typeof parseOfferChatBody>>;
+  relatedOffer?: ListingOfferRow | null;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+}): ListingOfferRow {
+  const { parsed, relatedOffer, listingId, buyerId, sellerId } = params;
+  const currentActor = parsed.currentActor === "closed" ? null : parsed.currentActor;
+
+  return {
+    id: parsed.offerId,
+    listing_id: relatedOffer?.listing_id || listingId,
+    buyer_id: relatedOffer?.buyer_id || buyerId,
+    seller_id: relatedOffer?.seller_id || sellerId,
+    offered_price:
+      parsed.eventType === "offer_created" || (parsed.eventType === "counter_sent" && parsed.actorRole === "buyer")
+        ? parsed.amount
+        : Number(relatedOffer?.offered_price ?? parsed.amount),
+    current_amount: parsed.amount,
+    current_actor: currentActor,
+    rounds_count: parsed.round,
+    accepted_amount:
+      parsed.status === "accepted"
+        ? parsed.amount
+        : relatedOffer?.accepted_amount ?? null,
+    status: parsed.status,
+    counter_price:
+      parsed.eventType === "counter_sent" && parsed.actorRole === "seller"
+        ? parsed.amount
+        : relatedOffer?.counter_price ?? null,
+    created_at: relatedOffer?.created_at ?? null,
+    responded_at: relatedOffer?.responded_at ?? null,
+  };
+}
+
+function buildDonationSnapshot(params: {
+  parsed: NonNullable<ReturnType<typeof parseDonationChatBody>>;
+  relatedRequest?: DonationRequestRow | null;
+  listingId: string;
+  requesterId: string;
+}): DonationRequestRow {
+  const { parsed, relatedRequest, listingId, requesterId } = params;
+
+  return {
+    id: parsed.requestId,
+    listing_id: relatedRequest?.listing_id || listingId,
+    requester_id: relatedRequest?.requester_id || requesterId,
+    assigned_to_requester_id:
+      parsed.status === "approved"
+        ? relatedRequest?.assigned_to_requester_id || requesterId
+        : relatedRequest?.assigned_to_requester_id ?? null,
+    approved_by_admin_id: relatedRequest?.approved_by_admin_id ?? null,
+    status: parsed.status,
+    note: parsed.note || relatedRequest?.note || null,
+    created_at: relatedRequest?.created_at ?? null,
+    updated_at: relatedRequest?.updated_at ?? null,
+    school_id: relatedRequest?.school_id ?? null,
+  };
+}
+
 export default function RealtimeChatMessages({
   conversationId,
   currentUserId,
@@ -126,54 +187,6 @@ export default function RealtimeChatMessages({
       }
     };
 
-    const loadOffer = async (offerId: string) => {
-      const { data, error } = await supabase
-        .from("listing_offers")
-        .select(
-          "id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at"
-        )
-        .eq("id", offerId)
-        .maybeSingle();
-
-      if (!error && data) {
-        setOffersById((prev) => ({ ...prev, [data.id]: data as ListingOfferRow }));
-      }
-    };
-
-    const loadDonationRequest = async (requestId: string) => {
-      const { data, error } = await supabase
-        .from("donation_requests")
-        .select(
-          "id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id"
-        )
-        .eq("id", requestId)
-        .maybeSingle();
-
-      if (!error && data) {
-        setDonationRequestsById((prev) => ({ ...prev, [data.id]: data as DonationRequestRow }));
-      }
-    };
-
-    const refreshStructuredMessageState = (body: string | null | undefined) => {
-      const parsedOffer = parseOfferChatBody(body);
-      if (parsedOffer?.offerId) {
-        void loadOffer(parsedOffer.offerId);
-        window.setTimeout(() => void loadOffer(parsedOffer.offerId), 400);
-        window.setTimeout(() => void loadOffer(parsedOffer.offerId), 1200);
-      }
-
-      const parsedDonation = parseDonationChatBody(body);
-      if (parsedDonation?.requestId) {
-        void loadDonationRequest(parsedDonation.requestId);
-        window.setTimeout(() => void loadDonationRequest(parsedDonation.requestId), 400);
-        window.setTimeout(() => void loadDonationRequest(parsedDonation.requestId), 1200);
-      }
-    };
-
-    for (const message of initialMessages) {
-      refreshStructuredMessageState(message.body);
-    }
-
     const messagesChannel = supabase
       .channel(`messages:${conversationId}`)
       .on(
@@ -192,8 +205,6 @@ export default function RealtimeChatMessages({
             if (exists) return prev;
             return [...prev, newMessage];
           });
-
-          refreshStructuredMessageState(newMessage.body);
 
           if (newMessage.sender_id !== currentUserId) {
             setHighlightedIds((prev) => {
@@ -220,110 +231,40 @@ export default function RealtimeChatMessages({
           setMessages((prev) =>
             prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg))
           );
-
-          refreshStructuredMessageState(updatedMessage.body);
-        }
-      )
-      .subscribe();
-
-    const offersChannel = supabase
-      .channel(`offer-updates:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "listing_offers",
-        },
-        (payload) => {
-          const row = payload.new as Partial<ListingOfferRow> | null;
-          if (!row?.id) return;
-          if (
-            row.listing_id !== conversationListingId ||
-            row.buyer_id !== conversationBuyerId ||
-            row.seller_id !== conversationSellerId
-          ) {
-            return;
-          }
-
-          setOffersById((prev) => ({
-            ...prev,
-            [row.id as string]: {
-              ...(prev[row.id as string] || {}),
-              ...(row as ListingOfferRow),
-            },
-          }));
-        }
-      )
-      .subscribe();
-
-    const donationChannel = supabase
-      .channel(`donation-updates:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "donation_requests",
-        },
-        (payload) => {
-          const row = payload.new as Partial<DonationRequestRow> | null;
-          if (!row?.id) return;
-          if (row.listing_id !== conversationListingId || row.requester_id !== conversationBuyerId) {
-            return;
-          }
-
-          setDonationRequestsById((prev) => ({
-            ...prev,
-            [row.id as string]: {
-              ...(prev[row.id as string] || {}),
-              ...(row as DonationRequestRow),
-            },
-          }));
         }
       )
       .subscribe();
 
     return () => {
       void supabase.removeChannel(messagesChannel);
-      void supabase.removeChannel(offersChannel);
-      void supabase.removeChannel(donationChannel);
     };
-  }, [
-    conversationId,
-    currentUserId,
-    supabase,
-    conversationListingId,
-    conversationBuyerId,
-    conversationSellerId,
-    initialMessages,
-  ]);
-
-  const latestOfferEventIdByOfferId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const message of messages) {
-      const parsed = parseOfferChatBody(message.body);
-      if (parsed) {
-        map.set(parsed.offerId, parsed.eventId);
-      }
-    }
-    return map;
-  }, [messages]);
-
-  const latestDonationEventIdByRequestId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const message of messages) {
-      const parsed = parseDonationChatBody(message.body);
-      if (parsed) {
-        map.set(parsed.requestId, parsed.eventId);
-      }
-    }
-    return map;
-  }, [messages]);
+  }, [conversationId, currentUserId, supabase]);
 
   const lastOwnMessageId = [...messages]
     .reverse()
     .find((message) => message.sender_id === currentUserId)?.id;
+
+  const latestOfferMessageIdByOfferId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const message of messages) {
+      const parsed = parseOfferChatBody(message.body);
+      if (parsed?.offerId) {
+        map[parsed.offerId] = message.id;
+      }
+    }
+    return map;
+  }, [messages]);
+
+  const latestDonationMessageIdByRequestId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const message of messages) {
+      const parsed = parseDonationChatBody(message.body);
+      if (parsed?.requestId) {
+        map[parsed.requestId] = message.id;
+      }
+    }
+    return map;
+  }, [messages]);
 
   return (
     <div className="space-y-3">
@@ -337,38 +278,52 @@ export default function RealtimeChatMessages({
         const parsedDonation = parseDonationChatBody(message.body);
         const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
         const relatedDonationRequest = parsedDonation ? donationRequestsById[parsedDonation.requestId] : null;
+        const isLatestOfferMessage = !!parsedOffer && latestOfferMessageIdByOfferId[parsedOffer.offerId] === message.id;
+        const isLatestDonationMessage =
+          !!parsedDonation && latestDonationMessageIdByRequestId[parsedDonation.requestId] === message.id;
 
-        const isLatestOfferMessage = !!(
-          parsedOffer && latestOfferEventIdByOfferId.get(parsedOffer.offerId) === parsedOffer.eventId
-        );
+        const resolvedOffer = parsedOffer
+          ? buildOfferSnapshot({
+            parsed: parsedOffer,
+            relatedOffer,
+            listingId: conversationListingId,
+            buyerId: conversationBuyerId,
+            sellerId: conversationSellerId,
+          })
+          : null;
 
-        const isLatestDonationMessage = !!(
-          parsedDonation &&
-          latestDonationEventIdByRequestId.get(parsedDonation.requestId) === parsedDonation.eventId
-        );
+        const resolvedDonationRequest = parsedDonation
+          ? buildDonationSnapshot({
+            parsed: parsedDonation,
+            relatedRequest: relatedDonationRequest,
+            listingId: conversationListingId,
+            requesterId: conversationBuyerId,
+          })
+          : null;
 
         const isActionableOfferCard = !!(
           parsedOffer &&
-          relatedOffer &&
           isLatestOfferMessage &&
-          ["pending", "countered"].includes(relatedOffer.status ?? "")
+          ["pending", "countered"].includes(parsedOffer.status) &&
+          ((parsedOffer.currentActor === "seller" && currentUserId === conversationSellerId) ||
+            (parsedOffer.currentActor === "buyer" && currentUserId === conversationBuyerId))
         );
 
         const isActionableDonationCard = !!(
           parsedDonation &&
           isLatestDonationMessage &&
           parsedDonation.status === "pending" &&
-          currentUserId !== conversationBuyerId
+          currentUserId === conversationSellerId
         );
 
         return (
           <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine
-                ? "bg-sky-500 text-white"
-                : isHighlighted
-                  ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
-                  : "bg-slate-100 text-slate-900"
+                  ? "bg-sky-500 text-white"
+                  : isHighlighted
+                    ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
+                    : "bg-slate-100 text-slate-900"
                 }`}
             >
               {!isMine && isHighlighted ? (
@@ -400,49 +355,25 @@ export default function RealtimeChatMessages({
                   href={message.attachment_url}
                   target="_blank"
                   rel="noreferrer"
-                  className={`mb-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition ${isMine
-                    ? "border-sky-300 bg-sky-400/30 hover:bg-sky-400/40"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
+                  className={`mb-3 flex items-center gap-3 rounded-xl border px-3 py-2 ${isMine ? "border-sky-300 bg-sky-400/40" : "border-slate-200 bg-white"
                     }`}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className={`rounded-lg p-2 ${isMine ? "bg-sky-500/30" : "bg-slate-100"}`}>
-                      <FileText className="h-4 w-4" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {message.attachment_name || "Archivo adjunto"}
-                      </p>
-                      <p className={`text-xs ${isMine ? "text-sky-100" : "text-muted-foreground"}`}>
-                        {formatFileSize(message.attachment_size)}
-                      </p>
-                    </div>
+                  <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
+                    <FileText className="h-5 w-5" />
                   </div>
-
-                  <Download className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {message.attachment_name || "Archivo adjunto"}
+                    </p>
+                    <p className="text-xs text-slate-500">{formatFileSize(message.attachment_size)}</p>
+                  </div>
+                  <Download className="h-4 w-4 shrink-0 text-slate-500" />
                 </a>
               ) : null}
 
-              {parsedOffer ? (
+              {resolvedOffer && parsedOffer ? (
                 <ConversationOfferCard
-                  offer={
-                    relatedOffer || {
-                      id: parsedOffer.offerId,
-                      listing_id: conversationListingId,
-                      buyer_id: conversationBuyerId,
-                      seller_id: conversationSellerId,
-                      offered_price: parsedOffer.actorRole === "buyer" ? parsedOffer.amount : 0,
-                      current_amount: parsedOffer.amount,
-                      current_actor: parsedOffer.currentActor,
-                      rounds_count: parsedOffer.round,
-                      accepted_amount: parsedOffer.status === "accepted" ? parsedOffer.amount : null,
-                      status: parsedOffer.status,
-                      counter_price: parsedOffer.actorRole === "seller" ? parsedOffer.amount : null,
-                      created_at: null,
-                      responded_at: null,
-                    }
-                  }
+                  offer={resolvedOffer}
                   currentUserId={currentUserId}
                   messageStatus={parsedOffer.status}
                   messageAmount={parsedOffer.amount}
@@ -451,22 +382,9 @@ export default function RealtimeChatMessages({
                   messageRound={parsedOffer.round}
                   isActionable={isActionableOfferCard}
                 />
-              ) : parsedDonation ? (
+              ) : resolvedDonationRequest && parsedDonation ? (
                 <ConversationDonationCard
-                  request={
-                    relatedDonationRequest || {
-                      id: parsedDonation.requestId,
-                      listing_id: conversationListingId,
-                      requester_id: conversationBuyerId,
-                      assigned_to_requester_id: null,
-                      approved_by_admin_id: null,
-                      status: parsedDonation.status,
-                      note: parsedDonation.note || null,
-                      created_at: null,
-                      updated_at: null,
-                      school_id: null,
-                    }
-                  }
+                  request={resolvedDonationRequest}
                   currentUserId={currentUserId}
                   messageStatus={parsedDonation.status}
                   messageNote={parsedDonation.note}
@@ -478,10 +396,10 @@ export default function RealtimeChatMessages({
 
               <div
                 className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
-                  ? "text-sky-100"
-                  : isHighlighted
-                    ? "text-emerald-700"
-                    : "text-slate-500"
+                    ? "text-sky-100"
+                    : isHighlighted
+                      ? "text-emerald-700"
+                      : "text-slate-500"
                   }`}
               >
                 <span>{formatMessageDate(message.created_at)}</span>
