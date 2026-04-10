@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { UserBadgePills } from "@/components/profile/user-badge-pills";
 import {
   ArrowLeft,
   MapPin,
@@ -21,18 +22,20 @@ import {
   User,
   Package,
   GraduationCap,
+  BriefcaseBusiness,
+  Globe,
 } from "lucide-react";
 import type {
   ListingPhotoRow,
   ListingRow,
   ProfileRow,
-  ReviewRow,
 } from "@/lib/types/marketplace";
 import {
   getConditionLabel,
   getInitials,
   getUserTypeLabel,
 } from "@/lib/marketplace/formatters";
+import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -46,10 +49,11 @@ export default async function PublicProfilePage({
 
   const navbarData = await getNavbarData(supabase);
 
-
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, user_type, grade_level, postal_code")
+    .select(
+      "id, full_name, user_type, grade_level, postal_code, business_name, business_description, website, is_business_verified"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -59,11 +63,7 @@ export default async function PublicProfilePage({
     notFound();
   }
 
-  const { data: reviews } = await supabase
-    .from("reviews")
-    .select("rating, comment, created_at")
-    .eq("reviewed_user_id", id)
-    .order("created_at", { ascending: false });
+  const stats = await getUserProfileStats(supabase, id);
 
   const { data: activeListingsData } = await supabase
     .from("listings")
@@ -93,26 +93,14 @@ export default async function PublicProfilePage({
     }
   }
 
-  const typedReviews = (reviews || []) as ReviewRow[];
-
-  const reviewCount = typedReviews.length;
-  const averageRating =
-    reviewCount > 0
-      ? typedReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
-      : null;
-
   const sellerName =
-    typedProfile.full_name && typedProfile.full_name.trim().length > 0
-      ? typedProfile.full_name.trim()
-      : "Miembro de Wetudy";
-
-  const sellerUserType =
-    typedProfile.user_type === "parent" || typedProfile.user_type === "student"
-      ? getUserTypeLabel(typedProfile.user_type)
-      : "Miembro de Wetudy";
-
+    typedProfile.business_name?.trim() ||
+    typedProfile.full_name?.trim() ||
+    "Miembro de Wetudy";
+  const sellerUserType = getUserTypeLabel(typedProfile.user_type);
   const sellerPostalCode = typedProfile.postal_code || null;
   const sellerGradeLevel = typedProfile.grade_level || null;
+  const badges = stats.badgesForUserType(typedProfile.user_type);
 
   return (
     <>
@@ -150,15 +138,15 @@ export default async function PublicProfilePage({
                   </Avatar>
 
                   <h1 className="mt-4 text-2xl font-bold">{sellerName}</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {sellerUserType}
-                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{sellerUserType}</p>
 
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     <Badge variant="secondary">Perfil público</Badge>
-                    <Badge variant="outline">Miembro Wetudy</Badge>
+                    {typedProfile.is_business_verified ? <Badge>Negocio verificado</Badge> : null}
                   </div>
                 </div>
+
+                <UserBadgePills badges={badges} className="mt-4 justify-center" />
 
                 <div className="mt-6 space-y-3 rounded-2xl border p-4">
                   {sellerPostalCode ? (
@@ -168,18 +156,40 @@ export default async function PublicProfilePage({
                     </div>
                   ) : null}
 
-                  {sellerGradeLevel ? (
+                  {typedProfile.user_type !== "business" && sellerGradeLevel ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <GraduationCap className="h-4 w-4" />
                       <span>{sellerGradeLevel}</span>
                     </div>
                   ) : null}
 
+                  {typedProfile.user_type === "business" && typedProfile.business_name ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <BriefcaseBusiness className="h-4 w-4" />
+                      <span>{typedProfile.business_name}</span>
+                    </div>
+                  ) : null}
+
+                  {typedProfile.user_type === "business" && typedProfile.website ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Globe className="h-4 w-4" />
+                      <a href={typedProfile.website} target="_blank" rel="noreferrer" className="hover:text-foreground">
+                        {typedProfile.website}
+                      </a>
+                    </div>
+                  ) : null}
+
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <User className="h-4 w-4" />
-                    <span>Perfil verificado en Wetudy</span>
+                    <span>Perfil visible dentro de Wetudy</span>
                   </div>
                 </div>
+
+                {typedProfile.user_type === "business" && typedProfile.business_description ? (
+                  <div className="mt-4 rounded-2xl border p-4 text-sm text-muted-foreground">
+                    {typedProfile.business_description}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -197,13 +207,13 @@ export default async function PublicProfilePage({
                     Valoración media
                   </div>
                   <p className="text-2xl font-bold">
-                    {averageRating ? averageRating.toFixed(1) : "—"}
+                    {typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—"}
                   </p>
                 </div>
 
                 <div className="rounded-2xl border p-4">
                   <div className="mb-2 text-sm font-medium">Valoraciones</div>
-                  <p className="text-2xl font-bold">{reviewCount}</p>
+                  <p className="text-2xl font-bold">{stats.reviewCount}</p>
                 </div>
 
                 <div className="rounded-2xl border p-4">
@@ -259,79 +269,37 @@ export default async function PublicProfilePage({
                             )}
                           </div>
 
-                          <div className="p-4">
-                            <div className="mb-3 flex flex-wrap gap-2">
-                              <Badge variant="secondary">
-                                {listing.category || "Sin categoría"}
+                          <div className="space-y-3 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="line-clamp-2 font-semibold">
+                                  {listing.title || "Anuncio sin título"}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {listing.category || "Sin categoría"}
+                                </p>
+                              </div>
+                              <Badge variant={isDonation ? "secondary" : "outline"}>
+                                {isDonation ? "Donación" : "Venta"}
                               </Badge>
-                              <Badge variant="outline">
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              <span className="rounded-full bg-muted px-2 py-1">
+                                {listing.grade_level || "Sin curso"}
+                              </span>
+                              <span className="rounded-full bg-muted px-2 py-1">
                                 {getConditionLabel(listing.condition)}
-                              </Badge>
+                              </span>
                             </div>
 
-                            <h3 className="line-clamp-2 font-semibold">
-                              {listing.title || "Anuncio sin título"}
-                            </h3>
-
-                            <div className="mt-2 text-sm text-muted-foreground">
-                              {listing.grade_level || "Sin curso"}
-                            </div>
-
-                            <div className="mt-4 text-lg font-bold">
-                              {isDonation
-                                ? "Gratis"
-                                : listing.price != null
-                                  ? `${listing.price}€`
-                                  : "Consultar"}
+                            <div className="text-lg font-bold">
+                              {isDonation ? "Gratis" : `${listing.price || 0} €`}
                             </div>
                           </div>
                         </Link>
                       );
                     })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Opiniones recibidas</CardTitle>
-                <CardDescription>
-                  Valoraciones públicas de otros usuarios.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {typedReviews.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Este usuario todavía no tiene valoraciones.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {typedReviews.slice(0, 6).map((review, index) => (
-                      <div key={index} className="rounded-2xl border p-4">
-                        <div className="mb-2 flex items-center justify-between gap-4">
-                          <p className="text-sm font-medium">
-                            {"‚≠ê".repeat(review.rating)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {review.created_at
-                              ? new Date(review.created_at).toLocaleDateString(
-                                "es-ES",
-                                {
-                                  timeZone: "Europe/Madrid",
-                                }
-                              )
-                              : ""}
-                          </p>
-                        </div>
-
-                        <p className="text-sm text-muted-foreground">
-                          {review.comment?.trim()
-                            ? review.comment
-                            : "Sin comentario adicional."}
-                        </p>
-                      </div>
-                    ))}
                   </div>
                 )}
               </CardContent>
@@ -342,4 +310,3 @@ export default async function PublicProfilePage({
     </>
   );
 }
-

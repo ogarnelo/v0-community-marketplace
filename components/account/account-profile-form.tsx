@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -22,6 +23,9 @@ import {
   Search,
   Check,
   KeyRound,
+  BriefcaseBusiness,
+  Globe,
+  FileText,
 } from "lucide-react";
 import {
   Select,
@@ -46,10 +50,13 @@ type SchoolOption = {
 
 type AccountProfileFormProps = {
   initialFullName: string;
-  initialUserType: "parent" | "student" | "";
+  initialUserType: "parent" | "student" | "business" | "";
   initialGradeLevel: string;
   initialPostalCode: string;
   initialSchoolId: string;
+  initialBusinessName: string;
+  initialBusinessDescription: string;
+  initialWebsite: string;
   email: string;
   gradeLevelOptions: string[];
   schoolOptions: SchoolOption[];
@@ -71,6 +78,9 @@ export default function AccountProfileForm({
   initialGradeLevel,
   initialPostalCode,
   initialSchoolId,
+  initialBusinessName,
+  initialBusinessDescription,
+  initialWebsite,
   email,
   gradeLevelOptions,
   schoolOptions,
@@ -78,7 +88,7 @@ export default function AccountProfileForm({
   const router = useRouter();
 
   const [fullName, setFullName] = useState(initialFullName);
-  const [userType, setUserType] = useState<"parent" | "student" | "">(
+  const [userType, setUserType] = useState<"parent" | "student" | "business" | "">(
     initialUserType
   );
   const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
@@ -88,10 +98,15 @@ export default function AccountProfileForm({
   const [schoolPopoverOpen, setSchoolPopoverOpen] = useState(false);
   const [schoolAccessCode, setSchoolAccessCode] = useState("");
   const [accessCodeLoading, setAccessCodeLoading] = useState(false);
+  const [businessName, setBusinessName] = useState(initialBusinessName);
+  const [businessDescription, setBusinessDescription] = useState(initialBusinessDescription);
+  const [website, setWebsite] = useState(initialWebsite);
 
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const isBusiness = userType === "business";
 
   const filteredSchools = useMemo(() => {
     const query = schoolSearch.trim().toLowerCase();
@@ -178,6 +193,11 @@ export default function AccountProfileForm({
       return;
     }
 
+    if (isBusiness && !businessName.trim()) {
+      setErrorMessage("Añade el nombre comercial para activar el perfil profesional.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -200,19 +220,21 @@ export default function AccountProfileForm({
           null
           : null;
 
-      const { error: profileError } = await supabase.from("profiles").upsert(
-        {
-          id: user.id,
-          full_name: fullName.trim() || null,
-          user_type: userType,
-          grade_level: gradeLevel.trim() || null,
-          postal_code: normalizedPostalCode || null,
-          school_id: normalizedSchoolId || null,
-        },
-        {
-          onConflict: "id",
-        }
-      );
+      const payload = {
+        id: user.id,
+        full_name: fullName.trim() || null,
+        user_type: userType,
+        grade_level: isBusiness ? null : gradeLevel.trim() || null,
+        postal_code: normalizedPostalCode || null,
+        school_id: normalizedSchoolId || null,
+        business_name: isBusiness ? businessName.trim() || null : null,
+        business_description: isBusiness ? businessDescription.trim() || null : null,
+        website: isBusiness ? website.trim() || null : null,
+      };
+
+      const { error: profileError } = await supabase.from("profiles").upsert(payload, {
+        onConflict: "id",
+      });
 
       if (profileError) {
         throw profileError;
@@ -222,10 +244,13 @@ export default function AccountProfileForm({
         data: {
           full_name: fullName.trim() || null,
           user_type: userType,
-          grade_level: gradeLevel.trim() || null,
+          grade_level: isBusiness ? null : gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
           school_name: selectedSchoolName,
           school_id: normalizedSchoolId || null,
+          business_name: isBusiness ? businessName.trim() || null : null,
+          business_description: isBusiness ? businessDescription.trim() || null : null,
+          website: isBusiness ? website.trim() || null : null,
         },
       });
 
@@ -274,15 +299,13 @@ export default function AccountProfileForm({
                 <User2 className="h-4 w-4" />
                 Tipo de usuario actual
               </div>
-              <p className="text-sm text-muted-foreground">
-                {currentUserTypeLabel}
-              </p>
+              <p className="text-sm text-muted-foreground">{currentUserTypeLabel}</p>
             </div>
 
             <div className="rounded-xl border p-4 sm:col-span-2">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <School className="h-4 w-4" />
-                Colegio actual
+                Comunidad actual
               </div>
               <p className="text-sm text-muted-foreground">
                 {selectedSchool
@@ -294,12 +317,12 @@ export default function AccountProfileForm({
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label htmlFor="fullName">Nombre completo</Label>
+              <Label htmlFor="fullName">Nombre visible</Label>
               <Input
                 id="fullName"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Tu nombre y apellidos"
+                placeholder="Tu nombre y apellidos o nombre visible"
               />
             </div>
 
@@ -308,7 +331,7 @@ export default function AccountProfileForm({
               <Select
                 value={userType || undefined}
                 onValueChange={(value) =>
-                  setUserType(value as "parent" | "student")
+                  setUserType(value as "parent" | "student" | "business")
                 }
               >
                 <SelectTrigger>
@@ -317,105 +340,122 @@ export default function AccountProfileForm({
                 <SelectContent>
                   <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                   <SelectItem value="student">Estudiante</SelectItem>
+                  <SelectItem value="business">Negocio local</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label>Curso / etapa</Label>
-              <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {normalizedGradeLevelOptions.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {level}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="postalCode">Código postal</Label>
+              <Input
+                id="postalCode"
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value)}
+                placeholder="28001"
+                inputMode="numeric"
+                maxLength={5}
+              />
             </div>
 
-            <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label htmlFor="schoolAccessCode">Código de centro</Label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Input
-                  id="schoolAccessCode"
-                  value={schoolAccessCode}
-                  onChange={(e) => setSchoolAccessCode(e.target.value.toUpperCase())}
-                  placeholder="Introduce el código del colegio"
-                  autoCapitalize="characters"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={applySchoolAccessCode}
-                  disabled={accessCodeLoading}
+            {!isBusiness ? (
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label>Curso / etapa</Label>
+                <Select
+                  value={gradeLevel || undefined}
+                  onValueChange={(value) => setGradeLevel(value)}
                 >
-                  {accessCodeLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <KeyRound className="h-4 w-4" />
-                  )}
-                  Aplicar código
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona curso o etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {normalizedGradeLevelOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Puedes cambiar de centro introduciendo un nuevo código o dejar el
-                centro vacío desde el selector inferior.
-              </p>
-            </div>
+            ) : null}
 
-            <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label>Colegio</Label>
+            {isBusiness ? (
+              <>
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label htmlFor="businessName">Nombre del negocio</Label>
+                  <div className="relative">
+                    <BriefcaseBusiness className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="businessName"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      className="pl-10"
+                      placeholder="Librería Aurora"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label htmlFor="website">Web o Instagram</Label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="website"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      className="pl-10"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label htmlFor="businessDescription">Descripción profesional</Label>
+                  <div className="relative">
+                    <FileText className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Textarea
+                      id="businessDescription"
+                      value={businessDescription}
+                      onChange={(e) => setBusinessDescription(e.target.value)}
+                      className="min-h-[110px] pl-10"
+                      placeholder="Cuéntales qué vendes y por qué tu catálogo es útil para familias y estudiantes."
+                    />
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Centro educativo</p>
+                <p className="text-sm text-muted-foreground">
+                  Puedes encontrar tu comunidad por nombre, ciudad o código postal.
+                </p>
+              </div>
 
               <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="justify-between font-normal"
-                  >
-                    <span className="truncate">
-                      {selectedSchool
-                        ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}`
-                        : "Selecciona tu centro o déjalo vacío"}
-                    </span>
-                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                  <Button type="button" variant="outline" className="justify-start">
+                    <Search className="mr-2 h-4 w-4" />
+                    {selectedSchool ? selectedSchool.name : "Buscar centro"}
                   </Button>
                 </PopoverTrigger>
-
                 <PopoverContent className="w-[360px] p-3" align="start">
                   <div className="space-y-3">
                     <Input
                       value={schoolSearch}
                       onChange={(e) => setSchoolSearch(e.target.value)}
-                      placeholder="Buscar por nombre, ciudad o código postal..."
+                      placeholder="Buscar por nombre, ciudad o CP"
                     />
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedSchoolId("");
-                        setSchoolPopoverOpen(false);
-                        setSchoolSearch("");
-                      }}
-                      className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition hover:bg-muted"
-                    >
-                      <span>Sin centro asignado</span>
-                      {!selectedSchoolId ? <Check className="h-4 w-4" /> : null}
-                    </button>
-
-                    <div className="max-h-64 overflow-y-auto rounded-lg border">
+                    <div className="max-h-72 space-y-1 overflow-y-auto">
                       {filteredSchools.length === 0 ? (
-                        <div className="px-3 py-4 text-sm text-muted-foreground">
-                          No se encontraron centros.
-                        </div>
+                        <p className="px-2 py-4 text-sm text-muted-foreground">
+                          No hay centros que coincidan con tu búsqueda.
+                        </p>
                       ) : (
                         filteredSchools.map((school) => {
-                          const isSelected = selectedSchoolId === school.id;
+                          const isSelected = school.id === selectedSchoolId;
 
                           return (
                             <button
@@ -424,24 +464,16 @@ export default function AccountProfileForm({
                               onClick={() => {
                                 setSelectedSchoolId(school.id);
                                 setSchoolPopoverOpen(false);
-                                setSchoolSearch("");
                               }}
-                              className="flex w-full items-center justify-between border-b px-3 py-3 text-left transition last:border-b-0 hover:bg-muted"
+                              className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left transition hover:bg-muted"
                             >
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">
-                                  {school.name}
-                                </p>
+                              <div>
+                                <p className="text-sm font-medium">{school.name}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {[school.city, school.postal_code]
-                                    .filter(Boolean)
-                                    .join(" · ")}
+                                  {[school.city, school.postal_code].filter(Boolean).join(" · ")}
                                 </p>
                               </div>
-
-                              {isSelected ? (
-                                <Check className="ml-3 h-4 w-4 shrink-0" />
-                              ) : null}
+                              {isSelected ? <Check className="h-4 w-4 text-primary" /> : null}
                             </button>
                           );
                         })
@@ -452,17 +484,45 @@ export default function AccountProfileForm({
               </Popover>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="postalCode">Código postal</Label>
-              <Input
-                id="postalCode"
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
-                placeholder="Ej: 28001"
-                maxLength={5}
-              />
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="schoolAccessCode">Código de acceso del centro</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="schoolAccessCode"
+                    value={schoolAccessCode}
+                    onChange={(e) => setSchoolAccessCode(e.target.value.toUpperCase())}
+                    className="pl-10"
+                    placeholder="Ej. MADRID2025"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={applySchoolAccessCode}
+                  disabled={accessCodeLoading}
+                  className="w-full sm:w-auto"
+                >
+                  {accessCodeLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="mr-2 h-4 w-4" />
+                  )}
+                  Aplicar código
+                </Button>
+              </div>
             </div>
           </div>
+
+          {errorMessage ? (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {errorMessage}
+            </div>
+          ) : null}
 
           {successMessage ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -470,22 +530,12 @@ export default function AccountProfileForm({
             </div>
           ) : null}
 
-          {errorMessage ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          ) : null}
-
           <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={loading}
-              className="gap-2 rounded-full bg-emerald-600 px-5 hover:bg-emerald-700"
-            >
+            <Button type="submit" disabled={loading} className="min-w-40">
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Save className="h-4 w-4" />
+                <Save className="mr-2 h-4 w-4" />
               )}
               Guardar cambios
             </Button>

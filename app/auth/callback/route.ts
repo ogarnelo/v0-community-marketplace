@@ -35,7 +35,7 @@ export async function GET(request: Request) {
         id: user.id,
         full_name: metadata.full_name || null,
         user_type:
-          metadata.user_type === "parent" || metadata.user_type === "student"
+          metadata.user_type === "parent" || metadata.user_type === "student" || metadata.user_type === "business"
             ? metadata.user_type
             : null,
         grade_level: metadata.grade_level || null,
@@ -73,7 +73,11 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(
-    new URL(safeNext || "/onboarding/join-school", request.url)
-  );
+  const destination =
+    safeNext ||
+    ((user?.user_metadata || {}).user_type === "business"
+      ? "/account"
+      : "/onboarding/join-school");
+
+  return NextResponse.redirect(new URL(destination, request.url));
 }

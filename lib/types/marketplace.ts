@@ -37,13 +37,20 @@ export type ProfileRow = {
   school_id?: string | null;
   grade_level?: string | null;
   postal_code?: string | null;
+  business_name?: string | null;
+  business_description?: string | null;
+  website?: string | null;
+  is_business_verified?: boolean | null;
   created_at?: string | null;
 };
 
 export type ReviewRow = {
   rating: number;
   comment?: string | null;
-  created_at?: string;
+  created_at?: string | null;
+  reviewer_id?: string | null;
+  reviewed_user_id?: string | null;
+  listing_id?: string | null;
 };
 
 export type SchoolRow = {
@@ -89,6 +96,10 @@ export type AccountProfileRow = {
   grade_level: string | null;
   postal_code: string | null;
   school_id: string | null;
+  business_name?: string | null;
+  business_description?: string | null;
+  website?: string | null;
+  is_business_verified?: boolean | null;
   created_at: string | null;
 };
 

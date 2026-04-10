@@ -6,16 +6,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { UserBadgePills } from "@/components/profile/user-badge-pills";
 import {
   Mail,
   MapPin,
   GraduationCap,
   CalendarDays,
   Building2,
+  BriefcaseBusiness,
+  Globe,
+  Star,
 } from "lucide-react";
 import AccountProfileForm from "@/components/account/account-profile-form";
 import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
+import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
 
 type SafeUserMetadata = {
   full_name?: string;
@@ -23,6 +28,9 @@ type SafeUserMetadata = {
   grade_level?: string;
   postal_code?: string;
   school_name?: string;
+  business_name?: string;
+  business_description?: string;
+  website?: string;
 };
 
 export default async function AccountPage() {
@@ -38,14 +46,17 @@ export default async function AccountPage() {
 
   const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 
-  const [{ data: profile, error: profileError }, { data: schoolsData, error: schoolsError }] =
+  const [{ data: profile, error: profileError }, { data: schoolsData, error: schoolsError }, stats] =
     await Promise.all([
       supabase
         .from("profiles")
-        .select("id, full_name, user_type, grade_level, postal_code, school_id, created_at")
+        .select(
+          "id, full_name, user_type, grade_level, postal_code, school_id, business_name, business_description, website, is_business_verified, created_at"
+        )
         .eq("id", user.id)
         .maybeSingle(),
       supabase.from("schools").select("id, name, city, postal_code").order("name", { ascending: true }),
+      getUserProfileStats(supabase, user.id),
     ]);
 
   if (profileError) {
@@ -65,6 +76,11 @@ export default async function AccountPage() {
   const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
   const postalCode = typedProfile?.postal_code || metadata.postal_code || null;
   const createdAt = typedProfile?.created_at || user.created_at || null;
+  const businessName = typedProfile?.business_name || metadata.business_name || null;
+  const businessDescription =
+    typedProfile?.business_description || metadata.business_description || null;
+  const website = typedProfile?.website || metadata.website || null;
+  const isBusiness = userType === "business";
 
   const selectedSchool =
     typedProfile?.school_id && typedProfile.school_id.trim().length > 0
@@ -78,6 +94,9 @@ export default async function AccountPage() {
       : "Centro no asignado");
 
   const normalizedGradeLevels = Array.from(new Set(gradeLevels)).filter(Boolean);
+  const averageRatingLabel =
+    typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—";
+  const badges = stats.badgesForUserType(userType);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
@@ -96,6 +115,9 @@ export default async function AccountPage() {
           <Button asChild variant="outline">
             <Link href="/account/listings">Mis anuncios</Link>
           </Button>
+          <Button asChild variant="outline">
+            <Link href="/account/reviews">Mis opiniones</Link>
+          </Button>
         </div>
       </div>
 
@@ -109,14 +131,17 @@ export default async function AccountPage() {
             </Avatar>
 
             <div className="space-y-2">
-              <h2 className="text-2xl font-semibold">{fullName}</h2>
+              <h2 className="text-2xl font-semibold">{businessName || fullName}</h2>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
                 {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
+                {isBusiness && typedProfile?.is_business_verified ? <Badge>Negocio verificado</Badge> : null}
               </div>
             </div>
 
-            <div className="w-full space-y-3 text-sm">
+            <UserBadgePills badges={badges} />
+
+            <div className="grid w-full gap-3 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Mail className="h-4 w-4" />
                 <span>{email}</span>
@@ -129,7 +154,7 @@ export default async function AccountPage() {
                 </div>
               ) : null}
 
-              {gradeLevel ? (
+              {!isBusiness && gradeLevel ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <GraduationCap className="h-4 w-4" />
                   <span>{gradeLevel}</span>
@@ -141,6 +166,22 @@ export default async function AccountPage() {
                 <span>{schoolName}</span>
               </div>
 
+              {isBusiness && businessName ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <BriefcaseBusiness className="h-4 w-4" />
+                  <span>{businessName}</span>
+                </div>
+              ) : null}
+
+              {isBusiness && website ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Globe className="h-4 w-4" />
+                  <a href={website} target="_blank" rel="noreferrer" className="hover:text-foreground">
+                    {website}
+                  </a>
+                </div>
+              ) : null}
+
               {createdAt ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <CalendarDays className="h-4 w-4" />
@@ -150,16 +191,53 @@ export default async function AccountPage() {
                 </div>
               ) : null}
             </div>
+
+            {isBusiness && businessDescription ? (
+              <div className="w-full rounded-2xl border p-4 text-sm text-muted-foreground">
+                {businessDescription}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card>
+              <CardContent className="p-5">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Star className="h-4 w-4" />
+                  Valoración media
+                </div>
+                <p className="text-3xl font-bold">{averageRatingLabel}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="mb-2 text-sm font-medium text-muted-foreground">Opiniones</div>
+                <p className="text-3xl font-bold">{stats.reviewCount}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="mb-2 text-sm font-medium text-muted-foreground">Ventas cerradas</div>
+                <p className="text-3xl font-bold">{stats.soldListingsCount}</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <AccountProfileForm
             initialFullName={typedProfile?.full_name || ""}
-            initialUserType={typedProfile?.user_type === "parent" || typedProfile?.user_type === "student" ? typedProfile.user_type : ""}
+            initialUserType={
+              userType === "parent" || userType === "student" || userType === "business"
+                ? userType
+                : ""
+            }
             initialGradeLevel={typedProfile?.grade_level || ""}
             initialPostalCode={typedProfile?.postal_code || ""}
             initialSchoolId={typedProfile?.school_id || ""}
+            initialBusinessName={typedProfile?.business_name || ""}
+            initialBusinessDescription={typedProfile?.business_description || ""}
+            initialWebsite={typedProfile?.website || ""}
             email={email}
             gradeLevelOptions={normalizedGradeLevels}
             schoolOptions={schoolOptions.map((school) => ({

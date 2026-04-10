@@ -21,6 +21,8 @@ export function getUserTypeLabel(userType?: string | null) {
       return "Familia / Tutor legal";
     case "student":
       return "Estudiante";
+    case "business":
+      return "Negocio";
     default:
       return "Usuario";
   }
