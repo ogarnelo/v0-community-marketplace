@@ -21,6 +21,7 @@ import type {
   ConversationSummary,
   DonationRequestRow,
   ListingOfferRow,
+  PaymentIntentRow,
   ProfileRow,
 } from "@/lib/types/marketplace";
 import { getOfferChatPreview } from "@/lib/offers/chat-message";
@@ -184,7 +185,7 @@ export default async function ConversationPage({
     .eq("conversation_id", typedConversation.id)
     .order("created_at", { ascending: true });
 
-  const [{ data: offers }, { data: donationRequests }] = await Promise.all([
+  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }] = await Promise.all([
     adminSupabase
       .from("listing_offers")
       .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at")
@@ -197,6 +198,12 @@ export default async function ConversationPage({
       .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
       .eq("listing_id", typedConversation.listing_id)
       .eq("requester_id", typedConversation.buyer_id)
+      .order("created_at", { ascending: false }),
+    adminSupabase
+      .from("payment_intents")
+      .select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at, metadata")
+      .eq("listing_id", typedConversation.listing_id)
+      .or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`)
       .order("created_at", { ascending: false }),
   ]);
 

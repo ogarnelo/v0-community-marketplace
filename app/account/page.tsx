@@ -201,7 +201,7 @@ export default async function AccountPage() {
         </Card>
 
         <div className="space-y-6 lg:col-span-2">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardContent className="p-5">
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -221,6 +221,12 @@ export default async function AccountPage() {
               <CardContent className="p-5">
                 <div className="mb-2 text-sm font-medium text-muted-foreground">Ventas cerradas</div>
                 <p className="text-3xl font-bold">{stats.soldListingsCount}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="mb-2 text-sm font-medium text-muted-foreground">Compras realizadas</div>
+                <p className="text-3xl font-bold">{stats.purchasesCount}</p>
               </CardContent>
             </Card>
           </div>
@@ -252,3 +258,4 @@ export default async function AccountPage() {
     </div>
   );
 }
+

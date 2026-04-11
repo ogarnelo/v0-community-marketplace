@@ -257,12 +257,12 @@ export async function confirmPaymentComplete(params: {
     })
     .eq('offer_id', offerId)
 
-  // Actualizar oferta a pagada
+  // La oferta debe mantenerse como aceptada. El pago se refleja en payment_intents.
   await adminSupabase
     .from('listing_offers')
     .update({
-      status: 'paid',
-      updated_at: now,
+      status: 'accepted',
+      responded_at: now,
     })
     .eq('id', offerId)
 
