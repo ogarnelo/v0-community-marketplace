@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 
 interface ContactSellerButtonProps {
   listingId: string;
@@ -14,7 +13,6 @@ export function ContactSellerButton({
   listingId,
   sellerId,
 }: ContactSellerButtonProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleContact = async () => {
@@ -24,19 +22,17 @@ export function ContactSellerButton({
 
     try {
       const supabase = createClient();
-
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign("/auth");
+        window.location.assign(`/auth?next=/marketplace/listing/${listingId}`);
         return;
       }
 
       if (user.id === sellerId) {
-        router.push("/messages");
-        router.refresh();
+        alert("No puedes iniciar una conversación contigo mismo.");
         return;
       }
 
@@ -66,9 +62,8 @@ export function ContactSellerButton({
         throw existingError;
       }
 
-      if (existingConversation) {
-        router.push(`/messages/${existingConversation.id}`);
-        router.refresh();
+      if (existingConversation?.id) {
+        window.location.assign(`/messages/${existingConversation.id}`);
         return;
       }
 
@@ -78,19 +73,22 @@ export function ContactSellerButton({
         );
       }
 
-      const { data: newConversation, error: insertConversationError } =
-        await supabase
-          .from("conversations")
-          .insert({
-            listing_id: listingId,
-            buyer_id: user.id,
-            seller_id: sellerId,
-          })
-          .select("id")
-          .single();
+      const { data: newConversation, error: insertConversationError } = await supabase
+        .from("conversations")
+        .insert({
+          listing_id: listingId,
+          buyer_id: user.id,
+          seller_id: sellerId,
+        })
+        .select("id")
+        .single();
 
       if (insertConversationError) {
         throw insertConversationError;
+      }
+
+      if (!newConversation?.id) {
+        throw new Error("No se pudo abrir la conversación.");
       }
 
       const { error: updateConversationError } = await supabase
@@ -102,8 +100,7 @@ export function ContactSellerButton({
         throw updateConversationError;
       }
 
-      router.push(`/messages/${newConversation.id}`);
-      router.refresh();
+      window.location.assign(`/messages/${newConversation.id}`);
     } catch (error: any) {
       console.error("Error creando conversación:", error);
 
@@ -125,8 +122,10 @@ export function ContactSellerButton({
       className="mt-6 w-full"
       onClick={handleContact}
       disabled={loading}
+      type="button"
     >
       {loading ? "Abriendo chat..." : "Contactar"}
     </Button>
   );
 }
+

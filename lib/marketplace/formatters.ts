@@ -21,10 +21,8 @@ export function getUserTypeLabel(userType?: string | null) {
       return "Familia / Tutor legal";
     case "student":
       return "Estudiante";
-    case "school_admin":
-      return "Administrador de centro";
-    case "super_admin":
-      return "Super admin";
+    case "business":
+      return "Negocio";
     default:
       return "Usuario";
   }
@@ -75,4 +73,28 @@ export function getStatusBadgeClass(status?: string | null) {
     default:
       return "";
   }
+}
+
+export function getDiscountPercent(originalPrice?: number | null, price?: number | null) {
+  if (typeof originalPrice !== "number" || typeof price !== "number") {
+    return 0;
+  }
+
+  if (originalPrice <= 0 || price < 0 || originalPrice <= price) {
+    return 0;
+  }
+
+  return Math.round(((originalPrice - price) / originalPrice) * 100);
+}
+
+export function formatPrice(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
 }

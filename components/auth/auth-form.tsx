@@ -16,7 +16,7 @@ type AuthMode = "login" | "signup" | "forgot";
 async function upsertProfileAfterAuth(params: {
   userId: string;
   fullName: string;
-  userType: "parent" | "student" | "";
+  userType: "parent" | "student" | "business" | "";
   gradeLevel: string;
   postalCode: string;
 }) {
@@ -66,7 +66,7 @@ export function AuthForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState<"parent" | "student" | "">("");
+  const [userType, setUserType] = useState<"parent" | "student" | "business" | "">("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
@@ -133,7 +133,7 @@ export function AuthForm() {
       return;
     }
 
-    if (!gradeLevel) {
+    if (userType !== "business" && !gradeLevel) {
       setError("Debes seleccionar un curso o etapa.");
       return;
     }
@@ -162,7 +162,7 @@ export function AuthForm() {
           data: {
             full_name: normalizedFullName,
             user_type: userType,
-            grade_level: gradeLevel,
+            grade_level: userType === "business" ? null : gradeLevel,
             postal_code: normalizedPostalCode,
           },
         },
@@ -175,13 +175,13 @@ export function AuthForm() {
           userId: data.user.id,
           fullName: normalizedFullName,
           userType,
-          gradeLevel,
+          gradeLevel: userType === "business" ? "" : gradeLevel,
           postalCode: normalizedPostalCode,
         });
       }
 
       if (data.session) {
-        window.location.assign(nextPath || "/onboarding/join-school");
+        window.location.assign(nextPath || (userType === "business" ? "/account" : "/onboarding/join-school"));
         return;
       }
 
@@ -351,7 +351,7 @@ export function AuthForm() {
                 <Label>Tipo de usuario *</Label>
                 <Select
                   value={userType || undefined}
-                  onValueChange={(v) => setUserType(v as "parent" | "student")}
+                  onValueChange={(v) => setUserType(v as "parent" | "student" | "business")}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu perfil" />
@@ -359,25 +359,28 @@ export function AuthForm() {
                   <SelectContent>
                     <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                     <SelectItem value="student">Estudiante</SelectItem>
+                    <SelectItem value="business">Negocio local</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label>Curso / Etapa *</Label>
-                <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona curso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {normalizedGradeLevels.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {userType !== "business" ? (
+                <div className="flex flex-col gap-2">
+                  <Label>Curso / Etapa *</Label>
+                  <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {normalizedGradeLevels.map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {g}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="postalCode">Código postal *</Label>

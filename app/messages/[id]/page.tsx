@@ -1,9 +1,12 @@
 import RealtimeChatMessages from "@/components/messages/realtime-chat-messages";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
 import ConversationListingState from "@/components/messages/conversation-listing-state";
+import { HideConversationButton } from "@/components/messages/hide-conversation-button";
+import { ReportConversationButton } from "@/components/messages/report-conversation-button";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -14,7 +17,14 @@ import {
   isValidListingStatus,
   type ListingStatus,
 } from "@/lib/marketplace/listing-status";
-import type { ConversationSummary, ProfileRow } from "@/lib/types/marketplace";
+import type {
+  ConversationSummary,
+  DonationRequestRow,
+  ListingOfferRow,
+  ProfileRow,
+} from "@/lib/types/marketplace";
+import { getOfferChatPreview } from "@/lib/offers/chat-message";
+import { getDonationChatPreview } from "@/lib/donations/chat-message";
 
 type ConversationRow = {
   id: string;
@@ -75,6 +85,7 @@ export default async function ConversationPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const adminSupabase = createAdminClient();
 
   const {
     data: { user },
@@ -84,13 +95,25 @@ export default async function ConversationPage({
     redirect("/auth");
   }
 
-  const { data: conversations } = await supabase
-    .from("conversations")
-    .select("*")
-    .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-    .order("updated_at", { ascending: false });
+  const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("*")
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("hidden_conversations")
+      .select("conversation_id")
+      .eq("user_id", user.id),
+  ]);
 
-  const safeConversations = (conversations || []) as ConversationRow[];
+  const hiddenConversationIds = new Set(
+    (hiddenRows || []).map((row: { conversation_id: string }) => row.conversation_id)
+  );
+
+  const safeConversations = ((conversations || []) as ConversationRow[]).filter(
+    (conversation) => !hiddenConversationIds.has(conversation.id)
+  );
 
   const { data: conversation } = await supabase
     .from("conversations")
@@ -102,8 +125,8 @@ export default async function ConversationPage({
 
   if (
     !typedConversation ||
-    (typedConversation.buyer_id !== user.id &&
-      typedConversation.seller_id !== user.id)
+    hiddenConversationIds.has(typedConversation.id) ||
+    (typedConversation.buyer_id !== user.id && typedConversation.seller_id !== user.id)
   ) {
     notFound();
   }
@@ -161,15 +184,26 @@ export default async function ConversationPage({
     .eq("conversation_id", typedConversation.id)
     .order("created_at", { ascending: true });
 
-  const listingsMap = new Map(
-    ((listings || []) as ListingChatRow[]).map((l) => [l.id, l])
-  );
-  const profilesMap = new Map(
-    ((profiles || []) as ProfileRow[]).map((p) => [p.id, p])
-  );
+  const [{ data: offers }, { data: donationRequests }] = await Promise.all([
+    adminSupabase
+      .from("listing_offers")
+      .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at")
+      .eq("listing_id", typedConversation.listing_id)
+      .eq("buyer_id", typedConversation.buyer_id)
+      .eq("seller_id", typedConversation.seller_id)
+      .order("created_at", { ascending: false }),
+    adminSupabase
+      .from("donation_requests")
+      .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
+      .eq("listing_id", typedConversation.listing_id)
+      .eq("requester_id", typedConversation.buyer_id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const listingsMap = new Map(((listings || []) as ListingChatRow[]).map((l) => [l.id, l]));
+  const profilesMap = new Map(((profiles || []) as ProfileRow[]).map((p) => [p.id, p]));
 
   const latestMessageMap = new Map<string, LatestMessageRow>();
-
   for (const message of (latestMessages || []) as LatestMessageRow[]) {
     if (!latestMessageMap.has(message.conversation_id)) {
       latestMessageMap.set(message.conversation_id, message);
@@ -177,48 +211,37 @@ export default async function ConversationPage({
   }
 
   const unreadCountMap = new Map<string, number>();
-
   for (const message of unreadMessages || []) {
-    unreadCountMap.set(
-      message.conversation_id,
-      (unreadCountMap.get(message.conversation_id) || 0) + 1
-    );
+    unreadCountMap.set(message.conversation_id, (unreadCountMap.get(message.conversation_id) || 0) + 1);
   }
 
-  const conversationSummaries: ConversationSummary[] = safeConversations.map(
-    (item) => {
-      const otherUserId =
-        item.buyer_id === user.id ? item.seller_id : item.buyer_id;
+  const conversationSummaries: ConversationSummary[] = safeConversations.map((item) => {
+    const otherUserId = item.buyer_id === user.id ? item.seller_id : item.buyer_id;
+    const otherProfile = profilesMap.get(otherUserId);
+    const listing = listingsMap.get(item.listing_id);
+    const latestMessage = latestMessageMap.get(item.id);
+    const unreadCount = unreadCountMap.get(item.id) || 0;
 
-      const otherProfile = profilesMap.get(otherUserId);
-      const listing = listingsMap.get(item.listing_id);
-      const latestMessage = latestMessageMap.get(item.id);
-      const unreadCount = unreadCountMap.get(item.id) || 0;
+    const latestMessageBody =
+      getOfferChatPreview(latestMessage?.body?.trim()) ||
+      getDonationChatPreview(latestMessage?.body?.trim()) ||
+      (latestMessage?.attachment_name ? `📎 ${latestMessage.attachment_name}` : "Sin mensajes todavía");
 
-      const latestMessageBody =
-        latestMessage?.body?.trim() ||
-        (latestMessage?.attachment_name
-          ? `📎 ${latestMessage.attachment_name}`
-          : "Sin mensajes todavía");
-
-      return {
-        id: item.id,
-        otherName:
-          otherProfile?.full_name && otherProfile.full_name.trim().length > 0
-            ? otherProfile.full_name.trim()
-            : "Usuario",
-        listingTitle: listing?.title || "Anuncio",
-        latestMessageBody,
-        latestMessageCreatedAt: latestMessage?.created_at || null,
-        unreadCount,
-      };
-    }
-  );
+    return {
+      id: item.id,
+      otherName:
+        otherProfile?.full_name && otherProfile.full_name.trim().length > 0
+          ? otherProfile.full_name.trim()
+          : "Usuario",
+      listingTitle: listing?.title || "Anuncio",
+      latestMessageBody,
+      latestMessageCreatedAt: latestMessage?.created_at || null,
+      unreadCount,
+    };
+  });
 
   const otherUserId =
-    typedConversation.buyer_id === user.id
-      ? typedConversation.seller_id
-      : typedConversation.buyer_id;
+    typedConversation.buyer_id === user.id ? typedConversation.seller_id : typedConversation.buyer_id;
 
   const otherProfile = profilesMap.get(otherUserId);
   const listing = listingsMap.get(typedConversation.listing_id);
@@ -236,7 +259,12 @@ export default async function ConversationPage({
         : "Miembro de Wetudy";
 
   const listingStatus = getSafeListingStatus(listing?.status);
-  const canSendMessages = canSendNewMessageToListing(listingStatus);
+  const typedOffers = (offers || []) as ListingOfferRow[];
+  const typedDonationRequests = (donationRequests || []) as DonationRequestRow[];
+  const hasAcceptedOffer = typedOffers.some((offer) => offer.status === "accepted");
+  const hasApprovedDonation = typedDonationRequests.some((request) => request.status === "approved");
+  const allowConversationMessaging =
+    canSendNewMessageToListing(listingStatus) || hasAcceptedOffer || hasApprovedDonation;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
@@ -250,10 +278,7 @@ export default async function ConversationPage({
         <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
           <div className="border-b px-5 py-4">
             <div className="flex items-center justify-between gap-4">
-              <Link
-                href={`/profile/${otherUserId}`}
-                className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"
-              >
+              <Link href={`/profile/${otherUserId}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40">
                 <div className="flex items-center gap-3 rounded-xl p-2">
                   <Avatar className="h-11 w-11">
                     <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
@@ -261,22 +286,22 @@ export default async function ConversationPage({
 
                   <div className="min-w-0">
                     <p className="truncate text-lg font-semibold">{otherName}</p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {otherRole}
-                    </p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {listing?.title || "Anuncio"}
-                    </p>
+                    <p className="truncate text-sm text-muted-foreground">{otherRole}</p>
+                    <p className="truncate text-sm text-muted-foreground">{listing?.title || "Anuncio"}</p>
                   </div>
                 </div>
               </Link>
 
-              <Link href={`/profile/${otherUserId}`}>
-                <Button variant="outline" size="sm" className="gap-2">
-                  Ver perfil
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <ReportConversationButton conversationId={typedConversation.id} />
+                <HideConversationButton conversationId={typedConversation.id} variant="outline" size="sm" />
+                <Link href={`/profile/${otherUserId}`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    Ver perfil
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -284,21 +309,30 @@ export default async function ConversationPage({
             <RealtimeChatMessages
               conversationId={typedConversation.id}
               currentUserId={user.id}
+              conversationListingId={typedConversation.listing_id}
+              conversationBuyerId={typedConversation.buyer_id}
+              conversationSellerId={typedConversation.seller_id}
               initialMessages={(messages || []) as MessageRow[]}
               initialUnreadMessageIds={initialUnreadMessageIds}
+              initialOffers={typedOffers}
+              initialDonationRequests={typedDonationRequests}
             />
           </div>
 
           <div className="border-t px-5 py-4">
             <ConversationListingState
               listingId={typedConversation.listing_id}
+              conversationId={typedConversation.id}
+              listingHref={`/marketplace/listing/${typedConversation.listing_id}`}
               initialStatus={listingStatus}
               title={listing?.title || "Anuncio"}
               price={typeof listing?.price === "number" ? listing.price : null}
+              allowConversationMessagingWhenUnavailable={allowConversationMessaging}
             >
               <SendMessageForm
                 conversationId={typedConversation.id}
-                disabled={!canSendMessages}
+                disabled={!allowConversationMessaging}
+                allowUnavailableConversationMessaging={allowConversationMessaging}
               />
             </ConversationListingState>
           </div>

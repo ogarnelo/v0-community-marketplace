@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
+import { NavbarNotificationsBell } from "@/components/notifications/navbar-notifications-bell";
 import { createClient } from "@/lib/supabase/client";
+import type { AppNotificationRow } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,58 +28,53 @@ import {
   Package,
   ShieldCheck,
   Heart,
+  Activity,
 } from "lucide-react";
 
 interface NavbarProps {
   isLoggedIn?: boolean;
   userName?: string;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
+  adminHref?: string;
   unreadMessagesCount?: number;
+  unreadNotificationsCount?: number;
+  notifications?: AppNotificationRow[];
   currentUserId?: string;
 }
 
 type ProfileUpdatedEventDetail = {
   full_name?: string | null;
-  user_type?: string | null;
 };
 
 export function Navbar({
   isLoggedIn = false,
   userName = "Mi cuenta",
   isAdmin = false,
+  isSuperAdmin = false,
+  adminHref,
   unreadMessagesCount = 0,
+  unreadNotificationsCount = 0,
+  notifications = [],
   currentUserId,
 }: NavbarProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [liveUserName, setLiveUserName] = useState(userName);
-  const [liveIsAdmin, setLiveIsAdmin] = useState(isAdmin);
-
-  const supabase = useMemo(() => createClient(), []);
-  const publishHref = isLoggedIn
-    ? "/marketplace/new"
-    : "/auth?next=/marketplace/new";
+  const [displayName, setDisplayName] = useState(userName);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    setLiveUserName(userName);
+    setDisplayName(userName || "Mi cuenta");
   }, [userName]);
-
-  useEffect(() => {
-    setLiveIsAdmin(isAdmin);
-  }, [isAdmin]);
 
   useEffect(() => {
     const handleProfileUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<ProfileUpdatedEventDetail>;
-      const nextName =
-        customEvent.detail?.full_name && customEvent.detail.full_name.trim().length > 0
-          ? customEvent.detail.full_name.trim()
-          : "Mi cuenta";
+      const nextName = customEvent.detail?.full_name?.trim();
 
-      setLiveUserName(nextName);
-      setLiveIsAdmin(
-        customEvent.detail?.user_type === "school_admin" ||
-        customEvent.detail?.user_type === "super_admin"
-      );
+      if (nextName) {
+        setDisplayName(nextName);
+      }
     };
 
     window.addEventListener("profile-updated", handleProfileUpdated);
@@ -86,48 +84,41 @@ export function Navbar({
     };
   }, []);
 
-  useEffect(() => {
-    if (!currentUserId) return;
+  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
+  const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
+  const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
+  const showMessagesBadge = Boolean(currentUserId);
 
-    const channel = supabase
-      .channel(`navbar-profile-${currentUserId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "profiles",
-          filter: `id=eq.${currentUserId}`,
-        },
-        (payload) => {
-          const nextProfile = payload.new as {
-            full_name?: string | null;
-            user_type?: string | null;
-          };
+  const navItems = useMemo(
+    () => [
+      { href: "/marketplace", label: "Marketplace", icon: BookOpen },
+      { href: "/favorites", label: "Favoritos", icon: Heart },
+      { href: publishHref, label: "Publicar", icon: Plus },
+      { href: "/messages", label: "Mensajes", icon: MessageCircle },
+    ],
+    [publishHref]
+  );
 
-          const nextName =
-            nextProfile?.full_name && nextProfile.full_name.trim().length > 0
-              ? nextProfile.full_name.trim()
-              : "Mi cuenta";
+  const handleMobileLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.assign("/auth");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
-          setLiveUserName(nextName);
-          setLiveIsAdmin(
-            nextProfile?.user_type === "school_admin" ||
-            nextProfile?.user_type === "super_admin"
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [currentUserId, supabase]);
-
-  const avatarLetter =
-    liveUserName && liveUserName.trim().length > 0
-      ? liveUserName.trim().charAt(0).toUpperCase()
-      : "U";
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (href === "/marketplace") return pathname?.startsWith("/marketplace");
+    if (href === "/messages") return pathname?.startsWith("/messages");
+    if (href === "/favorites") return pathname?.startsWith("/favorites");
+    if (href === "/marketplace/new") return pathname === "/marketplace/new";
+    if (href === "/account/activity") return pathname?.startsWith("/account/activity");
+    return pathname === href;
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
@@ -136,50 +127,43 @@ export function Navbar({
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <BookOpen className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="font-mono text-xl font-bold tracking-tight text-foreground">
-            Wetudy
-          </span>
+          <span className="font-mono text-xl font-bold tracking-tight text-foreground">Wetudy</span>
         </Link>
 
         {isLoggedIn ? (
           <>
             <nav className="hidden items-center gap-1 md:flex">
-              <Link href="/marketplace">
-                <Button variant="ghost" size="sm">
-                  Marketplace
+              {navItems.map(({ href, label, icon: Icon }) => (
+                <Button
+                  key={href + label}
+                  asChild
+                  variant={isActive(href) ? "secondary" : "ghost"}
+                  size="sm"
+                  className="gap-1.5"
+                >
+                  <Link href={href} className="relative">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                    {href === "/messages" && showMessagesBadge ? (
+                      <NavbarMessagesBadge
+                        currentUserId={currentUserId as string}
+                        initialCount={unreadMessagesCount}
+                      />
+                    ) : null}
+                  </Link>
                 </Button>
-              </Link>
-
-              <Link href="/favorites">
-                <Button variant="ghost" size="sm" className="gap-1.5">
-                  <Heart className="h-4 w-4" />
-                  Favoritos
-                </Button>
-              </Link>
-
-              <Link href={publishHref}>
-                <Button variant="ghost" size="sm" className="gap-1.5">
-                  <Plus className="h-4 w-4" />
-                  Publicar
-                </Button>
-              </Link>
-
-              <Link href="/messages">
-                <Button variant="ghost" size="sm" className="relative gap-1.5">
-                  <MessageCircle className="h-4 w-4" />
-                  Mensajes
-
-                  {currentUserId ? (
-                    <NavbarMessagesBadge
-                      currentUserId={currentUserId}
-                      initialCount={unreadMessagesCount}
-                    />
-                  ) : null}
-                </Button>
-              </Link>
+              ))}
             </nav>
 
-            <div className="hidden items-center gap-3 md:flex">
+            <div className="hidden items-center gap-2 md:flex">
+              {currentUserId ? (
+                <NavbarNotificationsBell
+                  currentUserId={currentUserId}
+                  initialNotifications={notifications}
+                  initialUnreadCount={unreadNotificationsCount}
+                />
+              ) : null}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2 px-2">
@@ -188,15 +172,22 @@ export function Navbar({
                         {avatarLetter}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{liveUserName}</span>
+                    <span className="max-w-[180px] truncate text-sm font-medium">{displayName}</span>
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem asChild>
                     <Link href="/account" className="gap-2">
                       <User className="h-4 w-4" />
                       Mi cuenta
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem asChild>
+                    <Link href="/account/activity" className="gap-2">
+                      <Activity className="h-4 w-4" />
+                      Actividad
                     </Link>
                   </DropdownMenuItem>
 
@@ -214,11 +205,11 @@ export function Navbar({
                     </Link>
                   </DropdownMenuItem>
 
-                  {liveIsAdmin ? (
+                  {effectiveAdminHref ? (
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/school" className="gap-2">
+                      <Link href={effectiveAdminHref} className="gap-2">
                         <ShieldCheck className="h-4 w-4" />
-                        Panel Admin
+                        Panel admin
                       </Link>
                     </DropdownMenuItem>
                   ) : null}
@@ -238,120 +229,105 @@ export function Navbar({
               </SheetTrigger>
 
               <SheetContent side="right" className="w-72">
-                <nav className="flex flex-col gap-2 pt-8">
-                  <Link href="/marketplace" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      <BookOpen className="h-4 w-4" />
-                      Marketplace
+                <div className="flex items-center gap-3 border-b border-border pb-4 pt-2">
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className="bg-primary text-primary-foreground">{avatarLetter}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+                    <p className="text-xs text-muted-foreground">Tu espacio personal</p>
+                  </div>
+                </div>
+
+                <nav className="flex flex-col gap-2 pt-6">
+                  {navItems.map(({ href, label, icon: Icon }) => (
+                    <Button key={href + label} asChild variant="ghost" className="w-full justify-start gap-2">
+                      <Link href={href} onClick={() => setOpen(false)}>
+                        <Icon className="h-4 w-4" />
+                        {label}
+                        {href === "/messages" && showMessagesBadge ? (
+                          <span className="ml-auto">
+                            <NavbarMessagesBadge
+                              currentUserId={currentUserId as string}
+                              initialCount={unreadMessagesCount}
+                            />
+                          </span>
+                        ) : null}
+                      </Link>
                     </Button>
-                  </Link>
+                  ))}
 
-                  <Link href="/favorites" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      <Heart className="h-4 w-4" />
-                      Favoritos
-                    </Button>
-                  </Link>
-
-                  <Link href={publishHref} onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      <Plus className="h-4 w-4" />
-                      Publicar anuncio
-                    </Button>
-                  </Link>
-
-                  <Link href="/messages" onClick={() => setOpen(false)}>
-                    <Button
-                      variant="ghost"
-                      className="relative w-full justify-start gap-2"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      Mensajes
-
-                      {currentUserId ? (
-                        <span className="ml-auto">
-                          <NavbarMessagesBadge
-                            currentUserId={currentUserId}
-                            initialCount={unreadMessagesCount}
-                          />
-                        </span>
-                      ) : null}
-                    </Button>
-                  </Link>
-
-                  <Link href="/account" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/account" onClick={() => setOpen(false)}>
                       <User className="h-4 w-4" />
                       Mi cuenta
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href="/account/listings" onClick={() => setOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/account/activity" onClick={() => setOpen(false)}>
+                      <Activity className="h-4 w-4" />
+                      Actividad
+                      {unreadNotificationsCount > 0 ? (
+                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
+                          {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </Button>
+
+                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                    <Link href="/account/listings" onClick={() => setOpen(false)}>
                       <Package className="h-4 w-4" />
                       Mis anuncios
-                    </Button>
-                  </Link>
-
-                  {liveIsAdmin ? (
-                    <Link href="/admin/school" onClick={() => setOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        Panel Admin
-                      </Button>
                     </Link>
+                  </Button>
+
+                  {effectiveAdminHref ? (
+                    <Button asChild variant="ghost" className="w-full justify-start gap-2">
+                      <Link href={effectiveAdminHref} onClick={() => setOpen(false)}>
+                        <ShieldCheck className="h-4 w-4" />
+                        Panel admin
+                      </Link>
+                    </Button>
                   ) : null}
 
                   <div className="my-2 border-t border-border" />
 
-                  <button
+                  <Button
                     type="button"
-                    onClick={async () => {
-                      setOpen(false);
-                      const supabaseClient = createClient();
-                      await supabaseClient.auth.signOut();
-                      window.location.assign("/auth");
-                    }}
-                    className="w-full"
+                    variant="ghost"
+                    className="w-full justify-start gap-2 text-destructive"
+                    disabled={isLoggingOut}
+                    onClick={handleMobileLogout}
                   >
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2 text-destructive"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Cerrar sesión
-                    </Button>
-                  </button>
+                    <LogOut className="h-4 w-4" />
+                    {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                  </Button>
                 </nav>
               </SheetContent>
             </Sheet>
           </>
         ) : (
           <div className="flex items-center gap-2">
-            <Link href="/marketplace" className="hidden sm:block">
-              <Button variant="ghost" size="sm">
-                Marketplace
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/marketplace">Marketplace</Link>
+            </Button>
 
-            <Link href="/auth">
-              <Button variant="ghost" size="sm">
-                Iniciar sesión
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/auth">Iniciar sesión</Link>
+            </Button>
 
-            <Link href="/auth?mode=signup">
-              <Button variant="outline" size="sm">
-                Crear cuenta
-              </Button>
-            </Link>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/auth?mode=signup">Crear cuenta</Link>
+            </Button>
 
-            <Link href={publishHref}>
-              <Button size="sm" className="gap-1.5">
+            <Button asChild size="sm" className="gap-1.5">
+              <Link href={publishHref}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Vender</span>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         )}
       </div>

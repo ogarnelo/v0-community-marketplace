@@ -1,289 +1,267 @@
-"use client"
+import { redirect } from "next/navigation";
+import { Shield } from "lucide-react";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import SchoolAdminDashboard from "@/components/admin/school-admin-dashboard";
+import { DonationRequestsPanel, type DonationRequestAdminItem } from "@/components/admin/donation-requests-panel";
 
-import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import {
-  currentSchool,
-  getListingsBySchool,
-  getDonationRequestsBySchool,
-  getUserById,
-  getListingById,
-  users,
-  schoolMetrics,
-  listings,
-} from "@/lib/mock-data"
-import type { DonationRequest } from "@/lib/mock-data"
-import {
-  Users,
-  Package,
-  Heart,
-  TrendingUp,
-  Eye,
-  CheckCircle2,
-  XCircle,
-  BarChart3,
-  Flag,
-  Shield,
-  AlertTriangle,
-} from "lucide-react"
-import { toast } from "sonner"
+const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
-export default function SchoolAdminPage() {
-  const metrics = schoolMetrics["s1" as keyof typeof schoolMetrics]
-  const schoolListings = getListingsBySchool(currentSchool.id)
-  const schoolMembers = users.filter(u => u.schoolId === currentSchool.id)
-  const [donationRequests, setDonationRequests] = useState<DonationRequest[]>(
-    getDonationRequestsBySchool(currentSchool.id)
-  )
+type SchoolRow = {
+  id: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  postal_code: string | null;
+  school_type: string | null;
+};
 
-  const flaggedListings = listings.filter(l => l.schoolId === currentSchool.id && l.status === "active").slice(0, 2)
+type ListingRow = {
+  id: string;
+  title: string | null;
+  category: string | null;
+  grade_level: string | null;
+  price: number | null;
+  type: string | null;
+  status: string | null;
+  condition: string | null;
+  seller_id: string | null;
+  school_id: string | null;
+  created_at: string;
+};
 
-  function handleApprove(id: string) {
-    setDonationRequests(prev =>
-      prev.map(dr => (dr.id === id ? { ...dr, status: "approved" } : dr))
-    )
-    toast.success("Solicitud aprobada")
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  school_id: string | null;
+  user_type: string | null;
+  grade_level: string | null;
+};
+
+type ReportRow = {
+  id: string;
+  target_type: "listing" | "conversation";
+  listing_id: string | null;
+  conversation_id: string | null;
+  reason: string;
+  status: string;
+  created_at: string;
+};
+
+type RoleRow = {
+  role: "super_admin" | "school_admin";
+  school_id: string | null;
+};
+
+type SchoolAccessCodeRow = {
+  code: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+type SchoolAdminRoleRow = {
+  user_id: string;
+  role: string;
+  school_id: string | null;
+};
+
+type ListingViewRow = {
+  listing_id: string;
+  viewed_at: string;
+};
+
+type DonationRequestRow = {
+  id: string;
+  listing_id: string | null;
+  requester_id: string | null;
+  assigned_to_requester_id: string | null;
+  approved_by_admin_id: string | null;
+  status: string | null;
+  note: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  school_id: string | null;
+};
+
+export default async function SchoolAdminPage() {
+  const supabase = await createClient();
+  const adminSupabase = createAdminClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth?next=/admin/school");
   }
 
-  function handleReject(id: string) {
-    setDonationRequests(prev =>
-      prev.map(dr => (dr.id === id ? { ...dr, status: "rejected" } : dr))
-    )
-    toast.success("Solicitud rechazada")
+  const email = user.email?.toLowerCase() || "";
+  const isSuperAdmin = SUPERADMIN_EMAILS.includes(email);
+
+  const [{ data: profile }, { data: roles }] = await Promise.all([
+    supabase.from("profiles").select("full_name, school_id").eq("id", user.id).maybeSingle(),
+    supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<RoleRow[]>(),
+  ]);
+
+  const schoolAdminRole = (roles || []).find((role) => role.role === "school_admin");
+  const effectiveSchoolId = schoolAdminRole?.school_id || profile?.school_id || null;
+
+  if (!effectiveSchoolId) {
+    if (isSuperAdmin) {
+      redirect("/admin/super");
+    }
+
+    redirect("/");
   }
+
+  const [
+    { data: school },
+    { data: listings },
+    { data: members },
+    { data: reports },
+    { data: accessCodes },
+    { data: schoolAdminRoles },
+    { data: donationRequests },
+  ] = await Promise.all([
+    adminSupabase
+      .from("schools")
+      .select("id, name, city, region, postal_code, school_type")
+      .eq("id", effectiveSchoolId)
+      .maybeSingle<SchoolRow>(),
+    adminSupabase
+      .from("listings")
+      .select("id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at")
+      .eq("school_id", effectiveSchoolId)
+      .order("created_at", { ascending: false })
+      .returns<ListingRow[]>(),
+    adminSupabase
+      .from("profiles")
+      .select("id, full_name, school_id, user_type, grade_level")
+      .eq("school_id", effectiveSchoolId)
+      .returns<ProfileRow[]>(),
+    adminSupabase
+      .from("reports")
+      .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
+      .eq("target_type", "listing")
+      .order("created_at", { ascending: false })
+      .returns<ReportRow[]>(),
+    adminSupabase
+      .from("school_access_codes")
+      .select("code, is_active, created_at")
+      .eq("school_id", effectiveSchoolId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .returns<SchoolAccessCodeRow[]>(),
+    adminSupabase
+      .from("user_roles")
+      .select("user_id, role, school_id")
+      .eq("school_id", effectiveSchoolId)
+      .eq("role", "school_admin")
+      .returns<SchoolAdminRoleRow[]>(),
+    adminSupabase
+      .from("donation_requests")
+      .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
+      .eq("school_id", effectiveSchoolId)
+      .order("created_at", { ascending: false })
+      .returns<DonationRequestRow[]>(),
+  ]);
+
+  const safeListings = (listings || []) as ListingRow[];
+  const safeMembers = (members || []) as ProfileRow[];
+  const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
+  const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
+  const safeReports = (reports || []) as ReportRow[];
+  const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
+
+  const listingIds = safeListings.map((item) => item.id);
+
+  const { data: listingViews } =
+    listingIds.length > 0
+      ? await adminSupabase
+        .from("listing_views")
+        .select("listing_id, viewed_at")
+        .in("listing_id", listingIds)
+        .order("viewed_at", { ascending: false })
+        .returns<ListingViewRow[]>()
+      : { data: [] as ListingViewRow[] };
+
+  const safeListingViews = (listingViews || []) as ListingViewRow[];
+  const safeListingReports = safeReports.filter((report) =>
+    safeListings.some((listing) => listing.id === report.listing_id)
+  );
+
+  const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
+  const schoolAdmins = safeMembers.filter((member) => schoolAdminIds.includes(member.id));
+
+  const requesterIds = Array.from(
+    new Set(
+      safeDonationRequests.map((request) => request.requester_id).filter((value): value is string => !!value)
+    )
+  );
+
+  const requesterNameMap = new Map<string, string>();
+
+  if (requesterIds.length > 0) {
+    const { data: requesterProfiles } = await adminSupabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", requesterIds);
+
+    for (const profileRow of (requesterProfiles || []) as Array<{ id: string; full_name: string | null }>) {
+      requesterNameMap.set(profileRow.id, profileRow.full_name || "Usuario");
+    }
+  }
+
+  const listingTitleMap = new Map(safeListings.map((listing) => [listing.id, listing.title || "Anuncio sin título"]));
+
+  const pendingDonationRequests: DonationRequestAdminItem[] = safeDonationRequests.map((request) => ({
+    id: request.id,
+    listingId: request.listing_id || "",
+    listingTitle: request.listing_id ? listingTitleMap.get(request.listing_id) || "Anuncio" : "Anuncio",
+    requesterName: request.requester_id ? requesterNameMap.get(request.requester_id) || "Usuario" : "Usuario",
+    status: request.status,
+    note: request.note,
+    createdAt: request.created_at,
+  }));
+
+  const navbarUserName =
+    (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
+      ? profile.full_name.trim()
+      : null) || user.email || "Admin centro";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName="Pedro" isAdmin />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/school" currentUserId={user.id} />
 
       <main className="flex-1">
-        <div className="mx-auto max-w-5xl px-4 py-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Shield className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Panel Admin - {currentSchool.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                Codigo: <span className="font-mono">{currentSchool.code}</span> &middot; {currentSchool.city}
-              </p>
+              <h1 className="text-2xl font-bold text-foreground">Panel Admin - {school?.name || "Centro"}</h1>
+              <p className="text-sm text-muted-foreground">Dashboard del centro con KPIs, rankings y conversión.</p>
             </div>
           </div>
 
-          {/* KPI Cards */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{metrics.itemsReused}</p>
-                  <p className="text-xs text-muted-foreground">Articulos reutilizados</p>
-                </div>
-              </CardContent>
-            </Card>
+          <SchoolAdminDashboard
+            school={school || null}
+            listings={safeListings}
+            members={safeMembers}
+            schoolAdmins={schoolAdmins}
+            reports={safeListingReports}
+            accessCodes={safeAccessCodes}
+            listingViews={safeListingViews}
+          />
 
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary/20">
-                  <Heart className="h-5 w-5 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{metrics.donationsCompleted}</p>
-                  <p className="text-xs text-muted-foreground">Donaciones</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent">
-                  <Users className="h-5 w-5 text-accent-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{metrics.familiesParticipating}</p>
-                  <p className="text-xs text-muted-foreground">Familias activas</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-chart-4/10">
-                  <TrendingUp className="h-5 w-5 text-chart-4" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{metrics.moneySaved}&euro;</p>
-                  <p className="text-xs text-muted-foreground">Ahorro total</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue="donations" className="mt-6">
-            <TabsList>
-              <TabsTrigger value="donations">Solicitudes de donacion</TabsTrigger>
-              <TabsTrigger value="listings">Anuncios ({schoolListings.length})</TabsTrigger>
-              <TabsTrigger value="members">Miembros ({schoolMembers.length})</TabsTrigger>
-              <TabsTrigger value="flagged">Reportados</TabsTrigger>
-            </TabsList>
-
-            {/* Donation Requests */}
-            <TabsContent value="donations" className="mt-4 flex flex-col gap-3">
-              {donationRequests.length > 0 ? (
-                donationRequests.map(req => {
-                  const requester = getUserById(req.requesterId)
-                  const listing = getListingById(req.listingId)
-                  return (
-                    <Card key={req.id} className="border-border">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="h-10 w-10 shrink-0">
-                              <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                                {requester?.name.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">{requester?.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Solicita: {listing?.title}
-                              </p>
-                              <p className="mt-1 text-sm text-foreground leading-relaxed">{req.message}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {new Date(req.createdAt).toLocaleDateString("es-ES")}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            {req.status === "pending" ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-1 text-destructive hover:text-destructive"
-                                  onClick={() => handleReject(req.id)}
-                                >
-                                  <XCircle className="h-3.5 w-3.5" /> Rechazar
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="gap-1"
-                                  onClick={() => handleApprove(req.id)}
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5" /> Aprobar
-                                </Button>
-                              </>
-                            ) : (
-                              <Badge
-                                variant={req.status === "approved" ? "default" : "destructive"}
-                                className="capitalize"
-                              >
-                                {req.status === "approved" ? "Aprobada" : "Rechazada"}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })
-              ) : (
-                <div className="flex flex-col items-center py-12 text-center">
-                  <Heart className="h-10 w-10 text-muted-foreground/40" />
-                  <p className="mt-3 text-sm text-muted-foreground">No hay solicitudes pendientes</p>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Listings */}
-            <TabsContent value="listings" className="mt-4 flex flex-col gap-3">
-              {schoolListings.map(listing => (
-                <Card key={listing.id} className="border-border">
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                        <span className="text-lg text-muted-foreground/40 font-mono">
-                          {listing.category.charAt(0)}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">{listing.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {getUserById(listing.sellerId)?.name} &middot; {listing.category}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {listing.type === "donation" ? (
-                        <Badge variant="secondary" className="text-xs">Donacion</Badge>
-                      ) : (
-                        <span className="text-sm font-bold text-foreground">{listing.price}&euro;</span>
-                      )}
-                      <Link href={`/marketplace/listing/${listing.id}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">Ver</span>
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
-
-            {/* Members */}
-            <TabsContent value="members" className="mt-4 flex flex-col gap-3">
-              {schoolMembers.map(member => (
-                <Card key={member.id} className="border-border">
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {member.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">{member.email}</p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="capitalize text-xs">
-                      {member.role === "parent" ? "Familia" : member.role === "school_admin" ? "Admin" : member.role}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
-
-            {/* Flagged */}
-            <TabsContent value="flagged" className="mt-4">
-              <Card className="border-border">
-                <CardContent className="flex flex-col items-center py-12 text-center">
-                  <Flag className="h-10 w-10 text-muted-foreground/40" />
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    No hay contenido reportado en este momento
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Los reportes de usuarios apareceran aqui para revision
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <DonationRequestsPanel requests={pendingDonationRequests} />
         </div>
       </main>
 
       <Footer />
     </div>
-  )
+  );
 }

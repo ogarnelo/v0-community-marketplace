@@ -5,7 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
-import { getConditionLabel } from "@/lib/marketplace/formatters";
+import {
+  formatPrice,
+  getConditionLabel,
+  getDiscountPercent,
+} from "@/lib/marketplace/formatters";
 
 type ListingCardData = {
   id: string;
@@ -48,17 +52,14 @@ export function ListingCard({
   const titleText = listing.title || "Anuncio sin título";
   const gradeText = listing.gradeLevel || "Sin curso";
   const conditionText = getConditionLabel(listing.condition);
+  const discountPercent = getDiscountPercent(listing.originalPrice, listing.price);
 
   return (
     <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
         <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
           {mainPhoto ? (
-            <img
-              src={mainPhoto}
-              alt={titleText}
-              className="h-full w-full object-cover"
-            />
+            <img src={mainPhoto} alt={titleText} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full items-center justify-center bg-muted">
               <span className="select-none font-mono text-5xl text-muted-foreground/15">
@@ -121,9 +122,9 @@ export function ListingCard({
             {conditionText}
           </Badge>
 
-          {listing.type === "sale" && listing.originalPrice && listing.price ? (
+          {listing.type === "sale" && discountPercent > 0 ? (
             <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
-              -{Math.round((1 - listing.price / listing.originalPrice) * 100)}%
+              -{discountPercent}%
             </Badge>
           ) : null}
         </div>
@@ -131,7 +132,7 @@ export function ListingCard({
         <div className="mt-2.5 flex items-center justify-end">
           {!isDonation && listing.price != null ? (
             <span className="text-[15px] font-bold text-foreground">
-              {listing.price}€
+              {formatPrice(listing.price)}
             </span>
           ) : null}
         </div>
@@ -139,3 +140,4 @@ export function ListingCard({
     </Card>
   );
 }
+

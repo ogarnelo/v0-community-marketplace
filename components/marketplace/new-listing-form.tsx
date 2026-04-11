@@ -75,6 +75,8 @@ type ListingInsertPayload = {
   grade_level: string;
   condition: string;
   type: string;
+  listing_type: string;
+  isbn: string | null;
   price: number | null;
   original_price: number | null;
   seller_id: string;
@@ -88,6 +90,15 @@ type ListingPhotoInsertPayload = {
   sort_order: number;
 };
 
+
+function normalizeIsbn(value: string) {
+  return value.replace(/[^0-9xX]/g, "").toUpperCase();
+}
+
+function isValidIsbn(value: string) {
+  if (!value) return true;
+  return /^(?:\d{9}[\dX]|\d{13})$/.test(normalizeIsbn(value));
+}
 function sanitizeFileName(fileName: string) {
   return fileName
     .normalize("NFD")
@@ -212,6 +223,8 @@ export default function NewListingForm({
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
 
+    if (!isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
+
     if (!isDonation) {
       if (!price.trim()) return "Debes indicar un precio para la venta.";
 
@@ -330,6 +343,8 @@ export default function NewListingForm({
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
         type: isDonation ? "donation" : "sale",
+        listing_type: isDonation ? "donation" : "sale",
+        isbn: isbn.trim() ? normalizeIsbn(isbn) : null,
         price: isDonation ? null : Number(price),
         original_price:
           isDonation || !originalPrice.trim() ? null : Number(originalPrice),
@@ -411,7 +426,7 @@ export default function NewListingForm({
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Libro Matemáticas 3º ESO"
+                  placeholder="Ej: Libro Matemáticas 3.¬∫ ESO"
                 />
               </div>
 
@@ -687,11 +702,6 @@ export default function NewListingForm({
                   ) : null}
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  Las imágenes se guardarán en el bucket público{" "}
-                  <code>listing-photos</code> y se enlazarán en la tabla{" "}
-                  <code>listing_photos</code>.
-                </p>
 
                 {photoError ? (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -744,3 +754,5 @@ export default function NewListingForm({
     </div>
   );
 }
+
+

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { HideConversationButton } from "@/components/messages/hide-conversation-button";
 import type { ConversationSummary } from "@/lib/types/marketplace";
+import { getOfferChatPreview } from "@/lib/offers/chat-message";
 
 type MessageRealtimePayload = {
   id: string;
@@ -14,6 +16,14 @@ type MessageRealtimePayload = {
   created_at: string;
   attachment_name?: string | null;
   read_at?: string | null;
+};
+
+type ConversationRealtimePayload = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  updated_at: string | null;
 };
 
 function getInitials(name?: string | null) {
@@ -41,25 +51,14 @@ function formatSidebarDate(date: string | null) {
 
 function sortConversations(items: ConversationSummary[]) {
   return [...items].sort((a, b) => {
-    const aTime = a.latestMessageCreatedAt
-      ? new Date(a.latestMessageCreatedAt).getTime()
-      : 0;
-    const bTime = b.latestMessageCreatedAt
-      ? new Date(b.latestMessageCreatedAt).getTime()
-      : 0;
-
+    const aTime = a.latestMessageCreatedAt ? new Date(a.latestMessageCreatedAt).getTime() : 0;
+    const bTime = b.latestMessageCreatedAt ? new Date(b.latestMessageCreatedAt).getTime() : 0;
     return bTime - aTime;
   });
 }
 
-function buildPreviewText(message: {
-  body?: string | null;
-  attachment_name?: string | null;
-}) {
-  return (
-    message.body?.trim() ||
-    (message.attachment_name ? `📎 ${message.attachment_name}` : "Nuevo mensaje")
-  );
+function buildPreviewText(message: { body?: string | null; attachment_name?: string | null }) {
+  return getOfferChatPreview(message.body?.trim()) || (message.attachment_name ? `📎 ${message.attachment_name}` : "Nuevo mensaje");
 }
 
 interface ConversationsSidebarProps {
@@ -80,8 +79,7 @@ export function ConversationsSidebar({
     setItems(
       conversations.map((item) => ({
         ...item,
-        unreadCount:
-          item.id === selectedConversationId ? 0 : item.unreadCount || 0,
+        unreadCount: item.id === selectedConversationId ? 0 : item.unreadCount || 0,
       }))
     );
   }, [conversations, selectedConversationId]);
@@ -91,7 +89,6 @@ export function ConversationsSidebar({
       if (items.length === 0) return;
 
       const conversationIds = items.map((item) => item.id);
-
       const { data: unreadMessages, error } = await supabase
         .from("messages")
         .select("conversation_id")
@@ -105,7 +102,6 @@ export function ConversationsSidebar({
       }
 
       const unreadCountMap = new Map<string, number>();
-
       for (const message of unreadMessages || []) {
         unreadCountMap.set(
           message.conversation_id,
@@ -116,17 +112,59 @@ export function ConversationsSidebar({
       setItems((prev) =>
         prev.map((item) => ({
           ...item,
-          unreadCount:
-            item.id === selectedConversationId
-              ? 0
-              : unreadCountMap.get(item.id) || 0,
+          unreadCount: item.id === selectedConversationId ? 0 : unreadCountMap.get(item.id) || 0,
         }))
       );
     };
 
-    void loadUnreadCounts();
+    const hydrateConversationSummary = async (conversationId: string) => {
+      const { data: conversation } = await supabase
+        .from("conversations")
+        .select("id, listing_id, buyer_id, seller_id")
+        .eq("id", conversationId)
+        .maybeSingle();
 
-    const knownConversationIds = new Set(items.map((item) => item.id));
+      if (!conversation) return;
+      if (conversation.buyer_id !== currentUserId && conversation.seller_id !== currentUserId) return;
+
+      const otherUserId = conversation.buyer_id === currentUserId ? conversation.seller_id : conversation.buyer_id;
+
+      const [{ data: listing }, { data: profile }, { data: latestMessage }] = await Promise.all([
+        supabase
+          .from("listings")
+          .select("title")
+          .eq("id", conversation.listing_id)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", otherUserId)
+          .maybeSingle(),
+        supabase
+          .from("messages")
+          .select("body, created_at, attachment_name")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const newItem: ConversationSummary = {
+        id: conversation.id,
+        otherName: profile?.full_name?.trim() || "Usuario",
+        listingTitle: listing?.title || "Anuncio",
+        latestMessageBody: latestMessage ? buildPreviewText(latestMessage) : "Sin mensajes todavía",
+        latestMessageCreatedAt: latestMessage?.created_at || null,
+        unreadCount: 0,
+      };
+
+      setItems((prev) => {
+        if (prev.some((item) => item.id === newItem.id)) return prev;
+        return sortConversations([newItem, ...prev]);
+      });
+    };
+
+    void loadUnreadCounts();
 
     const channel = supabase
       .channel(`conversations-sidebar:${currentUserId}`)
@@ -139,31 +177,44 @@ export function ConversationsSidebar({
         },
         (payload) => {
           const newMessage = payload.new as MessageRealtimePayload;
+          const knownConversationIds = new Set(items.map((item) => item.id));
 
-          if (!knownConversationIds.has(newMessage.conversation_id)) return;
+          if (!knownConversationIds.has(newMessage.conversation_id)) {
+            void hydrateConversationSummary(newMessage.conversation_id);
+            return;
+          }
 
           const previewText = buildPreviewText(newMessage);
 
           setItems((prev) => {
             const updated = prev.map((item) => {
               if (item.id !== newMessage.conversation_id) return item;
-
-              const shouldIncreaseUnread =
-                newMessage.sender_id !== currentUserId &&
-                item.id !== selectedConversationId;
+              const shouldIncreaseUnread = newMessage.sender_id !== currentUserId && item.id !== selectedConversationId;
 
               return {
                 ...item,
                 latestMessageBody: previewText,
                 latestMessageCreatedAt: newMessage.created_at,
-                unreadCount: shouldIncreaseUnread
-                  ? item.unreadCount + 1
-                  : item.unreadCount,
+                unreadCount: shouldIncreaseUnread ? item.unreadCount + 1 : item.unreadCount,
               };
             });
 
             return sortConversations(updated);
           });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversations",
+        },
+        (payload) => {
+          const conversation = payload.new as ConversationRealtimePayload;
+          if (conversation.buyer_id === currentUserId || conversation.seller_id === currentUserId) {
+            void hydrateConversationSummary(conversation.id);
+          }
         }
       )
       .on(
@@ -188,73 +239,66 @@ export function ConversationsSidebar({
     <div className="overflow-hidden rounded-2xl border bg-white">
       <div className="border-b px-5 py-4">
         <h1 className="text-2xl font-bold tracking-tight">Mensajes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {items.length} conversaciones
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{items.length} conversaciones</p>
       </div>
 
       <div className="max-h-[70vh] overflow-y-auto">
         {items.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-muted-foreground">
-            Aún no tienes conversaciones.
-          </div>
+          <div className="px-5 py-8 text-sm text-muted-foreground">Aún no tienes conversaciones.</div>
         ) : (
           items.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
 
             return (
-              <Link
+              <div
                 key={conversation.id}
-                href={`/messages/${conversation.id}`}
-                className={`block border-b px-4 py-4 transition hover:bg-slate-50 ${isSelected ? "bg-emerald-50" : "bg-white"
-                  }`}
+                className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}
               >
                 <div className="flex items-start gap-3">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback>
-                      {getInitials(conversation.otherName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <Link
+                    href={`/messages/${conversation.id}`}
+                    className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50"
+                  >
+                    <div className="flex items-start gap-3 rounded-xl p-1">
+                      <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarFallback>{getInitials(conversation.otherName)}</AvatarFallback>
+                      </Avatar>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">
-                          {conversation.otherName}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold">{conversation.otherName}</p>
+                            <p className="truncate text-sm text-muted-foreground">{conversation.listingTitle}</p>
+                          </div>
+
+                          <div className="flex shrink-0 flex-col items-end gap-2">
+                            {conversation.latestMessageCreatedAt ? (
+                              <span className="text-xs text-muted-foreground">
+                                {formatSidebarDate(conversation.latestMessageCreatedAt)}
+                              </span>
+                            ) : null}
+
+                            {conversation.unreadCount > 0 ? (
+                              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
+                                {conversation.unreadCount}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <p
+                          className={`mt-2 truncate text-sm ${conversation.unreadCount > 0 ? "font-medium text-slate-900" : "text-muted-foreground"
+                            }`}
+                        >
+                          {conversation.latestMessageBody || "Sin mensajes todavía"}
                         </p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {conversation.listingTitle}
-                        </p>
-                      </div>
-
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        {conversation.latestMessageCreatedAt ? (
-                          <span className="text-xs text-muted-foreground">
-                            {formatSidebarDate(
-                              conversation.latestMessageCreatedAt
-                            )}
-                          </span>
-                        ) : null}
-
-                        {conversation.unreadCount > 0 ? (
-                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
-                            {conversation.unreadCount}
-                          </span>
-                        ) : null}
                       </div>
                     </div>
+                  </Link>
 
-                    <p
-                      className={`mt-2 truncate text-sm ${conversation.unreadCount > 0
-                          ? "font-medium text-slate-900"
-                          : "text-muted-foreground"
-                        }`}
-                    >
-                      {conversation.latestMessageBody || "Sin mensajes todavía"}
-                    </p>
-                  </div>
+                  <HideConversationButton conversationId={conversation.id} size="sm" variant="ghost" />
                 </div>
-              </Link>
+              </div>
             );
           })
         )}

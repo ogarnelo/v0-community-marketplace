@@ -1,288 +1,307 @@
-"use client"
+import { redirect } from "next/navigation";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { createClient } from "@/lib/supabase/server";
+import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
+import { Globe } from "lucide-react";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { schools, users, listings, schoolMetrics } from "@/lib/mock-data"
-import type { School } from "@/lib/mock-data"
-import {
-  School as SchoolIcon,
-  Users,
-  Package,
-  Heart,
-  TrendingUp,
-  Search,
-  MapPin,
-  ExternalLink,
-  Shield,
-  Globe,
-  AlertTriangle,
-  CheckCircle2,
-  Ban,
-} from "lucide-react"
-import { toast } from "sonner"
+const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
-export default function SuperAdminPage() {
-  const [searchQuery, setSearchQuery] = useState("")
+type SupportTicketRow = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  message: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  created_at: string;
+};
 
-  const totalUsers = users.length
-  const totalListings = listings.length
-  const totalSchools = schools.length
-  const totalDonations = listings.filter(l => l.type === "donation").length
-  const totalSaved = Object.values(schoolMetrics).reduce((sum, m) => sum + m.moneySaved, 0)
+type ReportRow = {
+  id: string;
+  reporter_id: string;
+  target_type: "listing" | "conversation";
+  listing_id: string | null;
+  conversation_id: string | null;
+  reason: string;
+  details: string | null;
+  status: "open" | "reviewing" | "resolved" | "dismissed";
+  created_at: string;
+};
 
-  const filteredSchools = schools.filter(
-    s =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+type SchoolRequestRow = {
+  id: string;
+  school_name: string;
+  school_type: string | null;
+  address: string;
+  city: string;
+  postal_code: string;
+  region: string;
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: "pending" | "approved" | "rejected" | "new" | null;
+  review_notes: string | null;
+  approved_school_id: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+};
 
-  const [schoolStatuses, setSchoolStatuses] = useState<Record<string, "active" | "suspended">>(
-    Object.fromEntries(schools.map(s => [s.id, "active"]))
-  )
+type ListingSummaryRow = {
+  id: string;
+  title: string | null;
+};
 
-  function toggleSchoolStatus(id: string) {
-    setSchoolStatuses(prev => {
-      const newStatus = prev[id] === "active" ? "suspended" : "active"
-      toast.success(`Centro ${newStatus === "active" ? "activado" : "suspendido"}`)
-      return { ...prev, [id]: newStatus }
-    })
+type ProfileSummaryRow = {
+  id: string;
+  full_name: string | null;
+  school_id: string | null;
+  user_type: string | null;
+  grade_level: string | null;
+};
+
+type SchoolSummaryRow = {
+  id: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  school_type: string | null;
+};
+
+type ListingStatsRow = {
+  id: string;
+  type: string | null;
+  price: number | null;
+  status: string | null;
+  condition: string | null;
+  school_id: string | null;
+  category: string | null;
+  grade_level: string | null;
+  created_at: string;
+};
+
+type ListingViewRow = {
+  listing_id: string;
+  viewed_at: string;
+};
+
+type ApprovedRequestMeta = {
+  schoolId: string;
+  accessCode: string;
+};
+
+type AccessCodeRow = {
+  school_id: string;
+  code: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export default async function SuperAdminPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth?next=/admin/super");
   }
+
+  const email = user.email?.toLowerCase() || "";
+
+  if (!SUPERADMIN_EMAILS.includes(email)) {
+    redirect("/");
+  }
+
+  const [
+    { data: profile },
+    { data: schools },
+    { data: profiles },
+    { data: listings },
+    { data: supportTickets },
+    { data: reports },
+    { data: schoolRequests },
+    { data: accessCodes },
+    { data: listingViews },
+  ] = await Promise.all([
+    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("schools")
+      .select("id, name, city, region, school_type")
+      .order("name", { ascending: true })
+      .returns<SchoolSummaryRow[]>(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, school_id, user_type, grade_level")
+      .returns<ProfileSummaryRow[]>(),
+    supabase
+      .from("listings")
+      .select("id, type, price, status, condition, school_id, category, grade_level, created_at")
+      .returns<ListingStatsRow[]>(),
+    supabase
+      .from("support_tickets")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .returns<SupportTicketRow[]>(),
+    supabase
+      .from("reports")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .returns<ReportRow[]>(),
+    supabase
+      .from("school_registration_requests")
+      .select(
+        "id, school_name, school_type, address, city, postal_code, region, contact_email, contact_phone, status, review_notes, approved_school_id, created_at, reviewed_at, reviewed_by"
+      )
+      .order("created_at", { ascending: false })
+      .returns<SchoolRequestRow[]>(),
+    supabase
+      .from("school_access_codes")
+      .select("school_id, code, is_active, created_at")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .returns<AccessCodeRow[]>(),
+    supabase
+      .from("listing_views")
+      .select("listing_id, viewed_at")
+      .order("viewed_at", { ascending: false })
+      .returns<ListingViewRow[]>(),
+  ]);
+
+  const safeSchools = (schools || []) as SchoolSummaryRow[];
+  const safeProfiles = (profiles || []) as ProfileSummaryRow[];
+  const safeListings = (listings || []) as ListingStatsRow[];
+  const safeSupportTickets = (supportTickets || []) as SupportTicketRow[];
+  const safeReports = (reports || []) as ReportRow[];
+  const safeSchoolRequests = (schoolRequests || []) as SchoolRequestRow[];
+  const safeAccessCodes = (accessCodes || []) as AccessCodeRow[];
+  const safeListingViews = (listingViews || []) as ListingViewRow[];
+
+  const listingIdsFromReports = safeReports
+    .map((report) => report.listing_id)
+    .filter((value): value is string => Boolean(value));
+
+  const reporterIds = safeReports
+    .map((report) => report.reporter_id)
+    .filter((value): value is string => Boolean(value));
+
+  const [{ data: reportedListings }, { data: reporterProfiles }] = await Promise.all([
+    listingIdsFromReports.length > 0
+      ? supabase
+        .from("listings")
+        .select("id, title")
+        .in("id", listingIdsFromReports)
+        .returns<ListingSummaryRow[]>()
+      : Promise.resolve({ data: [] as ListingSummaryRow[] }),
+    reporterIds.length > 0
+      ? supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", reporterIds)
+        .returns<Pick<ProfileSummaryRow, "id" | "full_name">[]>()
+      : Promise.resolve({ data: [] as Pick<ProfileSummaryRow, "id" | "full_name">[] }),
+  ]);
+
+  const listingMap = new Map(
+    ((reportedListings || []) as ListingSummaryRow[]).map((item) => [item.id, item])
+  );
+
+  const reporterMap = new Map(
+    ((reporterProfiles || []) as Pick<ProfileSummaryRow, "id" | "full_name">[]).map(
+      (item) => [item.id, item]
+    )
+  );
+
+  const latestAccessCodeBySchoolId = new Map<string, string>();
+
+  for (const accessCode of safeAccessCodes) {
+    if (!latestAccessCodeBySchoolId.has(accessCode.school_id)) {
+      latestAccessCodeBySchoolId.set(accessCode.school_id, accessCode.code);
+    }
+  }
+
+  const initialApprovedRequestMeta = safeSchoolRequests.reduce<
+    Record<string, ApprovedRequestMeta>
+  >((acc, request) => {
+    if (!request.approved_school_id) {
+      return acc;
+    }
+
+    const accessCode = latestAccessCodeBySchoolId.get(request.approved_school_id);
+
+    if (!accessCode) {
+      return acc;
+    }
+
+    acc[request.id] = {
+      schoolId: request.approved_school_id,
+      accessCode,
+    };
+
+    return acc;
+  }, {});
+
+  const navbarUserName =
+    (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
+      ? profile.full_name.trim()
+      : null) || user.email || "Super Admin";
+
+  const dashboardReports = safeReports.map((report) => ({
+    ...report,
+    reporter_name: reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
+    listing_title: report.listing_id
+      ? listingMap.get(report.listing_id)?.title || "Anuncio"
+      : null,
+  }));
+
+  const stats = {
+    totalSchools: safeSchools.length,
+    totalUsers: safeProfiles.length,
+    totalListings: safeListings.length,
+    totalDonations: safeListings.filter((item) => item.type === "donation").length,
+    totalEstimatedVolume: safeListings.reduce(
+      (sum, item) =>
+        item.status === "available" && typeof item.price === "number" ? sum + item.price : sum,
+      0
+    ),
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName="Admin" isAdmin />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/super" currentUserId={user.id} />
 
       <main className="flex-1">
-        <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Globe className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
-              <p className="text-sm text-muted-foreground">Panel de administracion global de la plataforma</p>
+              <p className="text-sm text-muted-foreground">
+                Panel global con KPIs, rankings y gestión operativa.
+              </p>
             </div>
           </div>
 
-          {/* Global KPIs */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <SchoolIcon className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalSchools}</p>
-                  <p className="text-xs text-muted-foreground">Centros</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary/20">
-                  <Users className="h-4 w-4 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalUsers}</p>
-                  <p className="text-xs text-muted-foreground">Usuarios</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
-                  <Package className="h-4 w-4 text-accent-foreground" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalListings}</p>
-                  <p className="text-xs text-muted-foreground">Anuncios</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-chart-2/10">
-                  <Heart className="h-4 w-4 text-chart-2" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalDonations}</p>
-                  <p className="text-xs text-muted-foreground">Donaciones</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-chart-4/10">
-                  <TrendingUp className="h-4 w-4 text-chart-4" />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-foreground">{totalSaved}&euro;</p>
-                  <p className="text-xs text-muted-foreground">Ahorro total</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue="schools" className="mt-6">
-            <TabsList>
-              <TabsTrigger value="schools">Centros educativos</TabsTrigger>
-              <TabsTrigger value="users">Usuarios</TabsTrigger>
-              <TabsTrigger value="moderation">Moderacion</TabsTrigger>
-            </TabsList>
-
-            {/* Schools */}
-            <TabsContent value="schools" className="mt-4">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nombre, ciudad o codigo..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Badge variant="outline" className="text-xs">{filteredSchools.length} centros</Badge>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {filteredSchools.map(school => {
-                  const memberCount = users.filter(u => u.schoolId === school.id).length
-                  const listingCount = listings.filter(l => l.schoolId === school.id).length
-                  const status = schoolStatuses[school.id]
-                  const metric = schoolMetrics[school.id as keyof typeof schoolMetrics]
-
-                  return (
-                    <Card key={school.id} className="border-border">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                              <SchoolIcon className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-semibold text-foreground truncate">{school.name}</h3>
-                                <Badge
-                                  variant={status === "active" ? "default" : "destructive"}
-                                  className="text-[10px] shrink-0"
-                                >
-                                  {status === "active" ? "Activo" : "Suspendido"}
-                                </Badge>
-                              </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" /> {school.city}
-                                </span>
-                                <span className="font-mono">{school.code}</span>
-                                <span className="capitalize">{school.type}</span>
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                <span>{memberCount} miembros</span>
-                                <span>{listingCount} anuncios</span>
-                                {metric && <span>{metric.moneySaved}&euro; ahorrado</span>}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-xs"
-                              onClick={() => toggleSchoolStatus(school.id)}
-                            >
-                              {status === "active" ? (
-                                <>
-                                  <Ban className="h-3.5 w-3.5" /> Suspender
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 className="h-3.5 w-3.5" /> Activar
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            </TabsContent>
-
-            {/* Users */}
-            <TabsContent value="users" className="mt-4">
-              <div className="flex flex-col gap-3">
-                {users.map(user => {
-                  const school = schools.find(s => s.id === user.schoolId)
-                  const userListings = listings.filter(l => l.sellerId === user.id)
-                  return (
-                    <Card key={user.id} className="border-border">
-                      <CardContent className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            <span className="text-sm font-semibold text-primary">{user.name.charAt(0)}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
-                            <p className="text-xs text-muted-foreground">{user.email}</p>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <span>{school?.name}</span>
-                              <span>&middot;</span>
-                              <span>{userListings.length} anuncios</span>
-                              <span>&middot;</span>
-                              <span>Desde {new Date(user.createdAt).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="capitalize text-xs shrink-0">
-                          {user.role === "parent"
-                            ? "Familia"
-                            : user.role === "school_admin"
-                            ? "Admin Centro"
-                            : user.role === "super_admin"
-                            ? "Super Admin"
-                            : user.role}
-                        </Badge>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            </TabsContent>
-
-            {/* Moderation */}
-            <TabsContent value="moderation" className="mt-4">
-              <Card className="border-border">
-                <CardContent className="flex flex-col items-center py-16 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent">
-                    <AlertTriangle className="h-7 w-7 text-accent-foreground" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-foreground">Sin incidencias</h3>
-                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    No hay contenido reportado ni disputas pendientes de moderacion. Los reportes de usuarios y disputas entre compradores y vendedores apareceran aqui.
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <SuperAdminDashboard
+            stats={stats}
+            initialSupportTickets={safeSupportTickets}
+            initialReports={dashboardReports}
+            initialSchoolRequests={safeSchoolRequests}
+            initialApprovedRequestMeta={initialApprovedRequestMeta}
+            initialSchools={safeSchools}
+            initialProfiles={safeProfiles}
+            initialListings={safeListings}
+            initialListingViews={safeListingViews}
+          />
         </div>
       </main>
 
       <Footer />
     </div>
-  )
+  );
 }
+
+

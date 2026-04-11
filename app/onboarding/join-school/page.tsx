@@ -1,53 +1,229 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { BookOpen, Loader2, CheckCircle2, Search, School } from "lucide-react"
-import { schools } from "@/lib/mock-data"
-import Link from "next/link"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BookOpen, Loader2, CheckCircle2, Search, School } from "lucide-react";
+import Link from "next/link";
+
+type SchoolSearchRow = {
+  id: string;
+  name: string;
+  city: string | null;
+};
+
+type AccessCodeResult = {
+  school_id: string;
+  schools: {
+    id: string;
+    name: string;
+    city: string | null;
+  } | null;
+};
 
 export default function JoinSchoolPage() {
-  const router = useRouter()
-  const [code, setCode] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [found, setFound] = useState<typeof schools[0] | null>(null)
-  const [error, setError] = useState("")
-  const [showSearch, setShowSearch] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
+  const router = useRouter();
 
-  const handleCodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-    setFound(null)
+  const [code, setCode] = useState("");
+  const [validatedCode, setValidatedCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [found, setFound] = useState<SchoolSearchRow | null>(null);
+  const [error, setError] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SchoolSearchRow[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-    setTimeout(() => {
-      const school = schools.find(s => s.code.toLowerCase() === code.toLowerCase())
-      if (school) {
-        setFound(school)
-      } else {
-        setError("No hemos encontrado ningun centro con ese codigo. Revisa y vuelve a intentarlo.")
+  useEffect(() => {
+    const loadSchools = async () => {
+      if (!showSearch) return;
+
+      setSearchLoading(true);
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("schools")
+          .select("id, name, city")
+          .order("name", { ascending: true })
+          .limit(100);
+
+        if (error) {
+          throw error;
+        }
+
+        setSearchResults((data || []) as SchoolSearchRow[]);
+      } catch (error) {
+        console.error("Error cargando centros:", error);
+      } finally {
+        setSearchLoading(false);
       }
-      setLoading(false)
-    }, 800)
-  }
+    };
 
-  const handleJoin = () => {
-    setLoading(true)
-    setTimeout(() => {
-      router.push("/marketplace")
-    }, 600)
-  }
+    void loadSchools();
+  }, [showSearch]);
 
-  const filteredSchools = schools.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.city.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const resolveSchoolFromCode = async (normalizedCode: string) => {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("school_access_codes")
+      .select("school_id, schools(id, name, city)")
+      .eq("code", normalizedCode)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    const result = (data as AccessCodeResult | null) ?? null;
+
+    if (!result?.schools) {
+      throw new Error(
+        "No hemos encontrado ningun centro con ese codigo. Revisa y vuelve a intentarlo."
+      );
+    }
+
+    return {
+      schoolId: result.school_id,
+      school: {
+        id: result.schools.id,
+        name: result.schools.name,
+        city: result.schools.city,
+      },
+    };
+  };
+
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setFound(null);
+    setValidatedCode("");
+
+    try {
+      const normalizedCode = code.trim().toUpperCase();
+
+      if (!normalizedCode) {
+        throw new Error("Debes introducir un código.");
+      }
+
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.assign("/auth?mode=signup");
+        return;
+      }
+
+      const result = await resolveSchoolFromCode(normalizedCode);
+
+      setValidatedCode(normalizedCode);
+      setFound(result.school);
+    } catch (error: any) {
+      setError(
+        error?.message ||
+        error?.details ||
+        "No se pudo validar el código del centro."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoin = async () => {
+    if (!found) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      if (!validatedCode) {
+        throw new Error("Debes validar primero un código de acceso activo.");
+      }
+
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.assign("/auth?mode=signup");
+        return;
+      }
+
+      const result = await resolveSchoolFromCode(validatedCode);
+
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          school_id: result.schoolId,
+        },
+        { onConflict: "id" }
+      );
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          school_name: result.school.name,
+        },
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      router.push("/marketplace");
+      router.refresh();
+    } catch (error: any) {
+      console.error("Error uniéndose al centro:", error);
+      setError(
+        error?.message ||
+        error?.details ||
+        "No se pudo completar la unión al centro."
+      );
+
+      if (
+        typeof error?.message === "string" &&
+        error.message.toLowerCase().includes("codigo")
+      ) {
+        setFound(null);
+        setValidatedCode("");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSchools = searchResults.filter((school) => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) return true;
+
+    return (
+      school.name.toLowerCase().includes(query) ||
+      (school.city || "").toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
@@ -55,7 +231,7 @@ export default function JoinSchoolPage() {
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
           <BookOpen className="h-5 w-5 text-primary-foreground" />
         </div>
-        <span className="text-xl font-bold font-mono text-foreground">Wetudy</span>
+        <span className="font-mono text-xl font-bold text-foreground">Wetudy</span>
       </Link>
 
       <Card className="w-full max-w-md border-border shadow-sm">
@@ -65,6 +241,7 @@ export default function JoinSchoolPage() {
             Introduce el codigo de tu colegio, instituto o universidad para acceder a la comunidad.
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           {!found ? (
             <div className="flex flex-col gap-4">
@@ -74,18 +251,18 @@ export default function JoinSchoolPage() {
                   <Input
                     id="code"
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    placeholder="Ej: SANMIGUEL23"
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder="Ej: A1B2C3D4E5"
                     className="text-center text-lg font-mono tracking-widest uppercase"
                     required
                   />
                 </div>
 
-                {error && (
+                {error ? (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
-                )}
+                ) : null}
 
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -100,7 +277,11 @@ export default function JoinSchoolPage() {
               </div>
 
               {!showSearch ? (
-                <Button variant="outline" className="w-full gap-2" onClick={() => setShowSearch(true)}>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => setShowSearch(true)}
+                >
                   <Search className="h-4 w-4" />
                   No tengo codigo, buscar centro
                 </Button>
@@ -111,31 +292,48 @@ export default function JoinSchoolPage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar por nombre o ciudad..."
                   />
+
                   <div className="max-h-48 overflow-y-auto rounded-lg border border-border">
-                    {filteredSchools.length === 0 ? (
-                      <p className="p-3 text-center text-sm text-muted-foreground">No se encontraron centros</p>
+                    {searchLoading ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        Cargando centros...
+                      </div>
+                    ) : filteredSchools.length === 0 ? (
+                      <p className="p-3 text-center text-sm text-muted-foreground">
+                        No se encontraron centros
+                      </p>
                     ) : (
-                      filteredSchools.map(school => (
-                        <button
+                      filteredSchools.map((school) => (
+                        <div
                           key={school.id}
-                          type="button"
-                          className="flex w-full items-center gap-3 border-b border-border p-3 text-left transition-colors last:border-b-0 hover:bg-muted"
-                          onClick={() => { setFound(school) }}
+                          className="flex items-center gap-3 border-b border-border p-3 last:border-b-0"
                         >
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                             <School className="h-4 w-4 text-primary" />
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{school.name}</p>
-                            <p className="text-xs text-muted-foreground">{school.city} &middot; {school.memberCount} miembros</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {school.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {school.city || "Ciudad no indicada"}
+                            </p>
                           </div>
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground text-center">
-                    Tu solicitud quedara pendiente hasta que el centro te confirme
+
+                  <p className="text-center text-xs text-muted-foreground">
+                    Si tu centro ya aparece, pide su código de acceso. Si no existe
+                    todavía, regístralo desde el formulario de alta de centros.
                   </p>
+
+                  <Link href="/register-school">
+                    <Button variant="outline" className="w-full">
+                      Registrar nuevo centro
+                    </Button>
+                  </Link>
                 </div>
               )}
             </div>
@@ -145,17 +343,33 @@ export default function JoinSchoolPage() {
                 <CheckCircle2 className="h-4 w-4 text-secondary" />
                 <AlertTitle className="text-foreground">Centro encontrado</AlertTitle>
                 <AlertDescription className="text-muted-foreground">
-                  <strong className="text-foreground">{found.name}</strong><br />
-                  {found.city} &middot; {found.type} &middot; {found.memberCount} miembros
+                  <strong className="text-foreground">{found.name}</strong>
+                  <br />
+                  {found.city || "Ciudad no indicada"}
                 </AlertDescription>
               </Alert>
+
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
 
               <Button className="w-full" onClick={handleJoin} disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Unirme a {found.name}
               </Button>
 
-              <Button variant="ghost" className="w-full text-sm" onClick={() => { setFound(null); setCode("") }}>
+              <Button
+                variant="ghost"
+                className="w-full text-sm"
+                onClick={() => {
+                  setFound(null);
+                  setCode("");
+                  setValidatedCode("");
+                  setError("");
+                }}
+              >
                 Buscar otro centro
               </Button>
             </div>
@@ -163,5 +377,5 @@ export default function JoinSchoolPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

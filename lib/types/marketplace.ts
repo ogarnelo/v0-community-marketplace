@@ -11,6 +11,7 @@ export type ListingRow = {
   condition: string | null;
   type: string | null;
   listing_type?: string | null;
+  isbn?: string | null;
   price: number | null;
   original_price?: number | null;
   estimated_retail_price?: number | null;
@@ -36,13 +37,20 @@ export type ProfileRow = {
   school_id?: string | null;
   grade_level?: string | null;
   postal_code?: string | null;
+  business_name?: string | null;
+  business_description?: string | null;
+  website?: string | null;
+  is_business_verified?: boolean | null;
   created_at?: string | null;
 };
 
 export type ReviewRow = {
   rating: number;
   comment?: string | null;
-  created_at?: string;
+  created_at?: string | null;
+  reviewer_id?: string | null;
+  reviewed_user_id?: string | null;
+  listing_id?: string | null;
 };
 
 export type SchoolRow = {
@@ -60,6 +68,7 @@ export type MarketplaceListing = {
   gradeLevel: string | null;
   condition: string | null;
   type: string | null;
+  isbn?: string | null;
   price?: number;
   originalPrice?: number;
   photos: string[];
@@ -87,6 +96,63 @@ export type AccountProfileRow = {
   grade_level: string | null;
   postal_code: string | null;
   school_id: string | null;
+  business_name?: string | null;
+  business_description?: string | null;
+  website?: string | null;
+  is_business_verified?: boolean | null;
+  created_at: string | null;
+};
+
+export type ListingOfferRow = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  offered_price: number;
+  current_amount?: number | null;
+  current_actor?: string | null;
+  rounds_count?: number | null;
+  accepted_amount?: number | null;
+  status: string | null;
+  counter_price: number | null;
+  created_at: string | null;
+  responded_at: string | null;
+};
+
+export type ListingOfferEventRow = {
+  id: string;
+  offer_id: string;
+  conversation_id: string | null;
+  actor_id: string;
+  actor_role: string | null;
+  event_type: string;
+  amount: number | null;
+  round_number: number | null;
+  status_snapshot: string | null;
+  created_at: string | null;
+};
+
+export type DonationRequestRow = {
+  id: string;
+  listing_id: string | null;
+  requester_id: string | null;
+  assigned_to_requester_id: string | null;
+  approved_by_admin_id: string | null;
+  status: string | null;
+  note: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  school_id: string | null;
+};
+
+export type DonationRequestEventRow = {
+  id: string;
+  request_id: string;
+  conversation_id: string | null;
+  actor_id: string;
+  event_type: string;
+  note: string | null;
+  status_snapshot: string | null;
   created_at: string | null;
 };
 

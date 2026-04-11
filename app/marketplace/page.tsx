@@ -107,7 +107,7 @@ export default function MarketplacePage() {
         const { data: listingsData, error: listingsError } = await supabase
           .from("listings")
           .select(
-            "id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
+            "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
           )
           .eq("status", "available")
           .order("created_at", { ascending: false });
@@ -145,6 +145,7 @@ export default function MarketplacePage() {
           gradeLevel: item.grade_level,
           condition: item.condition,
           type: item.type || item.listing_type,
+          isbn: item.isbn || null,
           price: item.price ?? undefined,
           originalPrice:
             item.original_price ?? item.estimated_retail_price ?? undefined,
@@ -196,15 +197,20 @@ export default function MarketplacePage() {
       if (listingType !== "all" && l.type !== listingType) return false;
       if (condition !== "all" && l.condition !== condition) return false;
 
-      if (
-        searchQuery &&
-        !l.title.toLowerCase().includes(searchQuery.toLowerCase())
-      ) {
-        return false;
+      if (searchQuery) {
+        const normalized = searchQuery.toLowerCase();
+        const matchesSearch =
+          l.title.toLowerCase().includes(normalized) ||
+          (l.description || "").toLowerCase().includes(normalized);
+
+        if (!matchesSearch) return false;
       }
 
       if (isbnQuery) {
-        return false;
+        const normalizedIsbn = isbnQuery.replace(/[^0-9xX]/g, "").toLowerCase();
+        const listingIsbn = (l.isbn || "").replace(/[^0-9xX]/g, "").toLowerCase();
+
+        if (!listingIsbn.includes(normalizedIsbn)) return false;
       }
 
       if (l.type === "sale" && l.price !== undefined) {

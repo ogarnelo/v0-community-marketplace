@@ -40,11 +40,17 @@ export default async function MessagesPage() {
     redirect("/auth");
   }
 
-  const { data: conversations, error } = await supabase
-    .from("conversations")
-    .select("*")
-    .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-    .order("updated_at", { ascending: false });
+  const [{ data: conversations, error }, { data: hiddenRows }] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("*")
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("hidden_conversations")
+      .select("conversation_id")
+      .eq("user_id", user.id),
+  ]);
 
   if (error) {
     return (
@@ -58,7 +64,13 @@ export default async function MessagesPage() {
     );
   }
 
-  const safeConversations = (conversations || []) as ConversationRow[];
+  const hiddenConversationIds = new Set(
+    (hiddenRows || []).map((row: { conversation_id: string }) => row.conversation_id)
+  );
+
+  const safeConversations = ((conversations || []) as ConversationRow[]).filter(
+    (conversation) => !hiddenConversationIds.has(conversation.id)
+  );
 
   if (safeConversations.length === 0) {
     return (

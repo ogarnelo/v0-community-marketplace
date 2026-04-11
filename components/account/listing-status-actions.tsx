@@ -30,7 +30,8 @@ export function ListingStatusActions({
     setStatus(currentStatus || "available");
   }, [currentStatus]);
 
-  const hasChanges = status !== (currentStatus || "available");
+  const initialStatus = currentStatus || "available";
+  const hasChanges = status !== initialStatus;
 
   const handleSave = async () => {
     if (loading || isPending || !hasChanges) return;
@@ -39,11 +40,19 @@ export function ListingStatusActions({
 
     try {
       const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("Debes iniciar sesión para actualizar el anuncio.");
+      }
 
       const { error } = await supabase
         .from("listings")
         .update({ status })
-        .eq("id", listingId);
+        .eq("id", listingId)
+        .eq("seller_id", user.id);
 
       if (error) {
         throw error;
@@ -55,8 +64,7 @@ export function ListingStatusActions({
     } catch (error: any) {
       console.error("Error actualizando estado:", error);
       alert(
-        `Error actualizando estado: ${error?.message || "No se pudo actualizar el anuncio"
-        }`
+        `Error actualizando estado: ${error?.message || "No se pudo actualizar el anuncio."}`
       );
     } finally {
       setLoading(false);
@@ -89,3 +97,4 @@ export function ListingStatusActions({
     </div>
   );
 }
+

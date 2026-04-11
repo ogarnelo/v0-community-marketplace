@@ -1,6 +1,6 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 
 export function CTASection() {
   return (
@@ -20,12 +20,16 @@ export function CTASection() {
             </Button>
           </Link>
           <Link href="/auth">
-            <Button size="lg" variant="outline" className="border-primary-foreground/30 px-8 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-white bg-white px-8 text-primary hover:bg-white/90 hover:text-primary"
+            >
               Iniciar sesion
             </Button>
           </Link>
         </div>
       </div>
     </section>
-  )
+  );
 }
