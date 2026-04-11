@@ -129,17 +129,27 @@ export function CheckoutSummary({
   };
 
   const fetchClientSecret = useCallback(async () => {
-    const result = await startCheckoutSession({
-      offerId,
-      deliveryMethod,
-      shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
-    });
+    try {
+      const result = await startCheckoutSession({
+        offerId,
+        deliveryMethod,
+        shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
+      });
 
-    if (!result?.clientSecret) {
-      throw new Error("Stripe no devolvió un client secret válido.");
+      if (!result?.clientSecret) {
+        toast.error("Stripe no devolvió un client secret válido.");
+        throw new Error("Stripe no devolvió un client secret válido.");
+      }
+
+      return result.clientSecret;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error al iniciar el pago.";
+      console.error("[v0] Error en fetchClientSecret:", message);
+      toast.error(message);
+      setShowStripeCheckout(false);
+      setSubmitting(false);
+      throw error;
     }
-
-    return result.clientSecret;
   }, [offerId, deliveryMethod, shipmentTier]);
 
   return (
