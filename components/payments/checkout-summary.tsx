@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   EmbeddedCheckout,
@@ -16,7 +15,8 @@ import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DeliveryMethod, ShipmentTier } from "@/lib/payments/pricing";
 import { startCheckoutSession } from "@/app/actions/stripe";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
 type QuoteResponse = {
   itemAmount: number;
@@ -45,29 +45,12 @@ export function CheckoutSummary({
   listingTitle,
   acceptedAmount,
 }: CheckoutSummaryProps) {
-  const router = useRouter();
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("shipping");
   const [shipmentTier, setShipmentTier] = useState<ShipmentTier>("small");
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showStripeCheckout, setShowStripeCheckout] = useState(false);
-
-  const fetchClientSecret = useCallback(async () => {
-    try {
-      return await startCheckoutSession({
-        offerId,
-        deliveryMethod,
-        shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
-      });
-    } catch (error: any) {
-      const message = error?.message || "No se pudo abrir el checkout.";
-      toast.error(message);
-      setShowStripeCheckout(false);
-      setSubmitting(false);
-      throw error;
-    }
-  }, [offerId, deliveryMethod, shipmentTier]);
 
   const effectiveQuote = useMemo(() => {
     if (quote) return quote;
@@ -136,9 +119,28 @@ export function CheckoutSummary({
   };
 
   const handlePreparePayment = async () => {
+    if (!stripePromise) {
+      toast.error("Falta NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY en el entorno.");
+      return;
+    }
+
     setSubmitting(true);
     setShowStripeCheckout(true);
   };
+
+  const fetchClientSecret = useCallback(async () => {
+    const result = await startCheckoutSession({
+      offerId,
+      deliveryMethod,
+      shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
+    });
+
+    if (!result?.clientSecret) {
+      throw new Error("Stripe no devolvió un client secret válido.");
+    }
+
+    return result.clientSecret;
+  }, [offerId, deliveryMethod, shipmentTier]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -154,7 +156,6 @@ export function CheckoutSummary({
             value={deliveryMethod}
             onValueChange={handleDeliveryMethodChange}
             className="gap-4"
-            disabled={showStripeCheckout}
           >
             <Label className="flex cursor-pointer items-start gap-3 rounded-2xl border p-4">
               <RadioGroupItem value="in_person" className="mt-1" />
@@ -186,12 +187,7 @@ export function CheckoutSummary({
                 </p>
               </div>
 
-              <RadioGroup
-                value={shipmentTier}
-                onValueChange={handleShipmentTierChange}
-                className="gap-3"
-                disabled={showStripeCheckout}
-              >
+              <RadioGroup value={shipmentTier} onValueChange={handleShipmentTierChange} className="gap-3">
                 {SHIPPING_OPTIONS.map((option) => (
                   <Label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-2xl border p-4">
                     <RadioGroupItem value={option.value} className="mt-1" />
@@ -242,7 +238,7 @@ export function CheckoutSummary({
             type="button"
             className="w-full"
             onClick={handlePreparePayment}
-            disabled={submitting || loadingQuote || showStripeCheckout}
+            disabled={submitting || loadingQuote}
           >
             {submitting
               ? "Preparando pago..."
@@ -257,7 +253,7 @@ export function CheckoutSummary({
         </CardContent>
       </Card>
 
-      {showStripeCheckout ? (
+      {showStripeCheckout && stripePromise ? (
         <Card className="border-slate-200 lg:col-span-2">
           <CardHeader>
             <CardTitle>Completar pago</CardTitle>
@@ -266,19 +262,12 @@ export function CheckoutSummary({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div id="checkout">
-              <EmbeddedCheckoutProvider
-                stripe={stripePromise}
-                options={{
-                  fetchClientSecret,
-                  onComplete: () => {
-                    router.push(`/checkout/success?offerId=${offerId}`);
-                  },
-                }}
-              >
-                <EmbeddedCheckout />
-              </EmbeddedCheckoutProvider>
-            </div>
+            <EmbeddedCheckoutProvider
+              stripe={stripePromise}
+              options={{ fetchClientSecret }}
+            >
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
           </CardContent>
         </Card>
       ) : null}

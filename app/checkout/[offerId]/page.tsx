@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckoutSummary } from "@/components/payments/checkout-summary";
 import { formatPrice } from "@/lib/marketplace/formatters";
@@ -18,13 +17,12 @@ type OfferPageRow = {
   accepted_amount?: number | null;
   counter_price?: number | null;
   status: string | null;
-};
-
-type ListingPageRow = {
-  id: string;
-  title: string | null;
-  price: number | null;
-  status: string | null;
+  listings?: {
+    id: string;
+    title: string | null;
+    price: number | null;
+    status: string | null;
+  } | null;
 };
 
 export default async function CheckoutOfferPage({
@@ -34,7 +32,6 @@ export default async function CheckoutOfferPage({
 }) {
   const { offerId } = await params;
   const supabase = await createClient();
-  const adminSupabase = createAdminClient();
 
   const {
     data: { user },
@@ -44,15 +41,31 @@ export default async function CheckoutOfferPage({
     redirect("/auth");
   }
 
-  const { data: offer } = await adminSupabase
+  const { data: offer, error } = await supabase
     .from("listing_offers")
-    .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, counter_price, status")
+    .select(`
+      id,
+      listing_id,
+      buyer_id,
+      seller_id,
+      offered_price,
+      current_amount,
+      accepted_amount,
+      counter_price,
+      status,
+      listings:listing_id (
+        id,
+        title,
+        price,
+        status
+      )
+    `)
     .eq("id", offerId)
     .maybeSingle();
 
   const typedOffer = (offer as OfferPageRow | null) ?? null;
 
-  if (!typedOffer) {
+  if (error || !typedOffer) {
     notFound();
   }
 
@@ -61,18 +74,10 @@ export default async function CheckoutOfferPage({
   }
 
   if (typedOffer.status !== "accepted") {
-    redirect(`/messages`);
+    redirect(`/messages/${typedOffer.listing_id}`);
   }
 
-  const { data: listing } = await adminSupabase
-    .from("listings")
-    .select("id, title, price, status")
-    .eq("id", typedOffer.listing_id)
-    .maybeSingle();
-
-  const typedListing = (listing as ListingPageRow | null) ?? null;
-
-  if (!typedListing) {
+  if (!typedOffer.listings) {
     notFound();
   }
 
@@ -93,10 +98,10 @@ export default async function CheckoutOfferPage({
 
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-            Completar pago
+            Preparar pago
           </h1>
           <p className="text-sm text-slate-600">
-            Revisa el importe final, elige cómo quieres recibirlo y completa el pago seguro con Stripe.
+            Revisa el importe final y completa el pago de forma segura con Stripe.
           </p>
         </div>
 
@@ -104,9 +109,9 @@ export default async function CheckoutOfferPage({
           <CardContent className="grid gap-4 p-6 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Anuncio</p>
-              <p className="mt-1 font-medium text-slate-900">{typedListing.title || "Artículo sin título"}</p>
+              <p className="mt-1 font-medium text-slate-900">{typedOffer.listings.title || "Artículo sin título"}</p>
               <p className="mt-2 text-sm text-slate-600">
-                Estado actual del anuncio: <span className="font-medium">{typedListing.status || "available"}</span>
+                Estado actual del anuncio: <span className="font-medium">{typedOffer.listings.status || "available"}</span>
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
@@ -118,7 +123,7 @@ export default async function CheckoutOfferPage({
 
         <CheckoutSummary
           offerId={typedOffer.id}
-          listingTitle={typedListing.title || "Artículo sin título"}
+          listingTitle={typedOffer.listings.title || "Artículo sin título"}
           acceptedAmount={acceptedAmount}
         />
       </div>
