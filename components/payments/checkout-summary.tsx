@@ -1,14 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  EmbeddedCheckout,
+  EmbeddedCheckoutProvider,
+} from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DeliveryMethod, ShipmentTier } from "@/lib/payments/pricing";
+import { startCheckoutSession } from "@/app/actions/stripe";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 type QuoteResponse = {
   itemAmount: number;
@@ -43,6 +51,15 @@ export function CheckoutSummary({
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showStripeCheckout, setShowStripeCheckout] = useState(false);
+
+  const startCheckoutSessionForOffer = useCallback(async () => {
+    return startCheckoutSession({
+      offerId,
+      deliveryMethod,
+      shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
+    });
+  }, [offerId, deliveryMethod, shipmentTier]);
 
   const effectiveQuote = useMemo(() => {
     if (quote) return quote;
@@ -112,31 +129,7 @@ export function CheckoutSummary({
 
   const handlePreparePayment = async () => {
     setSubmitting(true);
-
-    try {
-      const response = await fetch("/api/payments/create-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          offerId,
-          deliveryMethod,
-          shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "No se pudo preparar el pago.");
-      }
-
-      toast.success("Pago preparado correctamente. El siguiente paso es conectar Stripe Checkout.");
-      router.refresh();
-    } catch (error: any) {
-      toast.error(error?.message || "No se pudo preparar el pago.");
-    } finally {
-      setSubmitting(false);
-    }
+    setShowStripeCheckout(true);
   };
 
   return (
@@ -245,10 +238,32 @@ export function CheckoutSummary({
           </Button>
 
           <p className="text-xs text-slate-500">
-            Este paso deja listo el <code>payment_intent</code> con importes y método de entrega para conectar Stripe a continuación.
+            Pago seguro procesado por Stripe.
           </p>
         </CardContent>
       </Card>
+
+      {/* Stripe Embedded Checkout */}
+      {showStripeCheckout && (
+        <Card className="border-slate-200 lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Completar pago</CardTitle>
+            <CardDescription>
+              Introduce tus datos de pago de forma segura con Stripe
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div id="checkout">
+              <EmbeddedCheckoutProvider
+                stripe={stripePromise}
+                options={{ clientSecret: startCheckoutSessionForOffer }}
+              >
+                <EmbeddedCheckout />
+              </EmbeddedCheckoutProvider>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
