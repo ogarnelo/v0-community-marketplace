@@ -121,7 +121,6 @@ export async function startCheckoutSession(params: {
       ui_mode: 'embedded_page',
       redirect_on_completion: 'never',
       mode: 'payment',
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://v0-community-marketplace-7r8pex7jm-garnelo.vercel.app'}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       line_items: [
         {
           price_data: {
