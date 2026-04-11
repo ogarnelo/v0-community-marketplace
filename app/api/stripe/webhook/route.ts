@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     const providerPaymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null
 
     if (offerId) {
+      // Actualizar payment_intent
       await supabase
         .from('payment_intents')
         .update({
@@ -41,6 +42,15 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq('offer_id', offerId)
+
+      // Actualizar oferta a pagada
+      await supabase
+        .from('listing_offers')
+        .update({
+          status: 'paid',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', offerId)
     }
 
     if (listingId) {

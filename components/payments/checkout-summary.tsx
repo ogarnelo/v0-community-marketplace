@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DeliveryMethod, ShipmentTier } from "@/lib/payments/pricing";
-import { startCheckoutSession } from "@/app/actions/stripe";
+import { startCheckoutSession, confirmPaymentComplete } from "@/app/actions/stripe";
 import { CheckCircle } from "lucide-react";
 
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -148,7 +148,6 @@ export function CheckoutSummary({
       return result.clientSecret;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Error al iniciar el pago.";
-      console.error("[v0] Error en fetchClientSecret:", message);
       toast.error(message);
       setShowStripeCheckout(false);
       setSubmitting(false);
@@ -156,10 +155,20 @@ export function CheckoutSummary({
     }
   }, [offerId, deliveryMethod, shipmentTier]);
 
-  const handleCheckoutComplete = useCallback(() => {
+  const handleCheckoutComplete = useCallback(async () => {
     setPaymentComplete(true);
     setSubmitting(false);
-    toast.success("Pago completado correctamente");
+    
+    // Confirmar el pago y actualizar estados en la base de datos
+    try {
+      await confirmPaymentComplete({ offerId });
+      toast.success("Pago completado correctamente");
+    } catch (error) {
+      // El webhook de Stripe también actualizará los estados
+      console.error("Error confirmando pago:", error);
+      toast.success("Pago procesado. Los estados se actualizarán en breve.");
+    }
+    
     // Redirigir después de un breve delay para que el usuario vea el mensaje
     setTimeout(() => {
       router.push(`/checkout/success?offer_id=${offerId}`);

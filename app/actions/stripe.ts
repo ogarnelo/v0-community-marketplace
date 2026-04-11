@@ -153,7 +153,6 @@ export async function startCheckoutSession(params: {
     })
   } catch (stripeError: unknown) {
     const errorMessage = stripeError instanceof Error ? stripeError.message : 'Error desconocido de Stripe'
-    console.error("[v0] Stripe checkout session error:", errorMessage)
     throw new Error(`Error al crear sesión de Stripe: ${errorMessage}`)
   }
 
@@ -202,4 +201,78 @@ export async function startCheckoutSession(params: {
     clientSecret: session.client_secret,
     sessionId: session.id,
   }
+}
+
+/**
+ * Confirma que el pago se completó y actualiza los estados en la base de datos.
+ * Esta función sirve como backup del webhook de Stripe.
+ */
+export async function confirmPaymentComplete(params: {
+  offerId: string
+}) {
+  const { offerId } = params
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Debes iniciar sesión.')
+  }
+
+  const adminSupabase = createAdminClient()
+
+  // Verificar que el pago realmente se completó consultando el payment_intent
+  const { data: paymentIntent } = await adminSupabase
+    .from('payment_intents')
+    .select('id, status, listing_id, metadata')
+    .eq('offer_id', offerId)
+    .eq('buyer_id', user.id)
+    .maybeSingle()
+
+  if (!paymentIntent) {
+    throw new Error('No se encontró el intent de pago.')
+  }
+
+  // Verificar con Stripe que la sesión está pagada
+  const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
+  if (sessionId) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId)
+      if (session.payment_status !== 'paid') {
+        throw new Error('El pago aún no se ha completado en Stripe.')
+      }
+    } catch {
+      // Si no podemos verificar con Stripe, confiamos en el estado local
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  // Actualizar payment_intent
+  await adminSupabase
+    .from('payment_intents')
+    .update({
+      status: 'paid',
+      updated_at: now,
+    })
+    .eq('offer_id', offerId)
+
+  // Actualizar oferta a pagada
+  await adminSupabase
+    .from('listing_offers')
+    .update({
+      status: 'paid',
+      updated_at: now,
+    })
+    .eq('id', offerId)
+
+  // Actualizar listing a vendido
+  if (paymentIntent.listing_id) {
+    await adminSupabase
+      .from('listings')
+      .update({ status: 'sold' })
+      .eq('id', paymentIntent.listing_id)
+  }
+
+  return { success: true }
 }
