@@ -276,3 +276,21 @@ export async function confirmPaymentComplete(params: {
 
   return { success: true }
 }
+
+/**
+ * Verifica el estado de una sesión de Stripe Checkout.
+ */
+export async function checkSessionStatus(sessionId: string) {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    return {
+      paymentStatus: session.payment_status,
+      status: session.status,
+    }
+  } catch {
+    return {
+      paymentStatus: 'unpaid',
+      status: 'unknown',
+    }
+  }
+}

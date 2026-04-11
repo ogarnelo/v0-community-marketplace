@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DeliveryMethod, ShipmentTier } from "@/lib/payments/pricing";
-import { startCheckoutSession, confirmPaymentComplete } from "@/app/actions/stripe";
+import { startCheckoutSession, confirmPaymentComplete, checkSessionStatus } from "@/app/actions/stripe";
 import { CheckCircle } from "lucide-react";
 
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -55,6 +55,8 @@ export function CheckoutSummary({
   const [submitting, setSubmitting] = useState(false);
   const [showStripeCheckout, setShowStripeCheckout] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const effectiveQuote = useMemo(() => {
     if (quote) return quote;
@@ -145,6 +147,9 @@ export function CheckoutSummary({
         throw new Error("Stripe no devolvió un client secret válido.");
       }
 
+      // Guardar sessionId para polling
+      setSessionId(result.sessionId);
+
       return result.clientSecret;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Error al iniciar el pago.";
@@ -163,9 +168,8 @@ export function CheckoutSummary({
     try {
       await confirmPaymentComplete({ offerId });
       toast.success("Pago completado correctamente");
-    } catch (error) {
+    } catch {
       // El webhook de Stripe también actualizará los estados
-      console.error("Error confirmando pago:", error);
       toast.success("Pago procesado. Los estados se actualizarán en breve.");
     }
     
@@ -174,6 +178,39 @@ export function CheckoutSummary({
       router.push(`/checkout/success?offer_id=${offerId}`);
     }, 2000);
   }, [offerId, router]);
+
+  // Polling para detectar cuando el pago se completa
+  useEffect(() => {
+    if (!sessionId || paymentComplete) return;
+
+    const checkPayment = async () => {
+      try {
+        const result = await checkSessionStatus(sessionId);
+        if (result.paymentStatus === 'paid') {
+          // Limpiar polling
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+          // Llamar a handleCheckoutComplete
+          handleCheckoutComplete();
+        }
+      } catch {
+        // Ignorar errores de polling
+      }
+    };
+
+    // Iniciar polling cada 2 segundos
+    pollingRef.current = setInterval(checkPayment, 2000);
+
+    // Cleanup
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [sessionId, paymentComplete, handleCheckoutComplete]);
 
   // Si el pago ya se completó, mostrar mensaje de éxito
   if (paymentComplete) {
@@ -312,7 +349,7 @@ export function CheckoutSummary({
           <CardContent>
             <EmbeddedCheckoutProvider
               stripe={stripePromise}
-              options={{ fetchClientSecret, onComplete: handleCheckoutComplete }}
+              options={{ fetchClientSecret }}
             >
               <EmbeddedCheckout />
             </EmbeddedCheckoutProvider>
