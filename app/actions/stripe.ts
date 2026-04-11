@@ -31,12 +31,8 @@ export async function startCheckoutSession(params: {
 }) {
   const { offerId, deliveryMethod, shipmentTier } = params
 
-  console.log("[v0] startCheckoutSession called with:", { offerId, deliveryMethod, shipmentTier })
-
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  console.log("[v0] Auth check:", { userId: user?.id, authError: authError?.message })
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     throw new Error('Debes iniciar sesión para continuar.')
@@ -67,14 +63,6 @@ export async function startCheckoutSession(params: {
     .maybeSingle()
 
   const typedOffer = (offer as OfferWithListing | null) ?? null
-
-  console.log("[v0] Offer query result:", { 
-    offerExists: !!typedOffer, 
-    offerError: offerError?.message,
-    offerStatus: typedOffer?.status,
-    buyerId: typedOffer?.buyer_id,
-    currentUserId: user.id
-  })
 
   if (offerError || !typedOffer) {
     throw new Error(offerError?.message || 'Oferta no encontrada.')
@@ -112,9 +100,6 @@ export async function startCheckoutSession(params: {
     .eq('seller_id', typedOffer.seller_id)
     .maybeSingle()
 
-  console.log("[v0] Creating Stripe checkout session with pricing:", pricing)
-  console.log("[v0] NEXT_PUBLIC_APP_URL:", process.env.NEXT_PUBLIC_APP_URL)
-  
   let session
   try {
     session = await stripe.checkout.sessions.create({
@@ -166,8 +151,6 @@ export async function startCheckoutSession(params: {
         shipment_tier: shipmentTier,
       },
     })
-    
-    console.log("[v0] Stripe session created:", { sessionId: session.id, hasClientSecret: !!session.client_secret })
   } catch (stripeError: unknown) {
     const errorMessage = stripeError instanceof Error ? stripeError.message : 'Error desconocido de Stripe'
     console.error("[v0] Stripe checkout session error:", errorMessage)
@@ -214,8 +197,6 @@ export async function startCheckoutSession(params: {
   if (!session.client_secret) {
     throw new Error('Stripe no devolvió client_secret.')
   }
-
-  console.log("[v0] Returning client secret successfully")
 
   return {
     clientSecret: session.client_secret,

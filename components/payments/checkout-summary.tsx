@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   EmbeddedCheckout,
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DeliveryMethod, ShipmentTier } from "@/lib/payments/pricing";
 import { startCheckoutSession } from "@/app/actions/stripe";
+import { CheckCircle } from "lucide-react";
 
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
@@ -45,12 +47,14 @@ export function CheckoutSummary({
   listingTitle,
   acceptedAmount,
 }: CheckoutSummaryProps) {
+  const router = useRouter();
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("shipping");
   const [shipmentTier, setShipmentTier] = useState<ShipmentTier>("small");
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showStripeCheckout, setShowStripeCheckout] = useState(false);
+  const [paymentComplete, setPaymentComplete] = useState(false);
 
   const effectiveQuote = useMemo(() => {
     if (quote) return quote;
@@ -151,6 +155,31 @@ export function CheckoutSummary({
       throw error;
     }
   }, [offerId, deliveryMethod, shipmentTier]);
+
+  const handleCheckoutComplete = useCallback(() => {
+    setPaymentComplete(true);
+    setSubmitting(false);
+    toast.success("Pago completado correctamente");
+    // Redirigir después de un breve delay para que el usuario vea el mensaje
+    setTimeout(() => {
+      router.push(`/checkout/success?offer_id=${offerId}`);
+    }, 2000);
+  }, [offerId, router]);
+
+  // Si el pago ya se completó, mostrar mensaje de éxito
+  if (paymentComplete) {
+    return (
+      <Card className="border-emerald-200 bg-emerald-50">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <CheckCircle className="mb-4 h-16 w-16 text-emerald-600" />
+          <h2 className="mb-2 text-2xl font-semibold text-emerald-900">Pago completado</h2>
+          <p className="text-emerald-700">
+            Tu pago se ha procesado correctamente. Redirigiendo...
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -274,7 +303,7 @@ export function CheckoutSummary({
           <CardContent>
             <EmbeddedCheckoutProvider
               stripe={stripePromise}
-              options={{ fetchClientSecret }}
+              options={{ fetchClientSecret, onComplete: handleCheckoutComplete }}
             >
               <EmbeddedCheckout />
             </EmbeddedCheckoutProvider>
