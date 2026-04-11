@@ -53,12 +53,20 @@ export function CheckoutSummary({
   const [submitting, setSubmitting] = useState(false);
   const [showStripeCheckout, setShowStripeCheckout] = useState(false);
 
-  const startCheckoutSessionForOffer = useCallback(async () => {
-    return startCheckoutSession({
-      offerId,
-      deliveryMethod,
-      shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
-    });
+  const fetchClientSecret = useCallback(async () => {
+    try {
+      return await startCheckoutSession({
+        offerId,
+        deliveryMethod,
+        shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
+      });
+    } catch (error: any) {
+      const message = error?.message || "No se pudo abrir el checkout.";
+      toast.error(message);
+      setShowStripeCheckout(false);
+      setSubmitting(false);
+      throw error;
+    }
   }, [offerId, deliveryMethod, shipmentTier]);
 
   const effectiveQuote = useMemo(() => {
@@ -146,6 +154,7 @@ export function CheckoutSummary({
             value={deliveryMethod}
             onValueChange={handleDeliveryMethodChange}
             className="gap-4"
+            disabled={showStripeCheckout}
           >
             <Label className="flex cursor-pointer items-start gap-3 rounded-2xl border p-4">
               <RadioGroupItem value="in_person" className="mt-1" />
@@ -177,7 +186,12 @@ export function CheckoutSummary({
                 </p>
               </div>
 
-              <RadioGroup value={shipmentTier} onValueChange={handleShipmentTierChange} className="gap-3">
+              <RadioGroup
+                value={shipmentTier}
+                onValueChange={handleShipmentTierChange}
+                className="gap-3"
+                disabled={showStripeCheckout}
+              >
                 {SHIPPING_OPTIONS.map((option) => (
                   <Label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-2xl border p-4">
                     <RadioGroupItem value={option.value} className="mt-1" />
@@ -228,7 +242,7 @@ export function CheckoutSummary({
             type="button"
             className="w-full"
             onClick={handlePreparePayment}
-            disabled={submitting || loadingQuote}
+            disabled={submitting || loadingQuote || showStripeCheckout}
           >
             {submitting
               ? "Preparando pago..."
@@ -243,27 +257,31 @@ export function CheckoutSummary({
         </CardContent>
       </Card>
 
-      {/* Stripe Embedded Checkout */}
-      {showStripeCheckout && (
+      {showStripeCheckout ? (
         <Card className="border-slate-200 lg:col-span-2">
           <CardHeader>
             <CardTitle>Completar pago</CardTitle>
             <CardDescription>
-              Introduce tus datos de pago de forma segura con Stripe
+              Introduce tus datos de pago de forma segura con Stripe.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div id="checkout">
               <EmbeddedCheckoutProvider
                 stripe={stripePromise}
-                options={{ clientSecret: startCheckoutSessionForOffer }}
+                options={{
+                  fetchClientSecret,
+                  onComplete: () => {
+                    router.push(`/checkout/success?offerId=${offerId}`);
+                  },
+                }}
               >
                 <EmbeddedCheckout />
               </EmbeddedCheckoutProvider>
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

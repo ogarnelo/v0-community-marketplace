@@ -93,10 +93,10 @@ export default async function CheckoutOfferPage({
 
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-            Preparar pago
+            Completar pago
           </h1>
           <p className="text-sm text-slate-600">
-            Revisa el importe final y deja la operación lista para conectar Stripe y cerrar la compra.
+            Revisa el importe final, elige cómo quieres recibirlo y completa el pago seguro con Stripe.
           </p>
         </div>
 
