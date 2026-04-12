@@ -1,3 +1,4 @@
+
 export type ListingStatus = "available" | "reserved" | "sold" | "archived";
 
 export type ListingType = "sale" | "donation";
@@ -45,6 +46,7 @@ export type ProfileRow = {
 };
 
 export type ReviewRow = {
+  id?: string;
   rating: number;
   comment?: string | null;
   created_at?: string | null;
@@ -117,6 +119,19 @@ export type ListingOfferRow = {
   counter_price: number | null;
   created_at: string | null;
   responded_at: string | null;
+};
+
+export type PaymentIntentRow = {
+  id: string;
+  offer_id?: string | null;
+  listing_id?: string | null;
+  buyer_id?: string | null;
+  seller_id?: string | null;
+  amount?: number | null;
+  status: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type ListingOfferEventRow = {

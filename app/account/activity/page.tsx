@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -5,7 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/marketplace/formatters";
-import type { DonationRequestRow, ListingOfferRow, ListingRow, PaymentIntentRow, ProfileRow } from "@/lib/types/marketplace";
+import { ReviewTransactionCard } from "@/components/account/review-transaction-card";
+import type { DonationRequestRow, ListingOfferRow, ListingRow, PaymentIntentRow, ProfileRow, ReviewRow } from "@/lib/types/marketplace";
 
 function getActivityStatusLabel(status: string | null) {
   switch (status) {
@@ -153,23 +155,37 @@ export default async function AccountActivityPage() {
     ...allPayments.map((payment) => payment.seller_id).filter((value): value is string => !!value),
   ]));
 
-  const [listingsResult, profilesResult] = await Promise.all([
+  const paidListingIds = allPayments.filter((payment) => payment.status === "paid" && payment.listing_id).map((payment) => payment.listing_id as string);
+
+  const [listingsResult, profilesResult, reviewsResult] = await Promise.all([
     listingIds.length > 0 ? adminSupabase.from("listings").select("id, title").in("id", listingIds) : Promise.resolve({ data: [] as Partial<ListingRow>[] }),
     profileIds.length > 0 ? adminSupabase.from("profiles").select("id, full_name").in("id", profileIds) : Promise.resolve({ data: [] as Partial<ProfileRow>[] }),
+    paidListingIds.length > 0
+      ? adminSupabase.from("reviews").select("id, reviewer_id, reviewed_user_id, listing_id").eq("reviewer_id", user.id).in("listing_id", paidListingIds)
+      : Promise.resolve({ data: [] as Partial<ReviewRow>[] }),
   ]);
 
   const listingsMap = new Map((listingsResult.data || []).map((row: any) => [row.id, row.title || "Anuncio"]));
   const profilesMap = new Map((profilesResult.data || []).map((row: any) => [row.id, row.full_name || "Usuario"]));
   const paymentsByOfferId = new Map(allPayments.filter((row) => !!row.offer_id).map((row) => [row.offer_id as string, row]));
+  const existingReviewKeys = new Set(((reviewsResult.data || []) as ReviewRow[]).map((review) => `${review.listing_id}:${review.reviewed_user_id}`));
 
   const resolveOfferAmount = (offer: ListingOfferRow) => offer.accepted_amount ?? offer.current_amount ?? offer.counter_price ?? offer.offered_price;
+
+  const shouldPromptReview = (payment: PaymentIntentRow, reviewedUserId: string | null | undefined) => {
+    if (payment.status !== "paid" || !payment.listing_id || !reviewedUserId) {
+      return false;
+    }
+
+    return !existingReviewKeys.has(`${payment.listing_id}:${reviewedUserId}`);
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Actividad</h1>
-          <p className="text-muted-foreground">Seguimiento de ofertas, pagos y solicitudes de donación.</p>
+          <p className="text-muted-foreground">Seguimiento de ofertas, pagos, valoraciones y solicitudes de donación.</p>
         </div>
         <Link href="/account/listings" className="text-sm font-medium text-[#7EBA28] hover:underline">
           Volver a mis anuncios
@@ -180,38 +196,60 @@ export default async function AccountActivityPage() {
         <Card>
           <CardHeader><CardTitle>Compras realizadas</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {buyerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no has completado compras.</p> : buyerPayments.map((payment) => (
-              <div key={payment.id} className="rounded-xl border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p>
-                    <p className="text-sm text-muted-foreground">Vendedor: {profilesMap.get(payment.seller_id || "") || "Usuario"}</p>
-                    <p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p>
+            {buyerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no has completado compras.</p> : buyerPayments.map((payment) => {
+              const sellerName = profilesMap.get(payment.seller_id || "") || "Usuario";
+              return (
+                <div key={payment.id} className="space-y-3 rounded-xl border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p>
+                      <p className="text-sm text-muted-foreground">Vendedor: {sellerName}</p>
+                      <p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p>
+                    </div>
+                    <Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge>
                   </div>
-                  <Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge>
+                  <p className="text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p>
+                  {shouldPromptReview(payment, payment.seller_id) ? (
+                    <ReviewTransactionCard
+                      paymentIntentId={payment.id}
+                      listingTitle={listingsMap.get(payment.listing_id || "") || "Anuncio"}
+                      counterpartName={sellerName}
+                      roleLabel="vendedor"
+                    />
+                  ) : null}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle>Ventas cobradas</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {sellerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes ventas cobradas.</p> : sellerPayments.map((payment) => (
-              <div key={payment.id} className="rounded-xl border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p>
-                    <p className="text-sm text-muted-foreground">Comprador: {profilesMap.get(payment.buyer_id || "") || "Usuario"}</p>
-                    <p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p>
+            {sellerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes ventas cobradas.</p> : sellerPayments.map((payment) => {
+              const buyerName = profilesMap.get(payment.buyer_id || "") || "Usuario";
+              return (
+                <div key={payment.id} className="space-y-3 rounded-xl border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p>
+                      <p className="text-sm text-muted-foreground">Comprador: {buyerName}</p>
+                      <p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p>
+                    </div>
+                    <Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge>
                   </div>
-                  <Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge>
+                  <p className="text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p>
+                  {shouldPromptReview(payment, payment.buyer_id) ? (
+                    <ReviewTransactionCard
+                      paymentIntentId={payment.id}
+                      listingTitle={listingsMap.get(payment.listing_id || "") || "Anuncio"}
+                      counterpartName={buyerName}
+                      roleLabel="comprador"
+                    />
+                  ) : null}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
