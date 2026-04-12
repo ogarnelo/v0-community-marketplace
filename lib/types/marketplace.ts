@@ -181,6 +181,27 @@ export type PaymentIntentRow = {
   updated_at: string | null;
 };
 
+export type ShipmentRow = {
+  id: string;
+  payment_intent_id: string | null;
+  listing_id: string | null;
+  conversation_id: string | null;
+  buyer_id: string | null;
+  seller_id: string | null;
+  provider: string | null;
+  service_code: string | null;
+  shipment_tier: string | null;
+  status: string | null;
+  shipping_amount: number | null;
+  tracking_code: string | null;
+  tracking_url: string | null;
+  label_url: string | null;
+  provider_shipment_id: string | null;
+  payload?: Record<string, any> | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export function buildPhotosMap(rows: ListingPhotoRow[]) {
   const grouped = new Map<string, string[]>();
 

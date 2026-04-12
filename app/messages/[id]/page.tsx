@@ -24,6 +24,7 @@ import type {
   ListingOfferRow,
   PaymentIntentRow,
   ProfileRow,
+  ShipmentRow,
 } from "@/lib/types/marketplace";
 import { getOfferChatPreview } from "@/lib/offers/chat-message";
 import { getDonationChatPreview } from "@/lib/donations/chat-message";
@@ -186,7 +187,7 @@ export default async function ConversationPage({
     .eq("conversation_id", typedConversation.id)
     .order("created_at", { ascending: true });
 
-  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }] = await Promise.all([
+  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }] = await Promise.all([
     adminSupabase
       .from("listing_offers")
       .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at")
@@ -203,6 +204,12 @@ export default async function ConversationPage({
     adminSupabase
       .from("payment_intents")
       .select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at, metadata")
+      .eq("listing_id", typedConversation.listing_id)
+      .or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`)
+      .order("created_at", { ascending: false }),
+    adminSupabase
+      .from("shipments")
+      .select("id, payment_intent_id, listing_id, conversation_id, buyer_id, seller_id, provider, service_code, shipment_tier, status, shipping_amount, tracking_code, tracking_url, label_url, provider_shipment_id, payload, created_at, updated_at")
       .eq("listing_id", typedConversation.listing_id)
       .or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`)
       .order("created_at", { ascending: false }),
@@ -270,9 +277,11 @@ export default async function ConversationPage({
   const typedOffers = (offers || []) as ListingOfferRow[];
   const typedDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const typedPaymentIntents = (paymentIntents || []) as PaymentIntentRow[];
+  const typedShipments = (shipments || []) as ShipmentRow[];
   const hasAcceptedOffer = typedOffers.some((offer) => offer.status === "accepted");
   const currentOffer = typedOffers[0] || null;
   const currentPayment = currentOffer ? typedPaymentIntents.find((row) => row.offer_id === currentOffer.id) || null : null;
+  const currentShipment = currentPayment ? typedShipments.find((row) => row.payment_intent_id === currentPayment.id) || null : typedShipments[0] || null;
   const hasApprovedDonation = typedDonationRequests.some((request) => request.status === "approved");
   const allowConversationMessaging =
     canSendNewMessageToListing(listingStatus) || hasAcceptedOffer || hasApprovedDonation;
@@ -320,7 +329,9 @@ export default async function ConversationPage({
             <ConversationTransactionStatus
               offer={currentOffer}
               payment={currentPayment}
+              shipment={currentShipment}
               isBuyer={typedConversation.buyer_id === user.id}
+              currentUserId={user.id}
             />
             <RealtimeChatMessages
               conversationId={typedConversation.id}

@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { ListingOfferRow, PaymentIntentRow } from "@/lib/types/marketplace";
+import type { ListingOfferRow, PaymentIntentRow, ShipmentRow } from "@/lib/types/marketplace";
 import { formatPrice } from "@/lib/marketplace/formatters";
+import { ShipmentStatusCard } from "@/components/shipments/shipment-status-card";
 
 function getOfferAmount(offer?: ListingOfferRow | null) {
   if (!offer) return null;
@@ -39,55 +40,70 @@ function getStatusClass(status?: string | null) {
 export function ConversationTransactionStatus({
   offer,
   payment,
+  shipment,
   isBuyer,
+  currentUserId,
 }: {
   offer?: ListingOfferRow | null;
   payment?: PaymentIntentRow | null;
+  shipment?: ShipmentRow | null;
   isBuyer: boolean;
+  currentUserId: string;
 }) {
   if (!offer) return null;
 
   const amount = getOfferAmount(offer);
-  const deliveryMethod = String(payment?.metadata?.delivery_method || "hand_delivery");
+  const deliveryMethod = String(payment?.metadata?.delivery_method || "in_person");
   const shippingSelected = deliveryMethod === "shipping";
-  const buyerCanPay = isBuyer && (offer.status === "accepted" || payment?.status === "requires_payment_method" || payment?.status === "failed" || payment?.status === "cancelled");
+  const buyerCanPay =
+    isBuyer &&
+    (offer.status === "accepted" ||
+      payment?.status === "requires_payment_method" ||
+      payment?.status === "failed" ||
+      payment?.status === "cancelled");
 
   return (
-    <Card className="mb-4 rounded-2xl border bg-white shadow-sm">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Estado de la operación</p>
-            <p className="text-sm text-muted-foreground">
-              {amount !== null ? `Importe acordado: ${formatPrice(amount)}` : "Importe acordado en el chat"}
-            </p>
-          </div>
-          <Badge variant="outline" className={getStatusClass(payment?.status || offer.status)}>
-            {getStatusLabel(payment, offer)}
-          </Badge>
-        </div>
-
-        {payment?.status === "paid" ? (
-          <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-            {shippingSelected
-              ? "Pago confirmado. El siguiente paso es preparar el envío y compartir el seguimiento cuando esté disponible."
-              : "Pago confirmado. Ya podéis cerrar la entrega en mano desde este chat."}
-          </div>
-        ) : buyerCanPay ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-3">
-            <div className="text-sm text-amber-800">
-              La oferta ya está aceptada. Solo falta completar el pago dentro de Wetudy para cerrar la compra.
+    <div className="mb-4 space-y-4">
+      <Card className="rounded-2xl border bg-white shadow-sm">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Estado de la operación</p>
+              <p className="text-sm text-muted-foreground">
+                {amount !== null ? `Importe acordado: ${formatPrice(amount)}` : "Importe acordado en el chat"}
+              </p>
             </div>
-            <Link href={`/checkout/${offer.id}`}>
-              <Button className="bg-[#7EBA28] text-white hover:bg-[#6da122]">Ir al pago</Button>
-            </Link>
+            <Badge variant="outline" className={getStatusClass(payment?.status || offer.status)}>
+              {getStatusLabel(payment, offer)}
+            </Badge>
           </div>
-        ) : payment?.status === "failed" || payment?.status === "cancelled" ? (
-          <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
-            El intento de pago no se completó. El comprador puede volver a intentarlo desde el checkout.
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+
+          {payment?.status === "paid" ? (
+            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+              {shippingSelected
+                ? "Pago confirmado. El siguiente paso es preparar el envío y compartir el seguimiento cuando esté disponible."
+                : "Pago confirmado. Ya podéis cerrar la entrega en mano desde este chat."}
+            </div>
+          ) : buyerCanPay ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-3">
+              <div className="text-sm text-amber-800">
+                La oferta ya está aceptada. Solo falta completar el pago dentro de Wetudy para cerrar la compra.
+              </div>
+              <Link href={`/checkout/${offer.id}`}>
+                <Button className="bg-[#7EBA28] text-white hover:bg-[#6da122]">Ir al pago</Button>
+              </Link>
+            </div>
+          ) : payment?.status === "failed" || payment?.status === "cancelled" ? (
+            <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+              El intento de pago no se completó. El comprador puede volver a intentarlo desde el checkout.
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {shippingSelected && payment?.status === "paid" && shipment ? (
+        <ShipmentStatusCard shipment={shipment} currentUserId={currentUserId} compact />
+      ) : null}
+    </div>
   );
 }
