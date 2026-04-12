@@ -63,6 +63,11 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
       const payload = await response.json();
 
       if (!response.ok) {
+        if (payload?.redirectTo || payload?.conversationId) {
+          window.location.assign(payload.redirectTo || `/messages/${payload.conversationId}`);
+          return;
+        }
+
         throw new Error(payload?.error || "No se pudo iniciar la compra.");
       }
 

@@ -118,8 +118,13 @@ export async function POST(request: Request) {
 
     if (activeOffer?.status === "pending" || activeOffer?.status === "countered") {
       return NextResponse.json(
-        { error: "Ya tienes una negociación abierta para este anuncio. Continúala desde el chat o desde el anuncio." },
-        { status: 400 }
+        {
+          error: "Ya tienes una negociación abierta para este anuncio. Te llevamos al chat para continuarla.",
+          conversationId,
+          redirectTo: conversationId ? `/messages/${conversationId}` : `/marketplace/listing/${listingId}`,
+          offerId: activeOffer.id,
+        },
+        { status: 409 }
       );
     }
 

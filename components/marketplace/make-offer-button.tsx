@@ -41,6 +41,11 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
       const payload = await response.json();
 
       if (!response.ok) {
+        if (payload?.redirectTo || payload?.conversationId) {
+          window.location.assign(payload.redirectTo || `/messages/${payload.conversationId}`);
+          return;
+        }
+
         throw new Error(payload?.error || "No se pudo enviar la oferta.");
       }
 

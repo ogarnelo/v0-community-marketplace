@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { HideConversationButton } from "@/components/messages/hide-conversation-button";
@@ -74,6 +74,7 @@ export function ConversationsSidebar({
 }: ConversationsSidebarProps) {
   const supabase = useMemo(() => createClient(), []);
   const [items, setItems] = useState<ConversationSummary[]>(conversations);
+  const itemsRef = useRef<ConversationSummary[]>(conversations);
 
   useEffect(() => {
     setItems(
@@ -85,10 +86,14 @@ export function ConversationsSidebar({
   }, [conversations, selectedConversationId]);
 
   useEffect(() => {
-    const loadUnreadCounts = async () => {
-      if (items.length === 0) return;
+    itemsRef.current = items;
+  }, [items]);
 
-      const conversationIds = items.map((item) => item.id);
+  useEffect(() => {
+    const loadUnreadCounts = async () => {
+      if (itemsRef.current.length === 0) return;
+
+      const conversationIds = itemsRef.current.map((item) => item.id);
       const { data: unreadMessages, error } = await supabase
         .from("messages")
         .select("conversation_id")
@@ -177,7 +182,7 @@ export function ConversationsSidebar({
         },
         (payload) => {
           const newMessage = payload.new as MessageRealtimePayload;
-          const knownConversationIds = new Set(items.map((item) => item.id));
+          const knownConversationIds = new Set(itemsRef.current.map((item) => item.id));
 
           if (!knownConversationIds.has(newMessage.conversation_id)) {
             void hydrateConversationSummary(newMessage.conversation_id);
@@ -233,16 +238,16 @@ export function ConversationsSidebar({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, items, selectedConversationId, supabase]);
+  }, [currentUserId, selectedConversationId, supabase]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border bg-white">
+    <div className="overflow-hidden rounded-2xl border bg-white lg:max-h-[calc(100vh-10rem)]">
       <div className="border-b px-5 py-4">
         <h1 className="text-2xl font-bold tracking-tight">Mensajes</h1>
         <p className="mt-1 text-sm text-muted-foreground">{items.length} conversaciones</p>
       </div>
 
-      <div className="max-h-[70vh] overflow-y-auto">
+      <div className="max-h-[70vh] overflow-y-auto lg:max-h-[calc(100vh-14rem)]">
         {items.length === 0 ? (
           <div className="px-5 py-8 text-sm text-muted-foreground">Aún no tienes conversaciones.</div>
         ) : (

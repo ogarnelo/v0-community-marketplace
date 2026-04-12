@@ -30,6 +30,19 @@ export async function POST(request: Request) {
       actorUserId: user.id,
     });
 
+    if (result.alreadyExists) {
+      return NextResponse.json(
+        {
+          ok: false,
+          redirectTo: `/messages/${result.conversationId}`,
+          conversationId: result.conversationId,
+          offerId: result.offerId,
+          error: "Ya tienes una negociación abierta para este anuncio. Te llevamos al chat para continuarla.",
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json({ ok: true, ...result });
   } catch (error: any) {
     return NextResponse.json(

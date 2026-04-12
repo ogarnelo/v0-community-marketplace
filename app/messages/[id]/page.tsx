@@ -275,14 +275,14 @@ export default async function ConversationPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
         <ConversationsSidebar
           conversations={conversationSummaries}
           selectedConversationId={typedConversation.id}
           currentUserId={user.id}
         />
 
-        <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
+        <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white lg:min-h-[calc(100vh-10rem)]">
           <div className="border-b px-5 py-4">
             <div className="flex items-center justify-between gap-4">
               <Link href={`/profile/${otherUserId}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40">
@@ -323,6 +323,7 @@ export default async function ConversationPage({
               initialUnreadMessageIds={initialUnreadMessageIds}
               initialOffers={typedOffers}
               initialDonationRequests={typedDonationRequests}
+              initialPaymentIntents={(paymentIntents || []) as PaymentIntentRow[]}
             />
           </div>
 
