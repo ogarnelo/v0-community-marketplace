@@ -1,4 +1,3 @@
-
 export type ListingStatus = "available" | "reserved" | "sold" | "archived";
 
 export type ListingType = "sale" | "donation";
@@ -53,6 +52,7 @@ export type ReviewRow = {
   reviewer_id?: string | null;
   reviewed_user_id?: string | null;
   listing_id?: string | null;
+  payment_intent_id?: string | null;
 };
 
 export type SchoolRow = {
@@ -121,19 +121,6 @@ export type ListingOfferRow = {
   responded_at: string | null;
 };
 
-export type PaymentIntentRow = {
-  id: string;
-  offer_id?: string | null;
-  listing_id?: string | null;
-  buyer_id?: string | null;
-  seller_id?: string | null;
-  amount?: number | null;
-  status: string | null;
-  updated_at?: string | null;
-  created_at?: string | null;
-  metadata?: Record<string, unknown> | null;
-};
-
 export type ListingOfferEventRow = {
   id: string;
   offer_id: string;
@@ -169,6 +156,29 @@ export type DonationRequestEventRow = {
   note: string | null;
   status_snapshot: string | null;
   created_at: string | null;
+};
+
+export type PaymentIntentRow = {
+  id: string;
+  listing_id: string | null;
+  conversation_id?: string | null;
+  offer_id: string | null;
+  buyer_id: string | null;
+  seller_id: string | null;
+  school_id?: string | null;
+  amount: number | null;
+  currency?: string | null;
+  provider?: string | null;
+  provider_payment_intent_id?: string | null;
+  status: string | null;
+  platform_fee_amount?: number | null;
+  buyer_fee_amount?: number | null;
+  shipping_amount?: number | null;
+  seller_net_amount?: number | null;
+  shipment_tier?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 export function buildPhotosMap(rows: ListingPhotoRow[]) {

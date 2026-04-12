@@ -4,25 +4,11 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Download, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { DonationRequestRow, ListingOfferRow } from "@/lib/types/marketplace";
+import type { DonationRequestRow, ListingOfferRow, PaymentIntentRow } from "@/lib/types/marketplace";
 import { parseOfferChatBody } from "@/lib/offers/chat-message";
 import { parseDonationChatBody } from "@/lib/donations/chat-message";
 import { ConversationOfferCard } from "@/components/messages/conversation-offer-card";
 import { ConversationDonationCard } from "@/components/messages/conversation-donation-card";
-
-
-type PaymentIntentRow = {
-  id: string;
-  offer_id?: string | null;
-  listing_id?: string | null;
-  buyer_id?: string | null;
-  seller_id?: string | null;
-  amount?: number | null;
-  status: string | null;
-  updated_at?: string | null;
-  created_at?: string | null;
-  metadata?: Record<string, unknown> | null;
-};
 
 type Message = {
   id: string;
@@ -292,7 +278,7 @@ export default function RealtimeChatMessages({
   }, [messages]);
 
   return (
-    <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1 lg:max-h-[calc(100vh-24rem)]">
+    <div className="space-y-3">
       {messages.map((message) => {
         const isMine = message.sender_id === currentUserId;
         const isHighlighted = highlightedIds.has(message.id);

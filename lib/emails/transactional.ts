@@ -1,24 +1,22 @@
-
-const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Wetudy <no-reply@wetudy.app>";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_URL || "https://www.wetudy.com";
-
-type TransactionalEmailParams = {
+type SendEmailParams = {
   to: string;
   subject: string;
   html: string;
-  text?: string;
 };
 
-function stripHtml(html: string) {
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+function getBaseUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 }
 
-export async function sendTransactionalEmail(params: TransactionalEmailParams) {
-  const apiKey = process.env.RESEND_API_KEY;
+export function isEmailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+}
 
-  if (!apiKey || !params.to) {
-    return { ok: false, skipped: true } as const;
-  }
+async function sendEmail({ to, subject, html }: SendEmailParams) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+
+  if (!apiKey || !from) return;
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -27,101 +25,97 @@ export async function sendTransactionalEmail(params: TransactionalEmailParams) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: DEFAULT_FROM,
-      to: [params.to],
-      subject: params.subject,
-      html: params.html,
-      text: params.text || stripHtml(params.html),
+      from,
+      to: [to],
+      subject,
+      html,
     }),
   });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(errorText || "No se pudo enviar el email transaccional.");
+    const text = await response.text();
+    console.error("Error enviando email con Resend:", text);
+  }
+}
+
+function paymentStatusCopy(deliveryMethod?: string | null) {
+  if (deliveryMethod === "shipping") {
+    return "Tu pago se ha confirmado. El siguiente paso es preparar el envío y compartir el seguimiento en Wetudy.";
   }
 
-  return { ok: true } as const;
+  return "Tu pago se ha confirmado. Ya podéis coordinar la entrega en mano desde el chat de Wetudy.";
 }
 
-function wrapEmail(title: string, intro: string, ctaLabel: string, ctaHref: string, extra?: string) {
-  return `
-    <div style="font-family: Inter, Arial, sans-serif; background:#f8fafc; padding:24px; color:#0f172a;">
-      <div style="max-width:560px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;">
-        <div style="padding:24px 24px 8px;">
-          <p style="margin:0 0 8px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#7EBA28; font-weight:700;">Wetudy</p>
-          <h1 style="margin:0 0 12px; font-size:24px; line-height:1.2;">${title}</h1>
-          <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#334155;">${intro}</p>
-          ${extra ? `<div style="margin:0 0 20px; padding:14px 16px; border-radius:12px; background:#f8fafc; color:#334155; font-size:14px; line-height:1.6; border:1px solid #e2e8f0;">${extra}</div>` : ""}
-          <a href="${ctaHref}" style="display:inline-block; background:#7EBA28; color:#fff; text-decoration:none; padding:12px 18px; border-radius:12px; font-weight:600;">${ctaLabel}</a>
-        </div>
-        <div style="padding:16px 24px 24px; font-size:12px; color:#64748b;">
-          También puedes abrir Wetudy aquí: <a href="${SITE_URL}" style="color:#7EBA28;">${SITE_URL}</a>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-export function buildPaymentPaidEmail(params: {
-  role: "buyer" | "seller";
+export async function sendPaymentConfirmedEmails(params: {
+  buyerEmail?: string | null;
+  sellerEmail?: string | null;
+  buyerName?: string | null;
+  sellerName?: string | null;
   listingTitle: string;
-  counterpartyName: string;
-  amountLabel: string;
-  href: string;
+  amount: number;
+  offerId?: string | null;
+  deliveryMethod?: string | null;
 }) {
-  if (params.role === "buyer") {
-    return {
+  if (!isEmailConfigured()) return;
+
+  const checkoutUrl = params.offerId ? `${getBaseUrl()}/checkout/${params.offerId}` : `${getBaseUrl()}/account/activity`;
+  const activityUrl = `${getBaseUrl()}/account/activity`;
+  const summary = paymentStatusCopy(params.deliveryMethod);
+
+  if (params.buyerEmail) {
+    await sendEmail({
+      to: params.buyerEmail,
       subject: `Pago confirmado · ${params.listingTitle}`,
-      html: wrapEmail(
-        "Tu pago se ha confirmado",
-        `Ya puedes seguir la operación de <strong>${params.listingTitle}</strong> desde tus mensajes en Wetudy.`,
-        "Ver operación",
-        params.href,
-        `Importe del artículo: <strong>${params.amountLabel}</strong><br/>Vendedor: <strong>${params.counterpartyName}</strong><br/>Tu compra queda protegida al pagar dentro de la plataforma.`
-      ),
-    };
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
+          <h2 style="margin:0 0 12px">Pago confirmado</h2>
+          <p>Hola ${params.buyerName || ""},</p>
+          <p>Tu pago por <strong>${params.listingTitle}</strong> se ha confirmado por <strong>${params.amount.toFixed(2)} €</strong>.</p>
+          <p>${summary}</p>
+          <p><a href="${activityUrl}">Ver mi actividad</a></p>
+        </div>
+      `,
+    });
   }
 
-  return {
-    subject: `Has vendido ${params.listingTitle}`,
-    html: wrapEmail(
-      "Has recibido una compra confirmada",
-      `La operación de <strong>${params.listingTitle}</strong> ya tiene el pago confirmado en Wetudy.`,
-      "Abrir conversación",
-      params.href,
-      `Comprador: <strong>${params.counterpartyName}</strong><br/>Importe del artículo: <strong>${params.amountLabel}</strong>`
-    ),
-  };
+  if (params.sellerEmail) {
+    await sendEmail({
+      to: params.sellerEmail,
+      subject: `Has vendido ${params.listingTitle}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
+          <h2 style="margin:0 0 12px">Venta confirmada</h2>
+          <p>Hola ${params.sellerName || ""},</p>
+          <p>Se ha confirmado el pago de <strong>${params.listingTitle}</strong> por <strong>${params.amount.toFixed(2)} €</strong>.</p>
+          <p>${summary}</p>
+          <p><a href="${activityUrl}">Ver mi actividad</a> · <a href="${checkoutUrl}">Ver detalle</a></p>
+        </div>
+      `,
+    });
+  }
 }
 
-export function buildPaymentFailedEmail(params: {
+export async function sendPaymentFailedEmail(params: {
+  buyerEmail?: string | null;
+  buyerName?: string | null;
   listingTitle: string;
-  href: string;
+  offerId?: string | null;
 }) {
-  return {
-    subject: `No se pudo completar el pago · ${params.listingTitle}`,
-    html: wrapEmail(
-      "Tu pago no se pudo completar",
-      `No hemos podido confirmar el cobro de <strong>${params.listingTitle}</strong>. Puedes volver a intentarlo desde la conversación o desde tu actividad.`,
-      "Revisar operación",
-      params.href
-    ),
-  };
-}
+  if (!isEmailConfigured() || !params.buyerEmail) return;
 
-export function buildOfferAcceptedEmail(params: {
-  listingTitle: string;
-  amountLabel: string;
-  href: string;
-}) {
-  return {
-    subject: `Tu oferta ha sido aceptada · ${params.listingTitle}`,
-    html: wrapEmail(
-      "Tu oferta ha sido aceptada",
-      `Ya puedes cerrar la compra de <strong>${params.listingTitle}</strong> en Wetudy.`,
-      "Ir al chat",
-      params.href,
-      `Importe aceptado: <strong>${params.amountLabel}</strong>`
-    ),
-  };
+  const retryUrl = params.offerId ? `${getBaseUrl()}/checkout/${params.offerId}` : `${getBaseUrl()}/account/activity`;
+
+  await sendEmail({
+    to: params.buyerEmail,
+    subject: `No se pudo completar tu pago · ${params.listingTitle}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
+        <h2 style="margin:0 0 12px">Pago no completado</h2>
+        <p>Hola ${params.buyerName || ""},</p>
+        <p>No hemos podido completar el pago de <strong>${params.listingTitle}</strong>.</p>
+        <p>Puedes volver a intentarlo desde Wetudy cuando quieras.</p>
+        <p><a href="${retryUrl}">Reintentar pago</a></p>
+      </div>
+    `,
+  });
 }
