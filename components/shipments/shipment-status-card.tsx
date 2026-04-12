@@ -2,192 +2,106 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { ShipmentRow } from "@/lib/types/marketplace";
 
-function getShipmentStatusLabel(status: string | null) {
+function getStatusLabel(status: string | null | undefined) {
   switch (status) {
-    case "label_pending":
-      return "Pendiente de etiqueta";
+    case "label_created":
+      return "Etiqueta creada";
     case "ready_to_ship":
-      return "Listo para enviar";
-    case "in_transit":
-      return "En tránsito";
+      return "Lista para enviar";
+    case "dispatched":
+      return "Enviado";
     case "delivered":
       return "Entregado";
     case "cancelled":
       return "Cancelado";
+    case "manual_pending":
+      return "Pendiente de preparación";
     default:
-      return status || "Preparando envío";
-  }
-}
-
-function getShipmentStatusClass(status: string | null) {
-  switch (status) {
-    case "label_pending":
-    case "ready_to_ship":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "in_transit":
-      return "border-sky-200 bg-sky-50 text-sky-700";
-    case "delivered":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "cancelled":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-slate-200 bg-slate-50 text-slate-700";
+      return status || "Pendiente";
   }
 }
 
 export function ShipmentStatusCard({
   shipment,
-  currentUserId,
-  compact = false,
+  canCreateLabel,
 }: {
   shipment: ShipmentRow;
-  currentUserId: string;
-  compact?: boolean;
+  canCreateLabel?: boolean;
 }) {
-  const [trackingCode, setTrackingCode] = useState(shipment.tracking_code || "");
-  const [trackingUrl, setTrackingUrl] = useState(shipment.tracking_url || "");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [localShipment, setLocalShipment] = useState(shipment);
 
-  const isSeller = currentUserId === shipment.seller_id;
-  const isBuyer = currentUserId === shipment.buyer_id;
-  const canMarkDispatched = isSeller && ["label_pending", "ready_to_ship", null].includes(shipment.status);
-  const canMarkDelivered = isBuyer && shipment.status === "in_transit";
-
-  const markDispatched = async () => {
+  async function handleCreateLabel() {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch("/api/shipments/mark-dispatched", {
+      const response = await fetch("/api/shipments/create-label", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shipmentId: shipment.id,
-          trackingCode: trackingCode.trim() || null,
-          trackingUrl: trackingUrl.trim() || null,
-        }),
+        body: JSON.stringify({ shipmentId: localShipment.id }),
       });
-
-      const payload = await response.json();
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.error || "No se pudo actualizar el envío.");
+        throw new Error(data?.error || "No se pudo crear la etiqueta.");
       }
-
-      toast.success("Envío marcado como enviado.");
-      window.location.reload();
-    } catch (error: any) {
-      toast.error(error?.message || "No se pudo actualizar el envío.");
+      setLocalShipment((prev) => ({
+        ...prev,
+        status: data.shipment?.status ?? prev.status,
+        provider_shipment_id: data.shipment?.provider_shipment_id ?? prev.provider_shipment_id,
+        tracking_code: data.shipment?.tracking_code ?? prev.tracking_code,
+        tracking_url: data.shipment?.tracking_url ?? prev.tracking_url,
+        label_url: data.shipment?.label_url ?? prev.label_url,
+      }));
+    } catch (err: any) {
+      setError(err?.message || "No se pudo crear la etiqueta.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const markDelivered = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/shipments/mark-delivered", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shipmentId: shipment.id }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || "No se pudo confirmar la entrega.");
-      }
-
-      toast.success("Entrega confirmada.");
-      window.location.reload();
-    } catch (error: any) {
-      toast.error(error?.message || "No se pudo confirmar la entrega.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }
 
   return (
-    <Card className="rounded-2xl border bg-white shadow-sm">
-      <CardContent className={compact ? "space-y-3 p-4" : "space-y-4 p-5"}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Estado del envío</p>
-            <p className="text-sm text-slate-600">
-              {shipment.provider === "sendcloud"
-                ? "Gestionado con Sendcloud"
-                : "Seguimiento preparado para logística"}
-            </p>
-          </div>
-          <Badge variant="outline" className={getShipmentStatusClass(shipment.status)}>
-            {getShipmentStatusLabel(shipment.status)}
-          </Badge>
+    <Card className="rounded-2xl border">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-base">Estado del envío</CardTitle>
+          <Badge variant="outline">{getStatusLabel(localShipment.status)}</Badge>
         </div>
-
-        {shipment.label_url ? (
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={shipment.label_url} target="_blank">
-                Ver etiqueta
-              </Link>
-            </Button>
-            {shipment.tracking_url ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href={shipment.tracking_url} target="_blank">
-                  Seguir envío
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        ) : shipment.tracking_url ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={shipment.tracking_url} target="_blank">
-              Seguir envío
-            </Link>
-          </Button>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {localShipment.provider ? (
+          <p className="text-muted-foreground">Proveedor: <span className="font-medium text-foreground">{localShipment.provider}</span></p>
         ) : null}
-
-        {shipment.tracking_code ? (
-          <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-            Código de seguimiento: <span className="font-medium">{shipment.tracking_code}</span>
-          </div>
+        {localShipment.tracking_code ? (
+          <p className="text-muted-foreground">Tracking: <span className="font-medium text-foreground">{localShipment.tracking_code}</span></p>
         ) : null}
-
-        {canMarkDispatched ? (
-          <div className="space-y-3 rounded-xl bg-amber-50 p-3">
-            <div className="text-sm text-amber-800">
-              Si todavía no tienes agregador conectado, puedes marcarlo como enviado manualmente y añadir el seguimiento.
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                value={trackingCode}
-                onChange={(event) => setTrackingCode(event.target.value)}
-                placeholder="Código de seguimiento (opcional)"
-              />
-              <Input
-                value={trackingUrl}
-                onChange={(event) => setTrackingUrl(event.target.value)}
-                placeholder="URL de seguimiento (opcional)"
-              />
-            </div>
-            <Button onClick={markDispatched} disabled={loading} className="bg-[#7EBA28] text-white hover:bg-[#6da122]">
-              {loading ? "Guardando..." : "Marcar como enviado"}
+        <div className="flex flex-wrap gap-2">
+          {localShipment.tracking_url ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={localShipment.tracking_url} target="_blank" rel="noreferrer">Ver seguimiento</a>
             </Button>
-          </div>
-        ) : null}
-
-        {canMarkDelivered ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-emerald-50 p-3">
-            <div className="text-sm text-emerald-800">
-              Cuando lo hayas recibido correctamente, confirma la entrega para cerrar la operación.
-            </div>
-            <Button onClick={markDelivered} disabled={loading} className="bg-[#7EBA28] text-white hover:bg-[#6da122]">
-              {loading ? "Confirmando..." : "Confirmar entrega"}
+          ) : null}
+          {localShipment.label_url ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={localShipment.label_url} target="_blank" rel="noreferrer">Descargar etiqueta</a>
             </Button>
-          </div>
+          ) : null}
+          {canCreateLabel && !localShipment.label_url ? (
+            <Button size="sm" onClick={handleCreateLabel} disabled={loading}>
+              {loading ? "Creando..." : "Crear etiqueta"}
+            </Button>
+          ) : null}
+        </div>
+        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        {localShipment.provider === "manual" ? (
+          <p className="text-xs text-muted-foreground">
+            Este envío está en modo manual. Puedes mantenerlo así o activar Sendcloud para generar etiqueta y tracking automáticos.
+          </p>
         ) : null}
       </CardContent>
     </Card>
