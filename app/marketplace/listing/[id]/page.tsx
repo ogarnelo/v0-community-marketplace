@@ -20,6 +20,9 @@ import { ListingViewTracker } from "@/components/marketplace/listing-view-tracke
 import { MakeOfferButton } from "@/components/marketplace/make-offer-button";
 import { RequestDonationButton } from "@/components/marketplace/request-donation-button";
 import { BuyNowButton } from "@/components/marketplace/buy-now-button";
+import { ListingGallery } from "@/components/marketplace/listing-gallery";
+import { ShareListingButton } from "@/components/marketplace/share-listing-button";
+import { BuyerProtectionCard } from "@/components/payments/buyer-protection-card";
 import type {
   ListingPhotoRow,
   ListingRow,
@@ -76,7 +79,6 @@ export default async function ListingDetailPage({
     .returns<ListingPhotoRow[]>();
 
   const photoUrls = (listingPhotos || []).map((photo) => photo.url);
-  const mainPhotoUrl = photoUrls[0] || null;
   const sellerId = listing.seller_id || listing.user_id || null;
 
   let sellerProfile: ProfileRow | null = null;
@@ -144,12 +146,15 @@ export default async function ListingDetailPage({
   const isbn = listing.isbn?.trim() || null;
   const isOwner = !!user && !!sellerId && user.id === sellerId;
   const canStartNewInteraction = status === "available" && !isOwner && !!sellerId;
+  const savings = price != null && originalPrice && originalPrice > price ? originalPrice - price : 0;
 
   const sellerName = sellerProfile?.full_name || "Miembro de Wetudy";
   const sellerUserType =
     sellerProfile?.user_type === "parent" || sellerProfile?.user_type === "student"
       ? getUserTypeLabel(sellerProfile.user_type)
-      : "Usuario";
+      : sellerProfile?.user_type === "business"
+        ? "Negocio local"
+        : "Usuario";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
@@ -166,29 +171,7 @@ export default async function ListingDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-center bg-muted" style={{ aspectRatio: "4 / 3" }}>
-              {mainPhotoUrl ? (
-                <img src={mainPhotoUrl} alt={title} className="h-full w-full object-cover" />
-              ) : (
-                <span className="select-none font-mono text-7xl text-muted-foreground/15">
-                  {category.charAt(0)}
-                </span>
-              )}
-            </div>
-          </Card>
-
-          {photoUrls.length > 1 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {photoUrls.slice(1).map((url, index) => (
-                <div key={`${url}-${index}`} className="overflow-hidden rounded-xl border bg-muted">
-                  <div style={{ aspectRatio: "4 / 3" }}>
-                    <img src={url} alt={`${title} ${index + 2}`} className="h-full w-full object-cover" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <ListingGallery title={title} category={category} photoUrls={photoUrls} />
 
           <div>
             <div className="mb-3 flex flex-wrap gap-2">
@@ -222,7 +205,7 @@ export default async function ListingDetailPage({
               </div>
 
               <div className="shrink-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <FavoriteButton
                     listingId={listing.id}
                     initialIsFavorite={isFavorite}
@@ -230,6 +213,7 @@ export default async function ListingDetailPage({
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full border bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-[#7EBA28] hover:text-[#7EBA28]"
                     iconClassName="h-4 w-4"
                   />
+                  <ShareListingButton title={title} />
                   <ReportListingButton listingId={listing.id} compact />
                 </div>
               </div>
@@ -244,6 +228,8 @@ export default async function ListingDetailPage({
               <p className="text-sm leading-6 text-muted-foreground">{description}</p>
             </CardContent>
           </Card>
+
+          <BuyerProtectionCard />
 
           <Card>
             <CardHeader>
@@ -292,10 +278,17 @@ export default async function ListingDetailPage({
               {type === "donation" ? (
                 <p className="text-3xl font-bold text-primary">Donación</p>
               ) : (
-                <div className="flex items-end gap-3">
-                  <p className="text-3xl font-bold">{price != null ? formatPrice(price) : "Consultar"}</p>
-                  {originalPrice ? (
-                    <p className="text-sm text-muted-foreground line-through">{formatPrice(originalPrice)}</p>
+                <div className="space-y-3">
+                  <div className="flex items-end gap-3">
+                    <p className="text-3xl font-bold">{price != null ? formatPrice(price) : "Consultar"}</p>
+                    {originalPrice ? (
+                      <p className="text-sm text-muted-foreground line-through">{formatPrice(originalPrice)}</p>
+                    ) : null}
+                  </div>
+                  {savings > 0 ? (
+                    <div className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+                      Ahorras {formatPrice(savings)} frente al precio original
+                    </div>
                   ) : null}
                 </div>
               )}
@@ -326,6 +319,12 @@ export default async function ListingDetailPage({
                         : "Anuncio archivado"}
                 </Button>
               )}
+
+              {type === "sale" ? (
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  Para mantener la compra protegida y trazable, cierra el pago dentro de Wetudy cuando el vendedor acepte la operación.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -395,9 +394,9 @@ export default async function ListingDetailPage({
                 <span className="text-foreground">{gradeLevel}</span>
               </div>
               {isbn ? (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <span>ISBN</span>
-                  <span className="text-foreground">{isbn}</span>
+                  <span className="text-right text-foreground">{isbn}</span>
                 </div>
               ) : null}
               <div className="flex items-center justify-between">

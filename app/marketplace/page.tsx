@@ -30,6 +30,7 @@ import {
   MapPin,
   X,
   HelpCircle,
+  PackageSearch,
 } from "lucide-react";
 import {
   Sheet,
@@ -45,6 +46,8 @@ import {
   type MarketplaceListing,
   type ProfileRow,
 } from "@/lib/types/marketplace";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function MarketplacePage() {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
@@ -57,6 +60,7 @@ export default function MarketplacePage() {
   const [gradeLevel, setGradeLevel] = useState("all");
   const [listingType, setListingType] = useState("all");
   const [condition, setCondition] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
   const [searchQuery, setSearchQuery] = useState("");
   const [isbnQuery, setIsbnQuery] = useState("");
   const [priceRange, setPriceRange] = useState([0, 200]);
@@ -189,7 +193,7 @@ export default function MarketplacePage() {
   };
 
   const filteredListings = useMemo(() => {
-    return dbListings.filter((l) => {
+    const filtered = dbListings.filter((l) => {
       if (l.status !== "available") return false;
 
       if (category !== "all" && l.category !== category) return false;
@@ -221,6 +225,23 @@ export default function MarketplacePage() {
 
       return true;
     });
+
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "price_asc":
+          return (a.price ?? 0) - (b.price ?? 0);
+        case "price_desc":
+          return (b.price ?? 0) - (a.price ?? 0);
+        case "discount": {
+          const discountA = (a.originalPrice ?? 0) - (a.price ?? 0);
+          const discountB = (b.originalPrice ?? 0) - (b.price ?? 0);
+          return discountB - discountA;
+        }
+        case "newest":
+        default:
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      }
+    });
   }, [
     dbListings,
     nearbyMode,
@@ -232,6 +253,7 @@ export default function MarketplacePage() {
     searchQuery,
     isbnQuery,
     priceRange,
+    sortBy,
   ]);
 
   const activeFiltersCount = [
@@ -478,6 +500,18 @@ export default function MarketplacePage() {
             />
           </div>
 
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-full sm:w-[220px]">
+              <SelectValue placeholder="Ordenar" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Más recientes</SelectItem>
+              <SelectItem value="price_asc">Precio: de menor a mayor</SelectItem>
+              <SelectItem value="price_desc">Precio: de mayor a menor</SelectItem>
+              <SelectItem value="discount">Mayor ahorro</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="gap-2 lg:hidden">
@@ -513,21 +547,39 @@ export default function MarketplacePage() {
 
           <div className="flex-1">
             {loading ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
-                <h3 className="text-lg font-semibold text-foreground">
-                  Cargando anuncios...
-                </h3>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 9 }).map((_, index) => (
+                  <div key={index} className="overflow-hidden rounded-2xl border bg-card">
+                    <Skeleton className="aspect-[4/3] w-full" />
+                    <div className="space-y-3 p-4">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-5 w-full" />
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-6 w-20" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filteredListings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
-                <Search className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                <h3 className="text-lg font-semibold text-foreground">
-                  No se encontraron anuncios
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Prueba a cambiar los filtros o crea tu primer anuncio
-                </p>
-              </div>
+              <Empty className="rounded-2xl border border-dashed">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <PackageSearch />
+                  </EmptyMedia>
+                  <EmptyTitle>No hay anuncios con esos filtros</EmptyTitle>
+                  <EmptyDescription>
+                    Prueba a ampliar la búsqueda, quitar filtros o publicar el primer producto si todavía no hay oferta para eso.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>
+                    <Link href="/marketplace/new">
+                      <Button>Publicar anuncio</Button>
+                    </Link>
+                  </div>
+                </EmptyContent>
+              </Empty>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredListings.map((listing) => (
