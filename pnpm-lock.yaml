@@ -198,6 +198,13 @@ importers:
       typescript:
         specifier: 5.7.3
         version: 5.7.3
+    optionalDependencies:
+      '@next/swc-linux-x64-gnu':
+        specifier: 16.1.6
+        version: 16.1.6
+      '@next/swc-linux-x64-musl':
+        specifier: 16.1.6
+        version: 16.1.6
 
 packages:
 
