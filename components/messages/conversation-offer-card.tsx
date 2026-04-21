@@ -32,10 +32,13 @@ interface ConversationOfferCardProps {
   messageEventType: OfferEventType;
   messageActorRole: OfferActorRole;
   messageRound: number;
+  paymentStatus?: string | null;
   isActionable: boolean;
 }
 
-function getOfferStatusLabel(status: string | null) {
+function getOfferStatusLabel(status: string | null, paymentStatus?: string | null) {
+  if (paymentStatus === "paid") return "Pagada";
+  if (paymentStatus === "processing") return "Pago en proceso";
   switch (status) {
     case "accepted":
       return "Aceptada";
@@ -60,6 +63,7 @@ export function ConversationOfferCard({
   messageEventType,
   messageActorRole,
   messageRound,
+  paymentStatus,
   isActionable,
 }: ConversationOfferCardProps) {
   const router = useRouter();
@@ -78,8 +82,9 @@ export function ConversationOfferCard({
   const isSeller = !!offer.seller_id && currentUserId === offer.seller_id;
   const isBuyer = !!offer.buyer_id && currentUserId === offer.buyer_id;
   const currentTurn = offer.current_actor ?? (messageStatus === "countered" ? "buyer" : messageStatus === "pending" ? "seller" : "closed");
-  const canSellerRespond = isActionable && isSeller && ["pending", "countered"].includes(localStatus || "") && currentTurn === "seller";
-  const canBuyerRespond = isActionable && isBuyer && ["pending", "countered"].includes(localStatus || "") && currentTurn === "buyer";
+  const isPaymentLocked = ["paid", "processing"].includes(paymentStatus || "");
+  const canSellerRespond = !isPaymentLocked && isActionable && isSeller && ["pending", "countered"].includes(localStatus || "") && currentTurn === "seller";
+  const canBuyerRespond = !isPaymentLocked && isActionable && isBuyer && ["pending", "countered"].includes(localStatus || "") && currentTurn === "buyer";
   const canRespond = canSellerRespond || canBuyerRespond;
   const roundsCount = Math.max(1, Number(offer.rounds_count || messageRound || 1));
   const canCounterAgain = roundsCount < 10;
@@ -145,7 +150,7 @@ export function ConversationOfferCard({
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Oferta en negociación</p>
           <p className="mt-1 text-sm font-semibold">{headline}</p>
           <p className="mt-1 text-xs text-slate-600">
-            Estado actual: {getOfferStatusLabel(localStatus)} · Ronda {roundsCount}/10
+            Estado actual: {getOfferStatusLabel(localStatus, paymentStatus)} · Ronda {roundsCount}/10
           </p>
         </div>
       </div>
@@ -198,12 +203,16 @@ export function ConversationOfferCard({
       {messageEventType === "accepted" ? (
         <div className="mt-3 space-y-3">
           <p className="text-xs text-slate-600">
-            La negociación ha terminado con acuerdo. Podéis seguir usando este chat para resolver dudas, concretar la entrega o gestionar el envío.
+            {paymentStatus === "paid"
+              ? "El pago se ha completado correctamente. Podéis seguir usando este chat para concretar la entrega o resolver dudas finales."
+              : paymentStatus === "processing"
+                ? "El comprador ya ha iniciado el pago. En cuanto Stripe lo confirme, el anuncio pasará a vendido."
+                : "La negociación ha terminado con acuerdo. Podéis seguir usando este chat para resolver dudas, concretar la entrega o gestionar el envío."}
           </p>
 
-          {isBuyer ? (
+          {isBuyer && paymentStatus !== "paid" ? (
             <Button asChild size="sm">
-              <Link href={`/checkout/${offer.id}`}>Preparar pago</Link>
+              <Link href={`/checkout/${offer.id}`}>{paymentStatus === "processing" ? "Continuar pago" : "Preparar pago"}</Link>
             </Button>
           ) : null}
         </div>

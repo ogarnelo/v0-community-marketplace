@@ -43,7 +43,11 @@ export async function createOfferFlow(params: {
   }
 
   if (existingOffer) {
-    throw new Error("Ya tienes una negociación activa para este anuncio.");
+    return {
+      offerId: existingOffer.id,
+      conversationId,
+      alreadyExists: true,
+    };
   }
 
   const now = new Date().toISOString();

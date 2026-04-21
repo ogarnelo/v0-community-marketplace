@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { redirect, notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { redirect } from "next/navigation";
+import { ChevronLeft, CircleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent } from "@/components/ui/card";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CheckoutSummary } from "@/components/payments/checkout-summary";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import { getAcceptedOfferAmount } from "@/lib/payments/offer-amount";
@@ -25,6 +27,39 @@ type OfferPageRow = {
   } | null;
 };
 
+function CheckoutUnavailable({
+  title,
+  description,
+  href = "/messages",
+  cta = "Volver a mensajes",
+}: {
+  title: string;
+  description: string;
+  href?: string;
+  cta?: string;
+}) {
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-2xl">
+        <Card className="border-amber-200">
+          <CardHeader className="items-center text-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+              <CircleAlert className="size-7" />
+            </div>
+            <CardTitle className="text-2xl">{title}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-slate-600">{description}</p>
+            <Button asChild>
+              <Link href={href}>{cta}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  );
+}
+
 export default async function CheckoutOfferPage({
   params,
 }: {
@@ -41,7 +76,9 @@ export default async function CheckoutOfferPage({
     redirect("/auth");
   }
 
-  const { data: offer, error } = await supabase
+  const adminSupabase = createAdminClient();
+
+  const { data: offer, error } = await adminSupabase
     .from("listing_offers")
     .select(`
       id,
@@ -66,7 +103,12 @@ export default async function CheckoutOfferPage({
   const typedOffer = (offer as OfferPageRow | null) ?? null;
 
   if (error || !typedOffer) {
-    notFound();
+    return (
+      <CheckoutUnavailable
+        title="Pago no disponible"
+        description="No hemos encontrado la oferta que intentas pagar. Puede que ya no exista o que el enlace no sea válido."
+      />
+    );
   }
 
   if (typedOffer.buyer_id !== user.id) {
@@ -74,11 +116,23 @@ export default async function CheckoutOfferPage({
   }
 
   if (typedOffer.status !== "accepted") {
-    redirect(`/messages/${typedOffer.listing_id}`);
+    return (
+      <CheckoutUnavailable
+        title="Esta oferta aún no se puede pagar"
+        description="El checkout solo está disponible para ofertas aceptadas. Revisa la conversación para ver el estado actual de la negociación."
+        href="/messages"
+      />
+    );
   }
 
   if (!typedOffer.listings) {
-    notFound();
+    return (
+      <CheckoutUnavailable
+        title="Anuncio no disponible"
+        description="No hemos podido cargar la información del anuncio asociada a esta oferta."
+        href="/messages"
+      />
+    );
   }
 
   const acceptedAmount = getAcceptedOfferAmount(typedOffer);

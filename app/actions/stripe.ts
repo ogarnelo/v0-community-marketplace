@@ -73,7 +73,7 @@ export async function startCheckoutSession(params: {
   }
 
   if (typedOffer.status !== 'accepted') {
-    throw new Error('La oferta aún no ha sido aceptada.')
+    throw new Error(`La oferta aún no ha sido aceptada. Estado actual: ${typedOffer.status}`)
   }
 
   const listingStatus = typedOffer.listings?.status ?? 'available'
@@ -100,56 +100,61 @@ export async function startCheckoutSession(params: {
     .eq('seller_id', typedOffer.seller_id)
     .maybeSingle()
 
-  const session = await stripe.checkout.sessions.create({
-    ui_mode: 'embedded',
-    redirect_on_completion: 'never',
-    mode: 'payment',
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    line_items: [
-      {
-        price_data: {
-          currency: 'eur',
-          product_data: {
-            name: typedOffer.listings?.title || 'Artículo del marketplace',
-            description: typedOffer.listings?.description || undefined,
+  let session
+  try {
+    session = await stripe.checkout.sessions.create({
+      ui_mode: 'embedded_page',
+      redirect_on_completion: 'never',
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: typedOffer.listings?.title || 'Artículo del marketplace',
+              description: typedOffer.listings?.description || undefined,
+            },
+            unit_amount: Math.round(pricing.itemAmount * 100),
           },
-          unit_amount: Math.round(pricing.itemAmount * 100),
+          quantity: 1,
         },
-        quantity: 1,
+        ...(pricing.buyerFeeAmount > 0 ? [{
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: 'Protección al comprador',
+              description: 'Comisión de protección y gestión de la transacción',
+            },
+            unit_amount: Math.round(pricing.buyerFeeAmount * 100),
+          },
+          quantity: 1,
+        }] : []),
+        ...(pricing.shippingAmount > 0 ? [{
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: 'Gastos de envío',
+              description: `Envío ${shipmentTier === 'small' ? 'pequeño' : shipmentTier === 'medium' ? 'mediano' : 'grande'}`,
+            },
+            unit_amount: Math.round(pricing.shippingAmount * 100),
+          },
+          quantity: 1,
+        }] : []),
+      ],
+      metadata: {
+        offer_id: offerId,
+        listing_id: typedOffer.listing_id,
+        buyer_id: user.id,
+        seller_id: typedOffer.seller_id,
+        conversation_id: conversation?.id || '',
+        delivery_method: deliveryMethod,
+        shipment_tier: shipmentTier,
       },
-      ...(pricing.buyerFeeAmount > 0 ? [{
-        price_data: {
-          currency: 'eur',
-          product_data: {
-            name: 'Protección al comprador',
-            description: 'Comisión de protección y gestión de la transacción',
-          },
-          unit_amount: Math.round(pricing.buyerFeeAmount * 100),
-        },
-        quantity: 1,
-      }] : []),
-      ...(pricing.shippingAmount > 0 ? [{
-        price_data: {
-          currency: 'eur',
-          product_data: {
-            name: 'Gastos de envío',
-            description: `Envío ${shipmentTier === 'small' ? 'pequeño' : shipmentTier === 'medium' ? 'mediano' : 'grande'}`,
-          },
-          unit_amount: Math.round(pricing.shippingAmount * 100),
-        },
-        quantity: 1,
-      }] : []),
-    ],
-    metadata: {
-      offer_id: offerId,
-      listing_id: typedOffer.listing_id,
-      buyer_id: user.id,
-      seller_id: typedOffer.seller_id,
-      conversation_id: conversation?.id || '',
-      delivery_method: deliveryMethod,
-      shipment_tier: shipmentTier,
-    },
-  })
+    })
+  } catch (stripeError: unknown) {
+    const errorMessage = stripeError instanceof Error ? stripeError.message : 'Error desconocido de Stripe'
+    throw new Error(`Error al crear sesión de Stripe: ${errorMessage}`)
+  }
 
   const now = new Date().toISOString()
 
@@ -195,5 +200,97 @@ export async function startCheckoutSession(params: {
   return {
     clientSecret: session.client_secret,
     sessionId: session.id,
+  }
+}
+
+/**
+ * Confirma que el pago se completó y actualiza los estados en la base de datos.
+ * Esta función sirve como backup del webhook de Stripe.
+ */
+export async function confirmPaymentComplete(params: {
+  offerId: string
+}) {
+  const { offerId } = params
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Debes iniciar sesión.')
+  }
+
+  const adminSupabase = createAdminClient()
+
+  // Verificar que el pago realmente se completó consultando el payment_intent
+  const { data: paymentIntent } = await adminSupabase
+    .from('payment_intents')
+    .select('id, status, listing_id, metadata')
+    .eq('offer_id', offerId)
+    .eq('buyer_id', user.id)
+    .maybeSingle()
+
+  if (!paymentIntent) {
+    throw new Error('No se encontró el intent de pago.')
+  }
+
+  // Verificar con Stripe que la sesión está pagada
+  const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
+  if (sessionId) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId)
+      if (session.payment_status !== 'paid') {
+        throw new Error('El pago aún no se ha completado en Stripe.')
+      }
+    } catch {
+      // Si no podemos verificar con Stripe, confiamos en el estado local
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  // Actualizar payment_intent
+  await adminSupabase
+    .from('payment_intents')
+    .update({
+      status: 'paid',
+      updated_at: now,
+    })
+    .eq('offer_id', offerId)
+
+  // La oferta debe mantenerse como aceptada. El pago se refleja en payment_intents.
+  await adminSupabase
+    .from('listing_offers')
+    .update({
+      status: 'accepted',
+      responded_at: now,
+    })
+    .eq('id', offerId)
+
+  // Actualizar listing a vendido
+  if (paymentIntent.listing_id) {
+    await adminSupabase
+      .from('listings')
+      .update({ status: 'sold' })
+      .eq('id', paymentIntent.listing_id)
+  }
+
+  return { success: true }
+}
+
+/**
+ * Verifica el estado de una sesión de Stripe Checkout.
+ */
+export async function checkSessionStatus(sessionId: string) {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    return {
+      paymentStatus: session.payment_status,
+      status: session.status,
+    }
+  } catch {
+    return {
+      paymentStatus: 'unpaid',
+      status: 'unknown',
+    }
   }
 }

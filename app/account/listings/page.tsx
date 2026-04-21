@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
+import { DeleteListingButton } from "@/components/account/delete-listing-button";
 import { ListingOffersPanel, type SellerOfferItem } from "@/components/account/listing-offers-panel";
 import type { ListingOfferRow, ListingPhotoRow, ListingRow, ProfileRow } from "@/lib/types/marketplace";
 import {
@@ -176,7 +177,7 @@ export default async function MyListingsPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
                       <Button asChild variant="outline" size="sm" className="gap-2">
                         <Link href={`/marketplace/edit/${listing.id}`}>
                           <Pencil className="h-4 w-4" />
@@ -187,6 +188,8 @@ export default async function MyListingsPage() {
                       <Button asChild variant="ghost" size="sm">
                         <Link href={`/marketplace/listing/${listing.id}`}>Ver anuncio</Link>
                       </Button>
+
+                      <DeleteListingButton listingId={listing.id} title={listing.title} />
                     </div>
                   </div>
 

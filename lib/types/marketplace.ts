@@ -41,6 +41,12 @@ export type ProfileRow = {
   business_description?: string | null;
   website?: string | null;
   is_business_verified?: boolean | null;
+  shipping_address_line1?: string | null;
+  shipping_address_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_region?: string | null;
+  shipping_country_code?: string | null;
+  phone?: string | null;
   created_at?: string | null;
 };
 
@@ -100,6 +106,12 @@ export type AccountProfileRow = {
   business_description?: string | null;
   website?: string | null;
   is_business_verified?: boolean | null;
+  shipping_address_line1?: string | null;
+  shipping_address_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_region?: string | null;
+  shipping_country_code?: string | null;
+  phone?: string | null;
   created_at: string | null;
 };
 
@@ -154,6 +166,49 @@ export type DonationRequestEventRow = {
   note: string | null;
   status_snapshot: string | null;
   created_at: string | null;
+};
+
+export type PaymentIntentRow = {
+  id: string;
+  offer_id?: string | null;
+  listing_id?: string | null;
+  conversation_id?: string | null;
+  buyer_id?: string | null;
+  seller_id?: string | null;
+  amount: number | null;
+  currency?: string | null;
+  provider?: string | null;
+  provider_payment_intent_id?: string | null;
+  status: string | null;
+  platform_fee_amount?: number | null;
+  buyer_fee_amount?: number | null;
+  shipping_amount?: number | null;
+  seller_net_amount?: number | null;
+  shipment_tier?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type ShipmentRow = {
+  id: string;
+  payment_intent_id?: string | null;
+  listing_id?: string | null;
+  conversation_id?: string | null;
+  buyer_id?: string | null;
+  seller_id?: string | null;
+  provider?: string | null;
+  service_code?: string | null;
+  shipment_tier?: string | null;
+  status?: string | null;
+  shipping_amount?: number | null;
+  tracking_code?: string | null;
+  tracking_url?: string | null;
+  label_url?: string | null;
+  provider_shipment_id?: string | null;
+  payload?: Record<string, any> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export function buildPhotosMap(rows: ListingPhotoRow[]) {

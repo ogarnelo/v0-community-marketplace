@@ -75,10 +75,10 @@ export default async function MessagesPage() {
   if (safeConversations.length === 0) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
           <ConversationsSidebar conversations={[]} currentUserId={user.id} />
 
-          <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8">
+          <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8 lg:min-h-[calc(100vh-10rem)]">
             <div className="max-w-md text-center">
               <h2 className="text-2xl font-semibold">Aún no tienes mensajes</h2>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -187,13 +187,13 @@ export default async function MessagesPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
         <ConversationsSidebar
           conversations={conversationSummaries}
           currentUserId={user.id}
         />
 
-        <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8">
+        <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8 lg:min-h-[calc(100vh-10rem)]">
           <div className="max-w-md text-center">
             <h2 className="text-2xl font-semibold">Selecciona una conversación</h2>
             <p className="mt-2 text-sm text-muted-foreground">

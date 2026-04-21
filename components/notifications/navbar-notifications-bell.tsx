@@ -41,6 +41,28 @@ function formatRelativeDate(value: string) {
   });
 }
 
+
+function getNotificationLabel(kind: string) {
+  switch (kind) {
+    case "new_follower":
+      return "Seguimiento";
+    case "offer_created":
+    case "offer_countered":
+    case "offer_accepted":
+    case "offer_rejected":
+      return "Oferta";
+    case "payment_succeeded":
+    case "payment_failed":
+      return "Pago";
+    case "shipment_created":
+    case "shipment_updated":
+    case "shipment_delivered":
+      return "Envío";
+    default:
+      return "Actividad";
+  }
+}
+
 export function NavbarNotificationsBell({
   currentUserId,
   initialNotifications = [],
@@ -133,7 +155,7 @@ export function NavbarNotificationsBell({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant={unreadCount > 0 ? "secondary" : "ghost"} size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 ? (
             <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
@@ -144,9 +166,9 @@ export function NavbarNotificationsBell({
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-96">
+      <DropdownMenuContent align="end" className="w-[26rem]">
         <div className="flex items-center justify-between px-2 py-1.5">
-          <DropdownMenuLabel className="p-0">Notificaciones</DropdownMenuLabel>
+          <div><DropdownMenuLabel className="p-0">Notificaciones</DropdownMenuLabel><p className="text-xs text-muted-foreground">{unreadCount > 0 ? `Tienes ${unreadCount} sin leer` : "Todo al día"}</p></div>
           <Button
             type="button"
             variant="ghost"
@@ -177,6 +199,14 @@ export function NavbarNotificationsBell({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {getNotificationLabel(notification.kind)}
+                    </span>
+                    {!notification.read_at ? (
+                      <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                    ) : null}
+                  </div>
                   <p className="truncate text-sm font-medium">{notification.title}</p>
                   {notification.body ? (
                     <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -184,9 +214,6 @@ export function NavbarNotificationsBell({
                     </p>
                   ) : null}
                 </div>
-                {!notification.read_at ? (
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-600" />
-                ) : null}
               </div>
               <p className="text-[11px] text-muted-foreground">{formatRelativeDate(notification.created_at)}</p>
             </DropdownMenuItem>

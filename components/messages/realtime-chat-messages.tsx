@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Download, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { DonationRequestRow, ListingOfferRow } from "@/lib/types/marketplace";
+import type { DonationRequestRow, ListingOfferRow, PaymentIntentRow } from "@/lib/types/marketplace";
 import { parseOfferChatBody } from "@/lib/offers/chat-message";
 import { parseDonationChatBody } from "@/lib/donations/chat-message";
 import { ConversationOfferCard } from "@/components/messages/conversation-offer-card";
@@ -34,6 +34,7 @@ type RealtimeChatMessagesProps = {
   initialUnreadMessageIds?: string[];
   initialOffers?: ListingOfferRow[];
   initialDonationRequests?: DonationRequestRow[];
+  initialPaymentIntents?: PaymentIntentRow[];
 };
 
 function formatMessageDate(date: string) {
@@ -128,6 +129,7 @@ export default function RealtimeChatMessages({
   initialUnreadMessageIds = [],
   initialOffers = [],
   initialDonationRequests = [],
+  initialPaymentIntents = [],
 }: RealtimeChatMessagesProps) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -137,6 +139,9 @@ export default function RealtimeChatMessages({
   );
   const [donationRequestsById, setDonationRequestsById] = useState<Record<string, DonationRequestRow>>(
     () => Object.fromEntries(initialDonationRequests.map((request) => [request.id, request]))
+  );
+  const [paymentIntentsByOfferId, setPaymentIntentsByOfferId] = useState<Record<string, PaymentIntentRow>>(
+    () => Object.fromEntries(initialPaymentIntents.filter((row) => !!row.offer_id).map((row) => [row.offer_id as string, row]))
   );
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -153,6 +158,12 @@ export default function RealtimeChatMessages({
       Object.fromEntries(initialDonationRequests.map((request) => [request.id, request]))
     );
   }, [initialDonationRequests]);
+
+  useEffect(() => {
+    setPaymentIntentsByOfferId(
+      Object.fromEntries(initialPaymentIntents.filter((row) => !!row.offer_id).map((row) => [row.offer_id as string, row]))
+    );
+  }, [initialPaymentIntents]);
 
   useEffect(() => {
     setHighlightedIds(new Set(initialUnreadMessageIds));
@@ -278,6 +289,7 @@ export default function RealtimeChatMessages({
         const parsedDonation = parseDonationChatBody(message.body);
         const relatedOffer = parsedOffer ? offersById[parsedOffer.offerId] : null;
         const relatedDonationRequest = parsedDonation ? donationRequestsById[parsedDonation.requestId] : null;
+        const relatedPaymentIntent = parsedOffer ? paymentIntentsByOfferId[parsedOffer.offerId] : null;
         const isLatestOfferMessage = !!parsedOffer && latestOfferMessageIdByOfferId[parsedOffer.offerId] === message.id;
         const isLatestDonationMessage =
           !!parsedDonation && latestDonationMessageIdByRequestId[parsedDonation.requestId] === message.id;
@@ -320,10 +332,10 @@ export default function RealtimeChatMessages({
           <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine
-                  ? "bg-sky-500 text-white"
-                  : isHighlighted
-                    ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
-                    : "bg-slate-100 text-slate-900"
+                ? "bg-sky-500 text-white"
+                : isHighlighted
+                  ? "border border-emerald-300 bg-emerald-50 text-slate-900 ring-2 ring-emerald-100"
+                  : "bg-slate-100 text-slate-900"
                 }`}
             >
               {!isMine && isHighlighted ? (
@@ -396,10 +408,10 @@ export default function RealtimeChatMessages({
 
               <div
                 className={`mt-2 flex items-center justify-between gap-3 text-xs ${isMine
-                    ? "text-sky-100"
-                    : isHighlighted
-                      ? "text-emerald-700"
-                      : "text-slate-500"
+                  ? "text-sky-100"
+                  : isHighlighted
+                    ? "text-emerald-700"
+                    : "text-slate-500"
                   }`}
               >
                 <span>{formatMessageDate(message.created_at)}</span>
