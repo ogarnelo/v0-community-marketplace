@@ -1,17 +1,15 @@
+
 "use client";
 
-import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
-interface ShareListingButtonProps {
+type Props = {
   title: string;
-}
+  url: string;
+};
 
-export function ShareListingButton({ title }: ShareListingButtonProps) {
-  const handleShare = async () => {
-    const url = window.location.href;
-
+export default function ShareListingButton({ title, url }: Props) {
+  const share = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
@@ -20,28 +18,26 @@ export function ShareListingButton({ title }: ShareListingButtonProps) {
           url,
         });
         return;
-      } catch {
-        // fallback a copiar enlace
-      }
+      } catch { }
     }
 
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Enlace copiado al portapapeles");
-    } catch {
-      toast.error("No se pudo compartir el anuncio");
-    }
+    await navigator.clipboard.writeText(url);
+    alert("Enlace copiado");
+  };
+
+  const shareWhatsApp = () => {
+    const text = encodeURIComponent(`Mira este anuncio en Wetudy: ${title} ${url}`);
+    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   };
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      className="inline-flex h-11 items-center justify-center gap-2 rounded-full"
-      onClick={handleShare}
-    >
-      <Share2 className="h-4 w-4" />
-      Compartir
-    </Button>
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="outline" onClick={share}>
+        Compartir
+      </Button>
+      <Button type="button" variant="outline" onClick={shareWhatsApp}>
+        WhatsApp
+      </Button>
+    </div>
   );
 }
