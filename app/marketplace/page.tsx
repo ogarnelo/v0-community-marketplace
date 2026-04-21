@@ -53,6 +53,9 @@ export default function MarketplacePage() {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserSchoolId, setCurrentUserSchoolId] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [latestBoostMap, setLatestBoostMap] = useState<Map<string, string>>(new Map());
 
   const [nearbyMode, setNearbyMode] = useState(false);
   const [radius, setRadius] = useState("10");
@@ -61,6 +64,7 @@ export default function MarketplacePage() {
   const [listingType, setListingType] = useState("all");
   const [condition, setCondition] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [followedOnly, setFollowedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isbnQuery, setIsbnQuery] = useState("");
   const [priceRange, setPriceRange] = useState([0, 200]);
@@ -80,9 +84,13 @@ export default function MarketplacePage() {
 
         let favoriteIds = new Set<string>();
         let viewerSchoolId = "";
+        let nextCurrentUserId = "";
+        let nextFollowingIds: string[] = [];
 
         if (user) {
-          const [{ data: favorites }, { data: profile }] = await Promise.all([
+          nextCurrentUserId = user.id;
+
+          const [{ data: favorites }, { data: profile }, { data: follows }] = await Promise.all([
             supabase
               .from("favorites")
               .select("listing_id")
@@ -92,11 +100,17 @@ export default function MarketplacePage() {
               .select("id, full_name, user_type, school_id")
               .eq("id", user.id)
               .maybeSingle(),
+            supabase
+              .from("user_follows")
+              .select("following_id")
+              .eq("follower_id", user.id),
           ]);
 
           favoriteIds = new Set(
             (favorites || []).map((fav: { listing_id: string }) => fav.listing_id)
           );
+
+          nextFollowingIds = (follows || []).map((row: { following_id: string }) => row.following_id);
 
           const typedProfile = (profile as ProfileRow | null) ?? null;
 
@@ -107,6 +121,8 @@ export default function MarketplacePage() {
         }
 
         setCurrentUserSchoolId(viewerSchoolId);
+        setCurrentUserId(nextCurrentUserId);
+        setFollowingIds(nextFollowingIds);
 
         const { data: listingsData, error: listingsError } = await supabase
           .from("listings")
@@ -126,20 +142,40 @@ export default function MarketplacePage() {
         const listingIds = listingRows.map((item) => item.id);
 
         let photosMap = new Map<string, string[]>();
+        let boostsMap = new Map<string, string>();
 
         if (listingIds.length > 0) {
-          const { data: listingPhotos, error: listingPhotosError } = await supabase
-            .from("listing_photos")
-            .select("id, listing_id, url, sort_order")
-            .in("listing_id", listingIds)
-            .order("sort_order", { ascending: true });
+          const [{ data: listingPhotos, error: listingPhotosError }, { data: boostsData, error: boostsError }] = await Promise.all([
+            supabase
+              .from("listing_photos")
+              .select("id, listing_id, url, sort_order")
+              .in("listing_id", listingIds)
+              .order("sort_order", { ascending: true }),
+            supabase
+              .from("listing_boosts")
+              .select("listing_id, created_at")
+              .in("listing_id", listingIds)
+              .order("created_at", { ascending: false }),
+          ]);
 
           if (listingPhotosError) {
             console.error("Error cargando listing_photos:", listingPhotosError);
           } else {
             photosMap = buildPhotosMap((listingPhotos || []) as ListingPhotoRow[]);
           }
+
+          if (boostsError) {
+            console.error("Error cargando listing_boosts:", boostsError);
+          } else {
+            for (const boost of (boostsData || []) as { listing_id: string; created_at: string }[]) {
+              if (!boostsMap.has(boost.listing_id)) {
+                boostsMap.set(boost.listing_id, boost.created_at);
+              }
+            }
+          }
         }
+
+        setLatestBoostMap(boostsMap);
 
         const mapped: MarketplaceListing[] = listingRows.map((item) => ({
           id: item.id,
@@ -222,6 +258,7 @@ export default function MarketplacePage() {
       }
 
       if (nearbyMode && l.distance && l.distance > Number(radius)) return false;
+      if (followedOnly && (!l.sellerId || !followingIds.includes(l.sellerId))) return false;
 
       return true;
     });
@@ -238,8 +275,11 @@ export default function MarketplacePage() {
           return discountB - discountA;
         }
         case "newest":
-        default:
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        default: {
+          const boostedAtA = latestBoostMap.get(a.id) || a.createdAt || "";
+          const boostedAtB = latestBoostMap.get(b.id) || b.createdAt || "";
+          return new Date(boostedAtB || 0).getTime() - new Date(boostedAtA || 0).getTime();
+        }
       }
     });
   }, [
@@ -254,6 +294,9 @@ export default function MarketplacePage() {
     isbnQuery,
     priceRange,
     sortBy,
+    followedOnly,
+    followingIds,
+    latestBoostMap,
   ]);
 
   const activeFiltersCount = [
@@ -263,6 +306,7 @@ export default function MarketplacePage() {
     condition !== "all",
     priceRange[0] > 0 || priceRange[1] < 200,
     isbnQuery.length > 0,
+    followedOnly,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
@@ -275,10 +319,21 @@ export default function MarketplacePage() {
     setPriceRange([0, 200]);
     setPriceMin("");
     setPriceMax("");
+    setFollowedOnly(false);
   };
 
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
+      {currentUserId ? (
+        <div className="flex items-center justify-between rounded-lg border p-3">
+          <div>
+            <Label className="text-sm font-medium text-foreground">Solo perfiles que sigues</Label>
+            <p className="text-xs text-muted-foreground">Muestra solo anuncios de usuarios que ya sigues.</p>
+          </div>
+          <Switch checked={followedOnly} onCheckedChange={setFollowedOnly} />
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-2">
         <Label className="text-sm font-medium text-foreground">Categoria</Label>
         <Select value={category} onValueChange={setCategory}>

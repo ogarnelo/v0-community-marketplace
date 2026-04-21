@@ -14,6 +14,7 @@ import { Pencil, Plus, Package } from "lucide-react";
 import { ListingStatusActions } from "@/components/account/listing-status-actions";
 import { DeleteListingButton } from "@/components/account/delete-listing-button";
 import { ListingOffersPanel, type SellerOfferItem } from "@/components/account/listing-offers-panel";
+import BoostListingButton from "@/components/account/boost-listing-button";
 import type { ListingOfferRow, ListingPhotoRow, ListingRow, ProfileRow } from "@/lib/types/marketplace";
 import {
   formatPrice,

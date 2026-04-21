@@ -36,6 +36,7 @@ import {
   getUserTypeLabel,
 } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
+import FollowUserButton from "@/components/profile/follow-user-button";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export default async function PublicProfilePage({
   const supabase = await createClient();
 
   const navbarData = await getNavbarData(supabase);
+  const currentUserId = navbarData.currentUserId;
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -64,6 +66,17 @@ export default async function PublicProfilePage({
   }
 
   const stats = await getUserProfileStats(supabase, id);
+
+  let initialFollowing = false;
+  if (currentUserId && currentUserId !== id) {
+    const { data: follow } = await supabase
+      .from("user_follows")
+      .select("follower_id")
+      .eq("follower_id", currentUserId)
+      .eq("following_id", id)
+      .maybeSingle();
+    initialFollowing = !!follow;
+  }
 
   const { data: activeListingsData } = await supabase
     .from("listings")
@@ -144,6 +157,12 @@ export default async function PublicProfilePage({
                     <Badge variant="secondary">Perfil público</Badge>
                     {typedProfile.is_business_verified ? <Badge>Negocio verificado</Badge> : null}
                   </div>
+
+                  {currentUserId && currentUserId !== id ? (
+                    <div className="mt-4">
+                      <FollowUserButton targetUserId={id} initialFollowing={initialFollowing} />
+                    </div>
+                  ) : null}
                 </div>
 
                 <UserBadgePills badges={badges} className="mt-4 justify-center" />

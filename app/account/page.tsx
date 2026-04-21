@@ -12,6 +12,7 @@ import AccountProfileForm from "@/components/account/account-profile-form";
 import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
+import InviteFriendsCard from "@/components/account/invite-friends-card";
 
 type SafeUserMetadata = {
   full_name?: string;
@@ -67,6 +68,7 @@ export default async function AccountPage() {
   const averageRatingLabel = typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—";
   const badges = stats.badgesForUserType(userType);
   const shippingReady = Boolean(typedProfile?.shipping_address_line1 && typedProfile?.shipping_city && typedProfile?.postal_code && typedProfile?.shipping_country_code);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
@@ -80,6 +82,10 @@ export default async function AccountPage() {
           <Button asChild variant="outline"><Link href="/account/listings">Mis anuncios</Link></Button>
           <Button asChild variant="outline"><Link href="/account/reviews">Mis opiniones</Link></Button>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <InviteFriendsCard appUrl={appUrl} referralCode={user.id} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

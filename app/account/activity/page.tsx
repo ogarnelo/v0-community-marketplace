@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DonationRequestRow, ListingOfferRow, ListingRow, PaymentIntentRow, ProfileRow, ShipmentRow } from "@/lib/types/marketplace";
 import { ShipmentStatusCard } from "@/components/shipments/shipment-status-card";
+import { ActivityNotificationsFeed } from "@/components/account/activity-notifications-feed";
+import type { AppNotificationRow } from "@/lib/notifications";
 
 function getActivityStatusLabel(status: string | null) {
   switch (status) {
@@ -56,7 +58,7 @@ export default async function AccountActivityPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
 
-  const [{ data: sentOffersData }, { data: receivedOffersData }, { data: myListingsData }, { data: sentDonationData }, { data: buyerPaymentsData }, { data: sellerPaymentsData }, { data: buyerShipmentsData }, { data: sellerShipmentsData }] = await Promise.all([
+  const [{ data: sentOffersData }, { data: receivedOffersData }, { data: myListingsData }, { data: sentDonationData }, { data: buyerPaymentsData }, { data: sellerPaymentsData }, { data: buyerShipmentsData }, { data: sellerShipmentsData }, { data: notificationsData }] = await Promise.all([
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id),
@@ -65,6 +67,7 @@ export default async function AccountActivityPage() {
     adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("shipments").select("*").eq("buyer_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("shipments").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+    adminSupabase.from("notifications").select("id, user_id, kind, title, body, href, metadata, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
   ]);
 
   const myListings = (myListingsData || []) as ListingRow[];
@@ -83,6 +86,7 @@ export default async function AccountActivityPage() {
   const sellerPayments = (sellerPaymentsData || []) as PaymentIntentRow[];
   const buyerShipments = (buyerShipmentsData || []) as ShipmentRow[];
   const sellerShipments = (sellerShipmentsData || []) as ShipmentRow[];
+  const notifications = (notificationsData || []) as AppNotificationRow[];
 
   const allOffers = [...sentOffers, ...receivedOffers];
   const allDonations = [...sentDonations, ...receivedDonations];
@@ -124,6 +128,10 @@ export default async function AccountActivityPage() {
           <p className="text-muted-foreground">Seguimiento de ofertas, pagos, donaciones y envíos.</p>
         </div>
         <Link href="/account/listings" className="text-sm font-medium text-[#7EBA28] hover:underline">Volver a mis anuncios</Link>
+      </div>
+
+      <div className="mb-6">
+        <ActivityNotificationsFeed notifications={notifications} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

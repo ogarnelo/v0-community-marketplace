@@ -371,6 +371,12 @@ export default function NewListingForm({
 
       await uploadListingPhotos(listingId, photos);
 
+      await fetch("/api/listings/notify-followers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
+      }).catch(() => null);
+
       router.push(`/marketplace/listing/${listingId}`);
       router.refresh();
     } catch (error: any) {
