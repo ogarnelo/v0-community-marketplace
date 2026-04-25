@@ -46,6 +46,12 @@ function getNotificationLabel(kind: string) {
   switch (kind) {
     case "new_follower":
       return "Seguimiento";
+    case "followed_user_listing_created":
+      return "Nuevo anuncio";
+    case "listing_favorited":
+      return "Favorito";
+    case "listing_boosted":
+      return "Impulso";
     case "offer_created":
     case "offer_countered":
     case "offer_accepted":

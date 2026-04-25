@@ -377,7 +377,7 @@ export default function NewListingForm({
         body: JSON.stringify({ listingId }),
       }).catch(() => null);
 
-      router.push(`/marketplace/listing/${listingId}`);
+      router.push(`/marketplace/listing/${listingId}?published=1`);
       router.refresh();
     } catch (error: any) {
       console.error("Error publicando anuncio:", error);

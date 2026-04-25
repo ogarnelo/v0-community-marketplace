@@ -1,10 +1,17 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/notifications";
+import { sendFollowedUserListingEmail } from "@/lib/emails/transactional";
+
+function getBaseUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient();
+  const adminSupabase = createAdminClient();
 
   const {
     data: { user },
@@ -22,18 +29,18 @@ export async function POST(request: Request) {
   }
 
   const [{ data: listing }, { data: profile }, { data: follows }] = await Promise.all([
-    supabase
+    adminSupabase
       .from("listings")
       .select("id, title, seller_id")
       .eq("id", listingId)
       .eq("seller_id", user.id)
       .maybeSingle(),
-    supabase
+    adminSupabase
       .from("profiles")
-      .select("full_name, business_name")
+      .select("id, full_name, business_name")
       .eq("id", user.id)
       .maybeSingle(),
-    supabase
+    adminSupabase
       .from("user_follows")
       .select("follower_id")
       .eq("following_id", user.id),
@@ -57,8 +64,10 @@ export async function POST(request: Request) {
     user.user_metadata?.full_name ||
     "Un usuario";
 
+  const listingUrl = `${getBaseUrl()}/marketplace/listing/${listing.id}`;
+
   const { error } = await createNotifications(
-    supabase,
+    adminSupabase,
     followerIds.map((followerId: string) => ({
       user_id: followerId,
       kind: "followed_user_listing_created",
@@ -75,6 +84,29 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: "No se pudieron crear las notificaciones" }, { status: 500 });
   }
+
+  const { data: followerProfiles } = await adminSupabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", followerIds);
+
+  const profileNameById = new Map((followerProfiles || []).map((row: any) => [row.id, row.full_name]));
+
+  await Promise.allSettled(
+    followerIds.map(async (followerId: string) => {
+      const { data: userData } = await adminSupabase.auth.admin.getUserById(followerId);
+      const email = userData?.user?.email;
+      if (!email) return;
+
+      await sendFollowedUserListingEmail({
+        to: email,
+        recipientName: profileNameById.get(followerId) || null,
+        publisherName,
+        listingTitle: listing.title || "Nuevo anuncio",
+        listingUrl,
+      });
+    })
+  );
 
   return NextResponse.json({ ok: true, sent: followerIds.length });
 }

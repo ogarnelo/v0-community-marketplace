@@ -74,6 +74,12 @@ export function FavoriteButton({
         if (error) throw error;
 
         setIsFavorite(true);
+
+        await fetch("/api/favorites/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listingId }),
+        }).catch(() => null);
       }
 
       router.refresh();
