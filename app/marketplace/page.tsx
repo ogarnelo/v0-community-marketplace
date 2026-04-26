@@ -48,6 +48,7 @@ import {
 } from "@/lib/types/marketplace";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import SaveSearchButton from "@/components/marketplace/save-search-button";
 
 export default function MarketplacePage() {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
@@ -59,14 +60,14 @@ export default function MarketplacePage() {
 
   const [nearbyMode, setNearbyMode] = useState(false);
   const [radius, setRadius] = useState("10");
-  const [category, setCategory] = useState("all");
-  const [gradeLevel, setGradeLevel] = useState("all");
-  const [listingType, setListingType] = useState("all");
-  const [condition, setCondition] = useState("all");
+  const [category, setCategory] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("category") || "all" : "all");
+  const [gradeLevel, setGradeLevel] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("grade") || "all" : "all");
+  const [listingType, setListingType] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("type") || "all" : "all");
+  const [condition, setCondition] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("condition") || "all" : "all");
   const [sortBy, setSortBy] = useState("newest");
   const [followedOnly, setFollowedOnly] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isbnQuery, setIsbnQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") || "" : "");
+  const [isbnQuery, setIsbnQuery] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("isbn") || "" : "");
   const [priceRange, setPriceRange] = useState([0, 200]);
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
@@ -566,6 +567,19 @@ export default function MarketplacePage() {
               <SelectItem value="discount">Mayor ahorro</SelectItem>
             </SelectContent>
           </Select>
+
+          {currentUserId ? (
+            <SaveSearchButton
+              query={searchQuery}
+              category={category}
+              gradeLevel={gradeLevel}
+              condition={condition}
+              listingType={listingType}
+              isbn={isbnQuery}
+              minPrice={priceRange[0] > 0 ? priceRange[0] : null}
+              maxPrice={priceRange[1] < 200 ? priceRange[1] : null}
+            />
+          ) : null}
 
           <Sheet>
             <SheetTrigger asChild>

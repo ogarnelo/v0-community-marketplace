@@ -190,6 +190,7 @@ export default async function MyListingsPage() {
                         <Link href={`/marketplace/listing/${listing.id}`}>Ver anuncio</Link>
                       </Button>
 
+                      <BoostListingButton listingId={listing.id} />
                       <DeleteListingButton listingId={listing.id} title={listing.title} />
                     </div>
                   </div>

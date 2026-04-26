@@ -109,6 +109,7 @@ export default function EditListingPage() {
   const [selectedCondition, setSelectedCondition] = useState("");
   const [isDonation, setIsDonation] = useState(false);
   const [price, setPrice] = useState("");
+  const [originalLoadedPrice, setOriginalLoadedPrice] = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
 
   const [isbn, setIsbn] = useState("");
@@ -197,9 +198,9 @@ export default function EditListingPage() {
         setSelectedCondition(typedListing.condition || "");
         setIsDonation(getListingTypeFromRow(typedListing) === "donation");
         setIsbn(typedListing.isbn || "");
-        setPrice(
-          typeof typedListing.price === "number" ? String(typedListing.price) : ""
-        );
+        const loadedPrice = typeof typedListing.price === "number" ? String(typedListing.price) : "";
+        setPrice(loadedPrice);
+        setOriginalLoadedPrice(loadedPrice);
         setOriginalPrice(
           typeof typedListing.original_price === "number"
             ? String(typedListing.original_price)
@@ -495,6 +496,14 @@ export default function EditListingPage() {
         if (insertPhotosError) {
           throw insertPhotosError;
         }
+      }
+
+      if (originalLoadedPrice !== price) {
+        await fetch("/api/favorites/price-alert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listingId }),
+        }).catch(() => null);
       }
 
       router.push(`/marketplace/listing/${listingId}`);

@@ -15,17 +15,11 @@ function normalizeNumber(value: unknown) {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json().catch(() => null);
-
   const query = normalize(body?.query);
   const category = normalize(body?.category);
   const gradeLevel = normalize(body?.gradeLevel);
@@ -35,18 +29,7 @@ export async function POST(request: Request) {
   const minPrice = normalizeNumber(body?.minPrice);
   const maxPrice = normalizeNumber(body?.maxPrice);
 
-  const name =
-    normalize(body?.name) ||
-    [
-      query,
-      isbn ? `ISBN ${isbn}` : null,
-      category,
-      gradeLevel,
-      listingType,
-    ]
-      .filter(Boolean)
-      .join(" · ") ||
-    "Búsqueda guardada";
+  const name = normalize(body?.name) || [query, isbn ? `ISBN ${isbn}` : null, category, gradeLevel, listingType].filter(Boolean).join(" · ") || "Búsqueda guardada";
 
   const { data, error } = await supabase
     .from("saved_searches")
@@ -67,9 +50,6 @@ export async function POST(request: Request) {
     .select("id")
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id });
 }

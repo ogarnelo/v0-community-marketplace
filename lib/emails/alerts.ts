@@ -1,22 +1,29 @@
+const RESEND_API_URL = "https://api.resend.com/emails";
+
 type SendEmailInput = {
   to: string;
   subject: string;
   html: string;
+  text?: string;
 };
 
 function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 }
 
-async function sendEmail({ to, subject, html }: SendEmailInput) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL || "Wetudy <no-reply@wetudy.com>";
+function getFromEmail() {
+  return process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || null;
+}
 
-  if (!apiKey || !to) {
-    return { ok: false, skipped: true };
+async function sendEmail({ to, subject, html, text }: SendEmailInput) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = getFromEmail();
+
+  if (!apiKey || !from || !to) {
+    return { skipped: true as const };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await fetch(RESEND_API_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -24,116 +31,62 @@ async function sendEmail({ to, subject, html }: SendEmailInput) {
     },
     body: JSON.stringify({
       from,
-      to,
+      to: [to],
       subject,
       html,
+      text: text || subject,
     }),
   });
 
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    console.error("Resend email error:", response.status, text);
-    return { ok: false, skipped: false };
+    const body = await response.text().catch(() => "");
+    console.error("Resend email error:", response.status, body);
+    return { skipped: false as const, error: body };
   }
 
-  return { ok: true, skipped: false };
+  return { skipped: false as const, ok: true as const };
 }
 
-export async function sendNewListingEmail({
-  to,
-  title,
-  listingId,
-}: {
-  to: string;
-  title: string;
-  listingId: string;
-}) {
-  const url = `${getAppUrl()}/marketplace/listing/${listingId}`;
-
+export async function sendNewListingEmail(params: { to: string; title: string; url: string }) {
   return sendEmail({
-    to,
-    subject: "Nuevo anuncio de un perfil que sigues",
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5">
-        <h2>Nuevo anuncio en Wetudy</h2>
-        <p>Un perfil que sigues ha publicado: <strong>${title}</strong></p>
-        <p><a href="${url}">Ver anuncio</a></p>
-      </div>
-    `,
+    to: params.to,
+    subject: "Nuevo anuncio disponible en Wetudy",
+    text: `Nuevo anuncio: ${params.title}. ${params.url}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Nuevo anuncio en Wetudy</h2><p><strong>${params.title}</strong></p><p><a href="${params.url}">Ver anuncio</a></p></div>`,
   });
 }
 
-export async function sendSavedSearchMatchEmail({
-  to,
-  searchName,
-  listingTitle,
-  listingId,
-}: {
+export async function sendSavedSearchMatchEmail(params: {
   to: string;
   searchName: string;
   listingTitle: string;
   listingId: string;
 }) {
-  const url = `${getAppUrl()}/marketplace/listing/${listingId}`;
-
+  const url = `${getAppUrl()}/marketplace/listing/${params.listingId}`;
   return sendEmail({
-    to,
-    subject: `Nuevo resultado para "${searchName}"`,
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5">
-        <h2>Hay un nuevo anuncio compatible</h2>
-        <p>Tu búsqueda guardada <strong>${searchName}</strong> tiene un nuevo resultado:</p>
-        <p><strong>${listingTitle}</strong></p>
-        <p><a href="${url}">Ver anuncio</a></p>
-      </div>
-    `,
+    to: params.to,
+    subject: `Nuevo resultado para "${params.searchName}"`,
+    text: `Hay un nuevo resultado para ${params.searchName}: ${params.listingTitle}. ${url}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Nuevo resultado compatible</h2><p>Tu búsqueda guardada <strong>${params.searchName}</strong> tiene un nuevo resultado:</p><p><strong>${params.listingTitle}</strong></p><p><a href="${url}">Ver anuncio</a></p></div>`,
   });
 }
 
-export async function sendFavoriteSavedEmail({
-  to,
-  listingTitle,
-  listingId,
-}: {
-  to: string;
-  listingTitle: string;
-  listingId: string;
-}) {
-  const url = `${getAppUrl()}/marketplace/listing/${listingId}`;
-
+export async function sendFavoriteSavedEmail(params: { to: string; listingTitle: string; listingId: string }) {
+  const url = `${getAppUrl()}/marketplace/listing/${params.listingId}`;
   return sendEmail({
-    to,
+    to: params.to,
     subject: "Alguien ha guardado tu anuncio",
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5">
-        <h2>Tu anuncio ha recibido interés</h2>
-        <p>Alguien ha guardado <strong>${listingTitle}</strong> en favoritos.</p>
-        <p><a href="${url}">Ver anuncio</a></p>
-      </div>
-    `,
+    text: `Alguien ha guardado ${params.listingTitle}. ${url}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Tu anuncio está generando interés</h2><p>Alguien ha guardado <strong>${params.listingTitle}</strong> en favoritos.</p><p><a href="${url}">Ver anuncio</a></p></div>`,
   });
 }
 
-export async function sendPriceDropEmail({
-  to,
-  listingTitle,
-  listingId,
-}: {
-  to: string;
-  listingTitle: string;
-  listingId: string;
-}) {
-  const url = `${getAppUrl()}/marketplace/listing/${listingId}`;
-
+export async function sendPriceDropEmail(params: { to: string; listingTitle: string; listingId: string }) {
+  const url = `${getAppUrl()}/marketplace/listing/${params.listingId}`;
   return sendEmail({
-    to,
+    to: params.to,
     subject: "Un anuncio guardado ha cambiado de precio",
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5">
-        <h2>Precio actualizado</h2>
-        <p>El anuncio <strong>${listingTitle}</strong> ha cambiado de precio.</p>
-        <p><a href="${url}">Ver anuncio</a></p>
-      </div>
-    `,
+    text: `${params.listingTitle} ha cambiado de precio. ${url}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Precio actualizado</h2><p>El anuncio <strong>${params.listingTitle}</strong> ha cambiado de precio.</p><p><a href="${url}">Ver anuncio</a></p></div>`,
   });
 }
