@@ -41,17 +41,20 @@ function formatRelativeDate(value: string) {
   });
 }
 
-
 function getNotificationLabel(kind: string) {
   switch (kind) {
     case "new_follower":
       return "Seguimiento";
     case "followed_user_listing_created":
       return "Nuevo anuncio";
-    case "listing_favorited":
+    case "saved_search_match":
+      return "Búsqueda";
+    case "favorite_added":
       return "Favorito";
     case "listing_boosted":
       return "Impulso";
+    case "price_drop":
+      return "Precio";
     case "offer_created":
     case "offer_countered":
     case "offer_accepted":
@@ -94,11 +97,13 @@ export function NavbarNotificationsBell({
 
       const nextItems = (data || []) as AppNotificationRow[];
       setNotifications(nextItems);
+
       const { count } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
         .eq("user_id", currentUserId)
         .is("read_at", null);
+
       if (!isMounted) return;
       setUnreadCount(count || 0);
     };
@@ -132,7 +137,12 @@ export function NavbarNotificationsBell({
     setMarkingAllRead(true);
     try {
       await fetch("/api/notifications/read-all", { method: "POST" });
-      setNotifications((prev) => prev.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
+      setNotifications((prev) =>
+        prev.map((item) => ({
+          ...item,
+          read_at: item.read_at || new Date().toISOString(),
+        }))
+      );
       setUnreadCount(0);
     } finally {
       setMarkingAllRead(false);
@@ -174,7 +184,12 @@ export function NavbarNotificationsBell({
 
       <DropdownMenuContent align="end" className="w-[26rem]">
         <div className="flex items-center justify-between px-2 py-1.5">
-          <div><DropdownMenuLabel className="p-0">Notificaciones</DropdownMenuLabel><p className="text-xs text-muted-foreground">{unreadCount > 0 ? `Tienes ${unreadCount} sin leer` : "Todo al día"}</p></div>
+          <div>
+            <DropdownMenuLabel className="p-0">Notificaciones</DropdownMenuLabel>
+            <p className="text-xs text-muted-foreground">
+              {unreadCount > 0 ? `Tienes ${unreadCount} sin leer` : "Todo al día"}
+            </p>
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -197,7 +212,7 @@ export function NavbarNotificationsBell({
           notifications.map((notification) => (
             <DropdownMenuItem
               key={notification.id}
-              className="block cursor-pointer space-y-1 py-3"
+              className="block cursor-pointer space-y-2 py-3"
               onSelect={(event) => {
                 event.preventDefault();
                 void openNotification(notification);
@@ -229,6 +244,9 @@ export function NavbarNotificationsBell({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/account/activity">Ver toda la actividad</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account/saved-searches">Búsquedas guardadas</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
