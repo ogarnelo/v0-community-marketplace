@@ -45,6 +45,7 @@ export default async function SuperHealthPage() {
   if (!user) redirect("/admin/login");
 
   let isSuperAdmin = false;
+
   try {
     const { data: role } = await supabase
       .from("user_roles")
@@ -52,6 +53,7 @@ export default async function SuperHealthPage() {
       .eq("user_id", user.id)
       .eq("role", "super_admin")
       .maybeSingle();
+
     isSuperAdmin = Boolean(role);
   } catch {
     isSuperAdmin = false;
@@ -60,9 +62,12 @@ export default async function SuperHealthPage() {
   if (!isSuperAdmin) redirect("/account");
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const healthUrl = `${appUrl}/api/health/full${process.env.LAUNCH_HEALTH_SECRET ? `?secret=${process.env.LAUNCH_HEALTH_SECRET}` : ""}`;
+  const healthUrl = `${appUrl}/api/health/full${
+    process.env.LAUNCH_HEALTH_SECRET ? `?secret=${process.env.LAUNCH_HEALTH_SECRET}` : ""
+  }`;
 
   let health: HealthPayload | null = null;
+
   try {
     const response = await fetch(healthUrl, { cache: "no-store" });
     health = await response.json();
@@ -113,7 +118,9 @@ export default async function SuperHealthPage() {
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div className="border-b p-4">
             <h2 className="text-lg font-semibold">Checks</h2>
-            <p className="text-sm text-muted-foreground">Generado el {new Date(health.generatedAt).toLocaleString("es-ES")}</p>
+            <p className="text-sm text-muted-foreground">
+              Generado el {new Date(health.generatedAt).toLocaleString("es-ES")}
+            </p>
           </div>
           <div className="divide-y">
             {health.checks.map((check) => (

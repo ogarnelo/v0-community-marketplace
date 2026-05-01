@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { getBoostPlan } from "@/lib/boosts/pricing";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -12,6 +15,13 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) {
+    return NextResponse.json(
+      { error: "Stripe no está configurado en el entorno actual." },
+      { status: 503 }
+    );
   }
 
   const body = await request.json().catch(() => null);
@@ -45,6 +55,7 @@ export async function POST(request: Request) {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const stripe = getStripe();
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",

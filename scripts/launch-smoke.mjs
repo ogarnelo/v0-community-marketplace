@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const baseUrl = (process.argv[2] || process.env.SMOKE_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+const inputBaseUrl = (process.argv[2] || process.env.SMOKE_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
 
-if (!baseUrl) {
+if (!inputBaseUrl) {
   console.error("Missing base URL. Use: node scripts/launch-smoke.mjs https://your-domain.com");
   process.exit(1);
 }
@@ -25,20 +25,25 @@ const routes = [
 
 let failed = 0;
 
-console.log(`\nWetudy launch smoke test: ${baseUrl}\n`);
+console.log(`\nWetudy launch smoke test: ${inputBaseUrl}\n`);
 
 for (const route of routes) {
-  const url = `${baseUrl}${route.path}`;
+  const url = `${inputBaseUrl}${route.path}`;
   const start = Date.now();
+
   try {
     const response = await fetch(url, {
       method: "GET",
-      redirect: "manual",
-      headers: { "user-agent": "wetudy-launch-smoke/1.0" },
+      redirect: "follow",
+      headers: { "user-agent": "wetudy-launch-smoke/1.1" },
     });
+
     const ms = Date.now() - start;
     const ok = route.expected.includes(response.status);
-    console.log(`${ok ? "✅" : "❌"} ${response.status} ${route.path} ${ms}ms`);
+    const finalUrl = response.url && response.url !== url ? ` → ${response.url}` : "";
+
+    console.log(`${ok ? "✅" : "❌"} ${response.status} ${route.path} ${ms}ms${finalUrl}`);
+
     if (!ok) failed += 1;
   } catch (error) {
     failed += 1;

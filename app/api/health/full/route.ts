@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLaunchEnvSummary, redactEnvValue } from "@/lib/launch/required-env";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type CheckResult = {
   name: string;
@@ -70,21 +71,15 @@ export async function GET(request: NextRequest) {
       : `Faltan: ${envSummary.missingRequired.map((item) => item.key).join(", ")}`,
   });
 
-  if (envSummary.missingRecommended.length > 0) {
-    checks.push({
-      name: "environment.recommended",
-      ok: false,
-      severity: "warning",
-      message: `Recomendadas ausentes: ${envSummary.missingRecommended.map((item) => item.key).join(", ")}`,
-    });
-  } else {
-    checks.push({
-      name: "environment.recommended",
-      ok: true,
-      severity: "info",
-      message: "Variables recomendadas presentes",
-    });
-  }
+  checks.push({
+    name: "environment.recommended",
+    ok: envSummary.missingRecommended.length === 0,
+    severity: envSummary.missingRecommended.length === 0 ? "info" : "warning",
+    message:
+      envSummary.missingRecommended.length === 0
+        ? "Variables recomendadas presentes"
+        : `Recomendadas ausentes: ${envSummary.missingRecommended.map((item) => item.key).join(", ")}`,
+  });
 
   try {
     const { result, latencyMs } = await measure(async () => {
@@ -147,9 +142,9 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (process.env.STRIPE_SECRET_KEY) {
+  if (process.env.STRIPE_SECRET_KEY?.trim()) {
     try {
-      const { latencyMs } = await measure(async () => await stripe.balance.retrieve());
+      const { latencyMs } = await measure(async () => await getStripe().balance.retrieve());
       checks.push({
         name: "stripe.api",
         ok: true,

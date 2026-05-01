@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getBoostPlan, getFeaturedUntil } from "@/lib/boosts/pricing";
 import { createNotification } from "@/lib/notifications";
+
+export const dynamic = "force-dynamic";
 
 export default async function BoostSuccessPage({
   searchParams,
@@ -25,6 +27,23 @@ export default async function BoostSuccessPage({
 
   if (!sessionId) redirect("/account/listings");
 
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-10">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm">
+          <h1 className="text-2xl font-bold">Stripe no está configurado</h1>
+          <p className="mt-2 text-muted-foreground">
+            No podemos confirmar el boost porque falta STRIPE_SECRET_KEY en este entorno.
+          </p>
+          <Link href="/account/listings" className="mt-4 inline-flex rounded-lg border px-4 py-2 text-sm font-medium">
+            Volver a mis anuncios
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const stripe = getStripe();
   const session = await stripe.checkout.sessions.retrieve(sessionId);
 
   if (session.payment_status !== "paid") {

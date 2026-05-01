@@ -31,6 +31,7 @@ export function NavbarMessagesBadge({
         }
 
         let hiddenConversationIds = new Set<string>();
+
         try {
           const { data: hiddenRows } = await supabase
             .from("hidden_conversations")
@@ -45,7 +46,7 @@ export function NavbarMessagesBadge({
         }
 
         const conversationIds = (conversations || [])
-          .map((c: any) => c.id)
+          .map((conversation: { id: string }) => conversation.id)
           .filter((id: string) => !hiddenConversationIds.has(id));
 
         if (!isMounted) return;
@@ -73,12 +74,20 @@ export function NavbarMessagesBadge({
 
     const messagesChannel = supabase
       .channel(`navbar-unread-messages-${currentUserId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => void loadUnreadCount())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => void loadUnreadCount()
+      )
       .subscribe();
 
     const conversationsChannel = supabase
       .channel(`navbar-unread-conversations-${currentUserId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => void loadUnreadCount())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversations" },
+        () => void loadUnreadCount()
+      )
       .subscribe();
 
     return () => {
@@ -96,3 +105,5 @@ export function NavbarMessagesBadge({
     </span>
   );
 }
+
+export default NavbarMessagesBadge;
