@@ -14,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { buildPhotosMap, type ListingPhotoRow, type MarketplaceListing } from "@/lib/types/marketplace";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
+import ListingStatusCard from "@/components/marketplace/listing-status-card";
+import SellerTrustCard from "@/components/marketplace/seller-trust-card";
+import ReportListingButton from "@/components/marketplace/report-listing-button";
+import ListingViewTracker from "@/components/marketplace/listing-view-tracker";
 
 function formatPrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
@@ -55,16 +59,18 @@ export default async function ListingDetailPage({
   const isDonation = getListingTypeFromRow(listing as any) === "donation";
   const isAvailable = listing.status === "available";
 
-  const [{ data: seller }, { data: viewerProfile }, { data: reviews }, { data: activeListings }, { data: favorite }] = await Promise.all([
+  const [{ data: seller }, { data: viewerProfile }, { data: transactionReviews }, { data: legacyReviews }, { data: activeListings }, { data: favorite }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, business_name, user_type, is_business_verified").eq("id", listing.seller_id).maybeSingle(),
     currentUserId ? supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle() : Promise.resolve({ data: null }),
+    listing.seller_id ? supabase.from("transaction_reviews").select("rating").eq("reviewed_user_id", listing.seller_id) : Promise.resolve({ data: [] }),
     listing.seller_id ? supabase.from("reviews").select("rating").eq("reviewed_user_id", listing.seller_id) : Promise.resolve({ data: [] }),
     listing.seller_id ? supabase.from("listings").select("id").eq("seller_id", listing.seller_id).eq("status", "available") : Promise.resolve({ data: [] }),
     currentUserId ? supabase.from("favorites").select("listing_id").eq("user_id", currentUserId).eq("listing_id", listing.id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
-  const reviewCount = reviews?.length || 0;
-  const averageRating = reviewCount > 0 ? (reviews || []).reduce((sum: number, row: any) => sum + Number(row.rating || 0), 0) / reviewCount : null;
+  const reviewRows = (transactionReviews && transactionReviews.length > 0 ? transactionReviews : legacyReviews) || [];
+  const reviewCount = reviewRows.length;
+  const averageRating = reviewCount > 0 ? reviewRows.reduce((sum: number, row: any) => sum + Number(row.rating || 0), 0) / reviewCount : null;
   const sellerActiveListings = activeListings?.length || 0;
 
   const photos = (photosData || []).map((item: { url: string }) => item.url).filter(Boolean);
@@ -72,14 +78,14 @@ export default async function ListingDetailPage({
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   const shareUrl = appUrl ? `${appUrl}/marketplace/listing/${listing.id}` : `/marketplace/listing/${listing.id}`;
   const currentSchoolId = viewerProfile?.school_id || "";
+  const originalPrice = listing.original_price ?? listing.estimated_retail_price;
+  const savings = typeof originalPrice === "number" && typeof listing.price === "number" ? Math.max(0, originalPrice - listing.price) : 0;
 
-  const savings = typeof listing.original_price === "number" && typeof listing.price === "number" ? Math.max(0, listing.original_price - listing.price) : 0;
-
-  const relatedQuery = supabase.from("listings").select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, school_id, status, created_at").eq("status", "available").neq("id", listing.id).limit(8);
-  if (listing.isbn) relatedQuery.eq("isbn", listing.isbn);
-  else if (listing.category && listing.grade_level) relatedQuery.eq("category", listing.category).eq("grade_level", listing.grade_level);
-  else if (listing.category) relatedQuery.eq("category", listing.category);
-  else if (listing.grade_level) relatedQuery.eq("grade_level", listing.grade_level);
+  let relatedQuery = supabase.from("listings").select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, school_id, status, created_at").eq("status", "available").neq("id", listing.id).limit(8);
+  if (listing.isbn) relatedQuery = relatedQuery.eq("isbn", listing.isbn);
+  else if (listing.category && listing.grade_level) relatedQuery = relatedQuery.eq("category", listing.category).eq("grade_level", listing.grade_level);
+  else if (listing.category) relatedQuery = relatedQuery.eq("category", listing.category);
+  else if (listing.grade_level) relatedQuery = relatedQuery.eq("grade_level", listing.grade_level);
 
   const { data: relatedRows } = await relatedQuery;
   const relatedIds = (relatedRows || []).map((item: any) => item.id);
@@ -110,6 +116,7 @@ export default async function ListingDetailPage({
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
+      <ListingViewTracker listingId={listing.id} />
       <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
         <Link href="/marketplace" className="hover:underline">Marketplace</Link>
         <span>/</span>
@@ -144,7 +151,7 @@ export default async function ListingDetailPage({
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Precio</p>
               <p className="text-3xl font-bold">{isDonation ? "Donación" : formatPrice(listing.price)}</p>
-              {!isDonation && typeof listing.original_price === "number" ? <p className="text-sm text-muted-foreground">Precio original: {formatPrice(listing.original_price)}</p> : null}
+              {!isDonation && typeof originalPrice === "number" ? <p className="text-sm text-muted-foreground">Precio original: {formatPrice(originalPrice)}</p> : null}
               {!isDonation && savings > 0 ? <p className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">Ahorras {formatPrice(savings)}</p> : null}
             </div>
 
@@ -154,38 +161,34 @@ export default async function ListingDetailPage({
               ) : isAvailable ? (
                 isDonation ? <RequestDonationButton listingId={listing.id} /> : <><BuyNowButton listingId={listing.id} currentPrice={listing.price} /><MakeOfferButton listingId={listing.id} currentPrice={listing.price} /></>
               ) : (
-                <div className="rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">Este anuncio ya no acepta nuevas compras ni ofertas. Las conversaciones existentes siguen disponibles.</div>
+                <ListingStatusCard status={listing.status} />
               )}
-              {!isOwnListing ? <Link href={`/messages?listing=${listing.id}`}><Button className="w-full" variant="secondary">Hablar con el vendedor</Button></Link> : null}
-              <div className="flex flex-wrap items-center gap-2">
-                {currentUserId && !isOwnListing ? <FavoriteButton listingId={listing.id} initialIsFavorite={!!favorite} className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" showLabel /> : null}
-                <ShareListingButton title={displayTitle} url={shareUrl} />
-              </div>
+              <FavoriteButton listingId={listing.id} initialIsFavorite={Boolean(favorite)} />
+              <ShareListingButton title={displayTitle} url={shareUrl} />
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="text-lg font-semibold">Vendedor</h2>
-            <div className="mt-3 space-y-2 text-sm">
-              <p className="font-medium">{seller?.business_name || seller?.full_name || "Usuario"}</p>
-              <p className="text-muted-foreground">{seller?.user_type === "business" ? "Negocio local" : "Miembro de la comunidad"}</p>
-              <div className="flex flex-wrap gap-2 text-xs">
-                {averageRating ? <span className="rounded-full bg-yellow-50 px-2 py-1 font-medium text-yellow-700">⭐ {averageRating.toFixed(1)} · {reviewCount} opiniones</span> : <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">Sin opiniones todavía</span>}
-                <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">{sellerActiveListings} anuncios activos</span>
-                {seller?.is_business_verified ? <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">Negocio verificado</span> : null}
-              </div>
-              {seller?.id ? <Link href={`/profile/${seller.id}`} className="text-primary hover:underline">Ver perfil</Link> : null}
-            </div>
-          </div>
+          <SellerTrustCard
+            sellerId={seller?.id}
+            sellerName={seller?.business_name || seller?.full_name || "Usuario"}
+            userType={seller?.user_type}
+            isBusinessVerified={seller?.is_business_verified}
+            averageRating={averageRating}
+            reviewCount={reviewCount}
+            activeListingsCount={sellerActiveListings}
+          />
 
           <div className="rounded-2xl border bg-card p-5 shadow-sm">
             <h2 className="text-lg font-semibold">Compra protegida en Wetudy</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>✓ Paga dentro de la plataforma para mantener historial y seguimiento.</li>
               <li>✓ El chat conserva ofertas, contraofertas y acuerdos.</li>
-              <li>✓ En envíos, el estado queda visible en actividad y mensajes.</li>
+              <li>✓ Si algo falla, puedes abrir una incidencia desde tu cuenta.</li>
+              <li>✓ Valora la operación al finalizar para reforzar la confianza de la comunidad.</li>
             </ul>
           </div>
+
+          <ReportListingButton listingId={listing.id} />
         </div>
       </div>
     </div>

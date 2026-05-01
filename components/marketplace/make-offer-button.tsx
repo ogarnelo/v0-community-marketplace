@@ -21,14 +21,11 @@ interface MakeOfferButtonProps {
 
 export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProps) {
   const [open, setOpen] = useState(false);
-  const [offerPrice, setOfferPrice] = useState(
-    typeof currentPrice === "number" ? String(currentPrice) : ""
-  );
+  const [offerPrice, setOfferPrice] = useState(typeof currentPrice === "number" ? String(currentPrice) : "");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (loading) return;
-
     setLoading(true);
 
     try {
@@ -38,25 +35,24 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
         body: JSON.stringify({ listingId, offeredPrice: offerPrice }),
       });
 
-      const payload = await response.json();
+      const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
         if (payload?.redirectTo || payload?.conversationId) {
           window.location.assign(payload.redirectTo || `/messages/${payload.conversationId}`);
           return;
         }
-
         throw new Error(payload?.error || "No se pudo enviar la oferta.");
       }
 
       setOpen(false);
-
-      if (payload?.conversationId) {
+      if (payload?.redirectTo) {
+        window.location.assign(payload.redirectTo);
+      } else if (payload?.conversationId) {
         window.location.assign(`/messages/${payload.conversationId}`);
-        return;
+      } else {
+        window.location.assign("/messages");
       }
-
-      alert("Oferta enviada correctamente.");
     } catch (error: any) {
       alert(error?.message || "No se pudo enviar la oferta.");
     } finally {
@@ -67,13 +63,11 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" variant="outline" className="w-full">
-          Contraofertar
-        </Button>
+        <Button size="lg" variant="outline" className="w-full">Hacer oferta</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Enviar contraoferta</DialogTitle>
+          <DialogTitle>Hacer una oferta</DialogTitle>
           <DialogDescription>
             El vendedor podrá aceptarla, rechazarla o proponerte otro precio. Se abrirá el chat automáticamente.
           </DialogDescription>
@@ -81,23 +75,12 @@ export function MakeOfferButton({ listingId, currentPrice }: MakeOfferButtonProp
 
         <div className="space-y-2">
           <Label htmlFor="offerPrice">Tu oferta (€)</Label>
-          <Input
-            id="offerPrice"
-            type="number"
-            min="1"
-            step="0.01"
-            value={offerPrice}
-            onChange={(event) => setOfferPrice(event.target.value)}
-          />
+          <Input id="offerPrice" type="number" min="1" step="0.01" value={offerPrice} onChange={(event) => setOfferPrice(event.target.value)} />
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Cancelar
-          </Button>
-          <Button type="button" onClick={handleSubmit} disabled={loading}>
-            {loading ? "Enviando..." : "Enviar contraoferta"}
-          </Button>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button type="button" onClick={handleSubmit} disabled={loading}>{loading ? "Enviando..." : "Enviar oferta"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

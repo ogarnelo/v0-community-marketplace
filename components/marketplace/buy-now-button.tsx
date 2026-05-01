@@ -45,6 +45,22 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
     });
   }, [currentPrice, deliveryMethod, shipmentTier]);
 
+  const goTo = (payload: any) => {
+    if (payload?.redirectTo) {
+      window.location.assign(payload.redirectTo);
+      return;
+    }
+    if (payload?.offerId) {
+      window.location.assign(`/checkout/${payload.offerId}`);
+      return;
+    }
+    if (payload?.conversationId) {
+      window.location.assign(`/messages/${payload.conversationId}`);
+      return;
+    }
+    window.location.assign("/messages");
+  };
+
   const handleSubmit = async () => {
     if (loading) return;
     setLoading(true);
@@ -60,25 +76,18 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
         }),
       });
 
-      const payload = await response.json();
+      const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        if (payload?.redirectTo || payload?.conversationId) {
-          window.location.assign(payload.redirectTo || `/messages/${payload.conversationId}`);
+        if (payload?.redirectTo || payload?.conversationId || payload?.offerId) {
+          goTo(payload);
           return;
         }
-
         throw new Error(payload?.error || "No se pudo iniciar la compra.");
       }
 
       setOpen(false);
-
-      if (payload?.conversationId) {
-        window.location.assign(`/messages/${payload.conversationId}`);
-        return;
-      }
-
-      alert("Compra iniciada correctamente.");
+      goTo(payload);
     } catch (error: any) {
       alert(error?.message || "No se pudo iniciar la compra.");
     } finally {
@@ -89,9 +98,9 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="w-full gap-2">
+        <Button size="lg" className="w-full gap-2" disabled={!currentPrice}>
           <ShoppingBag className="h-4 w-4" />
-          Comprar
+          Comprar ahora
         </Button>
       </DialogTrigger>
 
@@ -99,17 +108,14 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
         <DialogHeader>
           <DialogTitle>Comprar ahora</DialogTitle>
           <DialogDescription>
-            Se abrirá la operación con el precio completo del anuncio y se dejará preparada para el checkout.
+            Se preparará el pago seguro dentro de Wetudy. Si ya tienes una conversación abierta, te llevaremos al lugar correcto.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Método de entrega</Label>
-            <Select
-              value={deliveryMethod}
-              onValueChange={(value) => setDeliveryMethod(value as DeliveryMethod)}
-            >
+            <Select value={deliveryMethod} onValueChange={(value) => setDeliveryMethod(value as DeliveryMethod)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona cómo quieres recibirlo" />
               </SelectTrigger>
@@ -123,10 +129,7 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
           {deliveryMethod === "shipping" ? (
             <div className="space-y-2">
               <Label>Tamaño del envío</Label>
-              <Select
-                value={shipmentTier}
-                onValueChange={(value) => setShipmentTier(value as ShipmentTier)}
-              >
+              <Select value={shipmentTier} onValueChange={(value) => setShipmentTier(value as ShipmentTier)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona el tamaño" />
                 </SelectTrigger>
@@ -139,33 +142,17 @@ export function BuyNowButton({ listingId, currentPrice }: BuyNowButtonProps) {
             </div>
           ) : null}
 
-          <div className="rounded-2xl border bg-muted/40 p-4 text-sm text-slate-700">
-            <div className="flex items-center justify-between gap-3">
-              <span>Artículo</span>
-              <span className="font-medium">{pricing.itemAmount.toFixed(2)} €</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <span>Envío</span>
-              <span className="font-medium">{pricing.shippingAmount.toFixed(2)} €</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <span>Buyer fee</span>
-              <span className="font-medium">{pricing.buyerFeeAmount.toFixed(2)} €</span>
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-base font-semibold text-slate-900">
-              <span>Total comprador</span>
-              <span>{pricing.totalBuyerAmount.toFixed(2)} €</span>
-            </div>
+          <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
+            <div className="flex items-center justify-between gap-3"><span>Artículo</span><span className="font-medium">{pricing.itemAmount.toFixed(2)} €</span></div>
+            <div className="mt-2 flex items-center justify-between gap-3"><span>Envío</span><span className="font-medium">{pricing.shippingAmount.toFixed(2)} €</span></div>
+            <div className="mt-2 flex items-center justify-between gap-3"><span>Protección Wetudy</span><span className="font-medium">{pricing.buyerFeeAmount.toFixed(2)} €</span></div>
+            <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-base font-semibold"><span>Total comprador</span><span>{pricing.totalBuyerAmount.toFixed(2)} €</span></div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Cancelar
-          </Button>
-          <Button type="button" onClick={handleSubmit} disabled={loading || !currentPrice}>
-            {loading ? "Preparando..." : "Continuar"}
-          </Button>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button type="button" onClick={handleSubmit} disabled={loading || !currentPrice}>{loading ? "Preparando..." : "Continuar al pago"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
