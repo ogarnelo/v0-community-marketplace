@@ -2,27 +2,31 @@
 
 export default function ShareButton({ listingId }: { listingId: string }) {
   const share = async () => {
-    const res = await fetch("/api/share/listing", {
+    const response = await fetch("/api/share/listing", {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ listingId }),
     });
 
-    const data = await res.json();
+    const data = await response.json().catch(() => null);
+    const url = data?.url || `${window.location.origin}/marketplace/listing/${listingId}`;
 
-    if (navigator.share) {
-      navigator.share({
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({
         title: "Mira este producto en Wetudy",
-        url: data.url,
+        url,
       });
-    } else {
-      navigator.clipboard.writeText(data.url);
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
       alert("Link copiado");
     }
   };
 
   return (
-    <button onClick={share} className="border px-3 py-2 rounded-lg">
+    <button type="button" onClick={share} className="rounded-lg border px-3 py-2">
       Compartir
     </button>
   );

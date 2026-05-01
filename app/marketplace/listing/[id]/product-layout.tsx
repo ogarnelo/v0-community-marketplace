@@ -1,23 +1,27 @@
+"use client";
+
 import StickyCTA from "@/components/ux/sticky-cta";
 
-export default function ProductLayout({ listing }: any) {
+export default function ProductLayout({ listing }: { listing: { id: string; title?: string | null; price?: number | null; description?: string | null } }) {
+  const price = typeof listing.price === "number" ? listing.price : 0;
+
   return (
     <div className="pb-24">
-      <div className="aspect-square bg-muted rounded-xl mb-4" />
+      <div className="mb-4 aspect-square rounded-xl bg-muted" />
 
       <div className="space-y-2">
-        <h1 className="text-xl font-bold">{listing.title}</h1>
-        <p className="text-2xl font-semibold">{listing.price}€</p>
+        <h1 className="text-xl font-bold">{listing.title || "Anuncio"}</h1>
+        {typeof listing.price === "number" ? <p className="text-2xl font-semibold">{listing.price}€</p> : null}
       </div>
 
-      <div className="mt-4 text-sm text-muted-foreground">
-        {listing.description}
-      </div>
+      {listing.description ? (
+        <div className="mt-4 text-sm text-muted-foreground">{listing.description}</div>
+      ) : null}
 
       <StickyCTA
-        price={listing.price}
-        onBuy={() => window.location.href = `/checkout?listing=${listing.id}`}
-        onOffer={() => window.location.href = `/messages/new?listing=${listing.id}`}
+        price={price}
+        onBuy={() => window.location.assign(`/marketplace/listing/${listing.id}`)}
+        onOffer={() => window.location.assign(`/marketplace/listing/${listing.id}`)}
       />
     </div>
   );
