@@ -17,6 +17,7 @@ import { buildPhotosMap, type ListingPhotoRow, type MarketplaceListing } from "@
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 import JsonLd from "@/components/seo/json-ld";
 import ListingViewTracker from "@/components/analytics/listing-view-tracker";
+import MobileListingActions from "@/components/marketplace/mobile-listing-actions";
 
 function formatPrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
@@ -90,7 +91,7 @@ export default async function ListingDetailPage({
   const [{ data: seller }, { data: viewerProfile }, { data: reviews }, { data: activeListings }, { data: favorite }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, business_name, user_type, is_business_verified").eq("id", listing.seller_id).maybeSingle(),
     currentUserId ? supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle() : Promise.resolve({ data: null }),
-    listing.seller_id ? supabase.from("reviews").select("rating").eq("reviewed_user_id", listing.seller_id) : Promise.resolve({ data: [] }),
+    listing.seller_id ? supabase.from("transaction_reviews").select("rating").eq("reviewed_user_id", listing.seller_id) : Promise.resolve({ data: [] }),
     listing.seller_id ? supabase.from("listings").select("id").eq("seller_id", listing.seller_id).eq("status", "available") : Promise.resolve({ data: [] }),
     currentUserId ? supabase.from("favorites").select("listing_id").eq("user_id", currentUserId).eq("listing_id", listing.id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
@@ -157,7 +158,7 @@ export default async function ListingDetailPage({
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
+    <div className="container mx-auto max-w-6xl px-4 py-8 pb-28 md:pb-8">
       <JsonLd data={productJsonLd} />
       <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
       <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
@@ -238,6 +239,7 @@ export default async function ListingDetailPage({
           </div>
         </div>
       </div>
+      <MobileListingActions listingId={listing.id} price={listing.price} isDonation={isDonation} isAvailable={isAvailable} isOwnListing={isOwnListing} />
     </div>
   );
 }

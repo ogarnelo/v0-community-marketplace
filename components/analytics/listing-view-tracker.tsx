@@ -20,12 +20,15 @@ export default function ListingViewTracker({
       eventName: MarketplaceEvents.ListingViewed,
       entityType: "listing",
       entityId: listingId,
-      properties: {
-        seller_id: sellerId,
-        category,
-        grade_level: gradeLevel,
-      },
+      properties: { seller_id: sellerId, category, grade_level: gradeLevel },
     });
+
+    void fetch("/api/signals/increment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listingId, field: "views" }),
+      keepalive: true,
+    }).catch(() => null);
   }, [category, gradeLevel, listingId, sellerId]);
 
   return null;

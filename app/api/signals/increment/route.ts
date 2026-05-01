@@ -1,50 +1,37 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const ALLOWED_FIELDS = new Set(["views", "favorites", "chats", "offers"]);
+
 export async function POST(req: Request) {
   const supabase = await createClient();
   const body = await req.json().catch(() => null);
 
-  const listingId = typeof body?.listingId === "string" ? body.listingId : null;
-  const field = typeof body?.field === "string" ? body.field : null;
+  const listingId = typeof body?.listingId === "string" ? body.listingId : "";
+  const field = typeof body?.field === "string" ? body.field : "";
 
-  if (!listingId || !field) {
+  if (!listingId || !ALLOWED_FIELDS.has(field)) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
 
-  const allowed = new Set(["views","favorites","chats","offers"]);
-  if (!allowed.has(field)) {
-    return NextResponse.json({ ok: false }, { status: 400 });
-  }
-
-  const { data: existing } = await supabase
-    .from("listing_signals")
-    .select("listing_id")
-    .eq("listing_id", listingId)
-    .maybeSingle();
-
-  if (!existing) {
-    await supabase.from("listing_signals").insert({
-      listing_id: listingId,
-      [field]: 1,
-      last_activity_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-  } else {
-    await supabase
-      .from("listing_signals")
-      .update({
-        [field]: (supabase as any).rpc ? undefined : undefined,
+  try {
+    await supabase.from("listing_signals").upsert(
+      {
+        listing_id: listingId,
         last_activity_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      })
-      .eq("listing_id", listingId);
+      },
+      { onConflict: "listing_id" }
+    );
 
-    // Fallback simple increment via SQL
-    await supabase.rpc("increment_listing_signal", {
+    const { error } = await supabase.rpc("increment_listing_signal", {
       p_listing_id: listingId,
       p_field: field,
-    }).catch(()=>{});
+    });
+
+    if (error) console.error("increment_listing_signal error", error);
+  } catch (error) {
+    console.error("signal increment failed", error);
   }
 
   return NextResponse.json({ ok: true });
