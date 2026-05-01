@@ -15,6 +15,19 @@ export default function MobileBottomNavigation({
   unreadMessagesCount?: number;
 }) {
   const pathname = usePathname();
+
+  const hideOnRoutes = [
+    "/marketplace/listing/",
+    "/messages/",
+    "/checkout",
+    "/boosts",
+    "/auth",
+  ];
+
+  if (hideOnRoutes.some((route) => pathname?.startsWith(route))) {
+    return null;
+  }
+
   const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
   const accountHref = isLoggedIn ? "/account" : "/auth";
   const messagesHref = isLoggedIn ? "/messages" : "/auth?next=/messages";
