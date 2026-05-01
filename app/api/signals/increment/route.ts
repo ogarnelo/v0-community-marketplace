@@ -29,11 +29,9 @@ export async function POST(req: Request) {
       p_field: field,
     });
 
-    if (error) {
-      console.warn("increment_listing_signal skipped", error.message);
-    }
+    if (error) console.error("increment_listing_signal error", error);
   } catch (error) {
-    console.warn("signal increment skipped", error);
+    console.error("signal increment failed", error);
   }
 
   return NextResponse.json({ ok: true });

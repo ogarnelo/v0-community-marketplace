@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test",
+    "cleanup:duplicates": "node scripts/cleanup-redundant-files.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -73,7 +75,10 @@
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "eslint": "^9.39.1",
+    "@eslint/js": "^9.39.1",
+    "typescript-eslint": "^8.46.4"
   },
   "optionalDependencies": {
     "@next/swc-linux-x64-gnu": "16.1.6",

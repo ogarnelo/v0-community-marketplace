@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
 import { NavbarNotificationsBell } from "@/components/notifications/navbar-notifications-bell";
 import { createClient } from "@/lib/supabase/client";
 import type { AppNotificationRow } from "@/lib/notifications";
@@ -46,18 +47,6 @@ interface NavbarProps {
 type ProfileUpdatedEventDetail = {
   full_name?: string | null;
 };
-
-function MessageCountPill({ count, className = "" }: { count?: number; className?: string }) {
-  if (!count || count <= 0) return null;
-
-  return (
-    <span
-      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold leading-none text-white ${className}`}
-    >
-      {count > 9 ? "9+" : count}
-    </span>
-  );
-}
 
 export function Navbar({
   isLoggedIn = false,
@@ -158,7 +147,10 @@ export function Navbar({
                     <Icon className="h-4 w-4" />
                     {label}
                     {href === "/messages" && showMessagesBadge ? (
-                      <MessageCountPill count={unreadMessagesCount} className="absolute -right-3 -top-2" />
+                      <NavbarMessagesBadge
+                        currentUserId={currentUserId as string}
+                        initialCount={unreadMessagesCount}
+                      />
                     ) : null}
                   </Link>
                 </Button>
@@ -256,7 +248,12 @@ export function Navbar({
                         <Icon className="h-4 w-4" />
                         {label}
                         {href === "/messages" && showMessagesBadge ? (
-                          <MessageCountPill count={unreadMessagesCount} className="ml-auto" />
+                          <span className="ml-auto">
+                            <NavbarMessagesBadge
+                              currentUserId={currentUserId as string}
+                              initialCount={unreadMessagesCount}
+                            />
+                          </span>
                         ) : null}
                       </Link>
                     </Button>

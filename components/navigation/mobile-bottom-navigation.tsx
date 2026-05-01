@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, Heart, MessageCircle, PlusCircle, User } from "lucide-react";
+import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
 
 export default function MobileBottomNavigation({
   isLoggedIn,
@@ -60,10 +61,8 @@ export default function MobileBottomNavigation({
             >
               <span className="relative">
                 <Icon className="h-5 w-5" />
-                {item.messages && currentUserId && unreadMessagesCount > 0 ? (
-                  <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
-                    {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
-                  </span>
+                {item.messages && currentUserId ? (
+                  <NavbarMessagesBadge currentUserId={currentUserId} initialCount={unreadMessagesCount} />
                 ) : null}
               </span>
               <span className="truncate">{item.label}</span>
