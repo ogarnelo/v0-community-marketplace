@@ -1,0 +1,4 @@
+import Link from "next/link";
+export const metadata = { title: 'Términos de uso' };
+export default function TerminosPage() { return <main className="mx-auto max-w-3xl px-4 py-10"><Link href="/" className="text-sm text-primary hover:underline">← Volver</Link><h1 className="mt-6 text-3xl font-bold">Términos de uso</h1><div className="prose prose-slate mt-6 max-w-none text-sm leading-7 text-muted-foreground"><p>Wetudy permite publicar, comprar, vender, donar y negociar material educativo. Cada usuario es responsable de la veracidad de sus anuncios y del cumplimiento de los acuerdos alcanzados.</p><p>La plataforma puede limitar cuentas, retirar anuncios o bloquear operaciones cuando detecte abuso, fraude, contenido prohibido o incumplimiento de normas.</p><p>Los pagos, boosts y servicios asociados pueden estar sujetos a comisiones visibles antes de confirmar la operación.</p><p>Este texto debe revisarse legalmente antes del lanzamiento definitivo.</p></div></main> }
+

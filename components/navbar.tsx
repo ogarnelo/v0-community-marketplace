@@ -9,6 +9,7 @@ import { NavbarNotificationsBell } from "@/components/notifications/navbar-notif
 import { createClient } from "@/lib/supabase/client";
 import type { AppNotificationRow } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -121,6 +122,7 @@ export function Navbar({
   };
 
   return (
+    <>
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
@@ -332,5 +334,7 @@ export function Navbar({
         )}
       </div>
     </header>
+    <MobileBottomNavigation isLoggedIn={isLoggedIn} currentUserId={currentUserId} unreadMessagesCount={unreadMessagesCount} />
+    </>
   );
 }

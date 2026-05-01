@@ -33,9 +33,9 @@ export function Footer() {
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">Centros</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="/register-school" className="text-sm text-muted-foreground hover:text-primary transition-colors">Registrar centro</Link></li>
-              <li><Link href="/admin/login" className="text-sm text-muted-foreground hover:text-primary transition-colors">Panel Colegio / AMPA</Link></li>
-              <li><Link href="/ranking" className="text-sm text-muted-foreground hover:text-primary transition-colors">Ranking de colegios</Link></li>
+              <li><Link href="/negocios" className="text-sm text-muted-foreground hover:text-primary transition-colors">Para negocios</Link></li>
+              <li><Link href="/catalogo" className="text-sm text-muted-foreground hover:text-primary transition-colors">Catálogo educativo</Link></li>
+              <li><Link href="/impacto" className="text-sm text-muted-foreground hover:text-primary transition-colors">Impacto</Link></li>
             </ul>
           </div>
 
@@ -45,7 +45,8 @@ export function Footer() {
             <ul className="flex flex-col gap-2">
               <li><Link href="/help" className="text-sm text-muted-foreground hover:text-primary transition-colors">Centro de ayuda</Link></li>
               <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">Sobre Wetudy</Link></li>
-              <li><Link href="/blog" className="text-sm text-muted-foreground hover:text-primary transition-colors">Blog</Link></li>
+              <li><Link href="/seguridad" className="text-sm text-muted-foreground hover:text-primary transition-colors">Seguridad</Link></li>
+              <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Contacto</Link></li>
             </ul>
           </div>
 
@@ -53,9 +54,9 @@ export function Footer() {
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">Legal</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacidad</Link></li>
-              <li><Link href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Terminos de uso</Link></li>
-              <li><Link href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Contacto</Link></li>
+              <li><Link href="/legal/privacidad" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacidad</Link></li>
+              <li><Link href="/legal/terminos" className="text-sm text-muted-foreground hover:text-primary transition-colors">Términos de uso</Link></li>
+              <li><Link href="/legal/proteccion-comprador" className="text-sm text-muted-foreground hover:text-primary transition-colors">Protección comprador</Link></li>
             </ul>
           </div>
         </div>
