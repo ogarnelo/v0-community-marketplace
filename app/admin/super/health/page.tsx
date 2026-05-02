@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLaunchEnvSummary } from "@/lib/launch/required-env";
@@ -7,19 +8,21 @@ export const dynamic = "force-dynamic";
 
 type HealthPayload = {
   ok: boolean;
-  generatedAt: string;
-  summary: {
+  generatedAt?: string;
+  summary?: {
     total: number;
     criticalFailed: number;
     warnings: number;
   };
-  checks: Array<{
+  checks?: Array<{
     name: string;
     ok: boolean;
     severity: "critical" | "warning" | "info";
     message?: string;
     latencyMs?: number;
   }>;
+  error?: string;
+  message?: string;
 };
 
 function StatusPill({ ok, severity }: { ok: boolean; severity: string }) {
@@ -69,7 +72,17 @@ export default async function SuperHealthPage() {
   let health: HealthPayload | null = null;
 
   try {
-    const response = await fetch(healthUrl, { cache: "no-store" });
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore
+      .getAll()
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join("; ");
+
+    const response = await fetch(healthUrl, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : {},
+    });
+
     health = await response.json();
   } catch {
     health = null;
@@ -100,7 +113,7 @@ export default async function SuperHealthPage() {
         </div>
         <div className="rounded-2xl border bg-card p-5 shadow-sm">
           <p className="text-sm text-muted-foreground">Fallos críticos</p>
-          <p className="mt-2 text-3xl font-bold">{health?.summary.criticalFailed ?? "—"}</p>
+          <p className="mt-2 text-3xl font-bold">{health?.summary?.criticalFailed ?? "—"}</p>
         </div>
         <div className="rounded-2xl border bg-card p-5 shadow-sm">
           <p className="text-sm text-muted-foreground">Variables obligatorias</p>
@@ -110,17 +123,23 @@ export default async function SuperHealthPage() {
         </div>
       </div>
 
-      {!health ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800">
-          No se pudo consultar <code>/api/health/full</code>.
+      {!health || !health.checks ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-800">
+          <p className="font-semibold">No se pudo consultar el healthcheck completo.</p>
+          <p className="mt-2 text-sm">
+            {health?.message ||
+              "Configura LAUNCH_HEALTH_SECRET o asegúrate de que tu usuario tiene rol super_admin."}
+          </p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div className="border-b p-4">
             <h2 className="text-lg font-semibold">Checks</h2>
-            <p className="text-sm text-muted-foreground">
-              Generado el {new Date(health.generatedAt).toLocaleString("es-ES")}
-            </p>
+            {health.generatedAt ? (
+              <p className="text-sm text-muted-foreground">
+                Generado el {new Date(health.generatedAt).toLocaleString("es-ES")}
+              </p>
+            ) : null}
           </div>
           <div className="divide-y">
             {health.checks.map((check) => (

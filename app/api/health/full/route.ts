@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getLaunchEnvSummary, redactEnvValue } from "@/lib/launch/required-env";
+import { createClient } from "@/lib/supabase/server";
+import { getLaunchEnvSummary } from "@/lib/launch/required-env";
 import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +44,9 @@ async function measure<T>(fn: () => Promise<T>) {
   return { result, latencyMs: Date.now() - start };
 }
 
-function isAuthorized(request: NextRequest) {
-  const secret = process.env.LAUNCH_HEALTH_SECRET;
-  if (!secret) return true;
+function hasValidHealthSecret(request: NextRequest) {
+  const secret = process.env.LAUNCH_HEALTH_SECRET?.trim();
+  if (!secret) return false;
 
   const headerSecret = request.headers.get("x-health-secret");
   const querySecret = request.nextUrl.searchParams.get("secret");
@@ -53,9 +54,50 @@ function isAuthorized(request: NextRequest) {
   return headerSecret === secret || querySecret === secret;
 }
 
+async function hasSuperAdminSession() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return false;
+
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "super_admin")
+      .maybeSingle();
+
+    return Boolean(data);
+  } catch {
+    return false;
+  }
+}
+
+async function isAuthorized(request: NextRequest) {
+  if (hasValidHealthSecret(request)) return true;
+  return await hasSuperAdminSession();
+}
+
+function publicDbMessage(errorMessage: string | undefined) {
+  if (!errorMessage) return "OK";
+  return "No se pudo validar este recurso.";
+}
+
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ ok: false, error: "Unauthorized healthcheck" }, { status: 401 });
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Unauthorized healthcheck",
+        message:
+          "Configura LAUNCH_HEALTH_SECRET y llama esta ruta con ?secret=... o inicia sesión como super_admin.",
+      },
+      { status: 401 }
+    );
   }
 
   const strict = request.nextUrl.searchParams.get("strict") === "1";
@@ -92,14 +134,14 @@ export async function GET(request: NextRequest) {
       ok: !result.error,
       severity: "critical",
       latencyMs,
-      message: result.error?.message || "Supabase responde correctamente",
+      message: result.error ? "Supabase no responde correctamente" : "Supabase responde correctamente",
     });
-  } catch (error) {
+  } catch {
     checks.push({
       name: "supabase.connection",
       ok: false,
       severity: "critical",
-      message: error instanceof Error ? error.message : "Supabase no responde",
+      message: "Supabase no responde correctamente",
     });
   }
 
@@ -116,7 +158,7 @@ export async function GET(request: NextRequest) {
         ok: !result.error,
         severity: "critical",
         latencyMs,
-        message: result.error?.message || "OK",
+        message: publicDbMessage(result.error?.message),
       });
     }
 
@@ -130,15 +172,15 @@ export async function GET(request: NextRequest) {
         ok: !result.error,
         severity: result.error ? "warning" : "info",
         latencyMs,
-        message: result.error?.message || "OK",
+        message: publicDbMessage(result.error?.message),
       });
     }
-  } catch (error) {
+  } catch {
     checks.push({
       name: "db.schema",
       ok: false,
       severity: "critical",
-      message: error instanceof Error ? error.message : "No se pudo validar el esquema",
+      message: "No se pudo validar el esquema.",
     });
   }
 
@@ -152,12 +194,12 @@ export async function GET(request: NextRequest) {
         latencyMs,
         message: "Stripe responde correctamente",
       });
-    } catch (error) {
+    } catch {
       checks.push({
         name: "stripe.api",
         ok: false,
         severity: "critical",
-        message: error instanceof Error ? error.message : "Stripe no responde",
+        message: "Stripe no responde correctamente",
       });
     }
   } else {
@@ -183,12 +225,11 @@ export async function GET(request: NextRequest) {
         requiredOk: envSummary.ok,
         missingRequired: envSummary.missingRequired.map((item) => item.key),
         missingRecommended: envSummary.missingRecommended.map((item) => item.key),
-        redacted: envSummary.checks.map((item) => ({
+        checks: envSummary.checks.map((item) => ({
           key: item.key,
           group: item.group,
           severity: item.severity,
           present: item.present,
-          value: item.present ? redactEnvValue(item.key) : null,
         })),
       },
       summary: {

@@ -13,6 +13,7 @@ import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
 import InviteFriendsCard from "@/components/account/invite-friends-card";
+import { displayExternalUrl, safeExternalUrl } from "@/lib/security/safe-url";
 
 type SafeUserMetadata = {
   full_name?: string;
@@ -57,6 +58,8 @@ export default async function AccountPage() {
   const businessName = typedProfile?.business_name || metadata.business_name || null;
   const businessDescription = typedProfile?.business_description || metadata.business_description || null;
   const website = typedProfile?.website || metadata.website || null;
+  const safeWebsite = safeExternalUrl(website);
+  const websiteLabel = displayExternalUrl(website);
   const isBusiness = userType === "business";
 
   const selectedSchool = typedProfile?.school_id && typedProfile.school_id.trim().length > 0
@@ -111,7 +114,7 @@ export default async function AccountPage() {
               {!isBusiness && gradeLevel ? <div className="flex items-center gap-2 text-muted-foreground"><GraduationCap className="h-4 w-4" /><span>{gradeLevel}</span></div> : null}
               <div className="flex items-center gap-2 text-muted-foreground"><Building2 className="h-4 w-4" /><span>{schoolName}</span></div>
               {isBusiness && businessName ? <div className="flex items-center gap-2 text-muted-foreground"><BriefcaseBusiness className="h-4 w-4" /><span>{businessName}</span></div> : null}
-              {isBusiness && website ? <div className="flex items-center gap-2 text-muted-foreground"><Globe className="h-4 w-4" /><a href={website} target="_blank" rel="noreferrer" className="hover:text-foreground">{website}</a></div> : null}
+              {isBusiness && safeWebsite ? <div className="flex items-center gap-2 text-muted-foreground"><Globe className="h-4 w-4" /><a href={safeWebsite} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">{websiteLabel || safeWebsite}</a></div> : null}
               {shippingReady ? <div className="flex items-center gap-2 text-muted-foreground"><Truck className="h-4 w-4" /><span>{typedProfile?.shipping_city}, {typedProfile?.shipping_country_code}</span></div> : null}
               {createdAt ? <div className="flex items-center gap-2 text-muted-foreground"><CalendarDays className="h-4 w-4" /><span>Miembro desde {new Date(createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}</span></div> : null}
             </div>

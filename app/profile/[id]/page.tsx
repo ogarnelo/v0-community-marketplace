@@ -37,6 +37,7 @@ import {
 } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
 import FollowUserButton from "@/components/profile/follow-user-button";
+import { displayExternalUrl, safeExternalUrl } from "@/lib/security/safe-url";
 
 export const dynamic = "force-dynamic";
 
@@ -161,6 +162,8 @@ export default async function PublicProfilePage({
   const sellerPostalCode = typedProfile.postal_code || null;
   const sellerGradeLevel = typedProfile.grade_level || null;
   const badges = stats.badgesForUserType(typedProfile.user_type);
+  const safeWebsite = safeExternalUrl(typedProfile.website);
+  const websiteLabel = displayExternalUrl(typedProfile.website);
 
   return (
     <>
@@ -236,11 +239,11 @@ export default async function PublicProfilePage({
                     </div>
                   ) : null}
 
-                  {typedProfile.user_type === "business" && typedProfile.website ? (
+                  {typedProfile.user_type === "business" && safeWebsite ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Globe className="h-4 w-4" />
-                      <a href={typedProfile.website} target="_blank" rel="noreferrer" className="hover:text-foreground">
-                        {typedProfile.website}
+                      <a href={safeWebsite} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                        {websiteLabel || safeWebsite}
                       </a>
                     </div>
                   ) : null}

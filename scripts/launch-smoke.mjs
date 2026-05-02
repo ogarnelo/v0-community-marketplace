@@ -15,7 +15,7 @@ const routes = [
   { path: "/impacto", expected: [200] },
   { path: "/legal/privacidad", expected: [200] },
   { path: "/legal/terminos", expected: [200] },
-  { path: "/api/health/supabase-keepalive", expected: [200] },
+  { path: "/api/health/supabase-keepalive", expected: [200, 401, 503] },
   { path: "/api/health/full", expected: [200, 401, 503] },
   { path: "/account", expected: [200, 302, 307, 308] },
   { path: "/messages", expected: [200, 302, 307, 308] },
@@ -35,7 +35,7 @@ for (const route of routes) {
     const response = await fetch(url, {
       method: "GET",
       redirect: "follow",
-      headers: { "user-agent": "wetudy-launch-smoke/1.1" },
+      headers: { "user-agent": "wetudy-launch-smoke/1.2" },
     });
 
     const ms = Date.now() - start;

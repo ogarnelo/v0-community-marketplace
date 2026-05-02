@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { ShipmentRow } from "@/lib/types/marketplace";
+import { safeExternalUrl } from "@/lib/security/safe-url";
 
 function getStatusLabel(status: string | null | undefined) {
   switch (status) {
@@ -36,6 +36,15 @@ export function ShipmentStatusCard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localShipment, setLocalShipment] = useState(shipment);
+
+  const safeTrackingUrl = useMemo(
+    () => safeExternalUrl(localShipment.tracking_url),
+    [localShipment.tracking_url]
+  );
+  const safeLabelUrl = useMemo(
+    () => safeExternalUrl(localShipment.label_url),
+    [localShipment.label_url]
+  );
 
   async function handleCreateLabel() {
     setLoading(true);
@@ -75,23 +84,31 @@ export function ShipmentStatusCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {localShipment.provider ? (
-          <p className="text-muted-foreground">Proveedor: <span className="font-medium text-foreground">{localShipment.provider}</span></p>
+          <p className="text-muted-foreground">
+            Proveedor: <span className="font-medium text-foreground">{localShipment.provider}</span>
+          </p>
         ) : null}
         {localShipment.tracking_code ? (
-          <p className="text-muted-foreground">Tracking: <span className="font-medium text-foreground">{localShipment.tracking_code}</span></p>
+          <p className="text-muted-foreground">
+            Tracking: <span className="font-medium text-foreground">{localShipment.tracking_code}</span>
+          </p>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          {localShipment.tracking_url ? (
+          {safeTrackingUrl ? (
             <Button asChild size="sm" variant="outline">
-              <a href={localShipment.tracking_url} target="_blank" rel="noreferrer">Ver seguimiento</a>
+              <a href={safeTrackingUrl} target="_blank" rel="noopener noreferrer">
+                Ver seguimiento
+              </a>
             </Button>
           ) : null}
-          {localShipment.label_url ? (
+          {safeLabelUrl ? (
             <Button asChild size="sm" variant="outline">
-              <a href={localShipment.label_url} target="_blank" rel="noreferrer">Descargar etiqueta</a>
+              <a href={safeLabelUrl} target="_blank" rel="noopener noreferrer">
+                Descargar etiqueta
+              </a>
             </Button>
           ) : null}
-          {canCreateLabel && !localShipment.label_url ? (
+          {canCreateLabel && !safeLabelUrl ? (
             <Button size="sm" onClick={handleCreateLabel} disabled={loading}>
               {loading ? "Creando..." : "Crear etiqueta"}
             </Button>

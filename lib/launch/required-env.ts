@@ -16,13 +16,13 @@ const ENV_RULES: Array<Omit<EnvCheck, "present">> = [
   { key: "STRIPE_SECRET_KEY", label: "Stripe secret key", severity: "required", group: "stripe" },
   { key: "STRIPE_WEBHOOK_SECRET", label: "Stripe webhook secret", severity: "required", group: "stripe" },
   { key: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", label: "Stripe publishable key pública", severity: "required", group: "stripe" },
+  { key: "LAUNCH_HEALTH_SECRET", label: "Secreto para healthchecks externos", severity: "recommended", group: "monitoring" },
   { key: "RESEND_API_KEY", label: "Resend API key", severity: "recommended", group: "email" },
   { key: "RESEND_FROM_EMAIL", label: "Email remitente transaccional", severity: "recommended", group: "email" },
   { key: "SENDCLOUD_PUBLIC_KEY", label: "Sendcloud public key", severity: "optional", group: "logistics" },
   { key: "SENDCLOUD_SECRET_KEY", label: "Sendcloud secret key", severity: "optional", group: "logistics" },
   { key: "SHIPPO_API_KEY", label: "Shippo API key", severity: "optional", group: "logistics" },
   { key: "EASYPOST_API_KEY", label: "EasyPost API key", severity: "optional", group: "logistics" },
-  { key: "LAUNCH_HEALTH_SECRET", label: "Secreto opcional para healthcheck externo", severity: "optional", group: "monitoring" },
 ];
 
 export function getLaunchEnvChecks(): EnvCheck[] {
@@ -43,11 +43,4 @@ export function getLaunchEnvSummary() {
     missingRequired,
     missingRecommended,
   };
-}
-
-export function redactEnvValue(key: string) {
-  const value = process.env[key];
-  if (!value) return null;
-  if (value.length <= 8) return "********";
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }
