@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Heart, MessageCircle, PlusCircle, User } from "lucide-react";
+import { BookOpen, Heart, MessageCircle, PlusCircle, Rss, User } from "lucide-react";
 
 function CountBadge({ count }: { count: number }) {
   if (!count || count <= 0) return null;
@@ -28,6 +28,7 @@ export default function MobileBottomNavigation({
 
   const items = [
     { href: "/marketplace", label: "Explorar", icon: BookOpen, match: "/marketplace" },
+    { href: isLoggedIn ? "/feed" : "/auth?next=/feed", label: "Feed", icon: Rss, match: "/feed" },
     { href: isLoggedIn ? "/favorites" : "/auth?next=/favorites", label: "Guardados", icon: Heart, match: "/favorites" },
     { href: isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new", label: "Publicar", icon: PlusCircle, match: "/marketplace/new", featured: true },
     { href: isLoggedIn ? "/messages" : "/auth?next=/messages", label: "Chats", icon: MessageCircle, match: "/messages", count: unreadMessagesCount },
@@ -35,8 +36,8 @@ export default function MobileBottomNavigation({
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-1.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-1 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-1.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-6 gap-0.5">
         {items.map((item) => {
           const active = item.match === "/marketplace/new" ? pathname === item.match : pathname?.startsWith(item.match);
           const Icon = item.icon;
@@ -45,7 +46,7 @@ export default function MobileBottomNavigation({
             <Link
               key={item.label}
               href={item.href}
-              className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] font-medium transition active:scale-[0.98] ${
+              className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-medium transition active:scale-[0.98] ${
                 item.featured
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : active
@@ -57,7 +58,7 @@ export default function MobileBottomNavigation({
                 <Icon className="h-5 w-5" />
                 <CountBadge count={item.count || 0} />
               </span>
-              <span className="truncate">{item.label}</span>
+              <span className="max-w-full truncate">{item.label}</span>
             </Link>
           );
         })}

@@ -3,10 +3,32 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Heart, MessageCircle, Plus, User, Package, ShieldCheck, Activity, Menu, X, LogOut, Bell } from "lucide-react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import type { AppNotificationRow } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Activity,
+  Bell,
+  BookOpen,
+  Heart,
+  Home,
+  MessageCircle,
+  Package,
+  Plus,
+  Rss,
+  ShieldCheck,
+  Store,
+  User,
+} from "lucide-react";
 
 interface NavbarProps {
   isLoggedIn?: boolean;
@@ -24,11 +46,17 @@ type ProfileUpdatedEventDetail = {
   full_name?: string | null;
 };
 
-function CountBadge({ count }: { count: number }) {
+function CountBadge({ count, floating = false }: { count: number; floating?: boolean }) {
   if (!count || count <= 0) return null;
 
   return (
-    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
+    <span
+      className={
+        floating
+          ? "absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+          : "ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+      }
+    >
       {count > 9 ? "9+" : count}
     </span>
   );
@@ -45,9 +73,7 @@ export function Navbar({
   currentUserId,
 }: NavbarProps) {
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [displayName, setDisplayName] = useState(userName || "Mi cuenta");
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     setDisplayName(userName || "Mi cuenta");
@@ -64,51 +90,25 @@ export function Navbar({
     return () => window.removeEventListener("profile-updated", handleProfileUpdated);
   }, []);
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
-
   const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
   const messagesHref = isLoggedIn ? "/messages" : "/auth?next=/messages";
   const favoritesHref = isLoggedIn ? "/favorites" : "/auth?next=/favorites";
+  const feedHref = isLoggedIn ? "/feed" : "/auth?next=/feed";
   const accountHref = isLoggedIn ? "/account" : "/auth";
   const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
 
   const navItems = [
-    { href: "/marketplace", label: "Marketplace", icon: BookOpen },
-    { href: favoritesHref, label: "Favoritos", icon: Heart },
-    { href: publishHref, label: "Publicar", icon: Plus },
-    { href: messagesHref, label: "Mensajes", icon: MessageCircle, count: unreadMessagesCount },
+    { href: "/marketplace", label: "Marketplace", icon: BookOpen, match: "/marketplace" },
+    { href: feedHref, label: "Feed", icon: Rss, match: "/feed" },
+    { href: favoritesHref, label: "Favoritos", icon: Heart, match: "/favorites" },
+    { href: messagesHref, label: "Mensajes", icon: MessageCircle, match: "/messages", count: unreadMessagesCount },
   ];
 
-  const accountItems = [
-    { href: accountHref, label: "Mi cuenta", icon: User },
-    { href: "/account/activity", label: "Actividad", icon: Activity, count: unreadNotificationsCount },
-    { href: "/account/listings", label: "Mis anuncios", icon: Package },
-    { href: favoritesHref, label: "Favoritos", icon: Heart },
-    ...(effectiveAdminHref ? [{ href: effectiveAdminHref, label: "Panel admin", icon: ShieldCheck }] : []),
-  ];
-
-  const isActive = (href: string) => {
+  const isActive = (match: string) => {
     if (!pathname) return false;
-    if (href === "/marketplace") return pathname.startsWith("/marketplace") && pathname !== "/marketplace/new";
-    if (href === "/messages") return pathname.startsWith("/messages");
-    if (href === "/favorites") return pathname.startsWith("/favorites");
-    if (href === "/account") return pathname === "/account";
-    return pathname === href;
-  };
-
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      window.location.assign("/auth");
-    } catch {
-      window.location.assign("/auth");
-    }
+    if (match === "/marketplace") return pathname.startsWith("/marketplace") && pathname !== "/marketplace/new";
+    return pathname.startsWith(match);
   };
 
   return (
@@ -123,9 +123,9 @@ export function Navbar({
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
-            {navItems.map(({ href, label, icon: Icon, count }) => (
-              <Button key={href + label} asChild variant={isActive(href) ? "secondary" : "ghost"} size="sm" className="gap-1.5">
-                <Link href={href}>
+            {navItems.map(({ href, label, icon: Icon, match, count }) => (
+              <Button key={href + label} asChild variant={isActive(match) ? "secondary" : "ghost"} size="sm" className="gap-1.5">
+                <Link href={href} className="relative">
                   <Icon className="h-4 w-4" />
                   {label}
                   <CountBadge count={count || 0} />
@@ -134,36 +134,112 @@ export function Navbar({
             ))}
           </nav>
 
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="flex items-center gap-2">
             {isLoggedIn ? (
               <>
-                <Button asChild variant="ghost" size="icon" className="relative">
+                <Button asChild className="hidden gap-1.5 sm:inline-flex" size="sm">
+                  <Link href={publishHref}>
+                    <Plus className="h-4 w-4" />
+                    Publicar
+                  </Link>
+                </Button>
+
+                <Button asChild variant="ghost" size="icon" className="relative hidden md:inline-flex">
                   <Link href="/account/activity">
                     <Bell className="h-5 w-5" />
-                    {unreadNotificationsCount > 0 ? (
-                      <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
-                        {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
-                      </span>
-                    ) : null}
+                    <CountBadge count={unreadNotificationsCount} floating />
                     <span className="sr-only">Actividad</span>
                   </Link>
                 </Button>
 
-                <Link href="/account" className="flex max-w-[220px] items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                    {avatarLetter}
-                  </span>
-                  <span className="truncate text-sm font-medium">{displayName}</span>
-                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2 px-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+                          {avatarLetter}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="hidden max-w-[180px] truncate text-sm font-medium sm:inline">
+                        {displayName}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent align="end" className="w-64">
+                    <div className="px-2 py-2">
+                      <p className="truncate text-sm font-semibold">{displayName}</p>
+                      <p className="text-xs text-muted-foreground">Tu espacio personal</p>
+                    </div>
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuItem asChild>
+                      <Link href={accountHref} className="gap-2">
+                        <User className="h-4 w-4" />
+                        Mi cuenta
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/activity" className="gap-2">
+                        <Activity className="h-4 w-4" />
+                        Actividad
+                        <CountBadge count={unreadNotificationsCount} />
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/listings" className="gap-2">
+                        <Package className="h-4 w-4" />
+                        Mis anuncios
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href={favoritesHref} className="gap-2">
+                        <Heart className="h-4 w-4" />
+                        Favoritos
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href={feedHref} className="gap-2">
+                        <Rss className="h-4 w-4" />
+                        Feed personalizado
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/business" className="gap-2">
+                        <Store className="h-4 w-4" />
+                        Panel profesional
+                      </Link>
+                    </DropdownMenuItem>
+
+                    {effectiveAdminHref ? (
+                      <DropdownMenuItem asChild>
+                        <Link href={effectiveAdminHref} className="gap-2">
+                          <ShieldCheck className="h-4 w-4" />
+                          Panel admin
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+
+                    <DropdownMenuSeparator />
+                    <LogoutButton />
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             ) : (
               <>
                 <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                   <Link href="/marketplace">Marketplace</Link>
                 </Button>
+
                 <Button asChild variant="ghost" size="sm">
                   <Link href="/auth">Iniciar sesión</Link>
                 </Button>
+
                 <Button asChild size="sm" className="gap-1.5">
                   <Link href={publishHref}>
                     <Plus className="h-4 w-4" />
@@ -173,62 +249,7 @@ export function Navbar({
               </>
             )}
           </div>
-
-          <button
-            type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg hover:bg-muted md:hidden"
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
-          >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
         </div>
-
-        {menuOpen ? (
-          <div className="border-t border-border bg-card p-4 shadow-sm md:hidden">
-            {isLoggedIn ? (
-              <div className="mb-4 flex items-center gap-3 rounded-2xl bg-muted p-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                  {avatarLetter}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{displayName}</p>
-                  <p className="text-xs text-muted-foreground">Tu espacio personal</p>
-                </div>
-              </div>
-            ) : null}
-
-            <nav className="grid gap-1">
-              {[...navItems, ...(isLoggedIn ? accountItems : [])].map(({ href, label, icon: Icon, count }) => (
-                <Link
-                  key={href + label}
-                  href={href}
-                  className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium hover:bg-muted"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{label}</span>
-                  <span className="ml-auto"><CountBadge count={count || 0} /></span>
-                </Link>
-              ))}
-
-              {isLoggedIn ? (
-                <button
-                  type="button"
-                  className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-left text-sm font-medium text-destructive hover:bg-muted"
-                  disabled={isLoggingOut}
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4" />
-                  {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
-                </button>
-              ) : (
-                <Link href="/auth?mode=signup" className="mt-2 flex min-h-11 items-center justify-center rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground">
-                  Crear cuenta
-                </Link>
-              )}
-            </nav>
-          </div>
-        ) : null}
       </header>
 
       <MobileBottomNavigation

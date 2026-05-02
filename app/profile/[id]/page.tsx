@@ -40,6 +40,61 @@ import FollowUserButton from "@/components/profile/follow-user-button";
 
 export const dynamic = "force-dynamic";
 
+async function loadProfile(supabase: any, id: string) {
+  const extended = await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, user_type, grade_level, postal_code, business_name, business_description, website, is_business_verified"
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!extended.error) return extended;
+
+  const base = await supabase
+    .from("profiles")
+    .select("id, full_name, user_type, grade_level, postal_code")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (base.error || !base.data) return base;
+
+  return {
+    data: {
+      ...base.data,
+      business_name: null,
+      business_description: null,
+      website: null,
+      is_business_verified: false,
+    },
+    error: null,
+  };
+}
+
+async function loadActiveListings(supabase: any, id: string) {
+  const bySeller = await supabase
+    .from("listings")
+    .select(
+      "id, title, category, grade_level, condition, type, listing_type, price, status, created_at"
+    )
+    .eq("seller_id", id)
+    .eq("status", "available")
+    .order("created_at", { ascending: false });
+
+  if (!bySeller.error) return (bySeller.data || []) as ListingRow[];
+
+  const byUser = await supabase
+    .from("listings")
+    .select(
+      "id, title, category, grade_level, condition, type, listing_type, price, status, created_at"
+    )
+    .eq("user_id", id)
+    .eq("status", "available")
+    .order("created_at", { ascending: false });
+
+  return (byUser.data || []) as ListingRow[];
+}
+
 export default async function PublicProfilePage({
   params,
 }: {
@@ -51,14 +106,7 @@ export default async function PublicProfilePage({
   const navbarData = await getNavbarData(supabase);
   const currentUserId = navbarData.currentUserId;
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select(
-      "id, full_name, user_type, grade_level, postal_code, business_name, business_description, website, is_business_verified"
-    )
-    .eq("id", id)
-    .maybeSingle();
-
+  const { data: profile, error: profileError } = await loadProfile(supabase, id);
   const typedProfile = (profile as ProfileRow | null) ?? null;
 
   if (profileError || !typedProfile) {
@@ -69,40 +117,39 @@ export default async function PublicProfilePage({
 
   let initialFollowing = false;
   if (currentUserId && currentUserId !== id) {
-    const { data: follow } = await supabase
-      .from("user_follows")
-      .select("follower_id")
-      .eq("follower_id", currentUserId)
-      .eq("following_id", id)
-      .maybeSingle();
-    initialFollowing = !!follow;
+    try {
+      const { data: follow } = await supabase
+        .from("user_follows")
+        .select("follower_id")
+        .eq("follower_id", currentUserId)
+        .eq("following_id", id)
+        .maybeSingle();
+      initialFollowing = !!follow;
+    } catch {
+      initialFollowing = false;
+    }
   }
 
-  const { data: activeListingsData } = await supabase
-    .from("listings")
-    .select(
-      "id, title, category, grade_level, condition, type, listing_type, price, status, created_at"
-    )
-    .eq("seller_id", id)
-    .eq("status", "available")
-    .order("created_at", { ascending: false });
-
-  const activeListings = (activeListingsData || []) as ListingRow[];
+  const activeListings = await loadActiveListings(supabase, id);
   const activeListingIds = activeListings.map((listing) => listing.id);
 
   const firstPhotoMap = new Map<string, string>();
 
   if (activeListingIds.length > 0) {
-    const { data: photosData } = await supabase
-      .from("listing_photos")
-      .select("id, listing_id, url, sort_order")
-      .in("listing_id", activeListingIds)
-      .order("sort_order", { ascending: true });
+    try {
+      const { data: photosData } = await supabase
+        .from("listing_photos")
+        .select("id, listing_id, url, sort_order")
+        .in("listing_id", activeListingIds)
+        .order("sort_order", { ascending: true });
 
-    for (const photo of (photosData || []) as ListingPhotoRow[]) {
-      if (!firstPhotoMap.has(photo.listing_id)) {
-        firstPhotoMap.set(photo.listing_id, photo.url);
+      for (const photo of (photosData || []) as ListingPhotoRow[]) {
+        if (!firstPhotoMap.has(photo.listing_id)) {
+          firstPhotoMap.set(photo.listing_id, photo.url);
+        }
       }
+    } catch {
+      // El perfil debe seguir funcionando aunque las fotos fallen.
     }
   }
 
@@ -129,7 +176,7 @@ export default async function PublicProfilePage({
         adminHref={navbarData.adminHref}
       />
 
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 py-8 pb-24 lg:px-8 md:pb-8">
         <div className="mb-6">
           <Link href="/marketplace">
             <Button variant="ghost" className="gap-2">
@@ -325,7 +372,7 @@ export default async function PublicProfilePage({
             </Card>
           </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }
