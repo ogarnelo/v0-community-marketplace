@@ -7,142 +7,121 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Heart,
-  Recycle,
-  Users,
-  BarChart3,
-  ShoppingBag,
   ArrowRight,
-  Handshake,
-  School,
+  BookOpen,
+  Euro,
+  Gift,
+  Recycle,
+  ShieldCheck,
+  Store,
+  Users,
 } from "lucide-react";
 
-const missionValues = [
+export const metadata = {
+  title: "Sobre Wetudy | Reutilización educativa con impacto social",
+  description:
+    "Wetudy nace para que el material educativo circule más, ayude a las familias a ahorrar y llegue a quien lo necesita.",
+};
+
+const values = [
   {
-    icon: Heart,
-    title: "Accesibilidad",
-    description:
-      "Reducimos la barrera economica del material escolar para que ninguna familia tenga que elegir entre educar a sus hijos y llegar a fin de mes.",
+    icon: Euro,
+    title: "Ahorro digno",
+    text: "Comprar segunda mano o vender lo que ya no usas no debería ser una solución de emergencia: debería ser una opción normal, práctica y accesible.",
   },
   {
     icon: Recycle,
-    title: "Sostenibilidad",
-    description:
-      "Alargamos la vida util de cada libro, mochila y uniforme. Cada reutilizacion es un paso hacia un planeta mas limpio.",
+    title: "Reutilización útil",
+    text: "Un libro, un uniforme o una calculadora no pierden su valor al acabar el curso. Pueden acompañar a otra persona.",
   },
   {
-    icon: Users,
-    title: "Comunidad",
-    description:
-      "Conectamos familias del mismo centro educativo para que el material pase de mano en mano dentro de una red de confianza.",
+    icon: Gift,
+    title: "Ayuda entre personas",
+    text: "Las donaciones permiten que material parado llegue a familias y estudiantes que pueden darle uso real.",
   },
   {
-    icon: Handshake,
-    title: "Donaciones estructuradas",
-    description:
-      "Las donaciones llegan a quien mas las necesita gracias a la coordinacion del AMPA y los administradores del centro.",
-  },
-];
-
-const howSteps = [
-  {
-    step: "01",
-    title: "Registrate con tu centro",
-    description:
-      "Crea una cuenta gratuita e introduce el codigo de tu centro educativo para unirte a tu comunidad.",
-  },
-  {
-    step: "02",
-    title: "Publica o busca material",
-    description:
-      "Publica lo que ya no necesitas o encuentra lo que buscas. Libros, uniformes, mochilas y mucho mas.",
-  },
-  {
-    step: "03",
-    title: "Conecta y acuerda",
-    description:
-      "Chatea con vendedores o compradores de tu centro y acordad el intercambio de forma segura.",
-  },
-  {
-    step: "04",
-    title: "Mide tu impacto",
-    description:
-      "Cada transaccion se refleja en las metricas de impacto de tu centro: ahorro, reutilizacion y sostenibilidad.",
+    icon: ShieldCheck,
+    title: "Confianza y trazabilidad",
+    text: "Anuncio, chat, oferta, pago, incidencia y valoración quedan conectados para reducir incertidumbre.",
   },
 ];
 
 export default async function AboutPage() {
   const supabase = await createClient();
-
   const navbarData = await getNavbarData(supabase);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar
-        isLoggedIn={navbarData.isLoggedIn}
-        userName={navbarData.userName}
-        isAdmin={navbarData.isAdmin}
-        isSuperAdmin={navbarData.isSuperAdmin}
-        adminHref={navbarData.adminHref}
-        unreadMessagesCount={navbarData.unreadMessagesCount}
-        unreadNotificationsCount={navbarData.unreadNotificationsCount}
-        notifications={navbarData.notifications}
-        currentUserId={navbarData.currentUserId}
-      />
+      <Navbar {...navbarData} />
+
       <main className="flex-1">
-        <section className="border-b border-border bg-card">
+        <section className="border-b bg-card">
           <div className="mx-auto max-w-4xl px-4 py-16 text-center lg:px-8 lg:py-24">
             <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
               Sobre Wetudy
             </Badge>
-            <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-              El marketplace escolar que une familias y cuida el planeta
+            <h1 className="text-balance text-3xl font-bold tracking-tight sm:text-5xl">
+              El material educativo no debería quedarse parado cuando todavía puede ayudar
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Wetudy nace con una mision clara: que ningun material escolar en buen
-              estado acabe en la basura y que todas las familias puedan acceder a lo
-              que sus hijos necesitan sin renunciar a la calidad.
+              Wetudy nace de una idea sencilla: en muchas casas hay libros, uniformes y material
+              escolar guardados que otra familia necesita ahora.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/auth?mode=signup">
-                <Button size="lg" className="gap-2">
-                  Unete ahora <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href="/marketplace">
-                <Button variant="outline" size="lg" className="gap-2">
-                  <ShoppingBag className="h-4 w-4" />
-                  Explorar marketplace
-                </Button>
-              </Link>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Button asChild size="lg" className="gap-2">
+                <Link href="/marketplace">
+                  Explorar marketplace <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/impacto">Ver impacto social</Link>
+              </Button>
             </div>
           </div>
         </section>
 
-        <section className="py-16 lg:py-20">
+        <section className="py-14 lg:py-20">
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Nuestra mision
-              </h2>
-              <p className="mx-auto mt-3 max-w-2xl leading-relaxed text-muted-foreground">
-                Creemos que la educacion es un derecho y la sostenibilidad una
-                responsabilidad. Wetudy combina ambas cosas.
-              </p>
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+              <div>
+                <Badge variant="outline" className="mb-4">
+                  Nuestra misión
+                </Badge>
+                <h2 className="text-3xl font-bold tracking-tight">
+                  Que estudiar no sea más caro de lo necesario
+                </h2>
+                <p className="mt-4 text-muted-foreground">
+                  Queremos que el material educativo circule más, se aproveche mejor y llegue a quien
+                  lo necesita: familias que quieren ahorrar, estudiantes que buscan material y negocios
+                  locales que ya tienen productos educativos.
+                </p>
+                <p className="mt-4 text-muted-foreground">
+                  Los colegios pueden sumarse en el futuro, pero Wetudy empieza desde lo más sencillo:
+                  personas ayudando a personas mediante compraventa, donaciones y reutilización.
+                </p>
+              </div>
+
+              <div className="rounded-[2rem] border bg-card p-6 shadow-sm">
+                <BookOpen className="h-9 w-9 text-primary" />
+                <blockquote className="mt-5 text-2xl font-semibold leading-snug">
+                  “Lo que a una familia ya no le sirve, a otra puede ahorrarle mucho dinero.”
+                </blockquote>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Esa es la base de Wetudy: transformar armarios llenos de material olvidado en una red
+                  educativa reutilizable.
+                </p>
+              </div>
             </div>
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {missionValues.map((val) => (
-                <Card key={val.title} className="border-border">
+
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {values.map((value) => (
+                <Card key={value.title}>
                   <CardContent className="p-6">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                      <val.icon className="h-6 w-6 text-primary" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+                      <value.icon className="h-6 w-6 text-primary" />
                     </div>
-                    <h3 className="mt-4 text-lg font-semibold text-foreground">
-                      {val.title}
-                    </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {val.description}
-                    </p>
+                    <h3 className="mt-4 font-semibold">{value.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{value.text}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -150,73 +129,45 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        <section className="border-y border-border bg-muted/50 py-16 lg:py-20">
-          <div className="mx-auto max-w-4xl px-4 lg:px-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Como funciona
+        <section className="border-y bg-muted/40 py-14 lg:py-20">
+          <div className="mx-auto max-w-6xl px-4 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <h2 className="text-3xl font-bold tracking-tight">
+                Qué hace diferente a Wetudy
               </h2>
-              <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                En cuatro pasos sencillos empiezas a ahorrar y a contribuir.
+              <p className="mt-4 text-muted-foreground">
+                No competimos por tener de todo. Competimos por entender una necesidad concreta:
+                material educativo con contexto.
               </p>
             </div>
-            <div className="mt-10 grid gap-8 sm:grid-cols-2">
-              {howSteps.map((s) => (
-                <div key={s.step} className="flex gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-                    {s.step}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">{s.title}</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      {s.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section className="py-16 lg:py-20">
-          <div className="mx-auto max-w-4xl px-4 lg:px-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Medicion de impacto
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl leading-relaxed text-muted-foreground">
-                Cada transaccion en Wetudy genera datos de impacto real que compartimos
-                con centros, familias y administraciones.
-              </p>
-            </div>
-            <div className="mt-10 grid gap-6 sm:grid-cols-3">
-              <Card className="border-border text-center">
+            <div className="mt-10 grid gap-5 md:grid-cols-3">
+              <Card>
                 <CardContent className="p-6">
-                  <BarChart3 className="mx-auto h-8 w-8 text-primary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Panel por centro</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Cada colegio tiene metricas propias: articulos reutilizados,
-                    familias activas y ahorro generado.
+                  <Users className="h-7 w-7 text-primary" />
+                  <h3 className="mt-4 font-semibold">Familias y estudiantes</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Compra, vende o dona material que tiene sentido para el curso, la etapa o el uso educativo.
                   </p>
                 </CardContent>
               </Card>
-              <Card className="border-border text-center">
+
+              <Card>
                 <CardContent className="p-6">
-                  <School className="mx-auto h-8 w-8 text-primary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Ranking publico</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Los centros mas activos aparecen en nuestro ranking, motivando la
-                    participacion de toda la comunidad.
+                  <Store className="h-7 w-7 text-primary" />
+                  <h3 className="mt-4 font-semibold">Negocios locales</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Librerías, papelerías y academias pueden publicar productos y packs sin montar una tienda online.
                   </p>
                 </CardContent>
               </Card>
-              <Card className="border-border text-center">
+
+              <Card>
                 <CardContent className="p-6">
-                  <Recycle className="mx-auto h-8 w-8 text-secondary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Huella ambiental</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Calculamos el CO2 evitado por cada reutilizacion, contribuyendo a
-                    los ODS de Naciones Unidas.
+                  <Recycle className="h-7 w-7 text-primary" />
+                  <h3 className="mt-4 font-semibold">Impacto medible</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    A medida que crezca la comunidad, Wetudy podrá medir productos reutilizados, ahorro y donaciones reales.
                   </p>
                 </CardContent>
               </Card>
@@ -224,28 +175,27 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        <section className="border-t border-border bg-primary/5 py-16 lg:py-20">
-          <div className="mx-auto max-w-2xl px-4 text-center lg:px-8">
-            <h2 className="text-balance text-2xl font-bold text-foreground sm:text-3xl">
-              Forma parte del cambio
+        <section className="py-14 lg:py-20">
+          <div className="mx-auto max-w-4xl px-4 text-center lg:px-8">
+            <h2 className="text-3xl font-bold tracking-tight">
+              Wetudy empieza con una acción sencilla
             </h2>
-            <p className="mt-3 leading-relaxed text-muted-foreground">
-              Unete a miles de familias que ya ahorran, reutilizan y ayudan a otras
-              familias de su comunidad educativa.
+            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+              Abre el armario, sube los libros y materiales que ya no usas, y ayuda a que otra persona
+              no tenga que comprarlo todo nuevo.
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/auth?mode=signup">
-                <Button size="lg">Crear cuenta gratis</Button>
-              </Link>
-              <Link href="/ranking">
-                <Button variant="outline" size="lg">
-                  Ver ranking de centros
-                </Button>
-              </Link>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Button asChild>
+                <Link href="/marketplace/new">Publicar anuncio</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/marketplace">Explorar marketplace</Link>
+              </Button>
             </div>
           </div>
         </section>
       </main>
+
       <Footer />
     </div>
   );
