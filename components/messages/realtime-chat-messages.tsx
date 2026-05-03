@@ -31,6 +31,7 @@ type RealtimeChatMessagesProps = {
   conversationBuyerId: string;
   conversationSellerId: string;
   initialMessages: Message[];
+  hasOlderMessages?: boolean;
   initialUnreadMessageIds?: string[];
   initialOffers?: ListingOfferRow[];
   initialDonationRequests?: DonationRequestRow[];
@@ -126,6 +127,7 @@ export default function RealtimeChatMessages({
   conversationBuyerId,
   conversationSellerId,
   initialMessages,
+  hasOlderMessages = false,
   initialUnreadMessageIds = [],
   initialOffers = [],
   initialDonationRequests = [],
@@ -133,6 +135,9 @@ export default function RealtimeChatMessages({
 }: RealtimeChatMessagesProps) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(hasOlderMessages);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set(initialUnreadMessageIds));
   const [offersById, setOffersById] = useState<Record<string, ListingOfferRow>>(
     () => Object.fromEntries(initialOffers.map((offer) => [offer.id, offer]))
@@ -144,10 +149,16 @@ export default function RealtimeChatMessages({
     () => Object.fromEntries(initialPaymentIntents.filter((row) => !!row.offer_id).map((row) => [row.offer_id as string, row]))
   );
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const shouldScrollOnNextMessageRef = useRef(true);
 
   useEffect(() => {
+    shouldScrollOnNextMessageRef.current = true;
     setMessages(initialMessages);
   }, [initialMessages]);
+
+  useEffect(() => {
+    setHasMoreOlderMessages(hasOlderMessages);
+  }, [hasOlderMessages]);
 
   useEffect(() => {
     setOffersById(Object.fromEntries(initialOffers.map((offer) => [offer.id, offer])));
@@ -180,8 +191,49 @@ export default function RealtimeChatMessages({
   }, [highlightedIds]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldScrollOnNextMessageRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      shouldScrollOnNextMessageRef.current = true;
+    }
   }, [messages]);
+
+  const loadOlderMessages = async () => {
+    const firstMessage = messages[0];
+    if (!firstMessage || isLoadingOlderMessages || !hasMoreOlderMessages) return;
+
+    setIsLoadingOlderMessages(true);
+    setHistoryError(null);
+
+    try {
+      const params = new URLSearchParams({
+        conversationId,
+        before: firstMessage.created_at,
+      });
+
+      const response = await fetch(`/api/messages/history?${params.toString()}`);
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(result?.error || "No se pudieron cargar mensajes anteriores.");
+      }
+
+      const olderMessages = Array.isArray(result?.messages) ? (result.messages as Message[]) : [];
+      shouldScrollOnNextMessageRef.current = false;
+
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((message) => message.id));
+        const uniqueOlderMessages = olderMessages.filter((message) => !existingIds.has(message.id));
+        return [...uniqueOlderMessages, ...prev];
+      });
+
+      setHasMoreOlderMessages(Boolean(result?.hasMore));
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "No se pudieron cargar mensajes anteriores.");
+    } finally {
+      setIsLoadingOlderMessages(false);
+    }
+  };
 
   useEffect(() => {
     const markMessageAsRead = async (messageId: string) => {
@@ -214,6 +266,7 @@ export default function RealtimeChatMessages({
           setMessages((prev) => {
             const exists = prev.some((msg) => msg.id === newMessage.id);
             if (exists) return prev;
+            shouldScrollOnNextMessageRef.current = true;
             return [...prev, newMessage];
           });
 
@@ -279,6 +332,23 @@ export default function RealtimeChatMessages({
 
   return (
     <div className="space-y-3">
+      {hasMoreOlderMessages ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={loadOlderMessages}
+            disabled={isLoadingOlderMessages}
+            className="rounded-full border bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoadingOlderMessages ? "Cargando mensajes..." : "Cargar mensajes anteriores"}
+          </button>
+        </div>
+      ) : null}
+
+      {historyError ? (
+        <p className="text-center text-xs text-rose-600">{historyError}</p>
+      ) : null}
+
       {messages.map((message) => {
         const isMine = message.sender_id === currentUserId;
         const isHighlighted = highlightedIds.has(message.id);

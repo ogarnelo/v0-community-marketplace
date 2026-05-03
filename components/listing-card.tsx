@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,14 @@ export function ListingCard({
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
         <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
           {mainPhoto ? (
-            <img src={mainPhoto} alt={titleText} className="h-full w-full object-cover" />
+            <Image
+              src={mainPhoto}
+              alt={titleText}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              className="object-cover transition duration-300 group-hover:scale-[1.02]"
+              unoptimized
+            />
           ) : (
             <div className="flex h-full items-center justify-center bg-muted">
               <span className="select-none font-mono text-5xl text-muted-foreground/15">

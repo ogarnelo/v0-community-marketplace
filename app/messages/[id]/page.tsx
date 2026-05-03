@@ -59,7 +59,15 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const { data: profiles } = await supabase.from("profiles").select("id, full_name, user_type, business_name").in("id", otherUserIds);
   const { data: latestMessages } = await supabase.from("messages").select("conversation_id, body, created_at, sender_id, attachment_name").in("conversation_id", conversationIds).order("created_at", { ascending: false });
   const { data: unreadMessages } = await supabase.from("messages").select("conversation_id").in("conversation_id", conversationIds).neq("sender_id", user.id).is("read_at", null);
-  const { data: messages } = await supabase.from("messages").select("*").eq("conversation_id", typedConversation.id).order("created_at", { ascending: true });
+  const { data: messagesDesc } = await supabase
+    .from("messages")
+    .select("id, conversation_id, sender_id, body, attachment_url, attachment_path, attachment_name, attachment_type, attachment_size, read_at, created_at")
+    .eq("conversation_id", typedConversation.id)
+    .order("created_at", { ascending: false })
+    .limit(51);
+
+  const initialMessages = ((messagesDesc || []) as MessageRow[]).slice(0, 50).reverse();
+  const hasOlderMessages = ((messagesDesc || []) as MessageRow[]).length > 50;
 
   const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }] = await Promise.all([
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at").eq("listing_id", typedConversation.listing_id).eq("buyer_id", typedConversation.buyer_id).eq("seller_id", typedConversation.seller_id).order("created_at", { ascending: false }),
@@ -126,7 +134,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
               conversationListingId={typedConversation.listing_id}
               conversationBuyerId={typedConversation.buyer_id}
               conversationSellerId={typedConversation.seller_id}
-              initialMessages={(messages || []) as MessageRow[]}
+              initialMessages={initialMessages}
+              hasOlderMessages={hasOlderMessages}
               initialUnreadMessageIds={initialUnreadMessageIds}
               initialOffers={typedOffers}
               initialDonationRequests={typedDonationRequests}

@@ -59,14 +59,14 @@ export default async function AccountActivityPage() {
   if (!user) redirect("/auth");
 
   const [{ data: sentOffersData }, { data: receivedOffersData }, { data: myListingsData }, { data: sentDonationData }, { data: buyerPaymentsData }, { data: sellerPaymentsData }, { data: buyerShipmentsData }, { data: sellerShipmentsData }, { data: notificationsData }] = await Promise.all([
-    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id),
-    adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("requester_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("shipments").select("*").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("shipments").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }).limit(30),
+    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(30),
+    adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id).limit(100),
+    adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("requester_id", user.id).order("created_at", { ascending: false }).limit(30),
+    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("buyer_id", user.id).order("created_at", { ascending: false }).limit(30),
+    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(30),
+    adminSupabase.from("shipments").select("*").eq("buyer_id", user.id).order("created_at", { ascending: false }).limit(30),
+    adminSupabase.from("shipments").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(30),
     adminSupabase.from("notifications").select("id, user_id, kind, title, body, href, metadata, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
   ]);
 
@@ -74,7 +74,7 @@ export default async function AccountActivityPage() {
   const myListingIds = myListings.map((listing) => listing.id);
   let receivedDonationData: DonationRequestRow[] = [];
   if (myListingIds.length > 0) {
-    const { data } = await adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").in("listing_id", myListingIds).order("created_at", { ascending: false });
+    const { data } = await adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").in("listing_id", myListingIds).order("created_at", { ascending: false }).limit(30);
     receivedDonationData = (data || []) as DonationRequestRow[];
   }
 
@@ -125,7 +125,7 @@ export default async function AccountActivityPage() {
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Actividad</h1>
-          <p className="text-muted-foreground">Seguimiento de ofertas, pagos, donaciones y envíos.</p>
+          <p className="text-muted-foreground">Seguimiento de ofertas, pagos, donaciones y envíos. Mostramos los últimos movimientos para mantener la página rápida.</p>
         </div>
         <Link href="/account/listings" className="text-sm font-medium text-[#7EBA28] hover:underline">Volver a mis anuncios</Link>
       </div>

@@ -33,12 +33,12 @@ function scoreListing(listing: any, boostMap: Map<string, string>) {
 
 export async function getRankedListings(params: Params = {}) {
   const supabase = await createClient();
-  const limit = params.limit || 80;
+  const limit = Math.min(params.limit || 48, 80);
 
   let query = supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
+      "id, title, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
     )
     .eq("status", "available")
     .limit(limit);
@@ -119,7 +119,7 @@ export async function getRankedListings(params: Params = {}) {
   const listings: MarketplaceListing[] = listingRows.map((item) => ({
     id: item.id,
     title: item.title || "Anuncio sin título",
-    description: item.description || null,
+    description: null,
     category: item.category,
     gradeLevel: item.grade_level,
     condition: item.condition,

@@ -15,6 +15,7 @@ const routes = [
   { path: "/impacto", expected: [200] },
   { path: "/legal/privacidad", expected: [200] },
   { path: "/legal/terminos", expected: [200] },
+  { path: "/api/health/ready", expected: [200, 503] },
   { path: "/api/health/supabase-keepalive", expected: [200, 401, 503] },
   { path: "/api/health/full", expected: [200, 401, 503] },
   { path: "/account", expected: [200, 302, 307, 308] },
