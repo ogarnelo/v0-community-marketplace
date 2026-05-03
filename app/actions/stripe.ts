@@ -1,6 +1,6 @@
 'use server'
 
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from '@/lib/payments/pricing'
@@ -20,6 +20,12 @@ type OfferWithListing = {
   listings?: { id: string; title: string | null; description: string | null; status?: string | null } | null
 }
 
+function getSessionIdFromMetadata(metadata: unknown) {
+  if (!metadata || typeof metadata !== 'object') return null
+  const value = (metadata as Record<string, unknown>).stripe_checkout_session_id
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
 export async function startCheckoutSession(params: { offerId: string; deliveryMethod: DeliveryMethod; shipmentTier: ShipmentTier }) {
   const { offerId, deliveryMethod, shipmentTier } = params
   const supabase = await createClient()
@@ -34,7 +40,7 @@ export async function startCheckoutSession(params: { offerId: string; deliveryMe
     .maybeSingle()
 
   const typedOffer = (offer as OfferWithListing | null) ?? null
-  if (offerError || !typedOffer) throw new Error(offerError?.message || 'Oferta no encontrada.')
+  if (offerError || !typedOffer) throw new Error('Oferta no encontrada.')
   if (typedOffer.buyer_id !== user.id) throw new Error('No tienes permiso para pagar esta oferta.')
   if (typedOffer.status !== 'accepted') throw new Error(`La oferta aún no ha sido aceptada. Estado actual: ${typedOffer.status}`)
 
@@ -60,6 +66,7 @@ export async function startCheckoutSession(params: { offerId: string; deliveryMe
     .eq('id', typedOffer.seller_id)
     .maybeSingle()
 
+  const stripe = getStripe()
   const session = await stripe.checkout.sessions.create({
     ui_mode: 'embedded_page',
     redirect_on_completion: 'never',
@@ -82,6 +89,7 @@ export async function startCheckoutSession(params: { offerId: string; deliveryMe
     amount: pricing.totalBuyerAmount,
     currency: 'EUR',
     provider: 'stripe',
+    provider_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : null,
     status: 'requires_payment_method',
     buyer_fee_amount: pricing.buyerFeeAmount,
     shipping_amount: pricing.shippingAmount,
@@ -110,18 +118,46 @@ export async function confirmPaymentComplete(params: { offerId: string }) {
     .eq('offer_id', offerId)
     .eq('buyer_id', user.id)
     .maybeSingle()
-  if (!paymentIntent) throw new Error('No se encontró el intent de pago.')
 
-  const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
-  if (sessionId) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(sessionId)
-      if (session.payment_status !== 'paid') throw new Error('El pago aún no se ha completado en Stripe.')
-    } catch {}
+  if (!paymentIntent) throw new Error('No se encontró el intent de pago.')
+  if (paymentIntent.status === 'paid') {
+    return { success: true, paymentIntentId: paymentIntent.id, conversationId: paymentIntent.conversation_id, alreadyPaid: true }
+  }
+
+  const sessionId = getSessionIdFromMetadata(paymentIntent.metadata)
+  if (!sessionId) {
+    throw new Error('No se encontró la sesión de Stripe. Espera a la confirmación del webhook.')
+  }
+
+  const stripe = getStripe()
+  const session = await stripe.checkout.sessions.retrieve(sessionId)
+
+  if (session.payment_status !== 'paid') {
+    throw new Error('El pago aún no se ha completado en Stripe.')
+  }
+
+  if (session.metadata?.offer_id !== offerId || session.metadata?.buyer_id !== user.id) {
+    throw new Error('La sesión de Stripe no coincide con esta operación.')
   }
 
   const now = new Date().toISOString()
-  await adminSupabase.from('payment_intents').update({ status: 'paid', updated_at: now }).eq('offer_id', offerId)
+  const providerPaymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null
+
+  await adminSupabase
+    .from('payment_intents')
+    .update({
+      status: 'paid',
+      provider_payment_intent_id: providerPaymentIntentId,
+      metadata: {
+        ...(paymentIntent.metadata || {}),
+        paid_at: now,
+        stripe_checkout_session_id: session.id,
+      },
+      updated_at: now,
+    })
+    .eq('offer_id', offerId)
+    .eq('buyer_id', user.id)
+
   await adminSupabase.from('listing_offers').update({ status: 'accepted', responded_at: now }).eq('id', offerId)
   if (paymentIntent.listing_id) await adminSupabase.from('listings').update({ status: 'sold' }).eq('id', paymentIntent.listing_id)
 
@@ -135,7 +171,7 @@ export async function confirmPaymentComplete(params: { offerId: string }) {
 
 export async function checkSessionStatus(sessionId: string) {
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    const session = await getStripe().checkout.sessions.retrieve(sessionId)
     return { paymentStatus: session.payment_status, status: session.status }
   } catch {
     return { paymentStatus: 'unpaid', status: 'unknown' }

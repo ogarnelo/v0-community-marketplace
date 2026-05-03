@@ -4,6 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/notifications";
 import { sendFollowedUserListingEmail } from "@/lib/emails/transactional";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/alerts";
+import { safeApiError } from "@/lib/api/safe-error";
+
+const LISTING_NOTIFY_COOLDOWN_HOURS = 12;
+const MAX_FOLLOWER_NOTIFICATIONS = 300;
+const MAX_SAVED_SEARCH_NOTIFICATIONS = 300;
+const MAX_EMAILS_PER_CALL = 120;
 
 function getBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -11,6 +17,10 @@ function getBaseUrl() {
 
 function normalize(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function cooldownSince() {
+  return new Date(Date.now() - LISTING_NOTIFY_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
 }
 
 function matchesSavedSearch(search: any, listing: any) {
@@ -33,89 +43,156 @@ function matchesSavedSearch(search: any, listing: any) {
   return true;
 }
 
-export async function POST(request: Request) {
-  const supabase = await createClient();
-  const adminSupabase = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
+async function hasRecentListingNotification(adminSupabase: ReturnType<typeof createAdminClient>, listingId: string) {
+  try {
+    const { data } = await adminSupabase
+      .from("notifications")
+      .select("id")
+      .in("kind", ["followed_user_listing_created", "saved_search_match"])
+      .contains("metadata", { listing_id: listingId })
+      .gte("created_at", cooldownSince())
+      .limit(1);
 
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json().catch(() => null);
-  const listingId = String(body?.listingId || "");
-
-  if (!listingId) return NextResponse.json({ error: "Missing listing id" }, { status: 400 });
-
-  const [{ data: listing }, { data: profile }, { data: follows }, { data: savedSearches }] = await Promise.all([
-    adminSupabase.from("listings").select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, seller_id").eq("id", listingId).eq("seller_id", user.id).maybeSingle(),
-    adminSupabase.from("profiles").select("id, full_name, business_name").eq("id", user.id).maybeSingle(),
-    adminSupabase.from("user_follows").select("follower_id").eq("following_id", user.id),
-    adminSupabase.from("saved_searches").select("id, user_id, name, query, category, grade_level, condition, listing_type, isbn, min_price, max_price, email_enabled, push_enabled").neq("user_id", user.id),
-  ]);
-
-  if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
-
-  const followerIds = (follows || []).map((row: { follower_id: string }) => row.follower_id).filter((id: string) => id && id !== user.id);
-  const publisherName = profile?.business_name?.trim() || profile?.full_name?.trim() || user.user_metadata?.full_name || "Un usuario";
-  const listingTitle = listing.title || "Nuevo anuncio";
-  const listingUrl = `${getBaseUrl()}/marketplace/listing/${listing.id}`;
-
-  const followerNotifications = followerIds.map((followerId: string) => ({
-    user_id: followerId,
-    kind: "followed_user_listing_created",
-    title: "Nuevo anuncio de un perfil que sigues",
-    body: `${publisherName} ha publicado "${listingTitle}".`,
-    href: `/marketplace/listing/${listing.id}`,
-    metadata: { listing_id: listing.id, publisher_id: user.id },
-  }));
-
-  const matchingSearches = (savedSearches || []).filter((search: any) => matchesSavedSearch(search, listing));
-  const searchNotifications = matchingSearches.filter((search: any) => search.push_enabled !== false).map((search: any) => ({
-    user_id: search.user_id,
-    kind: "saved_search_match",
-    title: "Nuevo anuncio para una búsqueda guardada",
-    body: `"${listingTitle}" coincide con "${search.name}".`,
-    href: `/marketplace/listing/${listing.id}`,
-    metadata: { listing_id: listing.id, saved_search_id: search.id },
-  }));
-
-  const allNotifications = [...followerNotifications, ...searchNotifications];
-  if (allNotifications.length > 0) {
-    await createNotifications(adminSupabase, allNotifications);
+    return Boolean(data?.length);
+  } catch {
+    return false;
   }
+}
 
-  const uniqueEmailTargets = Array.from(new Set([...followerIds, ...matchingSearches.map((search: any) => search.user_id)]));
-  const userProfiles = new Map<string, { full_name?: string | null; email?: string | null }>();
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+    const adminSupabase = createAdminClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  await Promise.allSettled(uniqueEmailTargets.map(async (targetId) => {
-    const [{ data: profileData }, { data: userData }] = await Promise.all([
-      adminSupabase.from("profiles").select("full_name").eq("id", targetId).maybeSingle(),
-      adminSupabase.auth.admin.getUserById(targetId),
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => null);
+    const listingId = String(body?.listingId || "").trim();
+
+    if (!listingId) {
+      return NextResponse.json({ error: "Missing listing id" }, { status: 400 });
+    }
+
+    const [{ data: listing }, { data: profile }] = await Promise.all([
+      adminSupabase
+        .from("listings")
+        .select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, seller_id, status")
+        .eq("id", listingId)
+        .eq("seller_id", user.id)
+        .maybeSingle(),
+      adminSupabase.from("profiles").select("id, full_name, business_name").eq("id", user.id).maybeSingle(),
     ]);
-    userProfiles.set(targetId, { full_name: profileData?.full_name || null, email: userData?.user?.email || null });
-  }));
 
-  await Promise.allSettled(followerIds.map(async (followerId) => {
-    const target = userProfiles.get(followerId);
-    if (!target?.email) return;
-    await sendFollowedUserListingEmail({
-      to: target.email,
-      recipientName: target.full_name || null,
-      publisherName,
-      listingTitle,
-      listingUrl,
+    if (!listing) {
+      return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+    }
+
+    if (listing.status !== "available") {
+      return NextResponse.json({ ok: true, skipped: true, reason: "listing_not_available" });
+    }
+
+    if (await hasRecentListingNotification(adminSupabase, listingId)) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "cooldown" });
+    }
+
+    const [{ data: follows }, { data: savedSearches }] = await Promise.all([
+      adminSupabase.from("user_follows").select("follower_id").eq("following_id", user.id).limit(MAX_FOLLOWER_NOTIFICATIONS),
+      adminSupabase
+        .from("saved_searches")
+        .select("id, user_id, name, query, category, grade_level, condition, listing_type, isbn, min_price, max_price, email_enabled, push_enabled")
+        .neq("user_id", user.id)
+        .limit(MAX_SAVED_SEARCH_NOTIFICATIONS),
+    ]);
+
+    const followerIds = Array.from(
+      new Set((follows || []).map((row: { follower_id: string }) => row.follower_id).filter((id: string) => id && id !== user.id))
+    );
+
+    const publisherName = profile?.business_name?.trim() || profile?.full_name?.trim() || user.user_metadata?.full_name || "Un usuario";
+    const listingTitle = listing.title || "Nuevo anuncio";
+    const listingUrl = `${getBaseUrl()}/marketplace/listing/${listing.id}`;
+
+    const followerNotifications = followerIds.map((followerId: string) => ({
+      user_id: followerId,
+      kind: "followed_user_listing_created",
+      title: "Nuevo anuncio de un perfil que sigues",
+      body: `${publisherName} ha publicado "${listingTitle}".`,
+      href: `/marketplace/listing/${listing.id}`,
+      metadata: { listing_id: listing.id, publisher_id: user.id },
+    }));
+
+    const matchingSearches = (savedSearches || []).filter((search: any) => matchesSavedSearch(search, listing));
+    const searchNotifications = matchingSearches
+      .filter((search: any) => search.push_enabled !== false)
+      .map((search: any) => ({
+        user_id: search.user_id,
+        kind: "saved_search_match",
+        title: "Nuevo anuncio para una búsqueda guardada",
+        body: `"${listingTitle}" coincide con "${search.name}".`,
+        href: `/marketplace/listing/${listing.id}`,
+        metadata: { listing_id: listing.id, saved_search_id: search.id },
+      }));
+
+    const allNotifications = [...followerNotifications, ...searchNotifications];
+    if (allNotifications.length > 0) {
+      await createNotifications(adminSupabase, allNotifications);
+    }
+
+    const uniqueEmailTargets = Array.from(new Set([...followerIds, ...matchingSearches.map((search: any) => search.user_id)])).slice(0, MAX_EMAILS_PER_CALL);
+    const userProfiles = new Map<string, { full_name?: string | null; email?: string | null }>();
+
+    await Promise.allSettled(
+      uniqueEmailTargets.map(async (targetId) => {
+        const [{ data: profileData }, { data: userData }] = await Promise.all([
+          adminSupabase.from("profiles").select("full_name").eq("id", targetId).maybeSingle(),
+          adminSupabase.auth.admin.getUserById(targetId),
+        ]);
+        userProfiles.set(targetId, { full_name: profileData?.full_name || null, email: userData?.user?.email || null });
+      })
+    );
+
+    await Promise.allSettled(
+      followerIds.slice(0, MAX_EMAILS_PER_CALL).map(async (followerId) => {
+        const target = userProfiles.get(followerId);
+        if (!target?.email) return;
+        await sendFollowedUserListingEmail({
+          to: target.email,
+          recipientName: target.full_name || null,
+          publisherName,
+          listingTitle,
+          listingUrl,
+        });
+      })
+    );
+
+    await Promise.allSettled(
+      matchingSearches
+        .filter((search: any) => search.email_enabled !== false)
+        .slice(0, MAX_EMAILS_PER_CALL)
+        .map(async (search: any) => {
+          const target = userProfiles.get(search.user_id);
+          if (!target?.email) return;
+          await sendSavedSearchMatchEmail({
+            to: target.email,
+            searchName: search.name,
+            listingTitle,
+            listingId: listing.id,
+          });
+        })
+    );
+
+    return NextResponse.json({
+      ok: true,
+      followerNotifications: followerNotifications.length,
+      savedSearchNotifications: searchNotifications.length,
+      emailTargets: uniqueEmailTargets.length,
     });
-  }));
-
-  await Promise.allSettled(matchingSearches.filter((search: any) => search.email_enabled !== false).map(async (search: any) => {
-    const target = userProfiles.get(search.user_id);
-    if (!target?.email) return;
-    await sendSavedSearchMatchEmail({
-      to: target.email,
-      searchName: search.name,
-      listingTitle,
-      listingId: listing.id,
-    });
-  }));
-
-  return NextResponse.json({ ok: true, followerNotifications: followerNotifications.length, savedSearchNotifications: searchNotifications.length });
+  } catch (error) {
+    return safeApiError(error, "No se pudieron enviar las notificaciones del anuncio.", 500);
+  }
 }
