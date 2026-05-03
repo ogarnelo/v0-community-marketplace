@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { HelpContactForm } from "@/components/help/help-contact-form";
 import {
   AlertTriangle,
   BookOpen,
@@ -13,15 +13,13 @@ import {
   Gift,
   HelpCircle,
   MessageCircle,
-  Package,
   Store,
   Upload,
 } from "lucide-react";
 
 export const metadata = {
-  title: "Ayuda | Wetudy",
-  description:
-    "Centro de ayuda de Wetudy para comprar, vender, donar, pagar, publicar productos y resolver incidencias.",
+  title: "Centro de ayuda | Wetudy",
+  description: "Ayuda para comprar, vender, donar y resolver incidencias en Wetudy.",
 };
 
 const sections = [
@@ -32,7 +30,7 @@ const sections = [
       "Busca por categoría, curso, ISBN o palabra clave.",
       "Revisa fotos, estado, precio y perfil del vendedor.",
       "Pregunta por chat antes de comprar si tienes dudas.",
-      "Mantén la operación dentro de Wetudy para conservar trazabilidad.",
+      "Evita pagar fuera de Wetudy si quieres más trazabilidad.",
     ],
   },
   {
@@ -52,7 +50,7 @@ const sections = [
       "Marca el producto como donación cuando no quieras venderlo.",
       "El solicitante puede pedirlo desde el anuncio.",
       "Si aceptas, acordáis la entrega en el chat.",
-      "Donar ayuda a que material parado vuelva a usarse.",
+      "No necesitas que un colegio gestione la donación.",
     ],
   },
   {
@@ -60,9 +58,9 @@ const sections = [
     title: "Pagos y protección",
     items: [
       "Cuando pagas dentro de Wetudy, la operación queda vinculada.",
-      "Evita pagos externos si quieres más seguridad.",
       "La protección depende de que anuncio, chat y pago estén registrados.",
       "Si algo falla, abre una incidencia desde la operación.",
+      "Las comisiones visibles se muestran antes de confirmar.",
     ],
   },
   {
@@ -94,98 +92,66 @@ export default async function HelpPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar {...navbarData} />
-
       <main className="flex-1">
         <section className="border-b bg-card">
-          <div className="mx-auto max-w-4xl px-4 py-16 text-center lg:px-8 lg:py-24">
-            <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
-              Centro de ayuda
-            </Badge>
-            <h1 className="text-balance text-3xl font-bold tracking-tight sm:text-5xl">
-              Todo lo básico para comprar, vender y donar en Wetudy
+          <div className="mx-auto max-w-4xl px-4 py-16 text-center lg:px-8">
+            <HelpCircle className="mx-auto h-10 w-10 text-primary" />
+            <h1 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">
+              Ayuda para comprar, vender y donar en Wetudy
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Resolvemos las dudas más importantes para que puedas reutilizar material educativo con
-              más confianza.
+            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+              Guía rápida para reutilizar material educativo con más claridad y confianza.
             </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Button asChild>
-                <Link href="/marketplace">Explorar marketplace</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/contact">Contactar</Link>
-              </Button>
-            </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 py-14 lg:px-8 lg:py-20">
+        <section className="mx-auto max-w-6xl px-4 py-12 lg:px-8">
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {sections.map((section) => (
               <Card key={section.title}>
                 <CardContent className="p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                    <section.icon className="h-6 w-6 text-primary" />
-                  </div>
+                  <section.icon className="h-7 w-7 text-primary" />
                   <h2 className="mt-4 text-lg font-semibold">{section.title}</h2>
                   <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                    {section.items.map((item) => (
-                      <li key={item}>• {item}</li>
-                    ))}
+                    {section.items.map((item) => <li key={item}>• {item}</li>)}
                   </ul>
                 </CardContent>
               </Card>
             ))}
           </div>
-        </section>
 
-        <section className="border-y bg-muted/40 py-14 lg:py-20">
-          <div className="mx-auto max-w-5xl px-4 lg:px-8">
-            <div className="rounded-[2rem] border bg-card p-6 shadow-sm sm:p-8">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
-                  <MessageCircle className="h-6 w-6 text-primary" />
+          <div className="mt-10 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+            <Card>
+              <CardContent className="p-6">
+                <MessageCircle className="h-7 w-7 text-primary" />
+                <h2 className="mt-4 text-xl font-semibold">Consejo clave</h2>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Si quieres más seguridad, mantén anuncio, chat y pago dentro de Wetudy. Así podremos entender la operación si algo falla.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Button asChild><Link href="/seguridad">Ver seguridad</Link></Button>
+                  <Button asChild variant="outline"><Link href="/legal/proteccion-comprador">Protección comprador</Link></Button>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold">Consejo importante</h2>
-                  <p className="mt-3 text-muted-foreground">
-                    Si quieres más protección, evita cerrar acuerdos fuera de Wetudy. Cuando anuncio,
-                    chat, pago y operación están conectados, es más fácil resolver cualquier problema.
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <Button asChild>
-                      <Link href="/seguridad">Ver seguridad</Link>
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/legal/proteccion-comprador">Protección comprador</Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+              </CardContent>
+            </Card>
 
-        <section className="py-14 lg:py-20">
-          <div className="mx-auto max-w-4xl px-4 text-center lg:px-8">
-            <HelpCircle className="mx-auto h-10 w-10 text-primary" />
-            <h2 className="mt-5 text-3xl font-bold tracking-tight">¿Necesitas ayuda concreta?</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-              Para problemas con una compra o venta, abre incidencia desde la operación. Para dudas generales,
-              escríbenos desde contacto.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Button asChild>
-                <Link href="/account/activity">Ver mi actividad</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/contact">Contactar con Wetudy</Link>
-              </Button>
-            </div>
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold">¿No encuentras lo que buscas?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Escríbenos y registraremos tu consulta en soporte.
+                </p>
+                <div className="mt-5">
+                  <HelpContactForm
+                    initialName={navbarData.userName || ""}
+                    initialEmail=""
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </section>
       </main>
-
       <Footer />
     </div>
   );

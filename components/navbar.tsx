@@ -20,10 +20,10 @@ import {
   Bell,
   BookOpen,
   Heart,
-  Home,
   MessageCircle,
   Package,
   Plus,
+  Recycle,
   Rss,
   ShieldCheck,
   Store,
@@ -95,19 +95,37 @@ export function Navbar({
   const favoritesHref = isLoggedIn ? "/favorites" : "/auth?next=/favorites";
   const feedHref = isLoggedIn ? "/feed" : "/auth?next=/feed";
   const accountHref = isLoggedIn ? "/account" : "/auth";
-  const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
+  const effectiveAdminHref =
+    adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
 
-  const navItems = [
+  const loggedNavItems = [
     { href: "/marketplace", label: "Marketplace", icon: BookOpen, match: "/marketplace" },
     { href: feedHref, label: "Feed", icon: Rss, match: "/feed" },
     { href: favoritesHref, label: "Favoritos", icon: Heart, match: "/favorites" },
-    { href: messagesHref, label: "Mensajes", icon: MessageCircle, match: "/messages", count: unreadMessagesCount },
+    {
+      href: messagesHref,
+      label: "Mensajes",
+      icon: MessageCircle,
+      match: "/messages",
+      count: unreadMessagesCount,
+    },
   ];
+
+  const publicNavItems = [
+    { href: "/marketplace", label: "Marketplace", icon: BookOpen, match: "/marketplace" },
+    { href: "/negocios", label: "Negocios", icon: Store, match: "/negocios" },
+    { href: "/seguridad", label: "Seguridad", icon: ShieldCheck, match: "/seguridad" },
+    { href: "/impacto", label: "Impacto", icon: Recycle, match: "/impacto" },
+  ];
+
+  const navItems = isLoggedIn ? loggedNavItems : publicNavItems;
 
   const isActive = (match: string) => {
     if (!pathname) return false;
-    if (match === "/marketplace") return pathname.startsWith("/marketplace") && pathname !== "/marketplace/new";
+    if (match === "/marketplace") {
+      return pathname.startsWith("/marketplace") && pathname !== "/marketplace/new";
+    }
     return pathname.startsWith(match);
   };
 
@@ -119,12 +137,20 @@ export function Navbar({
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
               <BookOpen className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="truncate font-mono text-xl font-bold tracking-tight text-foreground">Wetudy</span>
+            <span className="truncate font-mono text-xl font-bold tracking-tight text-foreground">
+              Wetudy
+            </span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
             {navItems.map(({ href, label, icon: Icon, match, count }) => (
-              <Button key={href + label} asChild variant={isActive(match) ? "secondary" : "ghost"} size="sm" className="gap-1.5">
+              <Button
+                key={href + label}
+                asChild
+                variant={isActive(match) ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5"
+              >
                 <Link href={href} className="relative">
                   <Icon className="h-4 w-4" />
                   {label}
@@ -233,10 +259,6 @@ export function Navbar({
             ) : (
               <>
                 <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                  <Link href="/marketplace">Marketplace</Link>
-                </Button>
-
-                <Button asChild variant="ghost" size="sm">
                   <Link href="/auth">Iniciar sesión</Link>
                 </Button>
 

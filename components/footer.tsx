@@ -23,8 +23,8 @@ export function Footer() {
             <ul className="flex flex-col gap-2">
               <li><Link href="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-primary">Marketplace</Link></li>
               <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Publicar anuncio</Link></li>
-              <li><Link href="/favorites" className="text-sm text-muted-foreground transition-colors hover:text-primary">Favoritos</Link></li>
-              <li><Link href="/feed" className="text-sm text-muted-foreground transition-colors hover:text-primary">Feed personalizado</Link></li>
+              <li><Link href="/catalogo" className="text-sm text-muted-foreground transition-colors hover:text-primary">Catálogo educativo</Link></li>
+              <li><Link href="/impacto" className="text-sm text-muted-foreground transition-colors hover:text-primary">Impacto social</Link></li>
             </ul>
           </div>
 
@@ -32,9 +32,9 @@ export function Footer() {
             <h4 className="mb-3 text-sm font-semibold text-foreground">Para vender</h4>
             <ul className="flex flex-col gap-2">
               <li><Link href="/negocios" className="text-sm text-muted-foreground transition-colors hover:text-primary">Para negocios locales</Link></li>
-              <li><Link href="/account/business" className="text-sm text-muted-foreground transition-colors hover:text-primary">Panel profesional</Link></li>
-              <li><Link href="/catalogo" className="text-sm text-muted-foreground transition-colors hover:text-primary">Catálogo educativo</Link></li>
-              <li><Link href="/impacto" className="text-sm text-muted-foreground transition-colors hover:text-primary">Impacto social</Link></li>
+              <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vender material</Link></li>
+              <li><Link href="/seguridad" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vender con confianza</Link></li>
+              <li><Link href="/contact" className="text-sm text-muted-foreground transition-colors hover:text-primary">Hablar con Wetudy</Link></li>
             </ul>
           </div>
 
