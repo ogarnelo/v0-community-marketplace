@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Activity,
+  BarChart3,
   Bell,
   BookOpen,
   Heart,
@@ -247,6 +248,15 @@ export function Navbar({
                         <Link href={effectiveAdminHref} className="gap-2">
                           <ShieldCheck className="h-4 w-4" />
                           Panel admin
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+
+                    {isSuperAdmin ? (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/super/insights" className="gap-2">
+                          <BarChart3 className="h-4 w-4" />
+                          Demand Intelligence
                         </Link>
                       </DropdownMenuItem>
                     ) : null}
