@@ -277,6 +277,12 @@ export function Navbar({
                             Campañas sugeridas
                           </Link>
                         </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/seo" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            SEO automático
+                          </Link>
+                        </DropdownMenuItem>
                       </>
                     ) : null}
 

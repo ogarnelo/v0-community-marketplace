@@ -3,39 +3,52 @@ import { notFound } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
-import { MATERIAL_SEO_PAGES } from "@/lib/seo/material-pages";
+import { listingSearchParams } from "@/lib/seo/programmatic";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 
-export function generateStaticParams() {
-  return MATERIAL_SEO_PAGES.map((page) => ({ slug: page.slug }));
+export const dynamic = "force-dynamic";
+
+async function getPage(slug: string) {
+  const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("seo_programmatic_pages")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+
+  return data as any | null;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const page = MATERIAL_SEO_PAGES.find((item) => item.slug === slug);
+  const page = await getPage(slug);
 
   if (!page) return {};
 
   return {
     title: page.title,
     description: page.description,
+    alternates: {
+      canonical: `/material/${page.slug}`,
+    },
   };
 }
 
 export default async function MaterialSeoPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const page = MATERIAL_SEO_PAGES.find((item) => item.slug === slug);
+  const page = await getPage(slug);
 
   if (!page) notFound();
 
   const supabase = await createClient();
   const navbarData = await getNavbarData(supabase);
-
-  const marketplaceHref = page.category
-    ? `/marketplace?category=${encodeURIComponent(page.category)}`
-    : "/marketplace";
+  const search = listingSearchParams(page);
+  const marketplaceHref = search ? `/marketplace?${search}` : "/marketplace";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -57,7 +70,11 @@ export default async function MaterialSeoPage({ params }: { params: Promise<{ sl
         </section>
 
         <section className="mt-8 grid gap-4 md:grid-cols-3">
-          {page.bullets.map((bullet) => (
+          {[
+            "Busca por curso, categoría o ISBN cuando esté disponible.",
+            "Pregunta por chat antes de cerrar una operación.",
+            "Publica material que ya no usas para ayudar a otra familia.",
+          ].map((bullet) => (
             <div key={bullet} className="rounded-3xl border bg-card p-5">
               <CheckCircle2 className="h-6 w-6 text-primary" />
               <p className="mt-3 text-sm font-medium">{bullet}</p>

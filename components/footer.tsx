@@ -24,6 +24,7 @@ export function Footer() {
               <li><Link href="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-primary">Marketplace</Link></li>
               <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Publicar anuncio</Link></li>
               <li><Link href="/catalogo" className="text-sm text-muted-foreground transition-colors hover:text-primary">Catálogo educativo</Link></li>
+              <li><Link href="/material" className="text-sm text-muted-foreground transition-colors hover:text-primary">Guías de material</Link></li>
               <li><Link href="/impacto" className="text-sm text-muted-foreground transition-colors hover:text-primary">Impacto social</Link></li>
             </ul>
           </div>
