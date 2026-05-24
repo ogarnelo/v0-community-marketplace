@@ -16,11 +16,13 @@ export default function OpportunitiesList({
   roleContext = "business",
   emptyTitle = "Aún no hay oportunidades suficientes",
   emptyText = "Cuando haya búsquedas, demandas explícitas y señales de interés, aparecerán aquí.",
+  compact = false,
 }: {
   opportunities: DemandActivationOpportunity[];
   roleContext?: string;
   emptyTitle?: string;
   emptyText?: string;
+  compact?: boolean;
 }) {
   if (opportunities.length === 0) {
     return (
@@ -58,12 +60,14 @@ export default function OpportunitiesList({
                   {opportunity.recommendation_reason || "Señal de demanda detectada."}
                 </p>
 
-                <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-                  <Metric label="Búsquedas" value={opportunity.searches} />
-                  <Metric label="Sin resultado" value={opportunity.zero_results} />
-                  <Metric label="Guardadas" value={opportunity.saved_searches} />
-                  <Metric label="Peticiones" value={opportunity.explicit_requests} />
-                </div>
+                {!compact ? (
+                  <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+                    <Metric label="Búsquedas" value={opportunity.searches} />
+                    <Metric label="Sin resultado" value={opportunity.zero_results} />
+                    <Metric label="Guardadas" value={opportunity.saved_searches} />
+                    <Metric label="Peticiones" value={opportunity.explicit_requests} />
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
@@ -80,7 +84,7 @@ export default function OpportunitiesList({
                 </Button>
                 <Button asChild variant="outline" className="gap-2">
                   <OpportunityActionLink
-                    href="/negocios"
+                    href="/contact"
                     opportunityKey={key}
                     actionType="business_contact_clicked"
                     roleContext={roleContext}

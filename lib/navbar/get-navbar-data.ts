@@ -11,6 +11,8 @@ interface SupabaseLike {
 export type NavbarData = {
   isLoggedIn: boolean;
   userName: string;
+  userType?: string | null;
+  isBusinessUser: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   adminHref?: string;
@@ -23,6 +25,8 @@ export type NavbarData = {
 const EMPTY_NAVBAR_DATA: NavbarData = {
   isLoggedIn: false,
   userName: "Mi cuenta",
+  userType: null,
+  isBusinessUser: false,
   isAdmin: false,
   isSuperAdmin: false,
   adminHref: undefined,
@@ -54,10 +58,10 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
       safeQuery(
         supabase
           .from("profiles")
-          .select("full_name, business_name")
+          .select("full_name, business_name, user_type")
           .eq("id", user.id)
           .maybeSingle(),
-        null as { full_name?: string | null; business_name?: string | null } | null
+        null as { full_name?: string | null; business_name?: string | null; user_type?: string | null } | null
       ),
       safeQuery(
         supabase.from("user_roles").select("role, school_id").eq("user_id", user.id),
@@ -68,6 +72,7 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     const profile = profileResult.data;
     const roles = Array.isArray(rolesResult.data) ? rolesResult.data : [];
     const adminFlags = getAdminFlags({ email: user.email, roles });
+    const isBusinessUser = profile?.user_type === "business" || adminFlags.canAccessAdmin;
 
     return {
       isLoggedIn: true,
@@ -78,6 +83,8 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
         user.user_metadata?.full_name ||
         user.email ||
         "Mi cuenta",
+      userType: profile?.user_type || null,
+      isBusinessUser,
       isAdmin: adminFlags.canAccessAdmin,
       isSuperAdmin: adminFlags.isSuperAdmin,
       adminHref: adminFlags.isSuperAdmin ? "/admin/super" : adminFlags.canAccessAdmin ? "/admin/school" : undefined,

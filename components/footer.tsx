@@ -32,7 +32,6 @@ export function Footer() {
             <h4 className="mb-3 text-sm font-semibold text-foreground">Para vender</h4>
             <ul className="flex flex-col gap-2">
               <li><Link href="/negocios" className="text-sm text-muted-foreground transition-colors hover:text-primary">Para negocios locales</Link></li>
-              <li><Link href="/negocios/demanda" className="text-sm text-muted-foreground transition-colors hover:text-primary">Productos demandados</Link></li>
               <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vender material</Link></li>
               <li><Link href="/seguridad" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vender con confianza</Link></li>
               <li><Link href="/contact" className="text-sm text-muted-foreground transition-colors hover:text-primary">Hablar con Wetudy</Link></li>

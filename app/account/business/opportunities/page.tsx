@@ -12,6 +12,14 @@ import { ArrowLeft, Lightbulb } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Productos demandados | Panel profesional Wetudy",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
 async function canUseBusinessOpportunities(userId: string) {
   const admin = createAdminClient();
 
@@ -82,9 +90,14 @@ export default async function BusinessOpportunitiesPage() {
                 </p>
               </div>
 
-              <Button asChild>
-                <Link href="/marketplace/new">Publicar producto</Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link href="/marketplace/new">Publicar producto</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/account/business/onboarding">Plan de subida rápida</Link>
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -25,6 +25,13 @@ export type DemandActivationOpportunity = {
   recommendation_reason?: string | null;
 };
 
+export type BasicDemandTheme = {
+  label: string;
+  category: string | null;
+  gradeLevel: string | null;
+  strength: "alta" | "media" | "emergente";
+};
+
 function cleanLabel(value: unknown) {
   if (typeof value !== "string") return "";
   return value.replace(/^\(|\)$/g, "").trim();
@@ -112,4 +119,31 @@ export async function getDemandActivationOpportunities(limit = 20) {
   }
 
   return (data || []) as DemandActivationOpportunity[];
+}
+
+export async function getBasicDemandThemes(limit = 8): Promise<BasicDemandTheme[]> {
+  const opportunities = await getDemandActivationOpportunities(50);
+  const grouped = new Map<string, { score: number; category: string | null; gradeLevel: string | null }>();
+
+  for (const opportunity of opportunities) {
+    const category = cleanLabel(opportunity.category);
+    const grade = cleanLabel(opportunity.grade_level);
+    const safeCategory = category && category !== "sin categoría" ? category : "Material educativo";
+    const safeGrade = grade && grade !== "sin curso" ? grade : null;
+    const key = safeGrade ? `${safeCategory} · ${safeGrade}` : safeCategory;
+
+    const current = grouped.get(key) || { score: 0, category: safeCategory, gradeLevel: safeGrade };
+    current.score += opportunity.opportunity_score || 0;
+    grouped.set(key, current);
+  }
+
+  return [...grouped.entries()]
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, limit)
+    .map(([label, value]) => ({
+      label,
+      category: value.category,
+      gradeLevel: value.gradeLevel,
+      strength: value.score >= 25 ? "alta" : value.score >= 10 ? "media" : "emergente",
+    }));
 }

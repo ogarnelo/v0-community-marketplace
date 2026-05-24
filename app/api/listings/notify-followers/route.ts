@@ -9,6 +9,7 @@ import { safeApiError } from "@/lib/api/safe-error";
 const LISTING_NOTIFY_COOLDOWN_HOURS = 12;
 const MAX_FOLLOWER_NOTIFICATIONS = 300;
 const MAX_SAVED_SEARCH_NOTIFICATIONS = 300;
+const MAX_DEMAND_REQUEST_NOTIFICATIONS = 300;
 const MAX_EMAILS_PER_CALL = 120;
 
 function getBaseUrl() {
@@ -43,12 +44,26 @@ function matchesSavedSearch(search: any, listing: any) {
   return true;
 }
 
+function matchesDemandRequest(request: any, listing: any) {
+  const title = normalize(listing.title);
+  const description = normalize(listing.description);
+  const query = normalize(request.normalized_query || request.title);
+  const isbn = normalize(request.isbn);
+
+  if (isbn && normalize(listing.isbn) === isbn) return true;
+  if (request.category && listing.category !== request.category) return false;
+  if (request.grade_level && listing.grade_level !== request.grade_level) return false;
+
+  if (!query) return Boolean(request.category || request.grade_level);
+  return title.includes(query) || description.includes(query) || query.includes(title);
+}
+
 async function hasRecentListingNotification(adminSupabase: ReturnType<typeof createAdminClient>, listingId: string) {
   try {
     const { data } = await adminSupabase
       .from("notifications")
       .select("id")
-      .in("kind", ["followed_user_listing_created", "saved_search_match"])
+      .in("kind", ["followed_user_listing_created", "saved_search_match", "demand_request_match"])
       .contains("metadata", { listing_id: listingId })
       .gte("created_at", cooldownSince())
       .limit(1);
@@ -100,13 +115,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, skipped: true, reason: "cooldown" });
     }
 
-    const [{ data: follows }, { data: savedSearches }] = await Promise.all([
+    const [{ data: follows }, { data: savedSearches }, { data: demandRequests }] = await Promise.all([
       adminSupabase.from("user_follows").select("follower_id").eq("following_id", user.id).limit(MAX_FOLLOWER_NOTIFICATIONS),
       adminSupabase
         .from("saved_searches")
         .select("id, user_id, name, query, category, grade_level, condition, listing_type, isbn, min_price, max_price, email_enabled, push_enabled")
         .neq("user_id", user.id)
         .limit(MAX_SAVED_SEARCH_NOTIFICATIONS),
+      adminSupabase
+        .from("demand_requests")
+        .select("id, user_id, title, normalized_query, category, grade_level, isbn, status")
+        .eq("status", "open")
+        .neq("user_id", user.id)
+        .limit(MAX_DEMAND_REQUEST_NOTIFICATIONS),
     ]);
 
     const followerIds = Array.from(
@@ -138,9 +159,35 @@ export async function POST(request: Request) {
         metadata: { listing_id: listing.id, saved_search_id: search.id },
       }));
 
-    const allNotifications = [...followerNotifications, ...searchNotifications];
+    const matchingDemandRequests = (demandRequests || []).filter((request: any) => matchesDemandRequest(request, listing));
+    const demandNotifications = matchingDemandRequests.map((request: any) => ({
+      user_id: request.user_id,
+      kind: "demand_request_match",
+      title: "Ha aparecido algo que buscabas",
+      body: `"${listingTitle}" puede encajar con "${request.title}".`,
+      href: `/marketplace/listing/${listing.id}`,
+      metadata: { listing_id: listing.id, demand_request_id: request.id },
+    }));
+
+    const allNotifications = [...followerNotifications, ...searchNotifications, ...demandNotifications];
     if (allNotifications.length > 0) {
       await createNotifications(adminSupabase, allNotifications);
+    }
+
+    if (matchingDemandRequests.length > 0) {
+      await Promise.allSettled(
+        matchingDemandRequests.map((request: any) =>
+          adminSupabase.from("demand_match_notifications").upsert(
+            {
+              demand_request_id: request.id,
+              listing_id: listing.id,
+              user_id: request.user_id,
+              status: "notified",
+            },
+            { onConflict: "demand_request_id,listing_id,user_id" }
+          )
+        )
+      );
     }
 
     const uniqueEmailTargets = Array.from(new Set([...followerIds, ...matchingSearches.map((search: any) => search.user_id)])).slice(0, MAX_EMAILS_PER_CALL);
@@ -190,6 +237,7 @@ export async function POST(request: Request) {
       ok: true,
       followerNotifications: followerNotifications.length,
       savedSearchNotifications: searchNotifications.length,
+      demandRequestNotifications: demandNotifications.length,
       emailTargets: uniqueEmailTargets.length,
     });
   } catch (error) {

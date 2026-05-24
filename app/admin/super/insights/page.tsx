@@ -222,7 +222,7 @@ export default async function DemandInsightsPage() {
               <Link href="/account/business/opportunities">Demand Activation</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/negocios/demanda">Vista para negocios</Link>
+              <Link href="/admin/super/campaigns">Campañas sugeridas</Link>
             </Button>
           </div>
         </div>

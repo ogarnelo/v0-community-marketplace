@@ -36,6 +36,7 @@ interface NavbarProps {
   userName?: string;
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
+  isBusinessUser?: boolean;
   adminHref?: string;
   unreadMessagesCount?: number;
   unreadNotificationsCount?: number;
@@ -68,6 +69,7 @@ export function Navbar({
   userName = "Mi cuenta",
   isAdmin = false,
   isSuperAdmin = false,
+  isBusinessUser = false,
   adminHref,
   unreadMessagesCount = 0,
   unreadNotificationsCount = 0,
@@ -237,26 +239,45 @@ export function Navbar({
                     </DropdownMenuItem>
 
                     <DropdownMenuItem asChild>
-                      <Link href="/account/business" className="gap-2">
-                        <Store className="h-4 w-4" />
-                        Panel profesional
+                      <Link href="/account/demand" className="gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Lo que se busca
                       </Link>
                     </DropdownMenuItem>
 
-                    <DropdownMenuItem asChild>
-                      <Link href="/account/business/opportunities" className="gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        Productos demandados
-                      </Link>
-                    </DropdownMenuItem>
+                    {isBusinessUser ? (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link href="/account/business" className="gap-2">
+                            <Store className="h-4 w-4" />
+                            Panel profesional
+                          </Link>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem asChild>
+                          <Link href="/account/business/opportunities" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Productos demandados
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
 
                     {isSuperAdmin ? (
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin/super/insights" className="gap-2">
-                          <TrendingUp className="h-4 w-4" />
-                          Demand Intelligence
-                        </Link>
-                      </DropdownMenuItem>
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/insights" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Demand Intelligence
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/campaigns" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Campañas sugeridas
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
                     ) : null}
 
                     {effectiveAdminHref ? (
