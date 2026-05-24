@@ -109,11 +109,13 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const canCreateLabel = latestShipment?.seller_id === user.id;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <ConversationsSidebar conversations={conversationSummaries} selectedConversationId={typedConversation.id} currentUserId={user.id} />
+    <div className="mx-auto max-w-7xl px-3 py-3 lg:px-8 lg:py-6">
+      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-6">
+        <div className="hidden lg:block">
+          <ConversationsSidebar conversations={conversationSummaries} selectedConversationId={typedConversation.id} currentUserId={user.id} />
+        </div>
 
-        <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
+        <Card className="flex min-h-[calc(100vh-7rem)] flex-col overflow-hidden rounded-2xl border bg-white lg:min-h-[70vh]">
           <div className="border-b px-5 py-4">
             <div className="flex items-center justify-between gap-4">
               <Link href={`/profile/${otherUserId}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"><div className="flex items-center gap-3 rounded-xl p-2"><Avatar className="h-11 w-11"><AvatarFallback>{getInitials(otherName)}</AvatarFallback></Avatar><div className="min-w-0"><p className="truncate text-lg font-semibold">{otherName}</p><p className="truncate text-sm text-muted-foreground">{otherRole}</p><p className="truncate text-sm text-muted-foreground">{listing?.title || "Anuncio"}</p></div></div></Link>

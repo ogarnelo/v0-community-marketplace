@@ -199,6 +199,12 @@ export default async function ListingDetailPage({
               {!isDonation && savings > 0 ? <p className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">Ahorras {formatPrice(savings)}</p> : null}
             </div>
 
+            <div className="mt-5 grid gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900 sm:grid-cols-3">
+              <span className="font-medium">✓ Foto obligatoria</span>
+              <span className="font-medium">✓ Chat con historial</span>
+              <span className="font-medium">✓ Pago protegido</span>
+            </div>
+
             <div className="mt-6 flex flex-col gap-3">
               {isOwnListing ? (
                 <Link href={`/marketplace/edit/${listing.id}`}><Button className="w-full" variant="outline">Editar anuncio</Button></Link>
@@ -235,6 +241,7 @@ export default async function ListingDetailPage({
               <li>✓ Paga dentro de la plataforma para mantener historial y seguimiento.</li>
               <li>✓ El chat conserva ofertas, contraofertas y acuerdos.</li>
               <li>✓ En envíos, el estado queda visible en actividad y mensajes.</li>
+              <li>✓ Si tienes dudas, empieza por chat y convierte a oferta cuando lo tengas claro.</li>
             </ul>
           </div>
         </div>

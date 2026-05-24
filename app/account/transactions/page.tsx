@@ -93,7 +93,7 @@ export default async function AccountTransactionsPage() {
               </div>
               <h1 className="mt-4 text-3xl font-bold tracking-tight">Operaciones</h1>
               <p className="mt-2 max-w-3xl text-muted-foreground">
-                Acciones rápidas para cerrar compras, responder ofertas y convertir conversaciones en operaciones reales.
+                Acciones rápidas para cerrar compras, responder ofertas y convertir conversaciones en operaciones reales. En móvil verás primero lo urgente.
               </p>
             </div>
 

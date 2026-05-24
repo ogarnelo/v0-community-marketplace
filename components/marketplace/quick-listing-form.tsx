@@ -309,18 +309,19 @@ export default function QuickListingForm({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".jpg,.jpeg,.png,.webp,.gif"
+        accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
+        capture="environment"
         multiple
         className="hidden"
         onChange={handleFilesSelected}
       />
 
-      <div className="mb-5 rounded-3xl border border-dashed bg-muted/30 p-4">
+      <div className="mb-5 rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Label>Fotos obligatorias</Label>
             <p className="mt-1 text-sm text-muted-foreground">
-              Añade al menos una foto real. Los anuncios sin foto generan poca confianza y no se publican.
+              Añade al menos una foto real. En móvil puedes abrir la cámara directamente. Los anuncios sin foto no se publican.
             </p>
           </div>
           <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
