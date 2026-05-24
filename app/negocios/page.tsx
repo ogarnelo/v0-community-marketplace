@@ -92,6 +92,9 @@ export default async function NegociosPage() {
                   <Link href="/auth?mode=signup">Crear perfil profesional</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
+                  <Link href="/negocios/demanda">Ver productos demandados</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
                   <Link href="/contact">Hablar con Wetudy</Link>
                 </Button>
               </div>
@@ -185,6 +188,9 @@ export default async function NegociosPage() {
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button asChild>
                 <Link href="/auth?mode=signup">Crear perfil profesional</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/negocios/demanda">Ver demanda actual</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/marketplace">Ver marketplace</Link>

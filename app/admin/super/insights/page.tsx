@@ -217,6 +217,14 @@ export default async function DemandInsightsPage() {
             Señales de demanda de los últimos 30 días: búsquedas, cero resultados,
             búsquedas guardadas, demandas explícitas, categorías, cursos y regiones.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button asChild variant="outline">
+              <Link href="/account/business/opportunities">Demand Activation</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/negocios/demanda">Vista para negocios</Link>
+            </Button>
+          </div>
         </div>
       </div>
 

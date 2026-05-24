@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Activity,
-  BarChart3,
   Bell,
   BookOpen,
   Heart,
@@ -28,6 +27,7 @@ import {
   Rss,
   ShieldCheck,
   Store,
+  TrendingUp,
   User,
 } from "lucide-react";
 
@@ -243,20 +243,27 @@ export function Navbar({
                       </Link>
                     </DropdownMenuItem>
 
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/business/opportunities" className="gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Productos demandados
+                      </Link>
+                    </DropdownMenuItem>
+
+                    {isSuperAdmin ? (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/super/insights" className="gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          Demand Intelligence
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+
                     {effectiveAdminHref ? (
                       <DropdownMenuItem asChild>
                         <Link href={effectiveAdminHref} className="gap-2">
                           <ShieldCheck className="h-4 w-4" />
                           Panel admin
-                        </Link>
-                      </DropdownMenuItem>
-                    ) : null}
-
-                    {isSuperAdmin ? (
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin/super/insights" className="gap-2">
-                          <BarChart3 className="h-4 w-4" />
-                          Demand Intelligence
                         </Link>
                       </DropdownMenuItem>
                     ) : null}
