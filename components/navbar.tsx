@@ -21,6 +21,7 @@ import {
   Bell,
   BookOpen,
   Heart,
+  Handshake,
   MessageCircle,
   Package,
   Plus,
@@ -255,6 +256,12 @@ export function Navbar({
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
+                      <Link href="/account/transactions" className="gap-2">
+                        <Handshake className="h-4 w-4" />
+                        Operaciones
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <Link href="/account/seller/velocity" className="gap-2">
                         <Zap className="h-4 w-4" />
                         Publicación rápida
@@ -315,6 +322,12 @@ export function Navbar({
                           <Link href="/admin/super/moderation" className="gap-2">
                             <ShieldAlert className="h-4 w-4" />
                             Moderación
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/transaction-velocity" className="gap-2">
+                            <Handshake className="h-4 w-4" />
+                            Transaction Velocity
                           </Link>
                         </DropdownMenuItem>
                       </>
