@@ -6,7 +6,10 @@ export type AutomationJobId =
   | "supabase.keepalive"
   | "seo.autogenerate"
   | "demand.tables.check"
-  | "seo.pages.check";
+  | "seo.pages.check"
+  | "autopilot.growth"
+  | "moderation.scan"
+  | "seo.maintenance";
 
 export type AutomationJobDefinition = {
   id: AutomationJobId;
@@ -59,6 +62,27 @@ export const AUTOMATION_JOBS: AutomationJobDefinition[] = [
     name: "SEO pages check",
     description: "Revisa cuántas páginas SEO están publicadas, en draft, noindex o archivadas.",
     risk: "low",
+    recommendedCadence: "Diario",
+  },
+  {
+    id: "autopilot.growth",
+    name: "Autopilot Growth",
+    description: "Genera recomendaciones automáticas de crecimiento, liquidez, captación y conversión.",
+    risk: "medium",
+    recommendedCadence: "Diario",
+  },
+  {
+    id: "moderation.scan",
+    name: "Moderation scan",
+    description: "Escanea anuncios recientes para detectar señales de riesgo o baja calidad.",
+    risk: "medium",
+    recommendedCadence: "Diario",
+  },
+  {
+    id: "seo.maintenance",
+    name: "SEO maintenance",
+    description: "Recalcula inventario de páginas SEO y marca noindex cuando una página pierde oferta suficiente.",
+    risk: "medium",
     recommendedCadence: "Diario",
   },
 ];
@@ -192,6 +216,33 @@ export async function runAutomationJob(jobId: string) {
     };
   }
 
+  if (job.id === "autopilot.growth") {
+    const result = await fetchJson("/api/autopilot/run", { secret: true });
+    return {
+      ok: result.ok,
+      message: result.ok ? "Autopilot Growth completed." : `Autopilot Growth failed with ${result.status}.`,
+      result,
+    };
+  }
+
+  if (job.id === "moderation.scan") {
+    const result = await fetchJson("/api/moderation/scan", { secret: true });
+    return {
+      ok: result.ok,
+      message: result.ok ? "Moderation scan completed." : `Moderation scan failed with ${result.status}.`,
+      result,
+    };
+  }
+
+  if (job.id === "seo.maintenance") {
+    const result = await fetchJson("/api/seo/maintenance", { secret: true });
+    return {
+      ok: result.ok,
+      message: result.ok ? "SEO maintenance completed." : `SEO maintenance failed with ${result.status}.`,
+      result,
+    };
+  }
+
   if (job.id === "seo.pages.check") {
     const admin = createAdminClient();
 
@@ -232,6 +283,9 @@ export const DAILY_AUTOMATION_JOB_IDS: AutomationJobId[] = [
   "health.ready",
   "supabase.keepalive",
   "seo.autogenerate",
+  "seo.maintenance",
   "demand.tables.check",
   "seo.pages.check",
+  "autopilot.growth",
+  "moderation.scan",
 ];

@@ -26,6 +26,7 @@ import {
   Plus,
   Recycle,
   Rss,
+  ShieldAlert,
   ShieldCheck,
   Store,
   TrendingUp,
@@ -261,6 +262,12 @@ export function Navbar({
                             Productos demandados
                           </Link>
                         </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/account/business/import" className="gap-2">
+                            <Package className="h-4 w-4" />
+                            Importar productos
+                          </Link>
+                        </DropdownMenuItem>
                       </>
                     ) : null}
 
@@ -285,9 +292,15 @@ export function Navbar({
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href="/admin/super/automation" className="gap-2">
+                          <Link href="/admin/super/autopilot" className="gap-2">
                             <Bot className="h-4 w-4" />
-                            Automation Center
+                            Autopilot Growth
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/moderation" className="gap-2">
+                            <ShieldAlert className="h-4 w-4" />
+                            Moderación
                           </Link>
                         </DropdownMenuItem>
                       </>
