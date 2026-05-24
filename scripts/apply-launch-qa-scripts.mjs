@@ -3,33 +3,28 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const packagePath = path.join(process.cwd(), "package.json");
+const packageJsonPath = path.join(process.cwd(), "package.json");
 
-if (!fs.existsSync(packagePath)) {
-  console.error("package.json not found");
+if (!fs.existsSync(packageJsonPath)) {
+  console.error("❌ package.json not found. Run this script from the project root.");
   process.exit(1);
 }
 
-const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
-pkg.scripts ||= {};
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 
-const additions = {
+packageJson.scripts = {
+  ...(packageJson.scripts || {}),
   "check:env": "node scripts/check-env.mjs",
   "test:contracts": "node --test \"__tests__/**/*.test.mjs\"",
   "test:smoke": "node scripts/launch-smoke.mjs",
-  "launch:qa": "npm run test:contracts && npm run check:env",
+  "launch:qa": "npm run check:env && npm run test:contracts && npm run build",
 };
 
-for (const [key, value] of Object.entries(additions)) {
-  pkg.scripts[key] = value;
-}
+fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
 
-if (!pkg.scripts.test) {
-  pkg.scripts.test = "npm run test:contracts";
-}
-
-fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
 console.log("✅ Launch QA scripts merged into package.json");
 console.log("Added/updated:");
-for (const key of Object.keys(additions)) console.log(`- ${key}`);
-if (pkg.scripts.test === "npm run test:contracts") console.log("- test");
+console.log("- check:env");
+console.log("- test:contracts");
+console.log("- test:smoke");
+console.log("- launch:qa");
