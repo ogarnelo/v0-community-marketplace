@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Activity,
+  Bot,
   Bell,
   BookOpen,
   Heart,
@@ -281,6 +282,12 @@ export function Navbar({
                           <Link href="/admin/super/seo" className="gap-2">
                             <TrendingUp className="h-4 w-4" />
                             SEO automático
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/automation" className="gap-2">
+                            <Bot className="h-4 w-4" />
+                            Automation Center
                           </Link>
                         </DropdownMenuItem>
                       </>
