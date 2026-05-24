@@ -33,12 +33,20 @@ function priorityClassName(priority: string) {
 
 export default async function AdminTransactionVelocityPage() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/admin/login");
-  if (!(await canAccessSuperadmin(user.id, user.email))) redirect("/account");
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  const isSuperadmin = await canAccessSuperadmin(user.id, user.email);
+
+  if (!isSuperadmin) {
+    redirect("/account");
+  }
 
   const admin = createAdminClient();
 
