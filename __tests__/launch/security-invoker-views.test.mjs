@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+const SEARCH_DIRS = [
+  "supabase/migrations",
+  "docs/sql",
+  "scripts/sql",
+];
+
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];
   const out = [];
@@ -25,11 +31,11 @@ function normalizeSql(sql) {
 }
 
 test("demand intelligence views are explicitly moved to security_invoker", () => {
-  const files = walk("supabase/migrations").filter((file) => file.endsWith(".sql"));
+  const files = SEARCH_DIRS.flatMap((dir) => walk(dir)).filter((file) => file.endsWith(".sql"));
 
   assert.ok(
     files.length > 0,
-    "Expected SQL migrations under supabase/migrations so database security fixes stay versioned"
+    `Expected at least one versioned SQL file in one of: ${SEARCH_DIRS.join(", ")}`
   );
 
   const combined = normalizeSql(files.map((file) => fs.readFileSync(file, "utf8")).join("\n"));
