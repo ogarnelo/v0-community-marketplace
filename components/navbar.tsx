@@ -28,6 +28,7 @@ import {
   Rss,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Store,
   TrendingUp,
   User,
@@ -244,6 +245,12 @@ export function Navbar({
                       <Link href="/account/demand" className="gap-2">
                         <TrendingUp className="h-4 w-4" />
                         Lo que se busca
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/growth" className="gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Asistente de ventas
                       </Link>
                     </DropdownMenuItem>
 

@@ -9,7 +9,9 @@ export type AutomationJobId =
   | "seo.pages.check"
   | "autopilot.growth"
   | "moderation.scan"
-  | "seo.maintenance";
+  | "seo.maintenance"
+  | "conversion.generate"
+  | "demand.match_existing";
 
 export type AutomationJobDefinition = {
   id: AutomationJobId;
@@ -82,6 +84,20 @@ export const AUTOMATION_JOBS: AutomationJobDefinition[] = [
     id: "seo.maintenance",
     name: "SEO maintenance",
     description: "Recalcula inventario de páginas SEO y marca noindex cuando una página pierde oferta suficiente.",
+    risk: "medium",
+    recommendedCadence: "Diario",
+  },
+  {
+    id: "conversion.generate",
+    name: "Conversion nudges",
+    description: "Genera recomendaciones para vendedores: demanda activa, precio, compartir y publicar productos similares.",
+    risk: "medium",
+    recommendedCadence: "Diario",
+  },
+  {
+    id: "demand.match_existing",
+    name: "Demand matching",
+    description: "Empareja demandas abiertas con anuncios existentes y avisa a usuarios interesados.",
     risk: "medium",
     recommendedCadence: "Diario",
   },
@@ -243,6 +259,24 @@ export async function runAutomationJob(jobId: string) {
     };
   }
 
+  if (job.id === "conversion.generate") {
+    const result = await fetchJson("/api/conversion/generate", { secret: true });
+    return {
+      ok: result.ok,
+      message: result.ok ? "Conversion nudges generated." : `Conversion nudges failed with ${result.status}.`,
+      result,
+    };
+  }
+
+  if (job.id === "demand.match_existing") {
+    const result = await fetchJson("/api/demand/match-existing", { secret: true });
+    return {
+      ok: result.ok,
+      message: result.ok ? "Demand matching completed." : `Demand matching failed with ${result.status}.`,
+      result,
+    };
+  }
+
   if (job.id === "seo.pages.check") {
     const admin = createAdminClient();
 
@@ -287,5 +321,7 @@ export const DAILY_AUTOMATION_JOB_IDS: AutomationJobId[] = [
   "demand.tables.check",
   "seo.pages.check",
   "autopilot.growth",
+  "conversion.generate",
+  "demand.match_existing",
   "moderation.scan",
 ];
