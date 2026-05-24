@@ -4,10 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
-  HeartHandshake,
+  Handshake,
   MessageCircle,
   PlusCircle,
-  Rss,
   ShieldCheck,
   Store,
   User,
@@ -38,9 +37,9 @@ export default function MobileBottomNavigation({
 
   const loggedItems = [
     { href: "/marketplace", label: "Explorar", icon: BookOpen, match: "/marketplace" },
-    { href: "/feed", label: "Feed", icon: Rss, match: "/feed" },
-    { href: "/marketplace/new", label: "Publicar", icon: PlusCircle, match: "/marketplace/new", featured: true },
+    { href: "/marketplace/new/quick", label: "Publicar", icon: PlusCircle, match: "/marketplace/new", featured: true },
     { href: "/messages", label: "Chats", icon: MessageCircle, match: "/messages", count: unreadMessagesCount },
+    { href: "/account/transactions", label: "Operar", icon: Handshake, match: "/account/transactions" },
     { href: "/account", label: "Cuenta", icon: User, match: "/account" },
   ];
 
@@ -48,7 +47,7 @@ export default function MobileBottomNavigation({
     { href: "/marketplace", label: "Explorar", icon: BookOpen, match: "/marketplace" },
     { href: "/negocios", label: "Negocios", icon: Store, match: "/negocios" },
     { href: "/seguridad", label: "Seguridad", icon: ShieldCheck, match: "/seguridad" },
-    { href: "/marketplace/new", label: "Vender", icon: PlusCircle, match: "/marketplace/new", featured: true },
+    { href: "/auth?next=/marketplace/new/quick", label: "Vender", icon: PlusCircle, match: "/marketplace/new", featured: true },
     { href: "/auth", label: "Entrar", icon: User, match: "/auth" },
   ];
 
@@ -60,7 +59,7 @@ export default function MobileBottomNavigation({
         {items.map((item) => {
           const active =
             item.match === "/marketplace/new"
-              ? pathname === item.match
+              ? pathname?.startsWith(item.match)
               : pathname?.startsWith(item.match);
           const Icon = item.icon;
 

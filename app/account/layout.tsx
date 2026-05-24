@@ -20,6 +20,7 @@ export default async function AccountLayout({
         userName={navbarData.userName}
         isAdmin={navbarData.isAdmin}
         isSuperAdmin={navbarData.isSuperAdmin}
+        isBusinessUser={navbarData.isBusinessUser}
         adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
         unreadNotificationsCount={navbarData.unreadNotificationsCount}

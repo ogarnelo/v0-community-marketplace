@@ -8,6 +8,7 @@ type ParsedListing = {
   title: string;
   description: string;
   price: number;
+  photo_url: string;
   category?: string;
   condition?: string;
   grade_level?: string;
@@ -35,6 +36,7 @@ function parseCsv(text: string) {
       title: row.title || row.titulo,
       description: row.description || row.descripcion || row.title || row.titulo,
       price: Number(row.price || row.precio || 0),
+      photo_url: row.photo_url || row.foto || row.image_url || row.imagen || "",
       category: row.category || row.categoria || undefined,
       condition: row.condition || row.estado || undefined,
       grade_level: row.grade_level || row.curso || undefined,
@@ -46,13 +48,25 @@ function parseCsv(text: string) {
   return rows;
 }
 
+function isValidPhotoUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 export default function BusinessCsvImporter() {
   const [csv, setCsv] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   const rows = useMemo(() => parseCsv(csv), [csv]);
-  const validRows = rows.filter((row) => row.title && Number.isFinite(row.price) && row.price >= 0);
+  const validRows = rows.filter(
+    (row) => row.title && Number.isFinite(row.price) && row.price >= 0 && isValidPhotoUrl(row.photo_url)
+  );
+  const rowsWithoutPhoto = rows.filter((row) => row.title && !isValidPhotoUrl(row.photo_url)).length;
 
   async function submit() {
     setStatus("loading");
@@ -69,7 +83,7 @@ export default function BusinessCsvImporter() {
       if (!response.ok) throw new Error(data?.error || "No se pudo importar.");
 
       setStatus("done");
-      setMessage(`${validRows.length} productos enviados para crear anuncios.`);
+      setMessage(`${validRows.length} productos creados con foto obligatoria.`);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "No se pudo importar.");
@@ -85,7 +99,7 @@ export default function BusinessCsvImporter() {
         <div>
           <h2 className="font-semibold">Importar CSV rápido</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Columnas recomendadas: title, description, price, category, condition, grade_level, isbn.
+            La foto es obligatoria. Añade una columna <strong>photo_url</strong> con una URL pública por producto.
           </p>
         </div>
       </div>
@@ -94,9 +108,9 @@ export default function BusinessCsvImporter() {
         value={csv}
         onChange={(event) => setCsv(event.target.value)}
         className="mt-4 min-h-56 w-full rounded-2xl border bg-background p-3 text-sm"
-        placeholder={`title,description,price,category,condition,grade_level,isbn
-Libro Matemáticas,Libro en buen estado,12,Libros de texto,good,3 ESO,9780000000000
-Calculadora científica,Casio usada,18,Calculadoras,good,4 ESO,`}
+        placeholder={`title,description,price,photo_url,category,condition,grade_level,isbn
+Libro Matemáticas,Libro en buen estado,12,https://ejemplo.com/foto-libro.jpg,Libros de texto,good,3 ESO,9780000000000
+Calculadora científica,Casio usada,18,https://ejemplo.com/calculadora.jpg,Calculadoras,good,4 ESO,`}
       />
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -104,7 +118,7 @@ Calculadora científica,Casio usada,18,Calculadoras,good,4 ESO,`}
           {status === "loading" ? "Importando..." : `Crear ${validRows.length} anuncios`}
         </Button>
         <p className="text-sm text-muted-foreground">
-          Filas detectadas: {rows.length}. Válidas: {validRows.length}.
+          Filas detectadas: {rows.length}. Válidas: {validRows.length}. Sin foto válida: {rowsWithoutPhoto}.
         </p>
       </div>
 
