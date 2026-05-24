@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  Zap,
   TrendingUp,
   User,
 } from "lucide-react";
@@ -251,6 +252,12 @@ export function Navbar({
                       <Link href="/account/growth" className="gap-2">
                         <Sparkles className="h-4 w-4" />
                         Asistente de ventas
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/seller/velocity" className="gap-2">
+                        <Zap className="h-4 w-4" />
+                        Publicación rápida
                       </Link>
                     </DropdownMenuItem>
 
