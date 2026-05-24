@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getRankedListings } from "@/lib/marketplace/get-ranked-listings";
 import DemandSearchTracker from "@/components/analytics/demand-search-tracker";
+import CreateDemandRequestCard from "@/components/marketplace/create-demand-request-card";
 import { ListingCard } from "@/components/listing-card";
 import SaveSearchButton from "@/components/marketplace/save-search-button";
 import { Button } from "@/components/ui/button";
@@ -320,6 +321,15 @@ export default async function MarketplacePage({
                   <Link href="/marketplace/new">Publicar anuncio</Link>
                 </Button>
               </div>
+
+              <CreateDemandRequestCard
+                isLoggedIn={!!user}
+                query={q}
+                category={category}
+                gradeLevel={grade}
+                isbn={isbn}
+                resultCount={listings.length}
+              />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
