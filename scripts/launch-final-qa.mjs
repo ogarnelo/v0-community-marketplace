@@ -50,6 +50,14 @@ function ms(start) {
   return `${Date.now() - start}ms`
 }
 
+function isRedirectToAuth(finalUrl) {
+  return (
+    finalUrl.includes('/admin/login') ||
+    finalUrl.includes('/auth') ||
+    finalUrl.includes('/account')
+  )
+}
+
 async function check(path, options = {}) {
   const url = `${baseUrl}${path}`
   const start = Date.now()
@@ -67,7 +75,7 @@ async function check(path, options = {}) {
     return {
       path,
       status: response.status,
-      ok: options.accept ? options.accept(response) : response.ok,
+      ok: options.accept ? options.accept(response, { url, finalUrl: response.url || url }) : response.ok,
       ms: ms(start),
       finalUrl,
     }
@@ -108,10 +116,14 @@ for (const route of authenticatedRoutes) {
   results.push(result)
 }
 
-console.log('\nAdmin routes')
+console.log('\nAdmin routes must not expose private content while logged out')
 for (const route of adminRoutes) {
   const result = await check(route, {
-    accept: (res) => res.status === 200 || res.status === 307 || res.status === 308,
+    accept: (res, ctx) => {
+      if (res.status === 307 || res.status === 308 || res.status === 401 || res.status === 403) return true
+      if (res.status === 200 && isRedirectToAuth(ctx.finalUrl)) return true
+      return false
+    },
   })
   printResult(result)
   results.push(result)
