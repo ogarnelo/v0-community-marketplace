@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { safeApiError } from "@/lib/api/safe-error";
+import { getUserDemandContext, recordDemandEvent } from "@/lib/demand/events";
 
 const MAX_SAVED_SEARCHES_PER_USER = 50;
 const ALLOWED_LISTING_TYPES = new Set(["sale", "donation"]);
@@ -85,6 +86,28 @@ export async function POST(request: Request) {
     if (error) {
       return safeApiError(error, "No se pudo guardar la búsqueda.", 500);
     }
+
+    const demandContext = await getUserDemandContext(user.id);
+    await recordDemandEvent({
+      eventType: "saved_search_created",
+      userId: user.id,
+      query,
+      category,
+      gradeLevel,
+      condition,
+      listingType,
+      isbn,
+      resultCount: null,
+      postalCode: demandContext.postalCode,
+      region: demandContext.region,
+      schoolId: demandContext.schoolId,
+      source: "saved_search",
+      metadata: {
+        saved_search_id: data.id,
+        email_enabled: Boolean(body?.emailEnabled ?? true),
+        push_enabled: Boolean(body?.pushEnabled ?? true),
+      },
+    });
 
     return NextResponse.json({ ok: true, id: data.id });
   } catch (error) {

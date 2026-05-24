@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserDemandContext, recordDemandEvent } from "@/lib/demand/events";
 
 function sanitizeProperties(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -37,6 +38,22 @@ export async function POST(request: Request) {
   if (error) {
     console.error("analytics_track_error", error);
     return NextResponse.json({ ok: false }, { status: 200 });
+  }
+
+  if (["listing_viewed", "favorite_created", "chat_started", "offer_created", "checkout_started", "payment_completed", "donation_requested"].includes(eventName)) {
+    const context = await getUserDemandContext(user?.id || null);
+    await recordDemandEvent({
+      eventType: eventName,
+      userId: user?.id || null,
+      source: "analytics_track",
+      postalCode: context.postalCode,
+      region: context.region,
+      schoolId: context.schoolId,
+      metadata: {
+        entity_type: entityType,
+        entity_id: entityId,
+      },
+    });
   }
 
   return NextResponse.json({ ok: true });
