@@ -16,25 +16,37 @@ function walk(dir) {
   return out;
 }
 
+function normalizeSql(sql) {
+  return sql
+    .toLowerCase()
+    .replace(/--.*$/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 test("demand intelligence views are explicitly moved to security_invoker", () => {
   const files = walk("supabase/migrations").filter((file) => file.endsWith(".sql"));
-  const combined = files.map((file) => fs.readFileSync(file, "utf8")).join("\n").toLowerCase();
 
-  assert.match(
-    combined,
-    /alter\s+view\s+public\.demand_opportunities_30d\s+set\s*\(\s*security_invoker\s*=\s*true\s*\)/,
-    "public.demand_opportunities_30d must be altered to security_invoker=true"
+  assert.ok(
+    files.length > 0,
+    "Expected SQL migrations under supabase/migrations so database security fixes stay versioned"
   );
 
-  assert.match(
-    combined,
-    /alter\s+view\s+public\.demand_activation_opportunities_30d\s+set\s*\(\s*security_invoker\s*=\s*true\s*\)/,
-    "public.demand_activation_opportunities_30d must be altered to security_invoker=true"
-  );
+  const combined = normalizeSql(files.map((file) => fs.readFileSync(file, "utf8")).join("\n"));
 
-  assert.match(
-    combined,
-    /alter\s+view\s+public\.demand_events_30d_summary\s+set\s*\(\s*security_invoker\s*=\s*true\s*\)/,
-    "public.demand_events_30d_summary must be altered to security_invoker=true"
-  );
+  for (const viewName of [
+    "demand_opportunities_30d",
+    "demand_activation_opportunities_30d",
+    "demand_events_30d_summary",
+  ]) {
+    const pattern = new RegExp(
+      `alter\\s+view\\s+public\\.${viewName}\\s+set\\s*\\(\\s*security_invoker\\s*=\\s*true\\s*\\)`
+    );
+
+    assert.match(
+      combined,
+      pattern,
+      `public.${viewName} must be altered to security_invoker=true`
+    );
+  }
 });
