@@ -282,7 +282,7 @@ export function CheckoutSummary({
         <BuyerProtectionCard compact />
       </div>
 
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 lg:sticky lg:top-24">
         <CardHeader>
           <CardTitle>Resumen del pedido</CardTitle>
           <CardDescription>{listingTitle}</CardDescription>
@@ -317,6 +317,11 @@ export function CheckoutSummary({
             {deliveryMethod === "shipping"
               ? "El buyer fee ayuda a cubrir la gestión de la operación dentro de la plataforma."
               : "En entrega en mano no se aplica buyer fee ni coste de envío."}
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-5 text-emerald-900">
+            <p className="font-semibold">Antes de pagar</p>
+            <p className="mt-1">Revisa que el producto, el importe y la forma de entrega coinciden con lo acordado en el chat.</p>
           </div>
 
           {!showStripeCheckout ? (

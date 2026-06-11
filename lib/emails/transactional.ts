@@ -91,3 +91,54 @@ export async function sendPaymentFailedEmail(params: PaymentEmailParams) {
     `,
   });
 }
+
+
+export async function sendFollowedUserListingEmail(params: {
+  to: string;
+  recipientName?: string | null;
+  publisherName?: string | null;
+  listingTitle: string;
+  listingUrl: string;
+}) {
+  const firstName = params.recipientName?.trim() || "Hola";
+  const publisherName = params.publisherName?.trim() || "Un perfil que sigues";
+
+  return sendEmail({
+    to: params.to,
+    subject: `${publisherName} ha publicado un nuevo anuncio`,
+    text: `${firstName}, ${publisherName} ha publicado "${params.listingTitle}" en Wetudy. Puedes verlo aquí: ${params.listingUrl}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827">
+        <h2 style="margin:0 0 16px">Nuevo anuncio de un perfil que sigues</h2>
+        <p style="margin:0 0 12px">${firstName}, <strong>${publisherName}</strong> ha publicado un nuevo anuncio:</p>
+        <p style="margin:0 0 20px"><strong>${params.listingTitle}</strong></p>
+        <a href="${params.listingUrl}" style="display:inline-block;background:#7EBA28;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600">Ver anuncio</a>
+      </div>
+    `,
+  });
+}
+
+export async function sendFavoriteAddedEmail(params: {
+  to: string;
+  recipientName?: string | null;
+  actorName?: string | null;
+  listingTitle: string;
+  listingUrl: string;
+}) {
+  const firstName = params.recipientName?.trim() || "Hola";
+  const actorName = params.actorName?.trim() || "Alguien";
+
+  return sendEmail({
+    to: params.to,
+    subject: `Han guardado tu anuncio · ${params.listingTitle}`,
+    text: `${firstName}, ${actorName} ha guardado tu anuncio "${params.listingTitle}". Puedes verlo aquí: ${params.listingUrl}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827">
+        <h2 style="margin:0 0 16px">Tu anuncio está generando interés</h2>
+        <p style="margin:0 0 12px">${firstName}, <strong>${actorName}</strong> ha guardado tu anuncio.</p>
+        <p style="margin:0 0 20px"><strong>${params.listingTitle}</strong></p>
+        <a href="${params.listingUrl}" style="display:inline-block;background:#7EBA28;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600">Ver anuncio</a>
+      </div>
+    `,
+  });
+}

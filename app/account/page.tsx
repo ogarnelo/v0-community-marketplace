@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { gradeLevels } from "@/lib/mock-data";
+import { gradeLevels } from "@/lib/constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,6 +12,8 @@ import AccountProfileForm from "@/components/account/account-profile-form";
 import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
+import InviteFriendsCard from "@/components/account/invite-friends-card";
+import { displayExternalUrl, safeExternalUrl } from "@/lib/security/safe-url";
 
 type SafeUserMetadata = {
   full_name?: string;
@@ -56,6 +58,8 @@ export default async function AccountPage() {
   const businessName = typedProfile?.business_name || metadata.business_name || null;
   const businessDescription = typedProfile?.business_description || metadata.business_description || null;
   const website = typedProfile?.website || metadata.website || null;
+  const safeWebsite = safeExternalUrl(website);
+  const websiteLabel = displayExternalUrl(website);
   const isBusiness = userType === "business";
 
   const selectedSchool = typedProfile?.school_id && typedProfile.school_id.trim().length > 0
@@ -67,6 +71,7 @@ export default async function AccountPage() {
   const averageRatingLabel = typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—";
   const badges = stats.badgesForUserType(userType);
   const shippingReady = Boolean(typedProfile?.shipping_address_line1 && typedProfile?.shipping_city && typedProfile?.postal_code && typedProfile?.shipping_country_code);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
@@ -80,6 +85,10 @@ export default async function AccountPage() {
           <Button asChild variant="outline"><Link href="/account/listings">Mis anuncios</Link></Button>
           <Button asChild variant="outline"><Link href="/account/reviews">Mis opiniones</Link></Button>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <InviteFriendsCard appUrl={appUrl} referralCode={user.id} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -105,7 +114,7 @@ export default async function AccountPage() {
               {!isBusiness && gradeLevel ? <div className="flex items-center gap-2 text-muted-foreground"><GraduationCap className="h-4 w-4" /><span>{gradeLevel}</span></div> : null}
               <div className="flex items-center gap-2 text-muted-foreground"><Building2 className="h-4 w-4" /><span>{schoolName}</span></div>
               {isBusiness && businessName ? <div className="flex items-center gap-2 text-muted-foreground"><BriefcaseBusiness className="h-4 w-4" /><span>{businessName}</span></div> : null}
-              {isBusiness && website ? <div className="flex items-center gap-2 text-muted-foreground"><Globe className="h-4 w-4" /><a href={website} target="_blank" rel="noreferrer" className="hover:text-foreground">{website}</a></div> : null}
+              {isBusiness && safeWebsite ? <div className="flex items-center gap-2 text-muted-foreground"><Globe className="h-4 w-4" /><a href={safeWebsite} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">{websiteLabel || safeWebsite}</a></div> : null}
               {shippingReady ? <div className="flex items-center gap-2 text-muted-foreground"><Truck className="h-4 w-4" /><span>{typedProfile?.shipping_city}, {typedProfile?.shipping_country_code}</span></div> : null}
               {createdAt ? <div className="flex items-center gap-2 text-muted-foreground"><CalendarDays className="h-4 w-4" /><span>Miembro desde {new Date(createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}</span></div> : null}
             </div>

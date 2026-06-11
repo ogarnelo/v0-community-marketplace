@@ -55,6 +55,7 @@ export function DeleteListingButton({ listingId, title }: DeleteListingButtonPro
       startTransition(() => {
         router.refresh();
       });
+      window.setTimeout(() => window.location.reload(), 150);
     } catch (error: any) {
       setErrorMessage(error?.message || "No se pudo eliminar el anuncio.");
     } finally {

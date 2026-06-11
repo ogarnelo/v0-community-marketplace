@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeInternalRedirectPath } from "@/lib/security/safe-url";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const next = requestUrl.searchParams.get("next");
-  const safeNext = next && next.startsWith("/") ? next : null;
+  const safeNext = next ? safeInternalRedirectPath(next, "") : null;
 
   const supabase = await createClient();
 
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     const metadata = user.user_metadata || {};
     const invitedSchoolId =
       typeof metadata.invited_school_id === "string" &&
-        metadata.invited_school_id.trim().length > 0
+      metadata.invited_school_id.trim().length > 0
         ? metadata.invited_school_id.trim()
         : null;
     const invitedRole =
@@ -35,7 +36,9 @@ export async function GET(request: Request) {
         id: user.id,
         full_name: metadata.full_name || null,
         user_type:
-          metadata.user_type === "parent" || metadata.user_type === "student" || metadata.user_type === "business"
+          metadata.user_type === "parent" ||
+          metadata.user_type === "student" ||
+          metadata.user_type === "business"
             ? metadata.user_type
             : null,
         grade_level: metadata.grade_level || null,

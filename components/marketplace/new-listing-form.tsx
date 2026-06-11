@@ -10,7 +10,7 @@ import {
   conditions,
   bookFormats,
   bookLanguages,
-} from "@/lib/mock-data";
+} from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -371,7 +371,13 @@ export default function NewListingForm({
 
       await uploadListingPhotos(listingId, photos);
 
-      router.push(`/marketplace/listing/${listingId}`);
+      await fetch("/api/listings/notify-followers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
+      }).catch(() => null);
+
+      router.push(`/marketplace/listing/${listingId}?published=1`);
       router.refresh();
     } catch (error: any) {
       console.error("Error publicando anuncio:", error);

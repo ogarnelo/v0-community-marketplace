@@ -1,81 +1,84 @@
-
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function POST(request: Request) {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+const REVIEWABLE_PAYMENT_STATUSES = new Set(["paid", "completed", "succeeded"]);
 
-    if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
-    }
+function cleanComment(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 1000);
+}
 
-    const body = await request.json();
-    const paymentIntentId = typeof body?.paymentIntentId === "string" ? body.paymentIntentId.trim() : "";
-    const rating = Number(body?.rating);
-    const comment = typeof body?.comment === "string" ? body.comment.trim() : "";
+export async function POST(req: Request) {
+  const supabase = await createClient();
 
-    if (!paymentIntentId || !Number.isFinite(rating) || rating < 1 || rating > 5) {
-      return NextResponse.json({ error: "La valoración no es válida." }, { status: 400 });
-    }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    const admin = createAdminClient();
-    const { data: payment, error: paymentError } = await admin
-      .from("payment_intents")
-      .select("id, listing_id, buyer_id, seller_id, status")
-      .eq("id", paymentIntentId)
-      .maybeSingle();
-
-    if (paymentError || !payment) {
-      return NextResponse.json({ error: "Operación no encontrada." }, { status: 404 });
-    }
-
-    if (payment.status !== "paid") {
-      return NextResponse.json({ error: "Solo puedes valorar operaciones pagadas." }, { status: 400 });
-    }
-
-    const isBuyer = payment.buyer_id === user.id;
-    const isSeller = payment.seller_id === user.id;
-
-    if (!isBuyer && !isSeller) {
-      return NextResponse.json({ error: "No tienes permiso para valorar esta operación." }, { status: 403 });
-    }
-
-    const reviewedUserId = isBuyer ? payment.seller_id : payment.buyer_id;
-    if (!reviewedUserId) {
-      return NextResponse.json({ error: "No se ha podido identificar al otro usuario." }, { status: 400 });
-    }
-
-    const { data: existing } = await admin
-      .from("reviews")
-      .select("id")
-      .eq("reviewer_id", user.id)
-      .eq("reviewed_user_id", reviewedUserId)
-      .eq("listing_id", payment.listing_id)
-      .maybeSingle();
-
-    if (existing?.id) {
-      return NextResponse.json({ error: "Ya has dejado una valoración para esta operación." }, { status: 409 });
-    }
-
-    const { error: insertError } = await admin
-      .from("reviews")
-      .insert({
-        reviewer_id: user.id,
-        reviewed_user_id: reviewedUserId,
-        listing_id: payment.listing_id,
-        rating,
-        comment: comment || null,
-      });
-
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message || "No se pudo guardar la valoración." }, { status: 400 });
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "No se pudo crear la valoración." }, { status: 500 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const body = await req.json().catch(() => null);
+  const paymentIntentId = typeof body?.paymentIntentId === "string" ? body.paymentIntentId : "";
+  const rating = Number(body?.rating);
+  const comment = cleanComment(body?.comment);
+
+  if (!paymentIntentId) {
+    return NextResponse.json({ error: "Falta la operación a valorar." }, { status: 400 });
+  }
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return NextResponse.json({ error: "La valoración debe estar entre 1 y 5." }, { status: 400 });
+  }
+
+  const { data: payment, error: paymentError } = await supabase
+    .from("payment_intents")
+    .select("id, buyer_id, seller_id, status")
+    .eq("id", paymentIntentId)
+    .maybeSingle();
+
+  if (paymentError || !payment) {
+    return NextResponse.json({ error: "Operación no encontrada." }, { status: 404 });
+  }
+
+  const isBuyer = user.id === payment.buyer_id;
+  const isSeller = user.id === payment.seller_id;
+
+  if (!isBuyer && !isSeller) {
+    return NextResponse.json({ error: "No puedes valorar esta operación." }, { status: 403 });
+  }
+
+  if (!REVIEWABLE_PAYMENT_STATUSES.has(payment.status)) {
+    return NextResponse.json(
+      { error: "Solo puedes valorar operaciones pagadas o completadas." },
+      { status: 400 }
+    );
+  }
+
+  const reviewedUserId = isBuyer ? payment.seller_id : payment.buyer_id;
+
+  if (!reviewedUserId || reviewedUserId === user.id) {
+    return NextResponse.json({ error: "No se pudo identificar al usuario valorado." }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("transaction_reviews").insert({
+    payment_intent_id: paymentIntentId,
+    reviewer_id: user.id,
+    reviewed_user_id: reviewedUserId,
+    rating,
+    comment,
+  });
+
+  if (error) {
+    console.error("review_create_error", error);
+    return NextResponse.json(
+      { error: "No se pudo guardar la valoración. Puede que ya hayas valorado esta operación." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true });
 }

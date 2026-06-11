@@ -1,6 +1,6 @@
-
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Expand } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,11 +29,17 @@ export default function ListingGallery({ photos, title }: Props) {
     <>
       <div className="space-y-3">
         <div className="relative overflow-hidden rounded-2xl border bg-muted">
-          <img
-            src={currentImage}
-            alt={title}
-            className="aspect-square w-full object-cover"
-          />
+          <div className="relative aspect-square w-full">
+            <Image
+              src={currentImage}
+              alt={title}
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+              priority
+              unoptimized
+            />
+          </div>
 
           {safeImages.length > 1 ? (
             <>
@@ -79,11 +85,16 @@ export default function ListingGallery({ photos, title }: Props) {
                 className={`overflow-hidden rounded-xl border ${photoIndex === index ? "ring-2 ring-primary" : ""
                   }`}
               >
-                <img
-                  src={photo}
-                  alt={`${title} ${photoIndex + 1}`}
-                  className="aspect-square w-full object-cover"
-                />
+                <span className="relative block aspect-square w-full">
+                  <Image
+                    src={photo}
+                    alt={`${title} ${photoIndex + 1}`}
+                    fill
+                    sizes="20vw"
+                    className="object-cover"
+                    unoptimized
+                  />
+                </span>
               </button>
             ))}
           </div>
@@ -95,11 +106,16 @@ export default function ListingGallery({ photos, title }: Props) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setFullscreen(false)}
         >
-          <img
-            src={currentImage}
-            alt={title}
-            className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain"
-          />
+          <div className="relative h-[90vh] w-[90vw]">
+            <Image
+              src={currentImage}
+              alt={title}
+              fill
+              sizes="90vw"
+              className="rounded-xl object-contain"
+              unoptimized
+            />
+          </div>
         </div>
       ) : null}
     </>

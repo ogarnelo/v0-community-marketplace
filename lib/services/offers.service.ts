@@ -43,6 +43,15 @@ export async function createOfferFlow(params: {
   }
 
   if (existingOffer) {
+    const conversationId = await getOrCreateConversation({
+      supabase,
+      listingId,
+      buyerId: actorUserId,
+      sellerId: listing.seller_id,
+    });
+
+    await touchConversation(supabase, conversationId, new Date().toISOString());
+
     return {
       offerId: existingOffer.id,
       conversationId,

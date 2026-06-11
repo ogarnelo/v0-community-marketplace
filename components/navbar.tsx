@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
-import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
-import { NavbarNotificationsBell } from "@/components/notifications/navbar-notifications-bell";
-import { createClient } from "@/lib/supabase/client";
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import type { AppNotificationRow } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -19,16 +16,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Menu,
-  BookOpen,
-  MessageCircle,
-  Plus,
-  User,
-  LogOut,
-  Package,
-  ShieldCheck,
-  Heart,
   Activity,
+  Bot,
+  Bell,
+  BookOpen,
+  Heart,
+  Handshake,
+  MessageCircle,
+  Package,
+  Plus,
+  Recycle,
+  Rss,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  Zap,
+  TrendingUp,
+  User,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -36,6 +41,7 @@ interface NavbarProps {
   userName?: string;
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
+  isBusinessUser?: boolean;
   adminHref?: string;
   unreadMessagesCount?: number;
   unreadNotificationsCount?: number;
@@ -47,21 +53,35 @@ type ProfileUpdatedEventDetail = {
   full_name?: string | null;
 };
 
+function CountBadge({ count, floating = false }: { count: number; floating?: boolean }) {
+  if (!count || count <= 0) return null;
+
+  return (
+    <span
+      className={
+        floating
+          ? "absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+          : "ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+      }
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 export function Navbar({
   isLoggedIn = false,
   userName = "Mi cuenta",
   isAdmin = false,
   isSuperAdmin = false,
+  isBusinessUser = false,
   adminHref,
   unreadMessagesCount = 0,
   unreadNotificationsCount = 0,
-  notifications = [],
   currentUserId,
 }: NavbarProps) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState(userName);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [displayName, setDisplayName] = useState(userName || "Mi cuenta");
 
   useEffect(() => {
     setDisplayName(userName || "Mi cuenta");
@@ -71,266 +91,299 @@ export function Navbar({
     const handleProfileUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<ProfileUpdatedEventDetail>;
       const nextName = customEvent.detail?.full_name?.trim();
-
-      if (nextName) {
-        setDisplayName(nextName);
-      }
+      if (nextName) setDisplayName(nextName);
     };
 
     window.addEventListener("profile-updated", handleProfileUpdated);
-
-    return () => {
-      window.removeEventListener("profile-updated", handleProfileUpdated);
-    };
+    return () => window.removeEventListener("profile-updated", handleProfileUpdated);
   }, []);
 
   const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
-  const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
+  const messagesHref = isLoggedIn ? "/messages" : "/auth?next=/messages";
+  const favoritesHref = isLoggedIn ? "/favorites" : "/auth?next=/favorites";
+  const feedHref = isLoggedIn ? "/feed" : "/auth?next=/feed";
+  const accountHref = isLoggedIn ? "/account" : "/auth";
+  const effectiveAdminHref =
+    adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
-  const showMessagesBadge = Boolean(currentUserId);
 
-  const navItems = useMemo(
-    () => [
-      { href: "/marketplace", label: "Marketplace", icon: BookOpen },
-      { href: "/favorites", label: "Favoritos", icon: Heart },
-      { href: publishHref, label: "Publicar", icon: Plus },
-      { href: "/messages", label: "Mensajes", icon: MessageCircle },
-    ],
-    [publishHref]
-  );
+  const loggedNavItems = [
+    { href: "/marketplace", label: "Marketplace", icon: BookOpen, match: "/marketplace" },
+    { href: feedHref, label: "Feed", icon: Rss, match: "/feed" },
+    { href: favoritesHref, label: "Favoritos", icon: Heart, match: "/favorites" },
+    {
+      href: messagesHref,
+      label: "Mensajes",
+      icon: MessageCircle,
+      match: "/messages",
+      count: unreadMessagesCount,
+    },
+  ];
 
-  const handleMobileLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      window.location.assign("/auth");
-    } finally {
-      setIsLoggingOut(false);
+  const publicNavItems = [
+    { href: "/marketplace", label: "Marketplace", icon: BookOpen, match: "/marketplace" },
+    { href: "/negocios", label: "Negocios", icon: Store, match: "/negocios" },
+    { href: "/seguridad", label: "Seguridad", icon: ShieldCheck, match: "/seguridad" },
+    { href: "/impacto", label: "Impacto", icon: Recycle, match: "/impacto" },
+  ];
+
+  const navItems = isLoggedIn ? loggedNavItems : publicNavItems;
+
+  const isActive = (match: string) => {
+    if (!pathname) return false;
+    if (match === "/marketplace") {
+      return pathname.startsWith("/marketplace") && pathname !== "/marketplace/new";
     }
-  };
-
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    if (href === "/marketplace") return pathname?.startsWith("/marketplace");
-    if (href === "/messages") return pathname?.startsWith("/messages");
-    if (href === "/favorites") return pathname?.startsWith("/favorites");
-    if (href === "/marketplace/new") return pathname === "/marketplace/new";
-    if (href === "/account/activity") return pathname?.startsWith("/account/activity");
-    return pathname === href;
+    return pathname.startsWith(match);
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <BookOpen className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-mono text-xl font-bold tracking-tight text-foreground">Wetudy</span>
-        </Link>
+    <>
+      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
+              <BookOpen className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="truncate font-mono text-xl font-bold tracking-tight text-foreground">
+              Wetudy
+            </span>
+          </Link>
 
-        {isLoggedIn ? (
-          <>
-            <nav className="hidden items-center gap-1 md:flex">
-              {navItems.map(({ href, label, icon: Icon }) => (
-                <Button
-                  key={href + label}
-                  asChild
-                  variant={isActive(href) ? "secondary" : "ghost"}
-                  size="sm"
-                  className="gap-1.5"
-                >
-                  <Link href={href} className="relative">
-                    <Icon className="h-4 w-4" />
-                    {label}
-                    {href === "/messages" && showMessagesBadge ? (
-                      <NavbarMessagesBadge
-                        currentUserId={currentUserId as string}
-                        initialCount={unreadMessagesCount}
-                      />
-                    ) : null}
+          <nav className="hidden items-center gap-1 md:flex">
+            {navItems.map(({ href, label, icon: Icon, match, count }) => (
+              <Button
+                key={href + label}
+                asChild
+                variant={isActive(match) ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5"
+              >
+                <Link href={href} className="relative">
+                  <Icon className="h-4 w-4" />
+                  {label}
+                  <CountBadge count={count || 0} />
+                </Link>
+              </Button>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            {isLoggedIn ? (
+              <>
+                <Button asChild className="hidden gap-1.5 sm:inline-flex" size="sm">
+                  <Link href={publishHref}>
+                    <Plus className="h-4 w-4" />
+                    Publicar
                   </Link>
                 </Button>
-              ))}
-            </nav>
 
-            <div className="hidden items-center gap-2 md:flex">
-              {currentUserId ? (
-                <NavbarNotificationsBell
-                  currentUserId={currentUserId}
-                  initialNotifications={notifications}
-                  initialUnreadCount={unreadNotificationsCount}
-                />
-              ) : null}
+                <Button asChild variant="ghost" size="icon" className="relative hidden md:inline-flex">
+                  <Link href="/account/activity">
+                    <Bell className="h-5 w-5" />
+                    <CountBadge count={unreadNotificationsCount} floating />
+                    <span className="sr-only">Actividad</span>
+                  </Link>
+                </Button>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2 px-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-                        {avatarLetter}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="max-w-[180px] truncate text-sm font-medium">{displayName}</span>
-                  </Button>
-                </DropdownMenuTrigger>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2 px-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+                          {avatarLetter}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="hidden max-w-[180px] truncate text-sm font-medium sm:inline">
+                        {displayName}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem asChild>
-                    <Link href="/account" className="gap-2">
-                      <User className="h-4 w-4" />
-                      Mi cuenta
-                    </Link>
-                  </DropdownMenuItem>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <div className="px-2 py-2">
+                      <p className="truncate text-sm font-semibold">{displayName}</p>
+                      <p className="text-xs text-muted-foreground">Tu espacio personal</p>
+                    </div>
+                    <DropdownMenuSeparator />
 
-                  <DropdownMenuItem asChild>
-                    <Link href="/account/activity" className="gap-2">
-                      <Activity className="h-4 w-4" />
-                      Actividad
-                    </Link>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuItem asChild>
-                    <Link href="/account/listings" className="gap-2">
-                      <Package className="h-4 w-4" />
-                      Mis anuncios
-                    </Link>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuItem asChild>
-                    <Link href="/favorites" className="gap-2">
-                      <Heart className="h-4 w-4" />
-                      Favoritos
-                    </Link>
-                  </DropdownMenuItem>
-
-                  {effectiveAdminHref ? (
                     <DropdownMenuItem asChild>
-                      <Link href={effectiveAdminHref} className="gap-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        Panel admin
+                      <Link href={accountHref} className="gap-2">
+                        <User className="h-4 w-4" />
+                        Mi cuenta
                       </Link>
                     </DropdownMenuItem>
-                  ) : null}
 
-                  <DropdownMenuSeparator />
-                  <LogoutButton />
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/activity" className="gap-2">
+                        <Activity className="h-4 w-4" />
+                        Actividad
+                        <CountBadge count={unreadNotificationsCount} />
+                      </Link>
+                    </DropdownMenuItem>
 
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Abrir menú</span>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/listings" className="gap-2">
+                        <Package className="h-4 w-4" />
+                        Mis anuncios
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href={favoritesHref} className="gap-2">
+                        <Heart className="h-4 w-4" />
+                        Favoritos
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href={feedHref} className="gap-2">
+                        <Rss className="h-4 w-4" />
+                        Feed personalizado
+                      </Link>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/demand" className="gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Lo que se busca
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/growth" className="gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Asistente de ventas
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/transactions" className="gap-2">
+                        <Handshake className="h-4 w-4" />
+                        Operaciones
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/seller/velocity" className="gap-2">
+                        <Zap className="h-4 w-4" />
+                        Publicación rápida
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/seller/inventory" className="gap-2">
+                        <Package className="h-4 w-4" />
+                        Inventario inteligente
+                      </Link>
+                    </DropdownMenuItem>
+
+                    {isBusinessUser ? (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link href="/account/business" className="gap-2">
+                            <Store className="h-4 w-4" />
+                            Panel profesional
+                          </Link>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem asChild>
+                          <Link href="/account/business/opportunities" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Productos demandados
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/account/business/import" className="gap-2">
+                            <Package className="h-4 w-4" />
+                            Importar productos
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+
+                    {isSuperAdmin ? (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/insights" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Demand Intelligence
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/campaigns" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Campañas sugeridas
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/seo" className="gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            SEO automático
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/automation" className="gap-2">
+                            <Bot className="h-4 w-4" />
+                            Automation Center
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/autopilot" className="gap-2">
+                            <Bot className="h-4 w-4" />
+                            Autopilot Growth
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/moderation" className="gap-2">
+                            <ShieldAlert className="h-4 w-4" />
+                            Moderación
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/super/transaction-velocity" className="gap-2">
+                            <Handshake className="h-4 w-4" />
+                            Transaction Velocity
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+
+                    {effectiveAdminHref ? (
+                      <DropdownMenuItem asChild>
+                        <Link href={effectiveAdminHref} className="gap-2">
+                          <ShieldCheck className="h-4 w-4" />
+                          Panel admin
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+
+                    <DropdownMenuSeparator />
+                    <LogoutButton />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+                  <Link href="/auth">Iniciar sesión</Link>
                 </Button>
-              </SheetTrigger>
 
-              <SheetContent side="right" className="w-72">
-                <div className="flex items-center gap-3 border-b border-border pb-4 pt-2">
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback className="bg-primary text-primary-foreground">{avatarLetter}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-                    <p className="text-xs text-muted-foreground">Tu espacio personal</p>
-                  </div>
-                </div>
-
-                <nav className="flex flex-col gap-2 pt-6">
-                  {navItems.map(({ href, label, icon: Icon }) => (
-                    <Button key={href + label} asChild variant="ghost" className="w-full justify-start gap-2">
-                      <Link href={href} onClick={() => setOpen(false)}>
-                        <Icon className="h-4 w-4" />
-                        {label}
-                        {href === "/messages" && showMessagesBadge ? (
-                          <span className="ml-auto">
-                            <NavbarMessagesBadge
-                              currentUserId={currentUserId as string}
-                              initialCount={unreadMessagesCount}
-                            />
-                          </span>
-                        ) : null}
-                      </Link>
-                    </Button>
-                  ))}
-
-                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                    <Link href="/account" onClick={() => setOpen(false)}>
-                      <User className="h-4 w-4" />
-                      Mi cuenta
-                    </Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                    <Link href="/account/activity" onClick={() => setOpen(false)}>
-                      <Activity className="h-4 w-4" />
-                      Actividad
-                      {unreadNotificationsCount > 0 ? (
-                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
-                          {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
-                        </span>
-                      ) : null}
-                    </Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                    <Link href="/account/listings" onClick={() => setOpen(false)}>
-                      <Package className="h-4 w-4" />
-                      Mis anuncios
-                    </Link>
-                  </Button>
-
-                  {effectiveAdminHref ? (
-                    <Button asChild variant="ghost" className="w-full justify-start gap-2">
-                      <Link href={effectiveAdminHref} onClick={() => setOpen(false)}>
-                        <ShieldCheck className="h-4 w-4" />
-                        Panel admin
-                      </Link>
-                    </Button>
-                  ) : null}
-
-                  <div className="my-2 border-t border-border" />
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-full justify-start gap-2 text-destructive"
-                    disabled={isLoggingOut}
-                    onClick={handleMobileLogout}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
-                  </Button>
-                </nav>
-              </SheetContent>
-            </Sheet>
-          </>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-              <Link href="/marketplace">Marketplace</Link>
-            </Button>
-
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/auth">Iniciar sesión</Link>
-            </Button>
-
-            <Button asChild variant="outline" size="sm">
-              <Link href="/auth?mode=signup">Crear cuenta</Link>
-            </Button>
-
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={publishHref}>
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Vender</span>
-              </Link>
-            </Button>
+                <Button asChild size="sm" className="gap-1.5">
+                  <Link href={publishHref}>
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Vender</span>
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
-        )}
-      </div>
-    </header>
+        </div>
+      </header>
+
+      <MobileBottomNavigation
+        isLoggedIn={isLoggedIn}
+        currentUserId={currentUserId}
+        unreadMessagesCount={unreadMessagesCount}
+      />
+    </>
   );
 }
+
+export default Navbar;

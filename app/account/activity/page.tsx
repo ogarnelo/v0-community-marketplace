@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import type { DonationRequestRow, ListingOfferRow, ListingRow, PaymentIntentRow, ProfileRow, ShipmentRow } from "@/lib/types/marketplace";
 import { ShipmentStatusCard } from "@/components/shipments/shipment-status-card";
+import { ActivityNotificationsFeed } from "@/components/account/activity-notifications-feed";
+import type { AppNotificationRow } from "@/lib/notifications";
 
 function getActivityStatusLabel(status: string | null) {
   switch (status) {
@@ -56,22 +58,23 @@ export default async function AccountActivityPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
 
-  const [{ data: sentOffersData }, { data: receivedOffersData }, { data: myListingsData }, { data: sentDonationData }, { data: buyerPaymentsData }, { data: sellerPaymentsData }, { data: buyerShipmentsData }, { data: sellerShipmentsData }] = await Promise.all([
-    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id),
-    adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("requester_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("shipments").select("*").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-    adminSupabase.from("shipments").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+  const [{ data: sentOffersData }, { data: receivedOffersData }, { data: myListingsData }, { data: sentDonationData }, { data: buyerPaymentsData }, { data: sellerPaymentsData }, { data: buyerShipmentsData }, { data: sellerShipmentsData }, { data: notificationsData }] = await Promise.all([
+    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id).limit(100),
+    adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("requester_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("buyer_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("shipments").select("*").eq("buyer_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("shipments").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(5),
+    adminSupabase.from("notifications").select("id, user_id, kind, title, body, href, metadata, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
   ]);
 
   const myListings = (myListingsData || []) as ListingRow[];
   const myListingIds = myListings.map((listing) => listing.id);
   let receivedDonationData: DonationRequestRow[] = [];
   if (myListingIds.length > 0) {
-    const { data } = await adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").in("listing_id", myListingIds).order("created_at", { ascending: false });
+    const { data } = await adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").in("listing_id", myListingIds).order("created_at", { ascending: false }).limit(5);
     receivedDonationData = (data || []) as DonationRequestRow[];
   }
 
@@ -83,6 +86,7 @@ export default async function AccountActivityPage() {
   const sellerPayments = (sellerPaymentsData || []) as PaymentIntentRow[];
   const buyerShipments = (buyerShipmentsData || []) as ShipmentRow[];
   const sellerShipments = (sellerShipmentsData || []) as ShipmentRow[];
+  const notifications = (notificationsData || []) as AppNotificationRow[];
 
   const allOffers = [...sentOffers, ...receivedOffers];
   const allDonations = [...sentDonations, ...receivedDonations];
@@ -121,14 +125,18 @@ export default async function AccountActivityPage() {
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Actividad</h1>
-          <p className="text-muted-foreground">Seguimiento de ofertas, pagos, donaciones y envíos.</p>
+          <p className="text-muted-foreground">Seguimiento de ofertas, pagos, donaciones y envíos. Mostramos los últimos movimientos para mantener la página rápida.</p>
         </div>
-        <Link href="/account/listings" className="text-sm font-medium text-[#7EBA28] hover:underline">Volver a mis anuncios</Link>
+        <div className="flex flex-wrap gap-3"><Link href="/account/listings" className="text-sm font-medium text-[#7EBA28] hover:underline">Volver a mis anuncios</Link><Link href="/account/transactions" className="text-sm font-medium text-primary hover:underline">Ver más operaciones</Link></div>
+      </div>
+
+      <div className="mb-6">
+        <ActivityNotificationsFeed notifications={notifications} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card><CardHeader><CardTitle>Compras realizadas</CardTitle></CardHeader><CardContent className="space-y-3">{buyerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no has completado compras.</p> : buyerPayments.map((payment) => (<div key={payment.id} className="rounded-xl border p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p><p className="text-sm text-muted-foreground">Vendedor: {profilesMap.get(payment.seller_id || "") || "Usuario"}</p><p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p></div><Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p></div>))}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Ventas cobradas</CardTitle></CardHeader><CardContent className="space-y-3">{sellerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes ventas cobradas.</p> : sellerPayments.map((payment) => (<div key={payment.id} className="rounded-xl border p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p><p className="text-sm text-muted-foreground">Comprador: {profilesMap.get(payment.buyer_id || "") || "Usuario"}</p><p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p></div><Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p></div>))}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Ventas cerradas</CardTitle></CardHeader><CardContent className="space-y-3">{sellerPayments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes ventas cerradas.</p> : sellerPayments.map((payment) => (<div key={payment.id} className="rounded-xl border p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{listingsMap.get(payment.listing_id || "") || "Anuncio"}</p><p className="text-sm text-muted-foreground">Comprador: {profilesMap.get(payment.buyer_id || "") || "Usuario"}</p><p className="text-sm text-muted-foreground">Importe: {formatPrice(payment.amount || 0)}</p></div><Badge variant="outline" className={getActivityStatusClass(payment.status)}>{getActivityStatusLabel(payment.status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(payment.updated_at || payment.created_at || null)}</p></div>))}</CardContent></Card>
         <Card><CardHeader><CardTitle>Ofertas enviadas</CardTitle></CardHeader><CardContent className="space-y-3">{sentOffers.length === 0 ? <p className="text-sm text-muted-foreground">Aún no has enviado ofertas.</p> : sentOffers.map((offer) => { const payment = paymentsByOfferId.get(offer.id); return <div key={offer.id} className="rounded-xl border p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{listingsMap.get(offer.listing_id) || "Anuncio"}</p><p className="text-sm text-muted-foreground">Vendedor: {profilesMap.get(offer.seller_id) || "Usuario"}</p><p className="text-sm text-muted-foreground">Importe: {formatPrice(resolveOfferAmount(offer))}</p></div><Badge variant="outline" className={getActivityStatusClass(payment?.status || offer.status)}>{getActivityStatusLabel(payment?.status || offer.status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(payment?.updated_at || offer.responded_at || offer.created_at)}</p></div>; })}</CardContent></Card>
         <Card><CardHeader><CardTitle>Ofertas recibidas</CardTitle></CardHeader><CardContent className="space-y-3">{receivedOffers.length === 0 ? <p className="text-sm text-muted-foreground">Aún no has recibido ofertas.</p> : receivedOffers.map((offer) => { const payment = paymentsByOfferId.get(offer.id); return <div key={offer.id} className="rounded-xl border p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{listingsMap.get(offer.listing_id) || "Anuncio"}</p><p className="text-sm text-muted-foreground">Comprador: {profilesMap.get(offer.buyer_id) || "Usuario"}</p><p className="text-sm text-muted-foreground">Importe: {formatPrice(resolveOfferAmount(offer))}</p></div><Badge variant="outline" className={getActivityStatusClass(payment?.status || offer.status)}>{getActivityStatusLabel(payment?.status || offer.status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(payment?.updated_at || offer.responded_at || offer.created_at)}</p></div>; })}</CardContent></Card>
         <Card><CardHeader><CardTitle>Envíos de mis compras</CardTitle></CardHeader><CardContent className="space-y-3">{buyerShipments.length === 0 ? <p className="text-sm text-muted-foreground">Aún no tienes envíos como comprador.</p> : buyerShipments.map((shipment) => (<div key={shipment.id} className="space-y-2 rounded-xl border p-3"><p className="font-medium">{listingsMap.get(shipment.listing_id || "") || "Anuncio"}</p><ShipmentStatusCard shipment={shipment} /></div>))}</CardContent></Card>

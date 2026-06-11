@@ -1,598 +1,423 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { createClient } from "@/lib/supabase/server";
+import { getRankedListings } from "@/lib/marketplace/get-ranked-listings";
+import DemandSearchTracker from "@/components/analytics/demand-search-tracker";
+import CreateDemandRequestCard from "@/components/marketplace/create-demand-request-card";
 import { ListingCard } from "@/components/listing-card";
-import { categories, gradeLevels, conditions } from "@/lib/mock-data";
-import { createClient } from "@/lib/supabase/client";
-import {
-  Plus,
-  Search,
-  SlidersHorizontal,
-  MapPin,
-  X,
-  HelpCircle,
-  PackageSearch,
-} from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  buildPhotosMap,
-  type ListingPhotoRow,
-  type ListingRow,
-  type MarketplaceListing,
-  type ProfileRow,
-} from "@/lib/types/marketplace";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
+import SaveSearchButton from "@/components/marketplace/save-search-button";
+import PriceRangeFields from "@/components/marketplace/price-range-fields";
+import { Button } from "@/components/ui/button";
+import { Search, SlidersHorizontal, Plus, ChevronDown, HelpCircle, MapPin } from "lucide-react";
 
-export default function MarketplacePage() {
-  const [dbListings, setDbListings] = useState<MarketplaceListing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUserSchoolId, setCurrentUserSchoolId] = useState("");
+export const dynamic = "force-dynamic";
 
-  const [nearbyMode, setNearbyMode] = useState(false);
-  const [radius, setRadius] = useState("10");
-  const [category, setCategory] = useState("all");
-  const [gradeLevel, setGradeLevel] = useState("all");
-  const [listingType, setListingType] = useState("all");
-  const [condition, setCondition] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isbnQuery, setIsbnQuery] = useState("");
-  const [priceRange, setPriceRange] = useState([0, 200]);
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
+const categories = [
+  "Libros de texto",
+  "Material escolar",
+  "Mochilas y estuches",
+  "Uniformes",
+  "Tecnología",
+  "Instrumentos musicales",
+  "Material deportivo",
+  "Otros",
+];
 
-  useEffect(() => {
-    const loadListings = async () => {
-      setLoading(true);
+const grades = [
+  "Infantil",
+  "1º Primaria",
+  "2º Primaria",
+  "3º Primaria",
+  "4º Primaria",
+  "5º Primaria",
+  "6º Primaria",
+  "1º ESO",
+  "2º ESO",
+  "3º ESO",
+  "4º ESO",
+  "1º Bachillerato",
+  "2º Bachillerato",
+  "Universidad",
+  "Otros",
+];
+const conditions = [
+  ["new", "Nuevo"],
+  ["like_new", "Como nuevo"],
+  ["good", "Bueno"],
+  ["fair", "Aceptable"],
+  ["poor", "Muy usado"],
+];
 
-      try {
-        const supabase = createClient();
+type MarketplaceParams = Record<string, string | string[] | undefined>;
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+function getParam(params: MarketplaceParams, key: string) {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+}
 
-        let favoriteIds = new Set<string>();
-        let viewerSchoolId = "";
+function SelectField({
+  name,
+  label,
+  value,
+  children,
+}: {
+  name: string;
+  label: string;
+  value?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="space-y-1.5 text-sm">
+      <span className="font-medium text-foreground">{label}</span>
+      <select
+        name={name}
+        defaultValue={value || ""}
+        className="h-11 w-full rounded-xl border bg-background px-3 text-sm shadow-sm"
+      >
+        {children}
+      </select>
+    </label>
+  );
+}
 
-        if (user) {
-          const [{ data: favorites }, { data: profile }] = await Promise.all([
-            supabase
-              .from("favorites")
-              .select("listing_id")
-              .eq("user_id", user.id),
-            supabase
-              .from("profiles")
-              .select("id, full_name, user_type, school_id")
-              .eq("id", user.id)
-              .maybeSingle(),
-          ]);
-
-          favoriteIds = new Set(
-            (favorites || []).map((fav: { listing_id: string }) => fav.listing_id)
-          );
-
-          const typedProfile = (profile as ProfileRow | null) ?? null;
-
-          viewerSchoolId =
-            typedProfile?.school_id && typedProfile.school_id.trim().length > 0
-              ? typedProfile.school_id
-              : "";
-        }
-
-        setCurrentUserSchoolId(viewerSchoolId);
-
-        const { data: listingsData, error: listingsError } = await supabase
-          .from("listings")
-          .select(
-            "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
-          )
-          .eq("status", "available")
-          .order("created_at", { ascending: false });
-
-        if (listingsError) {
-          console.error("Error cargando listings:", listingsError);
-          setDbListings([]);
-          return;
-        }
-
-        const listingRows = (listingsData || []) as ListingRow[];
-        const listingIds = listingRows.map((item) => item.id);
-
-        let photosMap = new Map<string, string[]>();
-
-        if (listingIds.length > 0) {
-          const { data: listingPhotos, error: listingPhotosError } = await supabase
-            .from("listing_photos")
-            .select("id, listing_id, url, sort_order")
-            .in("listing_id", listingIds)
-            .order("sort_order", { ascending: true });
-
-          if (listingPhotosError) {
-            console.error("Error cargando listing_photos:", listingPhotosError);
-          } else {
-            photosMap = buildPhotosMap((listingPhotos || []) as ListingPhotoRow[]);
-          }
-        }
-
-        const mapped: MarketplaceListing[] = listingRows.map((item) => ({
-          id: item.id,
-          title: item.title || "Anuncio sin título",
-          description: item.description || null,
-          category: item.category,
-          gradeLevel: item.grade_level,
-          condition: item.condition,
-          type: item.type || item.listing_type,
-          isbn: item.isbn || null,
-          price: item.price ?? undefined,
-          originalPrice:
-            item.original_price ?? item.estimated_retail_price ?? undefined,
-          photos: photosMap.get(item.id) || [],
-          sellerId: item.seller_id || item.user_id || null,
-          schoolId: item.school_id || null,
-          status: item.status,
-          createdAt: item.created_at || null,
-          distance: undefined,
-          isFavorite: favoriteIds.has(item.id),
-        }));
-
-        setDbListings(mapped);
-      } catch (error) {
-        console.error("Error cargando marketplace:", error);
-        setDbListings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadListings();
-  }, []);
-
-  const handleSliderChange = (values: number[]) => {
-    setPriceRange(values);
-    setPriceMin(values[0] === 0 ? "" : String(values[0]));
-    setPriceMax(values[1] === 200 ? "" : String(values[1]));
-  };
-
-  const handlePriceMinChange = (val: string) => {
-    setPriceMin(val);
-    const num = Number(val) || 0;
-    setPriceRange([num, priceRange[1]]);
-  };
-
-  const handlePriceMaxChange = (val: string) => {
-    setPriceMax(val);
-    const num = Number(val) || 200;
-    setPriceRange([priceRange[0], num]);
-  };
-
-  const filteredListings = useMemo(() => {
-    const filtered = dbListings.filter((l) => {
-      if (l.status !== "available") return false;
-
-      if (category !== "all" && l.category !== category) return false;
-      if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false;
-      if (listingType !== "all" && l.type !== listingType) return false;
-      if (condition !== "all" && l.condition !== condition) return false;
-
-      if (searchQuery) {
-        const normalized = searchQuery.toLowerCase();
-        const matchesSearch =
-          l.title.toLowerCase().includes(normalized) ||
-          (l.description || "").toLowerCase().includes(normalized);
-
-        if (!matchesSearch) return false;
-      }
-
-      if (isbnQuery) {
-        const normalizedIsbn = isbnQuery.replace(/[^0-9xX]/g, "").toLowerCase();
-        const listingIsbn = (l.isbn || "").replace(/[^0-9xX]/g, "").toLowerCase();
-
-        if (!listingIsbn.includes(normalizedIsbn)) return false;
-      }
-
-      if (l.type === "sale" && l.price !== undefined) {
-        if (l.price < priceRange[0] || l.price > priceRange[1]) return false;
-      }
-
-      if (nearbyMode && l.distance && l.distance > Number(radius)) return false;
-
-      return true;
-    });
-
-    return filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "price_asc":
-          return (a.price ?? 0) - (b.price ?? 0);
-        case "price_desc":
-          return (b.price ?? 0) - (a.price ?? 0);
-        case "discount": {
-          const discountA = (a.originalPrice ?? 0) - (a.price ?? 0);
-          const discountB = (b.originalPrice ?? 0) - (b.price ?? 0);
-          return discountB - discountA;
-        }
-        case "newest":
-        default:
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      }
-    });
-  }, [
-    dbListings,
-    nearbyMode,
-    radius,
-    category,
-    gradeLevel,
-    listingType,
-    condition,
-    searchQuery,
-    isbnQuery,
-    priceRange,
-    sortBy,
-  ]);
-
-  const activeFiltersCount = [
-    category !== "all",
-    gradeLevel !== "all",
-    listingType !== "all",
-    condition !== "all",
-    priceRange[0] > 0 || priceRange[1] < 200,
-    isbnQuery.length > 0,
-  ].filter(Boolean).length;
-
-  const clearFilters = () => {
-    setCategory("all");
-    setGradeLevel("all");
-    setListingType("all");
-    setCondition("all");
-    setSearchQuery("");
-    setIsbnQuery("");
-    setPriceRange([0, 200]);
-    setPriceMin("");
-    setPriceMax("");
-  };
-
-  const FilterControls = () => (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <Label className="text-sm font-medium text-foreground">Categoria</Label>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las categorias</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label className="text-sm font-medium text-foreground">
-          Curso / Etapa
-        </Label>
-        <Select value={gradeLevel} onValueChange={setGradeLevel}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los cursos</SelectItem>
-            {gradeLevels.map((g) => (
-              <SelectItem key={g} value={g}>
-                {g}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label className="text-sm font-medium text-foreground">Tipo</Label>
-        <Select value={listingType} onValueChange={setListingType}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Venta y donacion</SelectItem>
-            <SelectItem value="sale">Solo venta</SelectItem>
-            <SelectItem value="donation">Solo donacion</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label className="text-sm font-medium text-foreground">Estado</Label>
-        <Select value={condition} onValueChange={setCondition}>
-          <SelectTrigger>
-            <span className="truncate">
-              {condition === "all"
-                ? "Todos los estados"
-                : conditions.find((c) => c.value === condition)?.label ??
-                condition}
-            </span>
-          </SelectTrigger>
-          <SelectContent className="w-[min(360px,calc(100vw-2rem))]">
-            <SelectItem value="all">Todos los estados</SelectItem>
-            {conditions.map((c) => (
-              <SelectItem key={c.value} value={c.value} textValue={c.label}>
-                <div className="flex flex-col gap-0.5 py-0.5">
-                  <span className="font-medium">{c.label}</span>
-                  <span className="whitespace-normal text-xs leading-relaxed text-muted-foreground">
-                    {c.description}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <Label className="text-sm font-medium text-foreground">
-          Rango de precio
-        </Label>
-        <Slider
-          value={priceRange}
-          onValueChange={handleSliderChange}
-          min={0}
-          max={200}
-          step={5}
-          className="w-full"
-        />
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Input
-              type="number"
-              placeholder="Min"
-              value={priceMin}
-              onChange={(e) => handlePriceMinChange(e.target.value)}
-              className="h-8 pr-6 text-sm"
-              min={0}
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              €
-            </span>
-          </div>
-          <span className="text-xs text-muted-foreground">-</span>
-          <div className="relative flex-1">
-            <Input
-              type="number"
-              placeholder="Max"
-              value={priceMax}
-              onChange={(e) => handlePriceMaxChange(e.target.value)}
-              className="h-8 pr-6 text-sm"
-              min={0}
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              €
-            </span>
-          </div>
+function MarketplaceFiltersForm({
+  q,
+  category,
+  grade,
+  condition,
+  type,
+  isbn,
+  sort,
+  minPrice,
+  maxPrice,
+  scope,
+  hasFilters,
+  isLoggedIn,
+}: {
+  q: string;
+  category: string;
+  grade: string;
+  condition: string;
+  type: string;
+  isbn: string;
+  sort: string;
+  minPrice: string;
+  maxPrice: string;
+  scope: string;
+  hasFilters: boolean;
+  isLoggedIn: boolean;
+}) {
+  return (
+    <form action="/marketplace" className="space-y-4">
+      <label className="space-y-1.5 text-sm">
+        <span className="font-medium text-foreground">Buscar</span>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Título, asignatura o ISBN"
+            className="h-11 w-full rounded-xl border bg-background pl-9 pr-3 text-sm shadow-sm"
+          />
         </div>
-      </div>
+      </label>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5">
-          <Label className="text-sm font-medium text-foreground">ISBN</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full">
-                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="sr-only">Que es el ISBN</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 text-sm" side="top">
-              <p className="font-semibold text-foreground">Que es el ISBN?</p>
-              <p className="mt-1 leading-relaxed text-muted-foreground">
-                ISBN son las siglas de International Standard Book Number y
-                consiste en un codigo que nos sirve para identificar de manera
-                unica cada producto editorial.
-              </p>
-            </PopoverContent>
-          </Popover>
+
+      <SelectField name="scope" label="Comunidad" value={scope}>
+        <option value="">Todos los productos</option>
+        <option value="school">Solo mi colegio</option>
+      </SelectField>
+
+      <div className="rounded-2xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 font-medium text-foreground">
+          <MapPin className="h-4 w-4" />
+          Proximidad
         </div>
-        <Input
-          value={isbnQuery}
-          onChange={(e) => setIsbnQuery(e.target.value)}
-          placeholder="Buscar por ISBN..."
-          className="h-8 text-sm"
-        />
+        <p className="mt-1">
+          El filtro por colegio ya está disponible. El radio por kilómetros requiere activar ubicación/código postal por anuncio y será el siguiente paso.
+        </p>
       </div>
 
-      {activeFiltersCount > 0 ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-muted-foreground"
-          onClick={clearFilters}
-        >
-          <X className="h-3.5 w-3.5" /> Limpiar filtros ({activeFiltersCount})
+      <SelectField name="category" label="Categoría" value={category}>
+        <option value="">Todas</option>
+        {categories.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
+      </SelectField>
+
+      <SelectField name="grade" label="Curso" value={grade}>
+        <option value="">Todos</option>
+        {grades.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
+      </SelectField>
+
+      <SelectField name="condition" label="Estado" value={condition}>
+        <option value="">Todos</option>
+        {conditions.map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </SelectField>
+
+      <SelectField name="type" label="Tipo" value={type}>
+        <option value="">Venta y donación</option>
+        <option value="sale">Solo venta</option>
+        <option value="donation">Solo donación</option>
+      </SelectField>
+
+      <label className="space-y-1.5 text-sm">
+        <span className="flex items-center gap-1 font-medium text-foreground">
+          ISBN
+          <span className="group relative inline-flex">
+            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-xl border bg-popover p-3 text-xs font-normal text-popover-foreground shadow-lg group-hover:block group-focus-within:block">
+              ¿Qué es el ISBN? ISBN son las siglas de International Standard Book Number y consiste en un código que nos sirve para identificar de manera única cada producto editorial.
+            </span>
+          </span>
+        </span>
+        <input
+          name="isbn"
+          defaultValue={isbn}
+          placeholder="ISBN"
+          className="h-11 w-full rounded-xl border bg-background px-3 text-sm shadow-sm"
+        />
+      </label>
+
+
+      <PriceRangeFields minPrice={minPrice} maxPrice={maxPrice} />
+
+      <SelectField name="sort" label="Ordenar por" value={sort}>
+        <option value="relevance">Relevancia</option>
+        <option value="price-asc">Precio ascendente</option>
+        <option value="price-desc">Precio descendente</option>
+        <option value="savings">Mayor ahorro</option>
+        <option value="title">Título A-Z</option>
+      </SelectField>
+
+      <Button type="submit" className="w-full">
+        Aplicar filtros
+      </Button>
+
+      {hasFilters ? (
+        <Button asChild variant="outline" className="w-full">
+          <Link href="/marketplace">Limpiar filtros</Link>
         </Button>
       ) : null}
-    </div>
+
+      <div className="pt-1">
+        {isLoggedIn ? (
+          <SaveSearchButton
+            query={q}
+            category={category}
+            gradeLevel={grade}
+            condition={condition}
+            listingType={type}
+            isbn={isbn}
+            label="Guardar búsqueda"
+          />
+        ) : (
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/auth?next=/marketplace">Guardar búsqueda</Link>
+          </Button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function ActiveFilterChip({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+export default async function MarketplacePage({
+  searchParams,
+}: {
+  searchParams: Promise<MarketplaceParams>;
+}) {
+  const params = await searchParams;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const q = getParam(params, "q") || "";
+  const category = getParam(params, "category") || "";
+  const grade = getParam(params, "grade") || "";
+  const condition = getParam(params, "condition") || "";
+  const type = getParam(params, "type") || "";
+  const isbn = getParam(params, "isbn") || "";
+  const sort = getParam(params, "sort") || "relevance";
+  const minPrice = getParam(params, "minPrice") || "";
+  const maxPrice = getParam(params, "maxPrice") || "";
+  const scope = getParam(params, "scope") || "";
+
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("school_id").eq("id", user.id).maybeSingle()
+    : { data: null as any };
+
+  const currentSchoolId = (profile as any)?.school_id || null;
+
+  const listings = await getRankedListings({
+    q,
+    category,
+    grade,
+    condition,
+    type,
+    isbn,
+    sort,
+    minPrice,
+    maxPrice,
+    scope,
+    currentSchoolId,
+    currentUserId: user?.id || null,
+    limit: 80,
+  });
+
+  const hasFilters = Boolean(q || category || grade || condition || type || isbn || minPrice || maxPrice || scope);
+  const filterForm = (
+    <MarketplaceFiltersForm
+      q={q}
+      category={category}
+      grade={grade}
+      condition={condition}
+      type={type}
+      isbn={isbn}
+      sort={sort}
+      minPrice={minPrice}
+      maxPrice={maxPrice}
+      scope={scope}
+      hasFilters={hasFilters}
+      isLoggedIn={!!user}
+    />
   );
 
   return (
-    <div className="bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Marketplace</h1>
-            <p className="text-sm text-muted-foreground">
-              Comunidad Wetudy · {filteredListings.length} anuncios
+    <div className="mx-auto w-full max-w-7xl px-3 py-4 pb-24 sm:px-4 sm:py-6 lg:px-8 md:pb-6">
+      <DemandSearchTracker
+        query={q}
+        category={category}
+        gradeLevel={grade}
+        condition={condition}
+        listingType={type}
+        isbn={isbn}
+        resultCount={listings.length}
+      />
+      <section className="mb-5 overflow-hidden rounded-3xl border bg-card shadow-sm">
+        <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="max-w-3xl">
+            <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              Comunidad educativa
+            </span>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
+              Encuentra todo lo que necesitas para este curso escolar
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+              Compra, vende, dona y reutiliza dentro de tu comunidad. Usa los filtros, pulsa “Guardar búsqueda” y Wetudy te avisará cuando aparezcan productos compatibles.
             </p>
           </div>
 
-          <Link href="/marketplace/new">
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Publicar anuncio
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href={user ? "/marketplace/new" : "/auth?next=/marketplace/new"}>
+                <Plus className="mr-2 h-4 w-4" />
+                Publicar
+              </Link>
             </Button>
-          </Link>
+            <Button asChild variant="outline">
+              <Link href="/catalogo">Catálogo guiado</Link>
+            </Button>
+          </div>
         </div>
+      </section>
 
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={nearbyMode}
-                onCheckedChange={setNearbyMode}
-                id="nearby"
+      <div className="mb-4 lg:hidden">
+        <details className="group rounded-2xl border bg-card shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtros y búsqueda
+            </span>
+            <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+          </summary>
+          <div className="border-t p-4">{filterForm}</div>
+        </details>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+        <aside className="hidden lg:block lg:sticky lg:top-20 lg:self-start">
+          <div className="rounded-3xl border bg-card p-4 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4" />
+              <h2 className="font-semibold">Filtros</h2>
+            </div>
+            {filterForm}
+          </div>
+        </aside>
+
+        <main className="min-w-0">
+          <div className="mb-4 rounded-2xl border bg-card p-3 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-4">
+            <div>
+              <p className="text-sm font-medium">
+                {listings.length} anuncio{listings.length === 1 ? "" : "s"} disponible{listings.length === 1 ? "" : "s"}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Ordenado por {sort === "relevance" ? "relevancia" : sort.replace("-", " ")}
+              </p>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
+              {category ? <ActiveFilterChip>{category}</ActiveFilterChip> : null}
+              {grade ? <ActiveFilterChip>{grade}</ActiveFilterChip> : null}
+              {type ? <ActiveFilterChip>{type === "donation" ? "Donación" : "Venta"}</ActiveFilterChip> : null}
+              {scope === "school" ? <ActiveFilterChip>Mi colegio</ActiveFilterChip> : null}
+              {minPrice ? <ActiveFilterChip>Desde {minPrice} €</ActiveFilterChip> : null}
+              {maxPrice ? <ActiveFilterChip>Hasta {maxPrice} €</ActiveFilterChip> : null}
+              {q ? <ActiveFilterChip>“{q}”</ActiveFilterChip> : null}
+            </div>
+          </div>
+
+          {listings.length === 0 ? (
+            <div className="rounded-3xl border border-dashed bg-card p-8 text-center shadow-sm">
+              <h2 className="text-xl font-semibold">No hay anuncios con estos filtros</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Guarda esta búsqueda o prueba con otro curso/categoría para encontrar resultados.
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <Button asChild>
+                  <Link href="/marketplace">Ver todos</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/marketplace/new">Publicar anuncio</Link>
+                </Button>
+              </div>
+
+              <CreateDemandRequestCard
+                isLoggedIn={!!user}
+                query={q}
+                category={category}
+                gradeLevel={grade}
+                isbn={isbn}
+                resultCount={listings.length}
               />
-              <Label
-                htmlFor="nearby"
-                className="flex cursor-pointer items-center gap-1.5 text-sm font-medium"
-              >
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                {nearbyMode ? "Cerca de mi" : "Todos los anuncios"}
-              </Label>
             </div>
-            {nearbyMode ? (
-              <Select value={radius} onValueChange={setRadius}>
-                <SelectTrigger className="h-8 w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 km</SelectItem>
-                  <SelectItem value="10">10 km</SelectItem>
-                  <SelectItem value="20">20 km</SelectItem>
-                  <SelectItem value="50">50 km</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
-
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar material..."
-              className="pl-10"
-            />
-          </div>
-
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-full sm:w-[220px]">
-              <SelectValue placeholder="Ordenar" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Más recientes</SelectItem>
-              <SelectItem value="price_asc">Precio: de menor a mayor</SelectItem>
-              <SelectItem value="price_desc">Precio: de mayor a menor</SelectItem>
-              <SelectItem value="discount">Mayor ahorro</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="gap-2 lg:hidden">
-                <SlidersHorizontal className="h-4 w-4" />
-                Filtros
-                {activeFiltersCount > 0 ? (
-                  <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
-                    {activeFiltersCount}
-                  </Badge>
-                ) : null}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-80">
-              <SheetHeader>
-                <SheetTitle>Filtros</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6">
-                <FilterControls />
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-
-        <div className="mt-6 flex gap-8">
-          <aside className="hidden w-60 shrink-0 lg:block">
-            <div className="sticky top-24">
-              <h3 className="mb-4 text-sm font-semibold text-foreground">
-                Filtros
-              </h3>
-              <FilterControls />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
+              {listings.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
             </div>
-          </aside>
-
-          <div className="flex-1">
-            {loading ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {Array.from({ length: 9 }).map((_, index) => (
-                  <div key={index} className="overflow-hidden rounded-2xl border bg-card">
-                    <Skeleton className="aspect-[4/3] w-full" />
-                    <div className="space-y-3 p-4">
-                      <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-5 w-full" />
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-6 w-20" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : filteredListings.length === 0 ? (
-              <Empty className="rounded-2xl border border-dashed">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <PackageSearch />
-                  </EmptyMedia>
-                  <EmptyTitle>No hay anuncios con esos filtros</EmptyTitle>
-                  <EmptyDescription>
-                    Prueba a ampliar la búsqueda, quitar filtros o publicar el primer producto si todavía no hay oferta para eso.
-                  </EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>
-                    <Link href="/marketplace/new">
-                      <Button>Publicar anuncio</Button>
-                    </Link>
-                  </div>
-                </EmptyContent>
-              </Empty>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredListings.map((listing) => (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    currentSchoolId={currentUserSchoolId}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+          )}
+        </main>
       </div>
     </div>
   );
