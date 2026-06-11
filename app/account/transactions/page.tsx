@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import TransactionVelocityActionCard from "@/components/transaction/transaction-velocity-action-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +36,6 @@ function statusLabel(status: string | null) {
 
 export default async function AccountTransactionsPage() {
   const supabase = await createClient();
-  const navbarData = await getNavbarData(supabase);
 
   const {
     data: { user },
@@ -81,10 +77,7 @@ export default async function AccountTransactionsPage() {
   const listingMap = new Map((listings || []).map((listing: any) => [listing.id, listing]));
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar {...navbarData} />
-
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 lg:px-8">
         <section className="mb-8 rounded-3xl border bg-card p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -202,9 +195,6 @@ export default async function AccountTransactionsPage() {
             </div>
           </div>
         </section>
-      </main>
-
-      <Footer />
-    </div>
+    </main>
   );
 }

@@ -143,7 +143,7 @@ export default async function HelpPage() {
                 </p>
                 <div className="mt-5">
                   <HelpContactForm
-                    initialName={navbarData.userName || ""}
+                    initialName=""
                     initialEmail=""
                   />
                 </div>

@@ -9,6 +9,10 @@ type Params = {
   type?: string | null;
   isbn?: string | null;
   sort?: string | null;
+  minPrice?: string | number | null;
+  maxPrice?: string | number | null;
+  scope?: string | null;
+  currentSchoolId?: string | null;
   limit?: number;
   currentUserId?: string | null;
 };
@@ -16,6 +20,12 @@ type Params = {
 function toNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function cleanPriceFilter(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function normalize(value?: string | null) {
@@ -49,6 +59,9 @@ export async function getRankedListings(params: Params = {}) {
   const condition = normalize(params.condition);
   const listingType = normalize(params.type);
   const isbn = normalize(params.isbn);
+  const minPrice = cleanPriceFilter(params.minPrice);
+  const maxPrice = cleanPriceFilter(params.maxPrice);
+  const scope = normalize(params.scope);
 
   if (q) {
     query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,isbn.ilike.%${q}%`);
@@ -58,6 +71,9 @@ export async function getRankedListings(params: Params = {}) {
   if (condition) query = query.eq("condition", condition);
   if (listingType) query = query.or(`type.eq.${listingType},listing_type.eq.${listingType}`);
   if (isbn) query = query.ilike("isbn", `%${isbn}%`);
+  if (minPrice !== null) query = query.gte("price", minPrice);
+  if (maxPrice !== null) query = query.lte("price", maxPrice);
+  if (scope === "school" && params.currentSchoolId) query = query.eq("school_id", params.currentSchoolId);
 
   const { data: listingsData, error } = await query.order("created_at", { ascending: false });
 

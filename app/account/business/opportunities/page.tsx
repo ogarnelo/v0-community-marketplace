@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { getDemandActivationOpportunities } from "@/lib/demand/opportunities";
 import OpportunitiesList from "@/components/demand/opportunities-list";
 import { Button } from "@/components/ui/button";
@@ -52,7 +49,6 @@ async function canUseBusinessOpportunities(userId: string) {
 
 export default async function BusinessOpportunitiesPage() {
   const supabase = await createClient();
-  const navbarData = await getNavbarData(supabase);
 
   const {
     data: { user },
@@ -66,9 +62,7 @@ export default async function BusinessOpportunitiesPage() {
   const opportunities = await getDemandActivationOpportunities(30);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar {...navbarData} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 lg:px-8">
         <div className="mb-8">
           <Button asChild variant="ghost" className="mb-3 gap-2 px-0">
             <Link href="/account/business">
@@ -113,8 +107,6 @@ export default async function BusinessOpportunitiesPage() {
             <li>• Si eres librería o papelería, crea packs por curso cuando veas demanda repetida.</li>
           </ul>
         </div>
-      </main>
-      <Footer />
-    </div>
+    </main>
   );
 }

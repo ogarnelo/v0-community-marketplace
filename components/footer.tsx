@@ -14,7 +14,7 @@ export function Footer() {
               <span className="font-mono text-lg font-bold text-foreground">Wetudy</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Marketplace educativo para ahorrar, reutilizar y dar más vida a libros, uniformes y material escolar.
+              Comunidad educativa para ahorrar, reutilizar y dar más vida a material escolar.
             </p>
           </div>
 

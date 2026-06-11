@@ -58,7 +58,7 @@ export function ActivityNotificationsFeed({
             Aún no tienes notificaciones recientes.
           </div>
         ) : (
-          notifications.map((notification) => (
+          notifications.slice(0, 5).map((notification) => (
             <div key={notification.id} className="rounded-xl border p-4">
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -93,6 +93,12 @@ export function ActivityNotificationsFeed({
           ))
         )}
       </div>
+
+      {notifications.length > 5 ? (
+        <Link href="/account/activity" className="mt-4 inline-flex text-sm font-medium text-primary hover:underline">
+          Ver más
+        </Link>
+      ) : null}
     </div>
   );
 }

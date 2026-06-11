@@ -66,7 +66,7 @@ export default async function SeguridadPage() {
         <section className="border-b bg-card">
           <div className="mx-auto max-w-5xl px-4 py-16 text-center lg:px-8 lg:py-24">
             <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
-              Confianza Wetudy
+              Seguridad Wetudy
             </Badge>
             <h1 className="text-balance text-3xl font-bold tracking-tight sm:text-5xl">
               Compra y vende material educativo con más contexto y confianza

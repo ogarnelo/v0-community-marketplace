@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessSuperadmin } from "@/lib/admin/superadmin-access";
 import ModerationFlagActions from "@/components/admin/moderation-flag-actions";
 import { Button } from "@/components/ui/button";
+import AdminApiRunButton from "@/components/admin/admin-api-run-button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ArrowLeft, ShieldAlert } from "lucide-react";
 
@@ -65,12 +66,11 @@ export default async function ModerationPage() {
             </p>
           </div>
 
-          <Button asChild>
-            <Link href="/api/moderation/scan">
-              <AlertTriangle className="mr-2 h-4 w-4" />
-              Escanear anuncios
-            </Link>
-          </Button>
+          <AdminApiRunButton
+            endpoint="/api/moderation/scan"
+            label="Escanear anuncios"
+            icon={<AlertTriangle className="mr-2 h-4 w-4" />}
+          />
         </div>
       </section>
 

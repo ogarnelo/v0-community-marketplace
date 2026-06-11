@@ -6,13 +6,40 @@ import DemandSearchTracker from "@/components/analytics/demand-search-tracker";
 import CreateDemandRequestCard from "@/components/marketplace/create-demand-request-card";
 import { ListingCard } from "@/components/listing-card";
 import SaveSearchButton from "@/components/marketplace/save-search-button";
+import PriceRangeFields from "@/components/marketplace/price-range-fields";
 import { Button } from "@/components/ui/button";
-import { Search, SlidersHorizontal, Plus, ChevronDown } from "lucide-react";
+import { Search, SlidersHorizontal, Plus, ChevronDown, HelpCircle, MapPin } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const categories = ["Libros", "Uniformes", "Material escolar", "Calculadoras", "Tecnología", "Apuntes", "Otros"];
-const grades = ["Infantil", "Primaria", "1 ESO", "2 ESO", "3 ESO", "4 ESO", "1 Bachillerato", "2 Bachillerato", "Universidad", "Academia"];
+const categories = [
+  "Libros de texto",
+  "Material escolar",
+  "Mochilas y estuches",
+  "Uniformes",
+  "Tecnología",
+  "Instrumentos musicales",
+  "Material deportivo",
+  "Otros",
+];
+
+const grades = [
+  "Infantil",
+  "1º Primaria",
+  "2º Primaria",
+  "3º Primaria",
+  "4º Primaria",
+  "5º Primaria",
+  "6º Primaria",
+  "1º ESO",
+  "2º ESO",
+  "3º ESO",
+  "4º ESO",
+  "1º Bachillerato",
+  "2º Bachillerato",
+  "Universidad",
+  "Otros",
+];
 const conditions = [
   ["new", "Nuevo"],
   ["like_new", "Como nuevo"],
@@ -61,6 +88,9 @@ function MarketplaceFiltersForm({
   type,
   isbn,
   sort,
+  minPrice,
+  maxPrice,
+  scope,
   hasFilters,
   isLoggedIn,
 }: {
@@ -71,6 +101,9 @@ function MarketplaceFiltersForm({
   type: string;
   isbn: string;
   sort: string;
+  minPrice: string;
+  maxPrice: string;
+  scope: string;
   hasFilters: boolean;
   isLoggedIn: boolean;
 }) {
@@ -88,6 +121,22 @@ function MarketplaceFiltersForm({
           />
         </div>
       </label>
+
+
+      <SelectField name="scope" label="Comunidad" value={scope}>
+        <option value="">Todos los productos</option>
+        <option value="school">Solo mi colegio</option>
+      </SelectField>
+
+      <div className="rounded-2xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 font-medium text-foreground">
+          <MapPin className="h-4 w-4" />
+          Proximidad
+        </div>
+        <p className="mt-1">
+          El filtro por colegio ya está disponible. El radio por kilómetros requiere activar ubicación/código postal por anuncio y será el siguiente paso.
+        </p>
+      </div>
 
       <SelectField name="category" label="Categoría" value={category}>
         <option value="">Todas</option>
@@ -123,7 +172,15 @@ function MarketplaceFiltersForm({
       </SelectField>
 
       <label className="space-y-1.5 text-sm">
-        <span className="font-medium text-foreground">ISBN</span>
+        <span className="flex items-center gap-1 font-medium text-foreground">
+          ISBN
+          <span className="group relative inline-flex">
+            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-xl border bg-popover p-3 text-xs font-normal text-popover-foreground shadow-lg group-hover:block group-focus-within:block">
+              ¿Qué es el ISBN? ISBN son las siglas de International Standard Book Number y consiste en un código que nos sirve para identificar de manera única cada producto editorial.
+            </span>
+          </span>
+        </span>
         <input
           name="isbn"
           defaultValue={isbn}
@@ -131,6 +188,9 @@ function MarketplaceFiltersForm({
           className="h-11 w-full rounded-xl border bg-background px-3 text-sm shadow-sm"
         />
       </label>
+
+
+      <PriceRangeFields minPrice={minPrice} maxPrice={maxPrice} />
 
       <SelectField name="sort" label="Ordenar por" value={sort}>
         <option value="relevance">Relevancia</option>
@@ -197,6 +257,15 @@ export default async function MarketplacePage({
   const type = getParam(params, "type") || "";
   const isbn = getParam(params, "isbn") || "";
   const sort = getParam(params, "sort") || "relevance";
+  const minPrice = getParam(params, "minPrice") || "";
+  const maxPrice = getParam(params, "maxPrice") || "";
+  const scope = getParam(params, "scope") || "";
+
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("school_id").eq("id", user.id).maybeSingle()
+    : { data: null as any };
+
+  const currentSchoolId = (profile as any)?.school_id || null;
 
   const listings = await getRankedListings({
     q,
@@ -206,11 +275,15 @@ export default async function MarketplacePage({
     type,
     isbn,
     sort,
+    minPrice,
+    maxPrice,
+    scope,
+    currentSchoolId,
     currentUserId: user?.id || null,
     limit: 80,
   });
 
-  const hasFilters = Boolean(q || category || grade || condition || type || isbn);
+  const hasFilters = Boolean(q || category || grade || condition || type || isbn || minPrice || maxPrice || scope);
   const filterForm = (
     <MarketplaceFiltersForm
       q={q}
@@ -220,6 +293,9 @@ export default async function MarketplacePage({
       type={type}
       isbn={isbn}
       sort={sort}
+      minPrice={minPrice}
+      maxPrice={maxPrice}
+      scope={scope}
       hasFilters={hasFilters}
       isLoggedIn={!!user}
     />
@@ -240,13 +316,13 @@ export default async function MarketplacePage({
         <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="max-w-3xl">
             <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              Marketplace educativo
+              Comunidad educativa
             </span>
             <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-              Encuentra libros, uniformes y material educativo
+              Encuentra todo lo que necesitas para este curso escolar
             </h1>
             <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-              Compra, vende, dona y reutiliza dentro de tu comunidad. Guarda búsquedas para recibir alertas cuando aparezcan productos compatibles.
+              Compra, vende, dona y reutiliza dentro de tu comunidad. Usa los filtros, pulsa “Guardar búsqueda” y Wetudy te avisará cuando aparezcan productos compatibles.
             </p>
           </div>
 
@@ -303,6 +379,9 @@ export default async function MarketplacePage({
               {category ? <ActiveFilterChip>{category}</ActiveFilterChip> : null}
               {grade ? <ActiveFilterChip>{grade}</ActiveFilterChip> : null}
               {type ? <ActiveFilterChip>{type === "donation" ? "Donación" : "Venta"}</ActiveFilterChip> : null}
+              {scope === "school" ? <ActiveFilterChip>Mi colegio</ActiveFilterChip> : null}
+              {minPrice ? <ActiveFilterChip>Desde {minPrice} €</ActiveFilterChip> : null}
+              {maxPrice ? <ActiveFilterChip>Hasta {maxPrice} €</ActiveFilterChip> : null}
               {q ? <ActiveFilterChip>“{q}”</ActiveFilterChip> : null}
             </div>
           </div>

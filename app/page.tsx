@@ -23,7 +23,7 @@ import {
 export const metadata = {
   title: "Wetudy | Ahorra en material educativo reutilizado",
   description:
-    "Compra, vende y dona libros, uniformes, calculadoras y material escolar entre familias, estudiantes y negocios locales.",
+    "Compra, vende y dona material escolar entre familias, estudiantes y negocios locales.",
 };
 
 const pillars = [
@@ -35,7 +35,7 @@ const pillars = [
   {
     icon: Recycle,
     title: "Más vida útil",
-    text: "Los libros, uniformes y calculadoras pueden seguir ayudando mucho después de un curso.",
+    text: "Material como libros, uniformes y calculadoras pueden seguir ayudando mucho después de un curso.",
   },
   {
     icon: Gift,
@@ -45,7 +45,7 @@ const pillars = [
   {
     icon: Store,
     title: "Negocios locales",
-    text: "Librerías, papelerías y academias pueden publicar productos y packs sin montar una tienda online.",
+    text: "Fomentar el negocio local también es parte de la comunidad. Pueden vender sus productos sin necesidad de tienda online.",
   },
 ];
 
@@ -104,8 +104,7 @@ export default async function LandingPage() {
               </h1>
 
               <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-                Compra, vende y dona libros, uniformes, calculadoras y material escolar entre familias,
-                estudiantes y negocios locales. Antes de comprarlo nuevo, mira si ya existe en Wetudy.
+                Compra, vende y dona material escolar entre familias, estudiantes y negocios locales. Antes de comprarlo, mira si ya existe en Wetudy.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -136,7 +135,7 @@ export default async function LandingPage() {
                 <div className="rounded-3xl bg-muted p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                      Operación armario educativo
+                      Operación ahorro
                     </span>
                     <BookOpen className="h-5 w-5 text-primary" />
                   </div>
@@ -253,10 +252,10 @@ export default async function LandingPage() {
             <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-center">
               <div>
                 <Badge variant="outline" className="mb-4">
-                  Especializado en educación
+                  Comunidad educativa
                 </Badge>
                 <h2 className="text-3xl font-bold tracking-tight">
-                  No es un marketplace de todo. Es material educativo con contexto.
+                  Una nueva infraestructura educativa pensada para la comunidad.
                 </h2>
                 <p className="mt-4 text-muted-foreground">
                   Puedes buscar por curso, categoría, ISBN o tipo de producto. Y los negocios locales
@@ -279,10 +278,10 @@ export default async function LandingPage() {
           <div className="mx-auto max-w-5xl px-4 text-center lg:px-8">
             <GraduationCap className="mx-auto h-10 w-10" />
             <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
-              Antes de comprarlo nuevo, mira si ya existe en Wetudy
+              Antes de comprarlo, mira si ya existe en Wetudy
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-primary-foreground/85">
-              Ayuda a otra familia, recupera parte del gasto escolar o dona material que todavía
+              Ahorra dinero, recupera parte del gasto escolar o dona material que todavía
               puede acompañar a otro estudiante.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">

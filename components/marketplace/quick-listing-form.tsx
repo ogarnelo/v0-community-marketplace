@@ -86,7 +86,13 @@ export default function QuickListingForm({
   const isDonation = values.listing_type === 'donation';
 
   function setField(key: keyof typeof values, value: string) {
-    setValues((current) => ({ ...current, [key]: value }));
+    setValues((current) => {
+      if (key === "listing_type" && value === "donation") {
+        return { ...current, listing_type: value, price: "", original_price: "" };
+      }
+
+      return { ...current, [key]: value };
+    });
   }
 
   function validateSelectedFiles(files: File[]) {
@@ -359,17 +365,17 @@ export default function QuickListingForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label>Título</Label>
-          <Input value={values.title} onChange={(e) => setField('title', e.target.value)} placeholder="Ej. Libro Matemáticas 3 ESO" />
+          <Label>Título *</Label>
+          <Input required value={values.title} onChange={(e) => setField('title', e.target.value)} placeholder="Ej. Libro Matemáticas 3 ESO" />
         </div>
 
         <div className="space-y-2 sm:col-span-2">
-          <Label>Descripción</Label>
-          <Textarea value={values.description} onChange={(e) => setField('description', e.target.value)} rows={4} />
+          <Label>Descripción *</Label>
+          <Textarea required value={values.description} onChange={(e) => setField('description', e.target.value)} rows={4} />
         </div>
 
         <div className="space-y-2">
-          <Label>Categoría</Label>
+          <Label>Categoría *</Label>
           <Select value={values.category} onValueChange={(value) => setField('category', value)}>
             <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
             <SelectContent>
@@ -379,7 +385,7 @@ export default function QuickListingForm({
         </div>
 
         <div className="space-y-2">
-          <Label>Curso / etapa</Label>
+          <Label>Curso / etapa *</Label>
           <Select value={values.grade_level} onValueChange={(value) => setField('grade_level', value)}>
             <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
             <SelectContent>
@@ -389,7 +395,7 @@ export default function QuickListingForm({
         </div>
 
         <div className="space-y-2">
-          <Label>Estado</Label>
+          <Label>Estado *</Label>
           <Select value={values.condition} onValueChange={(value) => setField('condition', value)}>
             <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
             <SelectContent>
@@ -401,7 +407,7 @@ export default function QuickListingForm({
         </div>
 
         <div className="space-y-2">
-          <Label>Tipo</Label>
+          <Label>Tipo *</Label>
           <Select value={values.listing_type} onValueChange={(value) => setField('listing_type', value)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -414,15 +420,19 @@ export default function QuickListingForm({
         {!isDonation ? (
           <>
             <div className="space-y-2">
-              <Label>Precio</Label>
-              <Input value={values.price} onChange={(e) => setField('price', e.target.value)} placeholder="10" inputMode="decimal" />
+              <Label>Precio *</Label>
+              <Input required value={values.price} onChange={(e) => setField('price', e.target.value)} placeholder="10" inputMode="decimal" />
             </div>
             <div className="space-y-2">
               <Label>Precio original</Label>
               <Input value={values.original_price} onChange={(e) => setField('original_price', e.target.value)} placeholder="35" inputMode="decimal" />
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="rounded-2xl border bg-emerald-50/60 p-3 text-sm text-emerald-800 sm:col-span-2">
+            Has seleccionado donación: no se pedirá precio.
+          </div>
+        )}
 
         <div className="space-y-2 sm:col-span-2">
           <Label>ISBN opcional</Label>

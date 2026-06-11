@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
 import { Globe } from "lucide-react";
@@ -242,11 +240,6 @@ export default async function SuperAdminPage() {
     return acc;
   }, {});
 
-  const navbarUserName =
-    (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
-      ? profile.full_name.trim()
-      : null) || user.email || "Super Admin";
-
   const dashboardReports = safeReports.map((report) => ({
     ...report,
     reporter_name: reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
@@ -268,11 +261,7 @@ export default async function SuperAdminPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/super" currentUserId={user.id} />
-
-      <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Globe className="h-5 w-5 text-primary-foreground" />
@@ -296,10 +285,6 @@ export default async function SuperAdminPage() {
             initialListings={safeListings}
             initialListingViews={safeListingViews}
           />
-        </div>
-      </main>
-
-      <Footer />
     </div>
   );
 }

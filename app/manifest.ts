@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Wetudy',
     short_name: 'Wetudy',
-    description: 'Marketplace educativo de segunda mano para libros, uniformes y material escolar.',
+    description: 'Comunidad educativa para comprar, vender, donar y descubrir material escolar.',
     start_url: '/marketplace',
     display: 'standalone',
     background_color: '#ffffff',

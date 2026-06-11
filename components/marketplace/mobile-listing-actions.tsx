@@ -22,12 +22,14 @@ export default function MobileListingActions({
   isDonation,
   isAvailable,
   isOwnListing,
+  isProfessionalSeller,
 }: {
   listingId: string;
   price?: number | null;
   isDonation: boolean;
   isAvailable: boolean;
   isOwnListing: boolean;
+  isProfessionalSeller?: boolean;
 }) {
   if (isOwnListing || !isAvailable) return null;
 
@@ -58,6 +60,16 @@ export default function MobileListingActions({
               </Link>
             </Button>
             <RequestDonationButton listingId={listingId} />
+          </div>
+        ) : isProfessionalSeller ? (
+          <div className="grid grid-cols-[0.9fr_1.1fr] gap-2">
+            <Button asChild size="lg" variant="secondary" className="w-full gap-2 px-2">
+              <Link href={`/messages?listing=${listingId}`}>
+                <MessageCircle className="h-4 w-4" />
+                Chat
+              </Link>
+            </Button>
+            <BuyNowButton listingId={listingId} currentPrice={price} />
           </div>
         ) : (
           <div className="grid grid-cols-[0.8fr_1fr_1.05fr] gap-2">

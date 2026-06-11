@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import ConversionNudgeActions from "@/components/conversion/conversion-nudge-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +36,6 @@ function nudgeLabel(type: string) {
 
 export default async function AccountGrowthPage() {
   const supabase = await createClient();
-  const navbarData = await getNavbarData(supabase);
 
   const {
     data: { user },
@@ -58,10 +54,7 @@ export default async function AccountGrowthPage() {
     .limit(50);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar {...navbarData} />
-
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 lg:px-8">
         <section className="mb-8 rounded-3xl border bg-card p-6 shadow-sm">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
             <Sparkles className="h-6 w-6 text-primary" />
@@ -114,9 +107,6 @@ export default async function AccountGrowthPage() {
             </div>
           ) : null}
         </div>
-      </main>
-
-      <Footer />
-    </div>
+    </main>
   );
 }

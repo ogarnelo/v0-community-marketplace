@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessSuperadmin } from "@/lib/admin/superadmin-access";
 import AutopilotRecommendationActions from "@/components/admin/autopilot-recommendation-actions";
 import { Button } from "@/components/ui/button";
+import AdminApiRunButton from "@/components/admin/admin-api-run-button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Bot, Sparkles } from "lucide-react";
 
@@ -65,12 +66,11 @@ export default async function AutopilotPage() {
             </p>
           </div>
 
-          <Button asChild>
-            <Link href="/api/autopilot/run">
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generar recomendaciones
-            </Link>
-          </Button>
+          <AdminApiRunButton
+            endpoint="/api/autopilot/run"
+            label="Generar recomendaciones"
+            icon={<Sparkles className="mr-2 h-4 w-4" />}
+          />
         </div>
       </section>
 

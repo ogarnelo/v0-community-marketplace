@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Navbar } from '@/components/navbar';
-import { Footer } from '@/components/footer';
 import { createClient } from '@/lib/supabase/server';
-import { getNavbarData } from '@/lib/navbar/get-navbar-data';
 import { DEFAULT_SELLER_TEMPLATES, templateToSearchParams, type SellerTemplate } from '@/lib/seller/default-templates';
 import SellerTemplateCard from '@/components/seller/seller-template-card';
 import SaveTemplateForm from '@/components/seller/save-template-form';
@@ -37,7 +34,6 @@ function rowToTemplate(row: any): SellerTemplate {
 
 export default async function SellerVelocityPage() {
   const supabase = await createClient();
-  const navbarData = await getNavbarData(supabase);
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect('/auth?next=/account/seller/velocity');
@@ -52,10 +48,7 @@ export default async function SellerVelocityPage() {
   const customTemplates = (savedTemplates || []).map(rowToTemplate);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar {...navbarData} />
-
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 lg:px-8">
         <section className="mb-8 rounded-3xl border bg-card p-6 shadow-sm lg:p-8">
           <Badge variant="outline" className="mb-4 border-primary/30 text-primary">Seller Velocity</Badge>
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -129,9 +122,6 @@ export default async function SellerVelocityPage() {
             </Button>
           </div>
         </section>
-      </main>
-
-      <Footer />
-    </div>
+    </main>
   );
 }

@@ -83,7 +83,7 @@ export default async function MaterialSeoPage({ params }: { params: Promise<{ sl
         </section>
 
         <section className="mt-8 rounded-3xl border bg-muted/40 p-6">
-          <h2 className="text-xl font-semibold">Antes de comprarlo nuevo, mira si ya existe en Wetudy</h2>
+          <h2 className="text-xl font-semibold">Antes de comprarlo, mira si ya existe en Wetudy</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Wetudy ayuda a que el material educativo circule más y a que las familias reduzcan gasto sin perder confianza.
           </p>

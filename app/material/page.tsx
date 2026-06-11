@@ -35,11 +35,26 @@ export default async function MaterialIndexPage() {
         <section className="mb-8 rounded-3xl border bg-card p-6 shadow-sm lg:p-8">
           <BookOpen className="h-8 w-8 text-primary" />
           <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">
-            Guías de material educativo reutilizado
+            Guías de material educativo
           </h1>
           <p className="mt-4 max-w-3xl text-muted-foreground">
-            Páginas útiles y genéricas para encontrar, vender y reutilizar material educativo sin exponer datos sensibles de demanda.
+            Son guías públicas pensadas para familias, estudiantes y negocios. Explican qué buscar, cómo publicar mejor y enlazan con anuncios relevantes sin exponer datos sensibles de demanda.
           </p>
+        </section>
+
+        <section className="mb-8 grid gap-4 md:grid-cols-3">
+          <div className="rounded-3xl border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold">¿En qué consisten?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Páginas SEO útiles por categoría, curso o necesidad, conectadas con el marketplace.</p>
+          </div>
+          <div className="rounded-3xl border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold">¿Quién tiene acceso?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Son públicas. Ayudan a captar demanda y a explicar mejor qué puede encontrarse en Wetudy.</p>
+          </div>
+          <div className="rounded-3xl border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold">¿A quién van dirigidas?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Familias, estudiantes y negocios que buscan o publican material educativo.</p>
+          </div>
         </section>
 
         <div className="grid gap-4 md:grid-cols-2">

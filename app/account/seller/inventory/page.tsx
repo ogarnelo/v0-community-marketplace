@@ -1,11 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import InventoryExpansionPanel from "@/components/seller/inventory-expansion-panel";
 import { ArrowLeft, Layers3, PackagePlus } from "lucide-react";
 
@@ -21,7 +18,6 @@ export const metadata = {
 
 export default async function SellerInventoryPage() {
   const supabase = await createClient();
-  const navbarData = await getNavbarData(supabase);
 
   const {
     data: { user },
@@ -48,10 +44,7 @@ export default async function SellerInventoryPage() {
   });
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar {...navbarData} />
-
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 lg:px-8">
         <Button asChild variant="ghost" className="mb-4 gap-2 px-0">
           <Link href="/account/seller/velocity">
             <ArrowLeft className="h-4 w-4" />
@@ -81,9 +74,6 @@ export default async function SellerInventoryPage() {
         </section>
 
         <InventoryExpansionPanel listings={(listings || []) as any} />
-      </main>
-
-      <Footer />
-    </div>
+    </main>
   );
 }

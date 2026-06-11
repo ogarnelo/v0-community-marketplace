@@ -57,6 +57,10 @@ function isValidPhotoUrl(value: string) {
   }
 }
 
+const CSV_TEMPLATE = `title,description,price,photo_url,category,condition,grade_level,isbn,listing_type
+Libro Matemáticas 3º ESO,Libro nuevo o en buen estado,12,https://ejemplo.com/foto-libro.jpg,Libros de texto,good,3º ESO,9780000000000,sale
+Pack vuelta al cole,Cuadernos y material escolar,24,https://ejemplo.com/foto-pack.jpg,Material escolar,new,1º Primaria,,sale`;
+
 export default function BusinessCsvImporter() {
   const [csv, setCsv] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -99,18 +103,27 @@ export default function BusinessCsvImporter() {
         <div>
           <h2 className="font-semibold">Importar CSV rápido</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            La foto es obligatoria. Añade una columna <strong>photo_url</strong> con una URL pública por producto.
+            La foto es obligatoria. Pega un CSV o descarga la plantilla. Cada producto necesita una URL pública en <strong>photo_url</strong>.
           </p>
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" variant="outline" onClick={() => setCsv(CSV_TEMPLATE)}>Usar plantilla de ejemplo</Button>
+        <a
+          href={`data:text/csv;charset=utf-8,${encodeURIComponent(CSV_TEMPLATE)}`}
+          download="wetudy-productos-plantilla.csv"
+          className="inline-flex h-10 items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+        >
+          Descargar plantilla CSV
+        </a>
       </div>
 
       <textarea
         value={csv}
         onChange={(event) => setCsv(event.target.value)}
         className="mt-4 min-h-56 w-full rounded-2xl border bg-background p-3 text-sm"
-        placeholder={`title,description,price,photo_url,category,condition,grade_level,isbn
-Libro Matemáticas,Libro en buen estado,12,https://ejemplo.com/foto-libro.jpg,Libros de texto,good,3 ESO,9780000000000
-Calculadora científica,Casio usada,18,https://ejemplo.com/calculadora.jpg,Calculadoras,good,4 ESO,`}
+        placeholder={CSV_TEMPLATE}
       />
 
       <div className="mt-4 flex flex-wrap items-center gap-3">

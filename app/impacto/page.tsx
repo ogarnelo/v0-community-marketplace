@@ -92,7 +92,7 @@ export default async function ImpactoPage() {
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
                 <Badge variant="outline" className="mb-4">
-                  Impacto real, no cifras inventadas
+                  Impacto real
                 </Badge>
                 <h2 className="text-3xl font-bold tracking-tight">
                   Mediremos el ahorro y la reutilización con datos reales de la comunidad

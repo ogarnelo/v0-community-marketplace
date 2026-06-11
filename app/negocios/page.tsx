@@ -20,7 +20,7 @@ import {
 export const metadata = {
   title: "Wetudy para negocios locales",
   description:
-    "Perfil profesional para librerías, papelerías, academias y tiendas educativas que quieren vender material escolar sin montar una tienda online.",
+    "Perfil profesional para negocios con productos escolares que quieren vender directamente a la comunidad educativa.",
 };
 
 const benefits = [
@@ -46,8 +46,8 @@ const benefits = [
   },
   {
     icon: MessageCircle,
-    title: "Chat y ofertas",
-    text: "Responde dudas, negocia precios y cierra operaciones desde Wetudy.",
+    title: "Chat y compra directa",
+    text: "Responde dudas y cierra ventas con precios claros, sin negociación obligatoria.",
   },
   {
     icon: TrendingUp,
@@ -60,7 +60,7 @@ const idealFor = [
   "Librerías",
   "Papelerías",
   "Tiendas de uniformes",
-  "Academias",
+  "Tiendas de deportes",
   "Tiendas de segunda mano educativa",
   "Negocios con stock escolar",
 ];
@@ -78,7 +78,7 @@ export default async function NegociosPage() {
           <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24">
             <div>
               <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
-                Para librerías, papelerías, academias y tiendas
+                Venta directa a la comunidad educativa
               </Badge>
               <h1 className="text-balance text-3xl font-bold tracking-tight sm:text-5xl">
                 Tu escaparate educativo online, sin complicaciones
@@ -89,7 +89,7 @@ export default async function NegociosPage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link href="/auth?mode=signup">Crear perfil profesional</Link>
+                  <Link href="/auth?next=/account/business/onboarding">Crear perfil profesional</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
                   <Link href="/contact">Hablar con Wetudy</Link>
@@ -99,10 +99,9 @@ export default async function NegociosPage() {
 
             <div className="rounded-[2rem] border bg-muted/40 p-6">
               <BadgeCheck className="h-8 w-8 text-primary" />
-              <h2 className="mt-4 text-xl font-semibold">Pensado para gerentes no técnicos</h2>
+              <h2 className="mt-4 text-xl font-semibold">Pensado para todo tipo de negocios con productos escolares</h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                Wetudy debe ser fácil: fotos, precio, categoría y publicar. El objetivo es vender,
-                no aprender software.
+                Wetudy debe ser fácil: fotos, precio, categoría y publicar.
               </p>
 
               <div className="mt-6 grid gap-2">
@@ -122,8 +121,8 @@ export default async function NegociosPage() {
               Vende donde la búsqueda ya es educativa
             </h2>
             <p className="mt-4 text-muted-foreground">
-              En un marketplace generalista compites con todo. En Wetudy tus productos aparecen en un
-              contexto de familias y estudiantes preparando el curso.
+              En Wetudy tus productos no comparten espacio con miles de categorías y usuarios con otros intereses.
+              Conecta directamente con familias y estudiantes.
             </p>
           </div>
 
@@ -147,7 +146,7 @@ export default async function NegociosPage() {
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
                 <Badge variant="outline" className="mb-4">
-                  Liquidez local
+                  Enfoque local
                 </Badge>
                 <h2 className="text-3xl font-bold tracking-tight">
                   Los negocios locales pueden ser clave para que haya oferta desde el primer día
@@ -184,7 +183,7 @@ export default async function NegociosPage() {
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button asChild>
-                <Link href="/auth?mode=signup">Crear perfil profesional</Link>
+                <Link href="/auth?next=/account/business/onboarding">Crear perfil profesional</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/marketplace">Ver marketplace</Link>

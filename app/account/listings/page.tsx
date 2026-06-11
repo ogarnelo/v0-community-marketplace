@@ -166,9 +166,10 @@ export default async function MyListingsPage() {
                   </div>
                 </CardHeader>
 
-                <CardContent>
-                  <div className="flex items-center justify-between gap-2">
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-muted/40 p-3">
                     <div>
+                      <p className="text-xs text-muted-foreground">Precio / tipo</p>
                       {isDonation ? (
                         <Badge>Donación</Badge>
                       ) : listing.price != null ? (
@@ -177,25 +178,29 @@ export default async function MyListingsPage() {
                         <span className="font-semibold">Consultar</span>
                       )}
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2 justify-end">
-                      <Button asChild variant="outline" size="sm" className="gap-2">
-                        <Link href={`/marketplace/edit/${listing.id}`}>
-                          <Pencil className="h-4 w-4" />
-                          Editar
-                        </Link>
-                      </Button>
-
-                      <Button asChild variant="ghost" size="sm">
-                        <Link href={`/marketplace/listing/${listing.id}`}>Ver anuncio</Link>
-                      </Button>
-
-                      <BoostListingButton listingId={listing.id} />
-                      <DeleteListingButton listingId={listing.id} title={listing.title} />
-                    </div>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/marketplace/listing/${listing.id}`}>Ver anuncio</Link>
+                    </Button>
                   </div>
 
-                  <ListingStatusActions listingId={listing.id} currentStatus={listing.status} />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button asChild variant="outline" size="sm" className="gap-2">
+                      <Link href={`/marketplace/edit/${listing.id}`}>
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </Link>
+                    </Button>
+                    <BoostListingButton listingId={listing.id} />
+                  </div>
+
+                  <div className="rounded-2xl border p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">Estado del anuncio</p>
+                    <ListingStatusActions listingId={listing.id} currentStatus={listing.status} />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <DeleteListingButton listingId={listing.id} title={listing.title} />
+                  </div>
 
                   {!isDonation ? <ListingOffersPanel listingId={listing.id} offers={sellerOffers} /> : null}
                 </CardContent>

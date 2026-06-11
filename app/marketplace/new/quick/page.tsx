@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Navbar } from '@/components/navbar';
-import { Footer } from '@/components/footer';
 import { createClient } from '@/lib/supabase/server';
-import { getNavbarData } from '@/lib/navbar/get-navbar-data';
 import QuickListingForm, { type QuickListingInitialValues } from '@/components/marketplace/quick-listing-form';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Zap } from 'lucide-react';
@@ -26,7 +23,6 @@ export default async function QuickNewListingPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const navbarData = await getNavbarData(supabase);
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect('/auth?next=/marketplace/new/quick');
@@ -51,9 +47,7 @@ export default async function QuickNewListingPage({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar {...navbarData} />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 lg:px-8">
         <Button asChild variant="ghost" className="mb-4 gap-2 px-0">
           <Link href="/account/seller/velocity">
             <ArrowLeft className="h-4 w-4" />
@@ -70,8 +64,6 @@ export default async function QuickNewListingPage({
         </section>
 
         <QuickListingForm initialSchoolId={(profile as any)?.school_id || null} initialValues={initialValues} />
-      </main>
-      <Footer />
-    </div>
+    </main>
   );
 }

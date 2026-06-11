@@ -12,10 +12,10 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wetudy.com'
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
-    default: 'Wetudy - Marketplace educativo de segunda mano',
+    default: 'Wetudy - Comunidad educativa',
     template: '%s | Wetudy',
   },
-  description: 'Compra, vende, dona y reutiliza libros, uniformes y material educativo dentro de tu comunidad. Chat, ofertas, pagos protegidos y perfiles de confianza.',
+  description: 'Compra, vende, dona y descubre material escolar nuevo, outlet, de segunda mano y donado dentro de tu comunidad. Chat, pagos protegidos y perfiles de confianza.',
   applicationName: 'Wetudy',
   generator: 'Wetudy',
   keywords: [
@@ -35,12 +35,12 @@ export const metadata: Metadata = {
     locale: 'es_ES',
     url: appUrl,
     siteName: 'Wetudy',
-    title: 'Wetudy - Marketplace educativo de segunda mano',
-    description: 'Ahorra comprando y vendiendo libros, uniformes y material educativo dentro de tu comunidad.',
+    title: 'Wetudy - Comunidad educativa',
+    description: 'Ahorra comprando, vendiendo y encontrando material escolar dentro de tu comunidad educativa.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Wetudy - Marketplace educativo de segunda mano',
+    title: 'Wetudy - Comunidad educativa',
     description: 'Compra, vende, dona y reutiliza material educativo con confianza.',
   },
   icons: {

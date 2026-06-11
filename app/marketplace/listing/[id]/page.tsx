@@ -99,6 +99,7 @@ export default async function ListingDetailPage({
   const reviewCount = reviews?.length || 0;
   const averageRating = reviewCount > 0 ? (reviews || []).reduce((sum: number, row: any) => sum + Number(row.rating || 0), 0) / reviewCount : null;
   const sellerActiveListings = activeListings?.length || 0;
+  const isProfessionalSeller = seller?.user_type === "business" || Boolean(seller?.is_business_verified);
 
   const photos = (photosData || []).map((item: { url: string }) => item.url).filter(Boolean);
   const displayTitle = listing.title || "Anuncio";
@@ -209,7 +210,7 @@ export default async function ListingDetailPage({
               {isOwnListing ? (
                 <Link href={`/marketplace/edit/${listing.id}`}><Button className="w-full" variant="outline">Editar anuncio</Button></Link>
               ) : isAvailable ? (
-                isDonation ? <RequestDonationButton listingId={listing.id} /> : <><BuyNowButton listingId={listing.id} currentPrice={listing.price} /><MakeOfferButton listingId={listing.id} currentPrice={listing.price} /></>
+                isDonation ? <RequestDonationButton listingId={listing.id} /> : isProfessionalSeller ? <><BuyNowButton listingId={listing.id} currentPrice={listing.price} /><p className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">Los productos de perfil profesional tienen precio fijo. Puedes usar el chat para resolver dudas, pero no se negocia el precio desde Wetudy.</p></> : <><BuyNowButton listingId={listing.id} currentPrice={listing.price} /><MakeOfferButton listingId={listing.id} currentPrice={listing.price} /></>
               ) : (
                 <div className="rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">Este anuncio ya no acepta nuevas compras ni ofertas. Las conversaciones existentes siguen disponibles.</div>
               )}
@@ -239,14 +240,14 @@ export default async function ListingDetailPage({
             <h2 className="text-lg font-semibold">Compra protegida en Wetudy</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>✓ Paga dentro de la plataforma para mantener historial y seguimiento.</li>
-              <li>✓ El chat conserva ofertas, contraofertas y acuerdos.</li>
+              <li>✓ El chat conserva dudas, acuerdos y seguimiento de la operación.</li>
               <li>✓ En envíos, el estado queda visible en actividad y mensajes.</li>
-              <li>✓ Si tienes dudas, empieza por chat y convierte a oferta cuando lo tengas claro.</li>
+              <li>✓ En perfiles profesionales el precio es fijo; en perfiles particulares puede haber oferta si el vendedor la acepta.</li>
             </ul>
           </div>
         </div>
       </div>
-      <MobileListingActions listingId={listing.id} price={listing.price} isDonation={isDonation} isAvailable={isAvailable} isOwnListing={isOwnListing} />
+      <MobileListingActions listingId={listing.id} price={listing.price} isDonation={isDonation} isAvailable={isAvailable} isOwnListing={isOwnListing} isProfessionalSeller={isProfessionalSeller} />
     </div>
   );
 }

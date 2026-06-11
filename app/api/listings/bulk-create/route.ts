@@ -12,10 +12,12 @@ const ALLOWED_CATEGORIES = new Set([
   "Tecnología",
   "Tecnología educativa",
   "Mochilas y estuches",
+  "Instrumentos musicales",
+  "Material deportivo",
   "Apuntes",
   "Otros",
 ]);
-const ALLOWED_CONDITIONS = new Set(["new", "like_new", "good", "fair", "poor"]);
+const ALLOWED_CONDITIONS = new Set(["new", "like_new", "good", "fair", "poor", "new_with_tags", "new_without_tags", "very_good", "satisfactory"]);
 const ALLOWED_LISTING_TYPES = new Set(["sale", "donation"]);
 
 function cleanString(value: unknown, maxLength: number) {

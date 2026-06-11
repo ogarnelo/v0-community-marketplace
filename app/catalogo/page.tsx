@@ -46,7 +46,7 @@ export default async function CatalogoPage({
             Catálogo educativo de la comunidad
           </h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
-            Wetudy aprende qué materiales se usan por curso, asignatura e ISBN para ayudarte a encontrar anuncios compatibles sin depender de un catálogo oficial desde el primer día.
+            El catálogo sirve para ordenar material por curso, asignatura e ISBN. Acceden familias, estudiantes y negocios desde el footer y desde marketplace. No es una tienda separada: ayuda a mejorar búsquedas, compatibilidad y futuras recomendaciones automáticas.
           </p>
           {!navbarData.isLoggedIn ? (
             <div className="mt-5 flex flex-wrap gap-3">
@@ -55,6 +55,21 @@ export default async function CatalogoPage({
             </div>
           ) : null}
         </div>
+
+        <section className="mb-8 grid gap-4 md:grid-cols-3">
+          <div className="rounded-3xl border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold">¿Para qué sirve?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Para saber qué material corresponde a cada curso y facilitar búsquedas por ISBN o asignatura.</p>
+          </div>
+          <div className="rounded-3xl border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold">¿Quién accede?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Cualquier usuario puede consultarlo. Los usuarios con sesión pueden contribuir datos.</p>
+          </div>
+          <div className="rounded-3xl border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold">¿Se automatiza?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Sí: se alimenta con aportaciones y señales internas para mejorar compatibilidad y demanda sin exponer datos sensibles.</p>
+          </div>
+        </section>
 
         {navbarData.isLoggedIn ? (
           <div className="mb-8 rounded-3xl border bg-card p-6 shadow-sm">
