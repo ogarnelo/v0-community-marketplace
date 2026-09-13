@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { buildPhotosMap, type ListingPhotoRow, type MarketplaceListing } from "@/lib/types/marketplace";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
+import { getConditionLabel } from "@/lib/marketplace/formatters";
 import JsonLd from "@/components/seo/json-ld";
 import ListingViewTracker from "@/components/analytics/listing-view-tracker";
 import MobileListingActions from "@/components/marketplace/mobile-listing-actions";
@@ -27,11 +28,17 @@ function statusLabel(status?: string | null) {
     case "available": return "Disponible";
     case "reserved": return "Reservado";
     case "sold": return "Vendido";
+    case "donated": return "Donado";
     case "archived": return "Archivado";
     default: return status || "Sin estado";
   }
 }
 
+function shouldShowIsbn(category?: string | null, isbn?: string | null) {
+  if (!isbn) return false;
+  const normalized = (category || "").toLowerCase();
+  return normalized.includes("libro") || normalized.includes("lectura");
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -42,9 +49,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .eq("id", id)
     .maybeSingle();
 
-  if (!listing) {
-    return { title: "Anuncio no encontrado" };
-  }
+  if (!listing) return { title: "Anuncio no encontrado" };
 
   const title = listing.title || "Anuncio en Wetudy";
   const description = listing.description?.slice(0, 155) || "Anuncio de material educativo en Wetudy.";
@@ -53,11 +58,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     robots: listing.status === "available" ? { index: true, follow: true } : { index: false, follow: true },
-    openGraph: {
-      title,
-      description,
-      type: "article",
-    },
+    openGraph: { title, description, type: "article" },
   };
 }
 
@@ -74,8 +75,16 @@ export default async function ListingDetailPage({
   const authSupabase = await createClient();
 
   const [{ data: listing, error: listingError }, { data: photosData }, { data: authData }] = await Promise.all([
-    supabase.from("listings").select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, seller_id, school_id, status, created_at").eq("id", id).maybeSingle(),
-    supabase.from("listing_photos").select("id, listing_id, url, sort_order").eq("listing_id", id).order("sort_order", { ascending: true }),
+    supabase
+      .from("listings")
+      .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, seller_id, school_id, status, created_at")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("listing_photos")
+      .select("id, listing_id, url, sort_order")
+      .eq("listing_id", id)
+      .order("sort_order", { ascending: true }),
     authSupabase.auth.getUser(),
   ]);
 
@@ -85,6 +94,8 @@ export default async function ListingDetailPage({
   const isOwnListing = !!currentUserId && listing.seller_id === currentUserId;
   const isDonation = getListingTypeFromRow(listing as any) === "donation";
   const isAvailable = listing.status === "available";
+  const conditionText = getConditionLabel(listing.condition);
+  const showIsbn = shouldShowIsbn(listing.category, listing.isbn);
 
   const [{ data: seller }, { data: viewerProfile }, { data: reviews }, { data: activeListings }, { data: favorite }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, business_name, user_type, is_business_verified").eq("id", listing.seller_id).maybeSingle(),
@@ -104,10 +115,15 @@ export default async function ListingDetailPage({
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   const shareUrl = appUrl ? `${appUrl}/marketplace/listing/${listing.id}` : `/marketplace/listing/${listing.id}`;
   const currentSchoolId = viewerProfile?.school_id || "";
-
   const savings = typeof listing.original_price === "number" && typeof listing.price === "number" ? Math.max(0, listing.original_price - listing.price) : 0;
 
-  const relatedQuery = supabase.from("listings").select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, school_id, status, created_at").eq("status", "available").neq("id", listing.id).limit(8);
+  const relatedQuery = supabase
+    .from("listings")
+    .select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, school_id, status, created_at")
+    .eq("status", "available")
+    .neq("id", listing.id)
+    .limit(6);
+
   if (listing.isbn) relatedQuery.eq("isbn", listing.isbn);
   else if (listing.category && listing.grade_level) relatedQuery.eq("category", listing.category).eq("grade_level", listing.grade_level);
   else if (listing.category) relatedQuery.eq("category", listing.category);
@@ -117,7 +133,11 @@ export default async function ListingDetailPage({
   const relatedIds = (relatedRows || []).map((item: any) => item.id);
   let relatedPhotosMap = new Map<string, string[]>();
   if (relatedIds.length > 0) {
-    const { data: relatedPhotos } = await supabase.from("listing_photos").select("id, listing_id, url, sort_order").in("listing_id", relatedIds).order("sort_order", { ascending: true });
+    const { data: relatedPhotos } = await supabase
+      .from("listing_photos")
+      .select("id, listing_id, url, sort_order")
+      .in("listing_id", relatedIds)
+      .order("sort_order", { ascending: true });
     relatedPhotosMap = buildPhotosMap((relatedPhotos || []) as ListingPhotoRow[]);
   }
 
@@ -160,6 +180,7 @@ export default async function ListingDetailPage({
     <div className="container mx-auto max-w-6xl px-4 py-8 pb-28 md:pb-8">
       <JsonLd data={productJsonLd} />
       <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
+
       <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
         <Link href="/marketplace" className="hover:underline">Marketplace</Link>
         <span>/</span>
@@ -171,21 +192,37 @@ export default async function ListingDetailPage({
       <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-6">
           <ListingGallery photos={photos} title={displayTitle} />
+
           <div className="rounded-2xl border bg-card p-5 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <Badge variant={isAvailable ? "default" : "outline"}>{statusLabel(listing.status)}</Badge>
               {isDonation ? <Badge className="bg-emerald-600">Donación</Badge> : null}
               {listing.category ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{listing.category}</span> : null}
               {listing.grade_level ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{listing.grade_level}</span> : null}
-              {listing.condition ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{listing.condition}</span> : null}
+              {listing.condition ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{conditionText}</span> : null}
             </div>
+
             <h1 className="text-3xl font-bold tracking-tight">{displayTitle}</h1>
-            {listing.description ? <p className="mt-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">{listing.description}</p> : <p className="mt-4 text-sm text-muted-foreground">El vendedor no ha añadido una descripción todavía.</p>}
+            {listing.description ? (
+              <p className="mt-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">{listing.description}</p>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">El vendedor no ha añadido una descripción todavía.</p>
+            )}
+
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-muted/50 p-3"><p className="text-xs font-medium text-muted-foreground">ISBN</p><p className="mt-1 text-sm">{listing.isbn || "No indicado"}</p></div>
-              <div className="rounded-xl bg-muted/50 p-3"><p className="text-xs font-medium text-muted-foreground">Estado</p><p className="mt-1 text-sm">{statusLabel(listing.status)}</p></div>
+              {showIsbn ? (
+                <div className="rounded-xl bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">ISBN</p>
+                  <p className="mt-1 text-sm">{listing.isbn}</p>
+                </div>
+              ) : null}
+              <div className="rounded-xl bg-muted/50 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Estado del material</p>
+                <p className="mt-1 text-sm">{conditionText}</p>
+              </div>
             </div>
           </div>
+
           <RelatedListingsSection listings={relatedListings} currentSchoolId={currentSchoolId} />
         </div>
 
@@ -201,7 +238,7 @@ export default async function ListingDetailPage({
             <div className="mt-5 grid gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900 sm:grid-cols-3">
               <span className="font-medium">✓ Foto obligatoria</span>
               <span className="font-medium">✓ Chat con historial</span>
-              <span className="font-medium">✓ Acuerdo fuera de Wetudy</span>
+              <span className="font-medium">✓ Acuerdo entre partes</span>
             </div>
 
             <div className="mt-6 flex flex-col gap-3">
@@ -211,13 +248,14 @@ export default async function ListingDetailPage({
                 <>
                   <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} />
                   <p className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-                    Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan directamente entre las partes, fuera de la plataforma.
+                    Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan directamente entre las partes.
                     {isProfessionalSeller ? " En perfiles profesionales el precio es fijo; usa el chat para resolver dudas." : " Si el vendedor acepta negociar, cerradlo por chat antes de confirmar el acuerdo."}
                   </p>
                 </>
               ) : (
                 <div className="rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">Este anuncio ya no acepta nuevos contactos. Las conversaciones existentes siguen disponibles.</div>
               )}
+
               <div className="flex flex-wrap items-center gap-2">
                 {currentUserId && !isOwnListing ? <FavoriteButton listingId={listing.id} initialIsFavorite={!!favorite} className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" showLabel /> : null}
                 <ShareListingButton title={displayTitle} url={shareUrl} />
@@ -240,17 +278,23 @@ export default async function ListingDetailPage({
           </div>
 
           <div className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="text-lg font-semibold">Acuerdo local con historial</h2>
+            <h2 className="text-lg font-semibold">Cómo funciona</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li>✓ Contacta desde el chat del anuncio, sin perder mensajes en grupos externos.</li>
-              <li>✓ Acordad lugar, hora, entrega y forma de pago fuera de Wetudy.</li>
-              <li>✓ Cuando esté cerrado, ambas partes podrán confirmar el acuerdo en el chat.</li>
-              <li>✓ Wetudy conserva el historial y permite reportar incidencias si algo no encaja.</li>
+              <li>1. Contacta con el vendedor por chat.</li>
+              <li>2. Acordad entrega, precio final y detalles.</li>
+              <li>3. Confirmad el acuerdo para dejar historial y poder valorar.</li>
             </ul>
           </div>
         </div>
       </div>
-      <MobileListingActions listingId={listing.id} price={listing.price} isDonation={isDonation} isAvailable={isAvailable} isOwnListing={isOwnListing} isProfessionalSeller={isProfessionalSeller} />
+
+      <MobileListingActions
+        listingId={listing.id}
+        price={listing.price}
+        isDonation={isDonation}
+        isAvailable={isAvailable}
+        isOwnListing={isOwnListing}
+      />
     </div>
   );
 }
