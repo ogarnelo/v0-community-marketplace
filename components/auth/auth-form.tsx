@@ -40,6 +40,14 @@ async function upsertProfileAfterAuth(params: {
   }
 }
 
+async function triggerWelcomeEmail() {
+  try {
+    await fetch("/api/emails/welcome", { method: "POST" });
+  } catch (error) {
+    console.warn("No se pudo solicitar el email de bienvenida", error);
+  }
+}
+
 export function AuthForm() {
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -101,6 +109,7 @@ export function AuthForm() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
+      await triggerWelcomeEmail();
       window.location.assign(nextPath || "/account");
     } catch (e: any) {
       setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.");
@@ -182,12 +191,13 @@ export function AuthForm() {
       }
 
       if (data.session) {
+        await triggerWelcomeEmail();
         window.location.assign(nextPath || "/onboarding/join-school");
         return;
       }
 
       setInfoMessage(
-        "Cuenta creada. Revisa tu email para confirmar el registro y completar el acceso."
+        "Cuenta creada. Revisa tu email para confirmar el registro y completar el acceso. Al iniciar sesión te enviaremos la bienvenida."
       );
       setMode("login");
     } catch (e: any) {
