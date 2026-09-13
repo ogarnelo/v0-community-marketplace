@@ -4,23 +4,23 @@ import { PiggyBank, ShieldCheck, MessageCircle, Star } from "lucide-react"
 const benefits = [
   {
     icon: PiggyBank,
-    title: "Ahorra hasta un 70%",
-    description: "Compra material escolar de segunda mano a precios mucho mas bajos que en tienda. Cada euro cuenta.",
+    title: "Ahorro flexible",
+    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso.",
   },
   {
     icon: ShieldCheck,
-    title: "Comunidad de confianza",
-    description: "Solo interactuas con familias de tu propio centro. Conoces a la persona que hay detras de cada anuncio.",
+    title: "Comunidad como filtro de confianza",
+    description: "Puedes priorizar tu colegio o tu zona, sin limitar el marketplace solo a una comunidad cerrada.",
   },
   {
     icon: MessageCircle,
-    title: "Comunicacion directa",
-    description: "Chat integrado para que puedas preguntar, negociar y coordinar la entrega sin salir de la app.",
+    title: "Contacto directo por chat",
+    description: "Pregunta, acuerda detalles y deja constancia de la conversación antes de cerrar el intercambio fuera de Wetudy.",
   },
   {
     icon: Star,
-    title: "Valoraciones verificadas",
-    description: "El sistema de ratings te ayuda a identificar a los mejores miembros de la comunidad.",
+    title: "Historial y valoraciones",
+    description: "Tras un acuerdo confirmado, las partes pueden valorar la experiencia y reportar problemas si hace falta.",
   },
 ]
 
@@ -34,7 +34,7 @@ export function BenefitsFamilies() {
               Beneficios para familias
             </h2>
             <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">
-              Wetudy nacio para hacer la vuelta al cole mas facil y asequible para todas las familias.
+              Wetudy empieza con lo esencial: publicar, encontrar, contactar y acordar material escolar de forma sencilla.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
