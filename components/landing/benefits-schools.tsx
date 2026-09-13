@@ -4,23 +4,23 @@ import { BarChart3, Heart, Users, Settings } from "lucide-react"
 const benefits = [
   {
     icon: Heart,
-    title: "Gestiona donaciones",
-    description: "Controla y asigna donaciones de forma justa a traves del panel de administracion del centro.",
+    title: "Donaciones visibles",
+    description: "Las familias pueden publicar material para donar y dejar constancia del acuerdo por chat.",
   },
   {
     icon: Users,
-    title: "Fortalece la comunidad",
-    description: "Conecta a las familias del centro, crea lazos y fomenta la colaboracion entre todos.",
+    title: "Comunidad educativa",
+    description: "El colegio ayuda como referencia de confianza, pero la búsqueda también puede abrirse por zona o provincia.",
   },
   {
     icon: BarChart3,
-    title: "Metricas de impacto",
-    description: "Visualiza el impacto: items reutilizados, donaciones, familias activas y euros ahorrados.",
+    title: "Aprendizaje del lanzamiento",
+    description: "Primero medimos uso real: anuncios, contactos, acuerdos y necesidades de las familias.",
   },
   {
     icon: Settings,
-    title: "Facil de administrar",
-    description: "Panel intuitivo para moderar anuncios, gestionar usuarios y monitorizar la actividad.",
+    title: "Moderación básica",
+    description: "Reportes y revisión manual para mantener una experiencia segura durante el MVP.",
   },
 ]
 
@@ -44,10 +44,10 @@ export function BenefitsSchools() {
           </div>
           <div className="order-1 lg:order-2">
             <h2 className="text-balance text-3xl font-bold text-foreground md:text-4xl">
-              Beneficios para AMPAs y colegios
+              Para colegios y AMPAs
             </h2>
             <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">
-              Wetudy ofrece a los centros educativos herramientas para gestionar donaciones, moderar contenidos y medir el impacto social.
+              Wetudy puede ayudar a ordenar intercambios y donaciones de material escolar sin depender de grupos de WhatsApp o anuncios en papel.
             </p>
           </div>
         </div>
