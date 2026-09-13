@@ -32,7 +32,8 @@ create index if not exists marketplace_search_events_category_idx
 
 alter table public.marketplace_search_events enable row level security;
 
-create policy if not exists marketplace_search_events_admin_read
+drop policy if exists marketplace_search_events_admin_read on public.marketplace_search_events;
+create policy marketplace_search_events_admin_read
   on public.marketplace_search_events
   for select
   to authenticated
