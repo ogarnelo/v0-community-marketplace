@@ -17,9 +17,10 @@ import type { ConversationSummary, DonationRequestRow, ListingOfferRow, PaymentI
 import { getOfferChatPreview } from "@/lib/offers/chat-message";
 import { getDonationChatPreview } from "@/lib/donations/chat-message";
 import { ShipmentStatusCard } from "@/components/shipments/shipment-status-card";
+import AgreementPanel from "@/components/agreements/agreement-panel";
 
 type ConversationRow = { id: string; listing_id: string; buyer_id: string; seller_id: string; updated_at: string | null };
-type ListingChatRow = { id: string; title: string | null; price: number | null; status: string | null };
+type ListingChatRow = { id: string; title: string | null; price: number | null; status: string | null; listing_type?: string | null; type?: string | null };
 type LatestMessageRow = { conversation_id: string; body: string | null; created_at: string; sender_id: string; attachment_name?: string | null };
 type MessageRow = { id: string; conversation_id: string; sender_id: string; body: string | null; created_at: string; read_at?: string | null; attachment_url?: string | null; attachment_path?: string | null; attachment_name?: string | null; attachment_type?: string | null; attachment_size?: number | null };
 
@@ -55,17 +56,26 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const otherUserIds = safeConversations.map((c) => (c.buyer_id === user.id ? c.seller_id : c.buyer_id));
   const conversationIds = safeConversations.map((c) => c.id);
 
-  const { data: listings } = await supabase.from("listings").select("id, title, price, status").in("id", listingIds);
+  const { data: listings } = await supabase.from("listings").select("id, title, price, status, listing_type, type").in("id", listingIds);
   const { data: profiles } = await supabase.from("profiles").select("id, full_name, user_type, business_name").in("id", otherUserIds);
   const { data: latestMessages } = await supabase.from("messages").select("conversation_id, body, created_at, sender_id, attachment_name").in("conversation_id", conversationIds).order("created_at", { ascending: false });
   const { data: unreadMessages } = await supabase.from("messages").select("conversation_id").in("conversation_id", conversationIds).neq("sender_id", user.id).is("read_at", null);
-  const { data: messages } = await supabase.from("messages").select("*").eq("conversation_id", typedConversation.id).order("created_at", { ascending: true });
+  const { data: messagesDesc } = await supabase
+    .from("messages")
+    .select("id, conversation_id, sender_id, body, attachment_url, attachment_path, attachment_name, attachment_type, attachment_size, read_at, created_at")
+    .eq("conversation_id", typedConversation.id)
+    .order("created_at", { ascending: false })
+    .limit(51);
 
-  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }] = await Promise.all([
+  const initialMessages = ((messagesDesc || []) as MessageRow[]).slice(0, 50).reverse();
+  const hasOlderMessages = ((messagesDesc || []) as MessageRow[]).length > 50;
+
+  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }, { data: agreements }] = await Promise.all([
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at").eq("listing_id", typedConversation.listing_id).eq("buyer_id", typedConversation.buyer_id).eq("seller_id", typedConversation.seller_id).order("created_at", { ascending: false }),
     adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("listing_id", typedConversation.listing_id).eq("requester_id", typedConversation.buyer_id).order("created_at", { ascending: false }),
     adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at, metadata").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false }),
     adminSupabase.from("shipments").select("*").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false }),
+    adminSupabase.from("agreements").select("*").eq("conversation_id", typedConversation.id).order("created_at", { ascending: false }).limit(1),
   ]);
 
   const listingsMap = new Map(((listings || []) as ListingChatRow[]).map((l) => [l.id, l]));
@@ -94,6 +104,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const typedOffers = (offers || []) as ListingOfferRow[];
   const typedDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const typedShipments = (shipments || []) as ShipmentRow[];
+  const latestAgreement = Array.isArray(agreements) && agreements.length > 0 ? agreements[0] : null;
+  const { data: agreementReviews } = latestAgreement?.id
+    ? await adminSupabase.from("agreement_reviews").select("id, reviewer_id, reviewed_user_id, rating, comment").eq("agreement_id", latestAgreement.id)
+    : { data: [] as any[] };
   const latestShipment = typedShipments[0] || null;
   const hasAcceptedOffer = typedOffers.some((offer) => offer.status === "accepted");
   const hasApprovedDonation = typedDonationRequests.some((request) => request.status === "approved");
@@ -101,11 +115,13 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const canCreateLabel = latestShipment?.seller_id === user.id;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <ConversationsSidebar conversations={conversationSummaries} selectedConversationId={typedConversation.id} currentUserId={user.id} />
+    <div className="mx-auto max-w-7xl px-3 py-3 lg:px-8 lg:py-6">
+      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-6">
+        <div className="hidden lg:block">
+          <ConversationsSidebar conversations={conversationSummaries} selectedConversationId={typedConversation.id} currentUserId={user.id} />
+        </div>
 
-        <Card className="flex min-h-[70vh] flex-col overflow-hidden rounded-2xl border bg-white">
+        <Card className="flex min-h-[calc(100vh-7rem)] flex-col overflow-hidden rounded-2xl border bg-white lg:min-h-[70vh]">
           <div className="border-b px-5 py-4">
             <div className="flex items-center justify-between gap-4">
               <Link href={`/profile/${otherUserId}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"><div className="flex items-center gap-3 rounded-xl p-2"><Avatar className="h-11 w-11"><AvatarFallback>{getInitials(otherName)}</AvatarFallback></Avatar><div className="min-w-0"><p className="truncate text-lg font-semibold">{otherName}</p><p className="truncate text-sm text-muted-foreground">{otherRole}</p><p className="truncate text-sm text-muted-foreground">{listing?.title || "Anuncio"}</p></div></div></Link>
@@ -119,6 +135,18 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             </div>
           ) : null}
 
+          <AgreementPanel
+            conversationId={typedConversation.id}
+            currentUserId={user.id}
+            buyerId={typedConversation.buyer_id}
+            sellerId={typedConversation.seller_id}
+            listingStatus={listingStatus}
+            listingPrice={typeof listing?.price === "number" ? listing.price : null}
+            listingType={listing?.listing_type || listing?.type || null}
+            initialAgreement={latestAgreement}
+            initialReviews={(agreementReviews || []) as any[]}
+          />
+
           <div className="flex-1 px-5 py-5">
             <RealtimeChatMessages
               conversationId={typedConversation.id}
@@ -126,7 +154,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
               conversationListingId={typedConversation.listing_id}
               conversationBuyerId={typedConversation.buyer_id}
               conversationSellerId={typedConversation.seller_id}
-              initialMessages={(messages || []) as MessageRow[]}
+              initialMessages={initialMessages}
+              hasOlderMessages={hasOlderMessages}
               initialUnreadMessageIds={initialUnreadMessageIds}
               initialOffers={typedOffers}
               initialDonationRequests={typedDonationRequests}
