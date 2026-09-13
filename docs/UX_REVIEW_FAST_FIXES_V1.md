@@ -41,3 +41,11 @@ Convertir `/marketplace` en una página server-first:
 - Así el grid aparece en el HTML inicial y no espera a `useEffect`.
 
 Esto es más grande que un fast-fix y conviene hacerlo en un PR separado para no mezclarlo con cambios de UX.
+
+## Medición recomendada después del merge
+
+- Abrir `/marketplace` y `/marketplace/listing/:id` en móvil con caché fría.
+- Confirmar que la pantalla de carga aparece instantáneamente.
+- Confirmar que el detalle ya no muestra estados técnicos.
+- Confirmar que el campo ISBN no aparece para mochilas, estuches u otras categorías no editoriales.
+- Revisar Vercel Speed Insights o Lighthouse para decidir el PR server-first.
