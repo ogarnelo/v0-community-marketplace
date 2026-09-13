@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo, useState } from "react";
@@ -32,6 +31,8 @@ export default function ListingGallery({ photos, title }: Props) {
           <img
             src={currentImage}
             alt={title}
+            fetchPriority="high"
+            decoding="async"
             className="aspect-square w-full object-cover"
           />
 
@@ -76,12 +77,13 @@ export default function ListingGallery({ photos, title }: Props) {
                 key={`${photo}-${photoIndex}`}
                 type="button"
                 onClick={() => setIndex(photoIndex)}
-                className={`overflow-hidden rounded-xl border ${photoIndex === index ? "ring-2 ring-primary" : ""
-                  }`}
+                className={`overflow-hidden rounded-xl border ${photoIndex === index ? "ring-2 ring-primary" : ""}`}
               >
                 <img
                   src={photo}
                   alt={`${title} ${photoIndex + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="aspect-square w-full object-cover"
                 />
               </button>
@@ -98,6 +100,7 @@ export default function ListingGallery({ photos, title }: Props) {
           <img
             src={currentImage}
             alt={title}
+            decoding="async"
             className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain"
           />
         </div>

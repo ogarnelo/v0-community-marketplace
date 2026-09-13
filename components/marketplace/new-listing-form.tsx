@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ImagePlus, Loader2, School, X } from "lucide-react";
@@ -70,6 +70,17 @@ function sanitizeFileName(fileName: string) {
     .replace(/[^a-zA-Z0-9._-]/g, "");
 }
 
+function isBookCategory(category: string) {
+  const normalized = category.toLowerCase();
+  return normalized.includes("libro") || normalized.includes("lectura");
+}
+
+function parsePrice(value: string) {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return NaN;
+  return Number(normalized);
+}
+
 export default function NewListingForm({
   initialSchoolId,
   initialSchoolName,
@@ -91,6 +102,14 @@ export default function NewListingForm({
   const [photos, setPhotos] = useState<PreviewFile[]>([]);
   const [photoError, setPhotoError] = useState("");
   const [submitError, setSubmitError] = useState("");
+
+  const showIsbn = isBookCategory(selectedCategory);
+
+  useEffect(() => {
+    if (!showIsbn && isbn) {
+      setIsbn("");
+    }
+  }, [isbn, showIsbn]);
 
   const schoolLabel = useMemo(() => {
     if (!initialSchoolId) return "Sin centro asignado";
@@ -157,16 +176,16 @@ export default function NewListingForm({
     if (!selectedCategory) return "Debes seleccionar una categoría.";
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
-    if (!isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
+    if (showIsbn && !isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
 
     if (!isDonation) {
       if (!price.trim()) return "Debes indicar un precio para la venta.";
-      const numericPrice = Number(price);
+      const numericPrice = parsePrice(price);
       if (Number.isNaN(numericPrice) || numericPrice <= 0) {
         return "El precio debe ser un número válido mayor que 0.";
       }
       if (originalPrice.trim()) {
-        const numericOriginalPrice = Number(originalPrice);
+        const numericOriginalPrice = parsePrice(originalPrice);
         if (Number.isNaN(numericOriginalPrice) || numericOriginalPrice < 0) {
           return "El precio original debe ser un número válido.";
         }
@@ -256,9 +275,9 @@ export default function NewListingForm({
         condition: selectedCondition,
         type: isDonation ? "donation" : "sale",
         listing_type: isDonation ? "donation" : "sale",
-        isbn: isbn.trim() ? normalizeIsbn(isbn) : null,
-        price: isDonation ? null : Number(price),
-        original_price: isDonation || !originalPrice.trim() ? null : Number(originalPrice),
+        isbn: showIsbn && isbn.trim() ? normalizeIsbn(isbn) : null,
+        price: isDonation ? null : parsePrice(price),
+        original_price: isDonation || !originalPrice.trim() ? null : parsePrice(originalPrice),
         seller_id: user.id,
         school_id: effectiveSchoolId,
         status: "available",
@@ -417,20 +436,36 @@ export default function NewListingForm({
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="price">Precio de venta *</Label>
-                      <Input id="price" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Ej: 12" />
+                      <Input
+                        id="price"
+                        type="text"
+                        inputMode="decimal"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        placeholder="Ej: 12"
+                      />
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="original-price">Precio original</Label>
-                      <Input id="original-price" type="number" min="0" step="0.01" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="Opcional" />
+                      <Input
+                        id="original-price"
+                        type="text"
+                        inputMode="decimal"
+                        value={originalPrice}
+                        onChange={(e) => setOriginalPrice(e.target.value)}
+                        placeholder="Opcional"
+                      />
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="isbn">ISBN</Label>
-                <Input id="isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="Opcional para libros" />
-              </div>
+              {showIsbn ? (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="isbn">ISBN</Label>
+                  <Input id="isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="Opcional para libros" />
+                </div>
+              ) : null}
 
               {submitError && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>}
 

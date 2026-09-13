@@ -59,7 +59,13 @@ export function ListingCard({
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
         <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
           {mainPhoto ? (
-            <img src={mainPhoto} alt={titleText} className="h-full w-full object-cover" />
+            <img
+              src={mainPhoto}
+              alt={titleText}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
           ) : (
             <div className="flex h-full items-center justify-center bg-muted">
               <span className="select-none font-mono text-5xl text-muted-foreground/15">
@@ -140,4 +146,3 @@ export function ListingCard({
     </Card>
   );
 }
-
