@@ -111,12 +111,14 @@ export function Navbar({
   };
 
   const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href.includes("?")) return false;
     if (href === "/") return pathname === "/";
-    if (href === "/marketplace") return pathname?.startsWith("/marketplace");
-    if (href === "/messages") return pathname?.startsWith("/messages");
-    if (href === "/favorites") return pathname?.startsWith("/favorites");
     if (href === "/marketplace/new") return pathname === "/marketplace/new";
-    if (href === "/account/activity") return pathname?.startsWith("/account/activity");
+    if (href === "/marketplace") return pathname === "/marketplace" || pathname.startsWith("/marketplace/listing");
+    if (href === "/messages") return pathname === "/messages" || pathname.startsWith("/messages/");
+    if (href === "/favorites") return pathname === "/favorites";
+    if (href === "/account/activity") return pathname === "/account/activity" || pathname.startsWith("/account/activity/");
     return pathname === href;
   };
 
