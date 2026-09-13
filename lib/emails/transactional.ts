@@ -8,12 +8,21 @@ type PaymentEmailParams = {
   paymentId?: string | null;
 };
 
+type WelcomeEmailParams = {
+  to: string;
+  recipientName?: string | null;
+};
+
 function getBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 }
 
 function getFromEmail() {
   return process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || null;
+}
+
+export function isEmailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY && getFromEmail());
 }
 
 async function sendEmail(params: {
@@ -50,6 +59,43 @@ async function sendEmail(params: {
   }
 
   return response.json();
+}
+
+export async function sendWelcomeEmail(params: WelcomeEmailParams) {
+  const firstName = params.recipientName?.trim() || "Hola";
+  const marketplaceUrl = `${getBaseUrl()}/marketplace`;
+  const joinSchoolUrl = `${getBaseUrl()}/onboarding/join-school`;
+  const helpUrl = `${getBaseUrl()}/help`;
+
+  return sendEmail({
+    to: params.to,
+    subject: "Bienvenido/a a Wetudy",
+    text: `${firstName}, bienvenida/o a Wetudy. Ya puedes vincular tu centro, buscar material escolar, publicar anuncios con foto y contactar por chat con otras familias. Marketplace: ${marketplaceUrl}. Vincular centro: ${joinSchoolUrl}. Ayuda: ${helpUrl}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#111827;background:#ffffff">
+        <div style="border:1px solid #e5e7eb;border-radius:18px;padding:24px">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:14px">Wetudy</p>
+          <h1 style="margin:0 0 16px;font-size:26px;line-height:1.2">Bienvenido/a a Wetudy</h1>
+          <p style="margin:0 0 16px;line-height:1.6">${firstName}, ya tienes tu espacio para comprar, vender o donar material escolar dentro de una comunidad educativa de confianza.</p>
+          <div style="background:#f3f8ea;border:1px solid #dcefc4;border-radius:14px;padding:16px;margin:18px 0">
+            <p style="margin:0 0 8px;font-weight:700">Primeros pasos recomendados</p>
+            <ol style="margin:0;padding-left:20px;line-height:1.7">
+              <li>Vincula tu centro educativo.</li>
+              <li>Busca material en el marketplace.</li>
+              <li>Publica anuncios con fotos claras cuando quieras vender o donar.</li>
+              <li>Usa el chat para acordar la entrega y el pago directamente con la otra persona.</li>
+            </ol>
+          </div>
+          <p style="margin:0 0 20px;line-height:1.6">Wetudy facilita el contacto, el chat y el historial del acuerdo para que todo quede ordenado.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <a href="${marketplaceUrl}" style="display:inline-block;background:#7EBA28;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">Ir al marketplace</a>
+            <a href="${joinSchoolUrl}" style="display:inline-block;background:#111827;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">Vincular centro</a>
+          </div>
+          <p style="margin:20px 0 0;color:#6b7280;font-size:13px;line-height:1.5">¿Necesitas ayuda? Entra en <a href="${helpUrl}" style="color:#111827">Ayuda</a>.</p>
+        </div>
+      </div>
+    `,
+  });
 }
 
 export async function sendPaymentSucceededEmail(params: PaymentEmailParams) {
