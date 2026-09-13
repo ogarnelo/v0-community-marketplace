@@ -5,20 +5,20 @@ const steps = [
   {
     icon: UserPlus,
     step: "01",
-    title: "Registrate y unete a tu centro",
-    description: "Crea tu cuenta gratuita e introduce el codigo de tu colegio, instituto o universidad para unirte a la comunidad.",
+    title: "Crea tu cuenta",
+    description: "Regístrate como familia o estudiante, añade tu zona y, si quieres, vincula tu colegio como filtro de confianza.",
   },
   {
     icon: Search,
     step: "02",
-    title: "Explora o publica material",
-    description: "Busca libros, uniformes y material escolar de segunda mano, o publica lo que ya no necesitas para venderlo o donarlo.",
+    title: "Busca o publica material",
+    description: "Publica libros, uniformes o material escolar con foto, precio o donación, curso y estado del producto.",
   },
   {
     icon: Handshake,
     step: "03",
-    title: "Conecta y completa",
-    description: "Contacta directamente con otras familias a traves del chat, acuerda el intercambio y dejad una valoracion mutua.",
+    title: "Contacta y acuerda",
+    description: "Usa el chat para resolver dudas y confirmar el acuerdo. La entrega y el pago se hacen fuera de Wetudy.",
   },
 ]
 
@@ -28,10 +28,10 @@ export function HowItWorks() {
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="text-center">
           <h2 className="text-balance text-3xl font-bold text-foreground md:text-4xl">
-            Como funciona
+            Cómo funciona
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-pretty text-muted-foreground">
-            En tres sencillos pasos estaras ahorrando y contribuyendo a un mundo mas sostenible
+            Un flujo simple para lanzar rápido: publicar, encontrar, contactar y acordar.
           </p>
         </div>
 

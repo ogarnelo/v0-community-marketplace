@@ -325,7 +325,7 @@ export function Navbar({
             <Button asChild size="sm" className="gap-1.5">
               <Link href={publishHref}>
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Vender</span>
+                <span className="hidden sm:inline">Publicar</span>
               </Link>
             </Button>
           </div>
