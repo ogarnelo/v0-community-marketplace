@@ -69,7 +69,7 @@ export default async function DemandIntelligencePage() {
   if (!isSuperAdmin) redirect("/");
 
   const [profileResult, eventResult, summaryResult] = await Promise.all([
-    supabase.from("profiles").select("id, full_name").eq("id", user.id).maybeSingle<ProfileRow>(),
+    supabase.from("profiles").select("id, full_name").eq("id", user.id).maybeSingle(),
     supabase
       .from("marketplace_search_events")
       .select("id, query, isbn_query, category, grade_level, listing_type, results_count, only_my_community, created_at, school_id")
@@ -87,7 +87,8 @@ export default async function DemandIntelligencePage() {
   const events = eventResult.data || [];
   const summary = summaryResult.data || [];
   const zeroResults = events.filter((event) => (event.results_count || 0) === 0).length;
-  const navbarUserName = profileResult.data?.full_name || user.email || "Super Admin";
+  const profile = (profileResult.data as ProfileRow | null) ?? null;
+  const navbarUserName = profile?.full_name || user.email || "Super Admin";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
