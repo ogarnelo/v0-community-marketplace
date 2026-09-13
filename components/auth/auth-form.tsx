@@ -12,11 +12,12 @@ import { gradeLevels } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "signup" | "forgot";
+type SupportedSignupUserType = "parent" | "student" | "";
 
 async function upsertProfileAfterAuth(params: {
   userId: string;
   fullName: string;
-  userType: "parent" | "student" | "business" | "";
+  userType: SupportedSignupUserType;
   gradeLevel: string;
   postalCode: string;
 }) {
@@ -66,7 +67,7 @@ export function AuthForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState<"parent" | "student" | "business" | "">("");
+  const [userType, setUserType] = useState<SupportedSignupUserType>("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
@@ -133,7 +134,7 @@ export function AuthForm() {
       return;
     }
 
-    if (userType !== "business" && !gradeLevel) {
+    if (!gradeLevel) {
       setError("Debes seleccionar un curso o etapa.");
       return;
     }
@@ -162,7 +163,7 @@ export function AuthForm() {
           data: {
             full_name: normalizedFullName,
             user_type: userType,
-            grade_level: userType === "business" ? null : gradeLevel,
+            grade_level: gradeLevel,
             postal_code: normalizedPostalCode,
           },
         },
@@ -175,13 +176,13 @@ export function AuthForm() {
           userId: data.user.id,
           fullName: normalizedFullName,
           userType,
-          gradeLevel: userType === "business" ? "" : gradeLevel,
+          gradeLevel,
           postalCode: normalizedPostalCode,
         });
       }
 
       if (data.session) {
-        window.location.assign(nextPath || (userType === "business" ? "/account" : "/onboarding/join-school"));
+        window.location.assign(nextPath || "/onboarding/join-school");
         return;
       }
 
@@ -265,8 +266,8 @@ export function AuthForm() {
         </CardTitle>
         <CardDescription>
           {mode === "login"
-            ? "Accede a tu cuenta para explorar el marketplace de tu centro"
-            : "Regístrate gratis y únete a tu comunidad educativa"}
+            ? "Accede a tu cuenta para explorar Wetudy"
+            : "Regístrate gratis como familia o estudiante"}
         </CardDescription>
       </CardHeader>
 
@@ -351,7 +352,7 @@ export function AuthForm() {
                 <Label>Tipo de usuario *</Label>
                 <Select
                   value={userType || undefined}
-                  onValueChange={(v) => setUserType(v as "parent" | "student" | "business")}
+                  onValueChange={(v) => setUserType(v as SupportedSignupUserType)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu perfil" />
@@ -359,28 +360,28 @@ export function AuthForm() {
                   <SelectContent>
                     <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                     <SelectItem value="student">Estudiante</SelectItem>
-                    <SelectItem value="business">Negocio local</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Las cuentas de vendedor profesional no están activas durante el MVP.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label>Curso / Etapa *</Label>
+                <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {normalizedGradeLevels.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {userType !== "business" ? (
-                <div className="flex flex-col gap-2">
-                  <Label>Curso / Etapa *</Label>
-                  <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona curso" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {normalizedGradeLevels.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="postalCode">Código postal *</Label>
