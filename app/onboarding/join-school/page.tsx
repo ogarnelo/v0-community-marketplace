@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BookOpen, Loader2, CheckCircle2, Search, School } from "lucide-react";
+import { BookOpen, Loader2, CheckCircle2, Search, School, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 type SchoolSearchRow = {
@@ -59,9 +59,7 @@ export default function JoinSchoolPage() {
           .order("name", { ascending: true })
           .limit(100);
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         setSearchResults((data || []) as SchoolSearchRow[]);
       } catch (error) {
@@ -74,6 +72,11 @@ export default function JoinSchoolPage() {
     void loadSchools();
   }, [showSearch]);
 
+  const skipSchoolLinking = () => {
+    router.push("/marketplace");
+    router.refresh();
+  };
+
   const resolveSchoolFromCode = async (normalizedCode: string) => {
     const supabase = createClient();
 
@@ -84,15 +87,13 @@ export default function JoinSchoolPage() {
       .eq("is_active", true)
       .maybeSingle();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const result = (data as AccessCodeResult | null) ?? null;
 
     if (!result?.schools) {
       throw new Error(
-        "No hemos encontrado ningun centro con ese codigo. Revisa y vuelve a intentarlo."
+        "No hemos encontrado ningún centro con ese código. Puedes revisarlo, buscar tu centro o continuar y añadirlo más tarde."
       );
     }
 
@@ -117,7 +118,7 @@ export default function JoinSchoolPage() {
       const normalizedCode = code.trim().toUpperCase();
 
       if (!normalizedCode) {
-        throw new Error("Debes introducir un código.");
+        throw new Error("Introduce un código o continúa sin centro para añadirlo más tarde.");
       }
 
       const supabase = createClient();
@@ -139,7 +140,7 @@ export default function JoinSchoolPage() {
       setError(
         error?.message ||
         error?.details ||
-        "No se pudo validar el código del centro."
+        "No se pudo validar el código del centro. Puedes continuar y añadirlo después."
       );
     } finally {
       setLoading(false);
@@ -178,9 +179,7 @@ export default function JoinSchoolPage() {
         { onConflict: "id" }
       );
 
-      if (profileError) {
-        throw profileError;
-      }
+      if (profileError) throw profileError;
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
@@ -188,9 +187,7 @@ export default function JoinSchoolPage() {
         },
       });
 
-      if (authError) {
-        throw authError;
-      }
+      if (authError) throw authError;
 
       router.push("/marketplace");
       router.refresh();
@@ -199,12 +196,12 @@ export default function JoinSchoolPage() {
       setError(
         error?.message ||
         error?.details ||
-        "No se pudo completar la unión al centro."
+        "No se pudo completar la unión al centro. Puedes continuar y añadirlo después."
       );
 
       if (
         typeof error?.message === "string" &&
-        error.message.toLowerCase().includes("codigo")
+        error.message.toLowerCase().includes("código")
       ) {
         setFound(null);
         setValidatedCode("");
@@ -236,9 +233,9 @@ export default function JoinSchoolPage() {
 
       <Card className="w-full max-w-md border-border shadow-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-foreground">Unete a tu centro</CardTitle>
+          <CardTitle className="text-2xl text-foreground">Añade tu centro</CardTitle>
           <CardDescription>
-            Introduce el codigo de tu colegio, instituto o universidad para acceder a la comunidad.
+            Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio. Puedes continuar ahora y añadirlo después desde tu cuenta.
           </CardDescription>
         </CardHeader>
 
@@ -247,15 +244,17 @@ export default function JoinSchoolPage() {
             <div className="flex flex-col gap-4">
               <form onSubmit={handleCodeSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="code">Codigo del centro</Label>
+                  <Label htmlFor="code">Código del centro</Label>
                   <Input
                     id="code"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     placeholder="Ej: A1B2C3D4E5"
                     className="text-center text-lg font-mono tracking-widest uppercase"
-                    required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Si no tienes el código o falla la validación, puedes saltar este paso sin perder la cuenta.
+                  </p>
                 </div>
 
                 {error ? (
@@ -270,6 +269,11 @@ export default function JoinSchoolPage() {
                 </Button>
               </form>
 
+              <Button variant="secondary" className="w-full gap-2" onClick={skipSchoolLinking}>
+                Continuar sin centro por ahora
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+
               <div className="relative flex items-center gap-2 py-2">
                 <div className="flex-1 border-t border-border" />
                 <span className="text-xs text-muted-foreground">o</span>
@@ -283,7 +287,7 @@ export default function JoinSchoolPage() {
                   onClick={() => setShowSearch(true)}
                 >
                   <Search className="h-4 w-4" />
-                  No tengo codigo, buscar centro
+                  No tengo código, buscar centro
                 </Button>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -325,8 +329,7 @@ export default function JoinSchoolPage() {
                   </div>
 
                   <p className="text-center text-xs text-muted-foreground">
-                    Si tu centro ya aparece, pide su código de acceso. Si no existe
-                    todavía, regístralo desde el formulario de alta de centros.
+                    Si tu centro ya aparece, pide su código de acceso. Si no existe todavía, puedes registrarlo o continuar y añadirlo después.
                   </p>
 
                   <Link href="/register-school">
@@ -358,6 +361,11 @@ export default function JoinSchoolPage() {
               <Button className="w-full" onClick={handleJoin} disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Unirme a {found.name}
+              </Button>
+
+              <Button variant="secondary" className="w-full gap-2" onClick={skipSchoolLinking}>
+                Continuar sin centro por ahora
+                <ArrowRight className="h-4 w-4" />
               </Button>
 
               <Button
