@@ -116,6 +116,10 @@ export default async function ListingDetailPage({
   const shareUrl = appUrl ? `${appUrl}/marketplace/listing/${listing.id}` : `/marketplace/listing/${listing.id}`;
   const currentSchoolId = viewerProfile?.school_id || "";
   const savings = typeof listing.original_price === "number" && typeof listing.price === "number" ? Math.max(0, listing.original_price - listing.price) : 0;
+  const sellerName = seller?.business_name || seller?.full_name || "Usuario de Wetudy";
+  const createdAtLabel = listing.created_at
+    ? new Date(listing.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })
+    : null;
 
   const relatedQuery = supabase
     .from("listings")
@@ -177,114 +181,150 @@ export default async function ListingDetailPage({
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8 pb-28 md:pb-8">
+    <div className="bg-slate-50/60 pb-28 md:pb-10">
       <JsonLd data={productJsonLd} />
       <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
 
-      <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/marketplace" className="hover:underline">Marketplace</Link>
-        <span>/</span>
-        <span className="truncate">{displayTitle}</span>
-      </div>
-
-      {query.published === "1" && isOwnListing ? <div className="mb-6"><PostPublishShareCard title={displayTitle} url={shareUrl} /></div> : null}
-
-      <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-6">
-          <ListingGallery photos={photos} title={displayTitle} />
-
-          <div className="rounded-2xl border bg-card p-5 shadow-sm">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Badge variant={isAvailable ? "default" : "outline"}>{statusLabel(listing.status)}</Badge>
-              {isDonation ? <Badge className="bg-emerald-600">Donación</Badge> : null}
-              {listing.category ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{listing.category}</span> : null}
-              {listing.grade_level ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{listing.grade_level}</span> : null}
-              {listing.condition ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{conditionText}</span> : null}
-            </div>
-
-            <h1 className="text-3xl font-bold tracking-tight">{displayTitle}</h1>
-            {listing.description ? (
-              <p className="mt-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">{listing.description}</p>
-            ) : (
-              <p className="mt-4 text-sm text-muted-foreground">El vendedor no ha añadido una descripción todavía.</p>
-            )}
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {showIsbn ? (
-                <div className="rounded-xl bg-muted/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">ISBN</p>
-                  <p className="mt-1 text-sm">{listing.isbn}</p>
-                </div>
-              ) : null}
-              <div className="rounded-xl bg-muted/50 p-3">
-                <p className="text-xs font-medium text-muted-foreground">Estado del material</p>
-                <p className="mt-1 text-sm">{conditionText}</p>
-              </div>
-            </div>
+      <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+            <Link href="/marketplace" className="font-medium text-foreground hover:text-primary">Marketplace</Link>
+            <span>/</span>
+            <span className="truncate">{displayTitle}</span>
           </div>
-
-          <RelatedListingsSection listings={relatedListings} currentSchoolId={currentSchoolId} />
+          <Link href="/marketplace" className="text-sm font-medium text-primary hover:underline">Volver al marketplace</Link>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-2xl border bg-card p-5 shadow-sm">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Precio</p>
-              <p className="text-3xl font-bold">{isDonation ? "Donación" : formatPrice(listing.price)}</p>
-              {!isDonation && typeof listing.original_price === "number" ? <p className="text-sm text-muted-foreground">Precio original: {formatPrice(listing.original_price)}</p> : null}
-              {!isDonation && savings > 0 ? <p className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">Ahorras {formatPrice(savings)}</p> : null}
+        {query.published === "1" && isOwnListing ? <div className="mb-6"><PostPublishShareCard title={displayTitle} url={shareUrl} /></div> : null}
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_380px]">
+          <div className="space-y-5">
+            <div className="overflow-hidden rounded-[1.75rem] border bg-white shadow-sm">
+              <ListingGallery photos={photos} title={displayTitle} />
             </div>
 
-            <div className="mt-5 grid gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900 sm:grid-cols-3">
-              <span className="font-medium">✓ Foto obligatoria</span>
-              <span className="font-medium">✓ Chat con historial</span>
-              <span className="font-medium">✓ Acuerdo entre partes</span>
-            </div>
-
-            <div className="mt-6 flex flex-col gap-3">
-              {isOwnListing ? (
-                <Link href={`/marketplace/edit/${listing.id}`}><Button className="w-full" variant="outline">Editar anuncio</Button></Link>
-              ) : isAvailable && listing.seller_id ? (
-                <>
-                  <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} />
-                  <p className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
-                    Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan directamente entre las partes.
-                    {isProfessionalSeller ? " En perfiles profesionales el precio es fijo; usa el chat para resolver dudas." : " Si el vendedor acepta negociar, cerradlo por chat antes de confirmar el acuerdo."}
-                  </p>
-                </>
-              ) : (
-                <div className="rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">Este anuncio ya no acepta nuevos contactos. Las conversaciones existentes siguen disponibles.</div>
-              )}
-
+            <section className="rounded-[1.75rem] border bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center gap-2">
-                {currentUserId && !isOwnListing ? <FavoriteButton listingId={listing.id} initialIsFavorite={!!favorite} className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" showLabel /> : null}
-                <ShareListingButton title={displayTitle} url={shareUrl} />
+                <Badge variant={isAvailable ? "default" : "outline"}>{statusLabel(listing.status)}</Badge>
+                {isDonation ? <Badge className="bg-emerald-600">Donación</Badge> : null}
+                {listing.category ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{listing.category}</span> : null}
+                {listing.grade_level ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{listing.grade_level}</span> : null}
+                {listing.condition ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{conditionText}</span> : null}
               </div>
-            </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">{displayTitle}</h1>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {createdAtLabel ? `Publicado el ${createdAtLabel}` : "Publicado en Wetudy"} · {sellerName}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-950 px-5 py-4 text-white shadow-sm sm:min-w-40 sm:text-right">
+                  <p className="text-xs font-medium uppercase tracking-wide text-white/60">Precio</p>
+                  <p className="mt-1 text-2xl font-bold">{isDonation ? "Donación" : formatPrice(listing.price)}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 border-t pt-6">
+                <h2 className="text-lg font-semibold text-slate-950">Descripción</h2>
+                {listing.description ? (
+                  <p className="mt-3 whitespace-pre-line text-base leading-7 text-slate-700">{listing.description}</p>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">El vendedor no ha añadido una descripción todavía.</p>
+                )}
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado del material</p>
+                  <p className="mt-1 text-sm font-medium text-slate-950">{conditionText}</p>
+                </div>
+                {showIsbn ? (
+                  <div className="rounded-2xl border bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ISBN</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{listing.isbn}</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <RelatedListingsSection listings={relatedListings} currentSchoolId={currentSchoolId} />
           </div>
 
-          <div className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="text-lg font-semibold">Vendedor</h2>
-            <div className="mt-3 space-y-2 text-sm">
-              <p className="font-medium">{seller?.business_name || seller?.full_name || "Usuario"}</p>
-              <p className="text-muted-foreground">{seller?.user_type === "business" ? "Negocio local" : "Miembro de la comunidad"}</p>
-              <div className="flex flex-wrap gap-2 text-xs">
-                {averageRating ? <span className="rounded-full bg-yellow-50 px-2 py-1 font-medium text-yellow-700">⭐ {averageRating.toFixed(1)} · {reviewCount} opiniones</span> : <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">Sin opiniones todavía</span>}
-                <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">{sellerActiveListings} anuncios activos</span>
+          <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+            <section className="rounded-[1.75rem] border bg-white p-5 shadow-sm">
+              <div className="rounded-2xl bg-gradient-to-br from-sky-50 to-emerald-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resumen</p>
+                <p className="mt-1 text-3xl font-bold text-slate-950">{isDonation ? "Donación" : formatPrice(listing.price)}</p>
+                {!isDonation && typeof listing.original_price === "number" ? <p className="mt-1 text-sm text-muted-foreground">Precio original: {formatPrice(listing.original_price)}</p> : null}
+                {!isDonation && savings > 0 ? <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-sm font-medium text-emerald-700 shadow-sm">Ahorras {formatPrice(savings)}</p> : null}
+              </div>
+
+              <div className="mt-4 grid gap-2 text-sm">
+                <div className="flex items-center justify-between rounded-xl border bg-white px-3 py-2">
+                  <span className="text-muted-foreground">Foto real</span>
+                  <span className="font-medium text-emerald-700">Obligatoria</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border bg-white px-3 py-2">
+                  <span className="text-muted-foreground">Contacto</span>
+                  <span className="font-medium text-slate-950">Chat Wetudy</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border bg-white px-3 py-2">
+                  <span className="text-muted-foreground">Acuerdo</span>
+                  <span className="font-medium text-slate-950">Entre partes</span>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3">
+                {isOwnListing ? (
+                  <Link href={`/marketplace/edit/${listing.id}`}><Button className="w-full" variant="outline">Editar anuncio</Button></Link>
+                ) : isAvailable && listing.seller_id ? (
+                  <>
+                    <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} />
+                    <p className="rounded-2xl border bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
+                      Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan directamente entre las partes.
+                      {isProfessionalSeller ? " En perfiles profesionales el precio es fijo; usa el chat para resolver dudas." : " Si el vendedor acepta negociar, cerradlo por chat antes de confirmar el acuerdo."}
+                    </p>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border bg-slate-50 p-4 text-sm text-muted-foreground">Este anuncio ya no acepta nuevos contactos. Las conversaciones existentes siguen disponibles.</div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {currentUserId && !isOwnListing ? <FavoriteButton listingId={listing.id} initialIsFavorite={!!favorite} className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" showLabel /> : null}
+                  <ShareListingButton title={displayTitle} url={shareUrl} />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[1.75rem] border bg-white p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">
+                  {sellerName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold text-slate-950">{sellerName}</h2>
+                  <p className="text-sm text-muted-foreground">{seller?.user_type === "business" ? "Negocio local" : "Miembro de la comunidad"}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                {averageRating ? <span className="rounded-full bg-yellow-50 px-2 py-1 font-medium text-yellow-700">⭐ {averageRating.toFixed(1)} · {reviewCount} opiniones</span> : <span className="rounded-full bg-slate-100 px-2 py-1 text-muted-foreground">Sin opiniones todavía</span>}
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-muted-foreground">{sellerActiveListings} anuncios activos</span>
                 {seller?.is_business_verified ? <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">Negocio verificado</span> : null}
               </div>
-              {seller?.id ? <Link href={`/profile/${seller.id}`} className="text-primary hover:underline">Ver perfil</Link> : null}
-            </div>
-          </div>
+              {seller?.id ? <Link href={`/profile/${seller.id}`} className="mt-4 inline-flex text-sm font-medium text-primary hover:underline">Ver perfil del vendedor</Link> : null}
+            </section>
 
-          <div className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="text-lg font-semibold">Cómo funciona</h2>
-            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li>1. Contacta con el vendedor por chat.</li>
-              <li>2. Acordad entrega, precio final y detalles.</li>
-              <li>3. Confirmad el acuerdo para dejar historial y poder valorar.</li>
-            </ul>
-          </div>
+            <section className="rounded-[1.75rem] border bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-950">Cómo funciona</h2>
+              <div className="mt-4 space-y-3 text-sm text-slate-700">
+                <div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">1</span><p>Contacta con la otra persona por chat.</p></div>
+                <div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">2</span><p>Acordad precio final, entrega y detalles.</p></div>
+                <div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">3</span><p>Confirmad el acuerdo para dejar historial y poder valorar.</p></div>
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
 
