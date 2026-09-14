@@ -32,10 +32,6 @@ function getFromEmail() {
   return process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || null;
 }
 
-function getLogoUrl() {
-  return process.env.NEXT_PUBLIC_EMAIL_LOGO_URL || `${getBaseUrl()}/wetudy-logo.png`;
-}
-
 export function isEmailConfigured() {
   return Boolean(process.env.RESEND_API_KEY && getFromEmail());
 }
@@ -45,7 +41,7 @@ function escapeHtml(value: string) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
 
@@ -62,8 +58,19 @@ function button(label: string, href: string, variant: "primary" | "secondary" = 
   `;
 }
 
+function wordmark() {
+  return `
+    <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+      <tr>
+        <td bgcolor="#ffffff" style="background-color:#ffffff;border-radius:12px;padding-top:8px;padding-right:12px;padding-bottom:8px;padding-left:12px;">
+          <span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:24px;font-weight:800;letter-spacing:-0.4px;color:${BRAND.blue};">Wetudy</span>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
 function emailShell(params: { preview: string; title: string; body: string }) {
-  const logoUrl = getLogoUrl();
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -82,9 +89,7 @@ function emailShell(params: { preview: string; title: string; body: string }) {
             <td bgcolor="${BRAND.blue}" style="background-color:${BRAND.blue};padding-top:22px;padding-right:24px;padding-bottom:22px;padding-left:24px;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
                 <tr>
-                  <td style="vertical-align:middle;">
-                    <img src="${logoUrl}" width="128" height="36" border="0" alt="Wetudy" style="display:block;width:128px;height:36px;border:0;max-width:128px;">
-                  </td>
+                  <td style="vertical-align:middle;">${wordmark()}</td>
                   <td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#DBEAFE;vertical-align:middle;">Comunidad educativa</td>
                 </tr>
               </table>
@@ -166,7 +171,7 @@ export async function sendWelcomeEmail(params: WelcomeEmailParams) {
           <tr>
             <td style="padding-top:18px;padding-right:18px;padding-bottom:18px;padding-left:18px;">
               <p style="margin-top:0;margin-right:0;margin-bottom:10px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;font-weight:700;color:${BRAND.darkBlue};">Primeros pasos recomendados</p>
-              <p style="margin-top:0;margin-right:0;margin-bottom:7px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:${BRAND.text};">1. Vincula tu centro educativo.</p>
+              <p style="margin-top:0;margin-right:0;margin-bottom:7px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:${BRAND.text};">1. Vincula tu centro educativo cuando tengas el código o quieras priorizar tu comunidad.</p>
               <p style="margin-top:0;margin-right:0;margin-bottom:7px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:${BRAND.text};">2. Busca libros, uniformes, mochilas o material escolar.</p>
               <p style="margin-top:0;margin-right:0;margin-bottom:7px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:${BRAND.text};">3. Publica anuncios con fotos claras si quieres vender o donar.</p>
               <p style="margin-top:0;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:${BRAND.text};">4. Usa el chat para acordar la entrega y el pago directamente con la otra persona.</p>
@@ -176,7 +181,7 @@ export async function sendWelcomeEmail(params: WelcomeEmailParams) {
         <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-top:20px;margin-bottom:18px;">
           <tr>
             <td style="padding-right:10px;">${button("Ir al marketplace", marketplaceUrl)}</td>
-            <td>${button("Vincular centro", joinSchoolUrl, "secondary")}</td>
+            <td>${button("Añadir centro", joinSchoolUrl, "secondary")}</td>
           </tr>
         </table>
         <p style="margin-top:0;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:${BRAND.muted};">¿Necesitas ayuda? Entra en <a href="${helpUrl}" style="color:${BRAND.darkBlue};text-decoration:underline;">Ayuda</a>.</p>
