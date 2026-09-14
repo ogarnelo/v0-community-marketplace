@@ -96,7 +96,7 @@ export default function AgreementPanel({
     if (agreement?.status === "confirmed") return isDonation ? "Donación confirmada" : "Acuerdo confirmado";
     if (agreement?.status === "disputed") return "Incidencia abierta";
     if (agreement) return "Acuerdo en curso";
-    return "Cerrar acuerdo fuera de Wetudy";
+    return isDonation ? "Confirmar donación" : "Confirmar acuerdo entre partes";
   }, [agreement, isDonation]);
 
   async function runAction(endpoint: string, body: Record<string, unknown>, actionName: string) {
@@ -124,11 +124,11 @@ export default function AgreementPanel({
   }
 
   return (
-    <section className="border-b bg-emerald-50/60 px-5 py-4">
-      <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+    <section className="border-b bg-sky-50/60 px-5 py-4">
+      <div className="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="rounded-2xl bg-emerald-100 p-2 text-emerald-800">
+            <div className="rounded-2xl bg-sky-100 p-2 text-sky-800">
               {agreement?.status === "disputed" ? <AlertTriangle className="h-5 w-5" /> : <Handshake className="h-5 w-5" />}
             </div>
             <div>
@@ -137,7 +137,7 @@ export default function AgreementPanel({
                 <Badge variant={agreement?.status === "confirmed" ? "default" : "secondary"}>{statusCopy(agreement?.status)}</Badge>
               </div>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan entre vosotros fuera de la plataforma.
+                Wetudy conserva el historial del chat y del acuerdo. La entrega y el pago se acuerdan directamente entre las partes.
               </p>
               {!isDonation && formatPrice(agreement?.amount ?? listingPrice) ? (
                 <p className="mt-1 text-sm font-medium text-slate-800">Precio orientativo: {formatPrice(agreement?.amount ?? listingPrice)}</p>
@@ -150,7 +150,7 @@ export default function AgreementPanel({
           <div className="mt-4 space-y-3">
             <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Nota opcional: lugar, hora o condiciones acordadas" />
             <Button onClick={() => runAction("/api/agreements/propose", { conversationId, note }, "propose")} disabled={!!loadingAction} className="w-full sm:w-auto">
-              {loadingAction === "propose" ? "Creando acuerdo..." : isDonation ? "Proponer donación cerrada" : "Proponer acuerdo"}
+              {loadingAction === "propose" ? "Creando acuerdo..." : isDonation ? "Proponer donación" : "Proponer acuerdo"}
             </Button>
           </div>
         ) : null}
