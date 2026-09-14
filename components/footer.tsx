@@ -5,64 +5,50 @@ export function Footer() {
   return (
     <footer className="border-t border-border bg-card">
       <div className="mx-auto max-w-7xl px-4 py-12 lg:px-8">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
-          {/* Brand */}
-          <div className="sm:col-span-2 lg:col-span-1">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
             <Link href="/" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <BookOpen className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="text-lg font-bold font-mono text-foreground">Wetudy</span>
+              <span className="font-mono text-lg font-bold text-foreground">Wetudy</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Marketplace escolar comunitario. Ahorro, sostenibilidad y comunidad educativa.
+              Marketplace escolar comunitario para comprar, vender o donar material educativo con chat e historial del acuerdo.
             </p>
           </div>
 
-          {/* Plataforma */}
           <div>
-            <h4 className="mb-3 text-sm font-semibold text-foreground">Plataforma</h4>
+            <h4 className="mb-3 text-sm font-semibold text-foreground">Usar Wetudy</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="/marketplace" className="text-sm text-muted-foreground hover:text-primary transition-colors">Marketplace</Link></li>
-              <li><Link href="/auth?mode=signup" className="text-sm text-muted-foreground hover:text-primary transition-colors">Crear cuenta</Link></li>
-              <li><Link href="/auth" className="text-sm text-muted-foreground hover:text-primary transition-colors">Iniciar sesion</Link></li>
+              <li><Link href="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-primary">Marketplace</Link></li>
+              <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Publicar anuncio</Link></li>
+              <li><Link href="/auth?mode=signup" className="text-sm text-muted-foreground transition-colors hover:text-primary">Crear cuenta</Link></li>
             </ul>
           </div>
 
-          {/* Centros */}
           <div>
-            <h4 className="mb-3 text-sm font-semibold text-foreground">Centros</h4>
+            <h4 className="mb-3 text-sm font-semibold text-foreground">Comunidad</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="/register-school" className="text-sm text-muted-foreground hover:text-primary transition-colors">Registrar centro</Link></li>
-              <li><Link href="/admin/login" className="text-sm text-muted-foreground hover:text-primary transition-colors">Panel Colegio / AMPA</Link></li>
-              <li><Link href="/ranking" className="text-sm text-muted-foreground hover:text-primary transition-colors">Ranking de colegios</Link></li>
+              <li><Link href="/onboarding/join-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Añadir centro</Link></li>
+              <li><Link href="/register-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Registrar centro</Link></li>
+              <li><Link href="/help" className="text-sm text-muted-foreground transition-colors hover:text-primary">Centro de ayuda</Link></li>
             </ul>
           </div>
 
-          {/* Wetudy */}
           <div>
-            <h4 className="mb-3 text-sm font-semibold text-foreground">Wetudy</h4>
+            <h4 className="mb-3 text-sm font-semibold text-foreground">Legal y soporte</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="/help" className="text-sm text-muted-foreground hover:text-primary transition-colors">Centro de ayuda</Link></li>
-              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">Sobre Wetudy</Link></li>
-              <li><Link href="/blog" className="text-sm text-muted-foreground hover:text-primary transition-colors">Blog</Link></li>
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <h4 className="mb-3 text-sm font-semibold text-foreground">Legal</h4>
-            <ul className="flex flex-col gap-2">
-              <li><Link href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacidad</Link></li>
-              <li><Link href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Terminos de uso</Link></li>
-              <li><Link href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Contacto</Link></li>
+              <li><Link href="/about" className="text-sm text-muted-foreground transition-colors hover:text-primary">Sobre Wetudy</Link></li>
+              <li><Link href="/privacy" className="text-sm text-muted-foreground transition-colors hover:text-primary">Privacidad</Link></li>
+              <li><Link href="/terms" className="text-sm text-muted-foreground transition-colors hover:text-primary">Términos de uso</Link></li>
             </ul>
           </div>
         </div>
 
         <div className="mt-10 border-t border-border pt-6">
           <p className="text-center text-sm text-muted-foreground">
-            2026 Wetudy. Todos los derechos reservados.
+            2026 Wetudy. La entrega y el pago se acuerdan directamente entre las partes.
           </p>
         </div>
       </div>

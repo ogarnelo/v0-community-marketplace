@@ -15,7 +15,7 @@ const benefits = [
   {
     icon: MessageCircle,
     title: "Contacto directo por chat",
-    description: "Pregunta, acuerda detalles y deja constancia de la conversación antes de cerrar el intercambio fuera de Wetudy.",
+    description: "Pregunta, acuerda detalles y deja constancia de la conversación antes de confirmar el acuerdo entre las partes.",
   },
   {
     icon: Star,

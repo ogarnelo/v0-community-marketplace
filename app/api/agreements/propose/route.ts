@@ -105,8 +105,8 @@ export async function POST(request: Request) {
         conversation_id: conversation.id,
         sender_id: user.id,
         body: agreementType === "donation"
-          ? "He propuesto cerrar esta donación fuera de Wetudy. Falta la confirmación de la otra parte."
-          : "He propuesto cerrar este acuerdo fuera de Wetudy. Falta la confirmación de la otra parte.",
+          ? "He propuesto confirmar esta donación. Falta la confirmación de la otra parte."
+          : "He propuesto confirmar este acuerdo. Falta la confirmación de la otra parte.",
       }),
     ]);
 

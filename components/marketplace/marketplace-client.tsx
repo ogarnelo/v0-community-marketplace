@@ -61,13 +61,20 @@ type MarketplaceClientProps = {
   initialSchoolId: string;
 };
 
+const PRICE_PRESETS = [
+  { label: "0-25 €", min: 0, max: 25 },
+  { label: "25-50 €", min: 25, max: 50 },
+  { label: "50-100 €", min: 50, max: 100 },
+  { label: "100-200 €", min: 100, max: 200 },
+];
+
 export function MarketplaceClient({ initialListings, initialSchoolId }: MarketplaceClientProps) {
   const [dbListings] = useState<MarketplaceListing[]>(initialListings);
   const [currentUserSchoolId] = useState(initialSchoolId);
 
-  const [nearbyMode, setNearbyMode] = useState(false);
   const [onlyMyCommunity, setOnlyMyCommunity] = useState(false);
-  const [radius, setRadius] = useState("10");
+  const [radius, setRadius] = useState([200]);
+  const [cityQuery, setCityQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [gradeLevel, setGradeLevel] = useState("all");
   const [listingType, setListingType] = useState("all");
@@ -75,46 +82,40 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
   const [sortBy, setSortBy] = useState("newest");
   const [searchQuery, setSearchQuery] = useState("");
   const [isbnQuery, setIsbnQuery] = useState("");
-  const [priceRange, setPriceRange] = useState([0, 200]);
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
 
-  const handleSliderChange = (values: number[]) => {
-    setPriceRange(values);
-    setPriceMin(values[0] === 0 ? "" : String(values[0]));
-    setPriceMax(values[1] === 200 ? "" : String(values[1]));
-  };
-
-  const handlePriceMinChange = (val: string) => {
-    setPriceMin(val);
-    const num = parsePrice(val, 0);
-    setPriceRange([Math.max(0, num), priceRange[1]]);
-  };
-
-  const handlePriceMaxChange = (val: string) => {
-    setPriceMax(val);
-    const num = parsePrice(val, 200);
-    setPriceRange([priceRange[0], Math.max(priceRange[0], num)]);
-  };
+  const priceMinValue = priceMin.trim() ? parsePrice(priceMin, 0) : 0;
+  const priceMaxValue = priceMax.trim() ? parsePrice(priceMax, 200) : 200;
+  const radiusKm = radius[0] ?? 200;
 
   const filteredListings = useMemo(() => {
+    const normalizedSearch = normalizeText(searchQuery);
+    const normalizedCity = normalizeText(cityQuery);
+
     const filtered = dbListings.filter((l) => {
       if (l.status !== "available") return false;
 
       if (onlyMyCommunity && currentUserSchoolId && l.schoolId !== currentUserSchoolId) return false;
+      if (!onlyMyCommunity && l.distance && l.distance > radiusKm) return false;
       if (category !== "all" && l.category !== category) return false;
       if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false;
       if (listingType !== "all" && l.type !== listingType) return false;
       if (condition !== "all" && l.condition !== condition) return false;
 
-      if (searchQuery) {
-        const normalized = normalizeText(searchQuery);
+      if (normalizedSearch) {
         const matchesSearch =
-          normalizeText(l.title).includes(normalized) ||
-          normalizeText(l.description || "").includes(normalized) ||
-          normalizeText(l.category || "").includes(normalized);
+          normalizeText(l.title).includes(normalizedSearch) ||
+          normalizeText(l.description || "").includes(normalizedSearch) ||
+          normalizeText(l.category || "").includes(normalizedSearch) ||
+          normalizeText(l.gradeLevel || "").includes(normalizedSearch);
 
         if (!matchesSearch) return false;
+      }
+
+      if (normalizedCity) {
+        const locationText = normalizeText([l.category, l.gradeLevel].filter(Boolean).join(" "));
+        if (l.distance === undefined && !locationText.includes(normalizedCity)) return true;
       }
 
       if (isbnQuery) {
@@ -125,10 +126,8 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
       }
 
       if (l.type === "sale" && l.price !== undefined) {
-        if (l.price < priceRange[0] || l.price > priceRange[1]) return false;
+        if (l.price < priceMinValue || l.price > priceMaxValue) return false;
       }
-
-      if (nearbyMode && l.distance && l.distance > Number(radius)) return false;
 
       return true;
     });
@@ -153,15 +152,16 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     dbListings,
     onlyMyCommunity,
     currentUserSchoolId,
-    nearbyMode,
-    radius,
+    radiusKm,
+    cityQuery,
     category,
     gradeLevel,
     listingType,
     condition,
     searchQuery,
     isbnQuery,
-    priceRange,
+    priceMinValue,
+    priceMaxValue,
     sortBy,
   ]);
 
@@ -169,14 +169,15 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     const hasSearchIntent = Boolean(
       searchQuery.trim() ||
         isbnQuery.trim() ||
+        cityQuery.trim() ||
         category !== "all" ||
         gradeLevel !== "all" ||
         listingType !== "all" ||
         condition !== "all" ||
         onlyMyCommunity ||
-        nearbyMode ||
-        priceRange[0] > 0 ||
-        priceRange[1] < 200
+        radiusKm < 200 ||
+        priceMinValue > 0 ||
+        priceMaxValue < 200
     );
 
     if (!hasSearchIntent) return;
@@ -187,17 +188,17 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: searchQuery.trim() || null,
+          query: searchQuery.trim() || cityQuery.trim() || null,
           isbnQuery: isbnQuery.trim() || null,
           category: category === "all" ? null : category,
           gradeLevel: gradeLevel === "all" ? null : gradeLevel,
           listingType: listingType === "all" ? null : listingType,
           condition: condition === "all" ? null : condition,
-          priceMin: priceRange[0] > 0 ? priceRange[0] : null,
-          priceMax: priceRange[1] < 200 ? priceRange[1] : null,
+          priceMin: priceMinValue > 0 ? priceMinValue : null,
+          priceMax: priceMaxValue < 200 ? priceMaxValue : null,
           onlyMyCommunity,
-          nearbyMode,
-          radiusKm: nearbyMode ? Number(radius) : null,
+          nearbyMode: !onlyMyCommunity && radiusKm < 200,
+          radiusKm: !onlyMyCommunity ? radiusKm : null,
           resultsCount: filteredListings.length,
           sourcePath: "/marketplace",
         }),
@@ -213,55 +214,87 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
   }, [
     searchQuery,
     isbnQuery,
+    cityQuery,
     category,
     gradeLevel,
     listingType,
     condition,
     onlyMyCommunity,
-    nearbyMode,
-    radius,
-    priceRange,
+    radiusKm,
+    priceMinValue,
+    priceMaxValue,
     filteredListings.length,
   ]);
 
+  const hasLocationFilter = !onlyMyCommunity && (cityQuery.trim().length > 0 || radiusKm < 200);
   const activeFiltersCount = [
     onlyMyCommunity,
-    nearbyMode,
+    hasLocationFilter,
     category !== "all",
     gradeLevel !== "all",
     listingType !== "all",
     condition !== "all",
-    priceRange[0] > 0 || priceRange[1] < 200,
+    priceMinValue > 0 || priceMaxValue < 200,
     isbnQuery.length > 0,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
     setOnlyMyCommunity(false);
-    setNearbyMode(false);
+    setRadius([200]);
+    setCityQuery("");
     setCategory("all");
     setGradeLevel("all");
     setListingType("all");
     setCondition("all");
     setSearchQuery("");
     setIsbnQuery("");
-    setPriceRange([0, 200]);
     setPriceMin("");
     setPriceMax("");
   };
 
+  const applyPricePreset = (min: number, max: number) => {
+    setPriceMin(min === 0 ? "" : String(min));
+    setPriceMax(max === 200 ? "" : String(max));
+  };
+
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
-      {currentUserSchoolId ? (
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
+            <School className="h-4 w-4 text-primary" />
+            Solo mi comunidad
+          </Label>
+          <Switch id="community-filter" checked={onlyMyCommunity} disabled={!currentUserSchoolId} onCheckedChange={setOnlyMyCommunity} />
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          {currentUserSchoolId
+            ? "Actívalo para ver solo anuncios de tu centro. Desactivado, puedes explorar otras comunidades y zonas."
+            : "Añade tu centro en Mi cuenta para activar este filtro."}
+        </p>
+      </div>
+
+      {!onlyMyCommunity ? (
         <div className="rounded-xl border border-border bg-card p-3">
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
-              <School className="h-4 w-4 text-primary" />
-              Solo mi comunidad
-            </Label>
-            <Switch id="community-filter" checked={onlyMyCommunity} onCheckedChange={setOnlyMyCommunity} />
+          <Label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <MapPin className="h-4 w-4 text-primary" />
+            Ubicación y distancia
+          </Label>
+          <Input
+            value={cityQuery}
+            onChange={(e) => setCityQuery(e.target.value)}
+            placeholder="Ciudad o zona"
+            className="mt-3 h-9"
+          />
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Radio</span>
+              <span>{radiusKm >= 200 ? "+200 km" : `${radiusKm} km`}</span>
+            </div>
+            <Slider value={radius} onValueChange={setRadius} min={0} max={200} step={10} className="w-full" />
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Úsalo para priorizar anuncios de tu centro. Wetudy también puede mostrar anuncios útiles de otras comunidades.
+            Preparado para cuando los anuncios tengan coordenadas. Por ahora no oculta anuncios sin ubicación calculada.
           </p>
         </div>
       ) : null}
@@ -269,14 +302,10 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
       <div className="flex flex-col gap-2">
         <Label className="text-sm font-medium text-foreground">Categoría</Label>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las categorías</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
+            {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -328,17 +357,22 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
 
       <div className="flex flex-col gap-3">
         <Label className="text-sm font-medium text-foreground">Rango de precio</Label>
-        <Slider value={priceRange} onValueChange={handleSliderChange} min={0} max={200} step={5} className="w-full" />
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Input inputMode="decimal" type="text" placeholder="Min" value={priceMin} onChange={(e) => handlePriceMinChange(e.target.value)} className="h-8 pr-6 text-sm" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <Input inputMode="decimal" type="text" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className="h-9 pr-6 text-sm" />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
           </div>
-          <span className="text-xs text-muted-foreground">-</span>
-          <div className="relative flex-1">
-            <Input inputMode="decimal" type="text" placeholder="Max" value={priceMax} onChange={(e) => handlePriceMaxChange(e.target.value)} className="h-8 pr-6 text-sm" />
+          <div className="relative">
+            <Input inputMode="decimal" type="text" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} className="h-9 pr-6 text-sm" />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
           </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {PRICE_PRESETS.map((preset) => (
+            <Button key={preset.label} type="button" variant="outline" size="sm" onClick={() => applyPricePreset(preset.min, preset.max)}>
+              {preset.label}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -385,27 +419,6 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
         </div>
 
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-            <div className="flex items-center gap-2">
-              <Switch checked={nearbyMode} onCheckedChange={setNearbyMode} id="nearby" />
-              <Label htmlFor="nearby" className="flex cursor-pointer items-center gap-1.5 text-sm font-medium">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                {nearbyMode ? "Cerca de mí" : "Todos los anuncios"}
-              </Label>
-            </div>
-            {nearbyMode ? (
-              <Select value={radius} onValueChange={setRadius}>
-                <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 km</SelectItem>
-                  <SelectItem value="10">10 km</SelectItem>
-                  <SelectItem value="20">20 km</SelectItem>
-                  <SelectItem value="50">50 km</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
-
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar material, curso o categoría..." className="pl-10" />
@@ -428,7 +441,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
                 {activeFiltersCount > 0 ? <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge> : null}
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-80">
+            <SheetContent side="right" className="w-80 overflow-y-auto">
               <SheetHeader><SheetTitle>Filtros</SheetTitle></SheetHeader>
               <div className="mt-6"><FilterControls /></div>
             </SheetContent>
