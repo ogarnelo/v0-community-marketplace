@@ -201,15 +201,85 @@ export const listings: Listing[] = [
 // --- Mock Conversations ---
 export const conversations: Conversation[] = [
   { id: "c1", listingId: "l1", participants: ["u1", "u2"], lastMessage: "Perfecto, quedamos manana a la salida?", lastMessageAt: "2025-11-16T10:30:00", unread: 1 },
-  { id: "c2", listingId: "l3", participants: ["u1", "u5"], lastMessage: "Me interesa el uniforme, sigue disponible?", lastMessageAt: "2025-11-15T18:45:00", unread: 0 },
+  { id: "c2", listingId: "l5", participants: ["u2", "u1"], lastMessage: "Estan todos los libros incluidos?", lastMessageAt: "2025-11-15T18:00:00", unread: 0 },
+  { id: "c3", listingId: "l3", participants: ["u1", "u5"], lastMessage: "Me interesa el uniforme para mi hijo", lastMessageAt: "2025-11-14T09:15:00", unread: 2 },
+]
+
+// --- Mock Messages ---
+export const messages: Message[] = [
+  { id: "m1", conversationId: "c1", senderId: "u2", text: "Hola! Me interesa el libro de mates. Sigue disponible?", timestamp: "2025-11-16T09:00:00" },
+  { id: "m2", conversationId: "c1", senderId: "u1", text: "Si, lo tengo! Puedes pasar a recogerlo por el cole", timestamp: "2025-11-16T09:15:00" },
+  { id: "m3", conversationId: "c1", senderId: "u2", text: "Perfecto, quedamos manana a la salida?", timestamp: "2025-11-16T10:30:00" },
+  { id: "m4", conversationId: "c2", senderId: "u1", text: "Hola Carlos, vi el lote de libros. Estan todos los libros incluidos?", timestamp: "2025-11-15T18:00:00" },
+  { id: "m5", conversationId: "c3", senderId: "u5", text: "Me interesa el uniforme para mi hijo", timestamp: "2025-11-14T09:15:00" },
 ]
 
 // --- Mock Reviews ---
 export const reviews: Review[] = [
-  { id: "r1", listingId: "l1", reviewerId: "u2", revieweeId: "u1", rating: 5, comment: "Todo perfecto, libro en buen estado y entrega rapida.", createdAt: "2025-11-10" },
-  { id: "r2", listingId: "l4", reviewerId: "u3", revieweeId: "u5", rating: 4, comment: "Calculadora como nueva.", createdAt: "2025-11-12" },
+  { id: "r1", listingId: "l1", reviewerId: "u2", revieweeId: "u1", rating: 5, comment: "Todo perfecto, el libro estaba tal como lo describio. Muy amable.", createdAt: "2025-11-17" },
+  { id: "r2", listingId: "l5", reviewerId: "u1", revieweeId: "u2", rating: 4, comment: "Buen lote, aunque faltaba el de ingles. Buen precio igualmente.", createdAt: "2025-11-16" },
+  { id: "r3", listingId: "l3", reviewerId: "u5", revieweeId: "u1", rating: 5, comment: "Muy generosa con la donacion. El uniforme estaba impecable.", createdAt: "2025-11-15" },
 ]
 
+// --- Mock Donation Requests ---
 export const donationRequests: DonationRequest[] = [
-  { id: "dr1", listingId: "l3", requesterId: "u5", status: "pending", message: "Hola, me interesa para mi hijo.", createdAt: "2025-11-15" },
+  { id: "d1", listingId: "l3", requesterId: "u5", status: "pending", message: "Hola, me gustaria el uniforme para mi hijo que empieza este ano.", createdAt: "2025-11-14" },
+  { id: "d2", listingId: "l6", requesterId: "u2", status: "pending", message: "Mi hija necesita una flauta para clase de musica.", createdAt: "2025-11-15" },
+  { id: "d3", listingId: "l3", requesterId: "u2", status: "pending", message: "Tenemos una situacion dificil y nos vendria muy bien el uniforme.", createdAt: "2025-11-13" },
 ]
+
+// --- Impact Metrics (school-level) ---
+export const schoolMetrics = {
+  s1: {
+    itemsReused: 156,
+    donationsCompleted: 34,
+    familiesParticipating: 89,
+    moneySaved: 2340,
+  },
+  s2: {
+    itemsReused: 78,
+    donationsCompleted: 12,
+    familiesParticipating: 45,
+    moneySaved: 1150,
+  },
+}
+
+// --- Helper functions ---
+export function getUserById(id: string) {
+  return users.find(u => u.id === id)
+}
+
+export function getSchoolById(id: string) {
+  return schools.find(s => s.id === id)
+}
+
+export function getListingById(id: string) {
+  return listings.find(l => l.id === id)
+}
+
+export function getListingsBySchool(schoolId: string) {
+  return listings.filter(l => l.schoolId === schoolId && l.status === "active")
+}
+
+export function getListingsBySeller(sellerId: string) {
+  return listings.filter(l => l.sellerId === sellerId)
+}
+
+export function getReviewsForUser(userId: string) {
+  return reviews.filter(r => r.revieweeId === userId)
+}
+
+export function getConversationsForUser(userId: string) {
+  return conversations.filter(c => c.participants.includes(userId))
+}
+
+export function getDonationRequestsBySchool(schoolId: string) {
+  return donationRequests.filter(dr => {
+    const listing = getListingById(dr.listingId)
+    return listing?.schoolId === schoolId
+  })
+}
+
+// Current logged-in user (mock session)
+export const currentUser = users[0] // Ana Garcia
+export const currentSchool = schools[0] // CEIP San Miguel
