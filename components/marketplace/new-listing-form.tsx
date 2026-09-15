@@ -3,9 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ImagePlus, Loader2, School, X } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  ImagePlus,
+  Loader2,
+  Package,
+  School,
+  Sparkles,
+  Tag,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { categories, conditions, gradeLevels } from "@/lib/mock-data";
+import { bookFormats, bookLanguages, categories, conditions, gradeLevels } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,9 +25,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 
 const STORAGE_BUCKET = "listing-photos";
-const MAX_FILES = 5;
+const MAX_FILES = 8;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+const UNIFORM_ITEMS = ["Polo o camiseta", "Pantalón", "Falda o pichi", "Chándal", "Sudadera o jersey", "Abrigo", "Calzado", "Ropa deportiva", "Lote completo", "Otros"];
+const UNIFORM_SEASONS = ["Todo el año", "Verano", "Invierno", "Deporte", "No aplica"];
+const SCHOOL_SUPPLIES = ["Papelería", "Material de dibujo", "Material de arte", "Geometría", "Archivadores y carpetas", "Calculadoras básicas", "Lote de material", "Otros"];
+const TECH_ITEMS = ["Calculadora científica", "Calculadora gráfica", "Tablet", "Portátil", "E-reader", "Auriculares", "Accesorios", "Otros"];
+const BAG_ITEMS = ["Mochila", "Estuche", "Bolsa de deporte", "Carrito", "Otros"];
 
 type NewListingFormProps = {
   initialSchoolId: string;
@@ -39,6 +56,10 @@ type ListingInsertPayload = {
   type: "sale" | "donation";
   listing_type: "sale" | "donation";
   isbn: string | null;
+  author: string | null;
+  publisher: string | null;
+  format: string | null;
+  language: string | null;
   price: number | null;
   original_price: number | null;
   seller_id: string;
@@ -70,15 +91,70 @@ function sanitizeFileName(fileName: string) {
     .replace(/[^a-zA-Z0-9._-]/g, "");
 }
 
+function normalizedCategory(category: string) {
+  return category
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function isBookCategory(category: string) {
-  const normalized = category.toLowerCase();
-  return normalized.includes("libro") || normalized.includes("lectura");
+  const normalized = normalizedCategory(category);
+  return normalized.includes("libro") || normalized.includes("lectura") || normalized.includes("literatura");
+}
+
+function isTextbookCategory(category: string) {
+  return normalizedCategory(category).includes("libros de texto");
+}
+
+function isUniformCategory(category: string) {
+  return normalizedCategory(category).includes("uniform");
+}
+
+function isSupplyCategory(category: string) {
+  return normalizedCategory(category).includes("material escolar");
+}
+
+function isTechCategory(category: string) {
+  const normalized = normalizedCategory(category);
+  return normalized.includes("tecnologia") || normalized.includes("calculadora");
+}
+
+function isBagCategory(category: string) {
+  return normalizedCategory(category).includes("mochila");
 }
 
 function parsePrice(value: string) {
   const normalized = value.trim().replace(",", ".");
   if (!normalized) return NaN;
   return Number(normalized);
+}
+
+function SectionCard({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-foreground sm:text-lg">{title}</h2>
+          {description ? <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
 }
 
 export default function NewListingForm({
@@ -99,17 +175,43 @@ export default function NewListingForm({
   const [price, setPrice] = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
   const [isbn, setIsbn] = useState("");
+  const [author, setAuthor] = useState("");
+  const [publisher, setPublisher] = useState("");
+  const [format, setFormat] = useState("");
+  const [language, setLanguage] = useState("");
+  const [subject, setSubject] = useState("");
+  const [specificType, setSpecificType] = useState("");
+  const [sizeLabel, setSizeLabel] = useState("");
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [season, setSeason] = useState("");
   const [photos, setPhotos] = useState<PreviewFile[]>([]);
   const [photoError, setPhotoError] = useState("");
   const [submitError, setSubmitError] = useState("");
 
-  const showIsbn = isBookCategory(selectedCategory);
+  const showBookFields = isBookCategory(selectedCategory);
+  const showTextbookFields = isTextbookCategory(selectedCategory);
+  const showUniformFields = isUniformCategory(selectedCategory);
+  const showSupplyFields = isSupplyCategory(selectedCategory);
+  const showTechFields = isTechCategory(selectedCategory);
+  const showBagFields = isBagCategory(selectedCategory);
 
   useEffect(() => {
-    if (!showIsbn && isbn) {
+    setSpecificType("");
+    setSizeLabel("");
+    setBrand("");
+    setModel("");
+    setSeason("");
+
+    if (!isBookCategory(selectedCategory)) {
       setIsbn("");
+      setAuthor("");
+      setPublisher("");
+      setFormat("");
+      setLanguage("");
+      setSubject("");
     }
-  }, [isbn, showIsbn]);
+  }, [selectedCategory]);
 
   const schoolLabel = useMemo(() => {
     if (!initialSchoolId) return "Sin centro asignado";
@@ -133,7 +235,7 @@ export default function NewListingForm({
 
     const availableSlots = MAX_FILES - photos.length;
     if (availableSlots <= 0) {
-      setPhotoError("Solo puedes subir un máximo de 5 fotos.");
+      setPhotoError(`Solo puedes subir un máximo de ${MAX_FILES} fotos.`);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -176,7 +278,7 @@ export default function NewListingForm({
     if (!selectedCategory) return "Debes seleccionar una categoría.";
     if (!selectedGradeLevel) return "Debes seleccionar un curso o etapa.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
-    if (showIsbn && !isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
+    if (showBookFields && !isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
 
     if (!isDonation) {
       if (!price.trim()) return "Debes indicar un precio para la venta.";
@@ -193,6 +295,22 @@ export default function NewListingForm({
     }
 
     return null;
+  };
+
+  const buildDescription = () => {
+    const details: string[] = [];
+
+    if (showTextbookFields && subject.trim()) details.push(`Asignatura: ${subject.trim()}`);
+    if ((showUniformFields || showSupplyFields || showTechFields || showBagFields) && specificType.trim()) {
+      details.push(`Tipo: ${specificType.trim()}`);
+    }
+    if (showUniformFields && sizeLabel.trim()) details.push(`Talla: ${sizeLabel.trim()}`);
+    if (showUniformFields && season.trim()) details.push(`Temporada: ${season.trim()}`);
+    if ((showTechFields || showBagFields) && brand.trim()) details.push(`Marca: ${brand.trim()}`);
+    if (showTechFields && model.trim()) details.push(`Modelo: ${model.trim()}`);
+
+    if (details.length === 0) return description.trim();
+    return `${description.trim()}\n\nDetalles del material:\n${details.map((detail) => `- ${detail}`).join("\n")}`;
   };
 
   const uploadListingPhotos = async (listingId: string, files: PreviewFile[]) => {
@@ -269,13 +387,17 @@ export default function NewListingForm({
       const payload: ListingInsertPayload = {
         id: listingId,
         title: title.trim(),
-        description: description.trim(),
+        description: buildDescription(),
         category: selectedCategory,
         grade_level: selectedGradeLevel,
         condition: selectedCondition,
         type: isDonation ? "donation" : "sale",
         listing_type: isDonation ? "donation" : "sale",
-        isbn: showIsbn && isbn.trim() ? normalizeIsbn(isbn) : null,
+        isbn: showBookFields && isbn.trim() ? normalizeIsbn(isbn) : null,
+        author: showBookFields && author.trim() ? author.trim() : null,
+        publisher: showBookFields && publisher.trim() ? publisher.trim() : null,
+        format: showBookFields && format ? format : null,
+        language: showBookFields && language ? language : null,
         price: isDonation ? null : parsePrice(price),
         original_price: isDonation || !originalPrice.trim() ? null : parsePrice(originalPrice),
         seller_id: user.id,
@@ -303,91 +425,116 @@ export default function NewListingForm({
   };
 
   return (
-    <div className="bg-background">
-      <div className="mx-auto max-w-2xl px-4 py-6 lg:px-8">
-        <Link href="/marketplace" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+    <div className="min-h-screen bg-muted/20">
+      <div className="mx-auto max-w-5xl px-3 pb-28 pt-4 sm:px-6 sm:pb-10 sm:pt-6 lg:px-8">
+        <Link href="/marketplace" className="mb-4 inline-flex min-h-10 items-center gap-1.5 rounded-full px-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           Volver al marketplace
         </Link>
 
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-2xl text-foreground">Publicar anuncio</CardTitle>
-            <CardDescription>
-              Publica material escolar para vender o donar. La foto es obligatoria para generar confianza.
-            </CardDescription>
-          </CardHeader>
+        <div className="mb-5 flex flex-col gap-2 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-primary">Nuevo anuncio</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-4xl">Sube tu anuncio</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Completa lo imprescindible y Wetudy adaptará los detalles según la categoría. Sin pagos ni envíos integrados por ahora.
+            </p>
+          </div>
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-background px-3 py-2 text-xs font-medium text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            Responsive móvil, tablet y escritorio
+          </div>
+        </div>
 
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif"
-                multiple
-                className="hidden"
-                onChange={handleFilesSelected}
-              />
+        <form onSubmit={handleSubmit} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.gif"
+            multiple
+            className="hidden"
+            onChange={handleFilesSelected}
+          />
 
-              <div className="rounded-xl border bg-muted/30 p-4">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <School className="h-4 w-4" />
-                  Centro asociado
-                </div>
-                <p className="text-sm text-muted-foreground">{schoolLabel}</p>
+          <div className="flex flex-col gap-5">
+            <SectionCard
+              icon={<ImagePlus className="h-5 w-5" />}
+              title="Fotos"
+              description="Sube hasta 8 fotos. La primera será la principal y es obligatoria."
+            >
+              <button
+                type="button"
+                onClick={handlePickPhoto}
+                className="flex min-h-36 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background p-5 text-center transition hover:bg-muted/40 sm:min-h-44"
+              >
+                <ImagePlus className="mb-2 h-9 w-9 text-muted-foreground" />
+                <span className="text-sm font-semibold text-foreground">Añadir fotos del material</span>
+                <span className="mt-1 text-xs leading-relaxed text-muted-foreground">JPG, PNG, WEBP o GIF. Máximo 10 MB por imagen.</span>
+              </button>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
+                {Array.from({ length: MAX_FILES }).map((_, index) => {
+                  const photo = photos[index];
+                  return photo ? (
+                    <div key={photo.previewUrl} className="relative aspect-square overflow-hidden rounded-2xl border bg-muted">
+                      <img src={photo.previewUrl} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" />
+                      {index === 0 ? (
+                        <span className="absolute bottom-1 left-1 rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm">Principal</span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(index)}
+                        className="absolute right-1.5 top-1.5 rounded-full bg-background/95 p-1 shadow"
+                        aria-label="Quitar foto"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      key={`empty-${index}`}
+                      type="button"
+                      onClick={handlePickPhoto}
+                      className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 text-muted-foreground transition hover:bg-muted/40"
+                      aria-label={`Añadir foto ${index + 1}`}
+                    >
+                      <ImagePlus className="h-5 w-5" />
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
-                  <Label>Fotos del material *</Label>
-                  <span className="text-xs text-muted-foreground">{photos.length}/{MAX_FILES}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handlePickPhoto}
-                  className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center transition hover:bg-muted/40"
-                >
-                  <ImagePlus className="mb-2 h-8 w-8 text-muted-foreground" />
-                  <span className="text-sm font-medium">Añadir al menos una foto real</span>
-                  <span className="mt-1 text-xs text-muted-foreground">JPG, PNG, WEBP o GIF. Máximo 10 MB por imagen.</span>
-                </button>
+              {photoError && <p className="mt-3 text-sm text-destructive">{photoError}</p>}
+            </SectionCard>
 
-                {photos.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {photos.map((photo, index) => (
-                      <div key={photo.previewUrl} className="relative overflow-hidden rounded-xl border bg-muted">
-                        <img src={photo.previewUrl} alt={`Foto ${index + 1}`} className="h-28 w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePhoto(index)}
-                          className="absolute right-2 top-2 rounded-full bg-background/90 p-1 shadow"
-                          aria-label="Quitar foto"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {photoError && <p className="text-sm text-destructive">{photoError}</p>}
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="title">Título *</Label>
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Libro Matemáticas 3.º ESO" />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="description">Descripción *</Label>
-                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe el estado, editorial, edición..." rows={4} />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
+            <SectionCard
+              icon={<Package className="h-5 w-5" />}
+              title="Información básica"
+              description="Explica qué es, para qué curso sirve y el estado real del material."
+            >
+              <div className="grid gap-4">
                 <div className="flex flex-col gap-2">
+                  <Label htmlFor="title">Título *</Label>
+                  <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Libro Matemáticas 3.º ESO" className="h-11" />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="description">Descripción *</Label>
+                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe el estado, editorial, edición, marcas de uso..." rows={5} />
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              icon={<BookOpen className="h-5 w-5" />}
+              title="Categoría y detalles"
+              description="Los campos cambian según lo que selecciones, como en una app móvil."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2 sm:col-span-2">
                   <Label>Categoría *</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
                     <SelectContent>
                       {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
                     </SelectContent>
@@ -397,45 +544,182 @@ export default function NewListingForm({
                 <div className="flex flex-col gap-2">
                   <Label>Curso / Etapa *</Label>
                   <Select value={selectedGradeLevel} onValueChange={setSelectedGradeLevel}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar curso" /></SelectTrigger>
                     <SelectContent>
                       {normalizedGradeLevels.map((gradeLevel) => <SelectItem key={gradeLevel} value={gradeLevel}>{gradeLevel}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <Label>Estado del material *</Label>
-                <Select value={selectedCondition} onValueChange={setSelectedCondition}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>
-                    {conditions.map((condition) => (
-                      <SelectItem key={condition.value} value={condition.value}>{condition.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-3 rounded-xl border p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <Label htmlFor="listing-type">Donación</Label>
-                    <p className="text-xs text-muted-foreground">Actívalo si quieres regalar el material.</p>
-                  </div>
-                  <input
-                    id="listing-type"
-                    type="checkbox"
-                    checked={isDonation}
-                    onChange={(e) => setIsDonation(e.target.checked)}
-                    className="h-5 w-5"
-                  />
+                <div className="flex flex-col gap-2">
+                  <Label>Estado *</Label>
+                  <Select value={selectedCondition} onValueChange={setSelectedCondition}>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+                    <SelectContent className="w-[min(360px,calc(100vw-2rem))]">
+                      {conditions.map((condition) => (
+                        <SelectItem key={condition.value} value={condition.value} textValue={condition.label}>
+                          <div className="flex flex-col gap-0.5 py-0.5">
+                            <span className="font-medium">{condition.label}</span>
+                            <span className="whitespace-normal text-xs leading-relaxed text-muted-foreground">{condition.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
 
-                {!isDonation && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="price">Precio de venta *</Label>
+              {selectedCategory ? (
+                <div className="mt-5 rounded-2xl bg-muted/40 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Detalles recomendados para {selectedCategory}
+                  </div>
+
+                  {showBookFields ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {showTextbookFields ? (
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="subject">Asignatura</Label>
+                          <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Lengua, Matemáticas" className="h-11" />
+                        </div>
+                      ) : null}
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="isbn">ISBN</Label>
+                        <Input id="isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="Opcional, 10 o 13 dígitos" className="h-11" inputMode="numeric" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="author">Autor</Label>
+                        <Input id="author" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Opcional" className="h-11" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="publisher">Editorial</Label>
+                        <Input id="publisher" value={publisher} onChange={(e) => setPublisher(e.target.value)} placeholder="Ej: Santillana, SM, Oxford" className="h-11" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label>Formato</Label>
+                        <Select value={format} onValueChange={setFormat}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                          <SelectContent>{bookFormats.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label>Idioma</Label>
+                        <Select value={language} onValueChange={setLanguage}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                          <SelectContent>{bookLanguages.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {showUniformFields ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <Label>Prenda</Label>
+                        <Select value={specificType} onValueChange={setSpecificType}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>{UNIFORM_ITEMS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="size-label">Talla</Label>
+                        <Input id="size-label" value={sizeLabel} onChange={(e) => setSizeLabel(e.target.value)} placeholder="Ej: 8, 10, M" className="h-11" />
+                      </div>
+                      <div className="flex flex-col gap-2 sm:col-span-2">
+                        <Label>Temporada</Label>
+                        <Select value={season} onValueChange={setSeason}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                          <SelectContent>{UNIFORM_SEASONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {showSupplyFields ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-2 sm:col-span-2">
+                        <Label>Tipo de material</Label>
+                        <Select value={specificType} onValueChange={setSpecificType}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>{SCHOOL_SUPPLIES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {showTechFields ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <Label>Tipo</Label>
+                        <Select value={specificType} onValueChange={setSpecificType}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>{TECH_ITEMS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="brand">Marca</Label>
+                        <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ej: Casio, Apple" className="h-11" />
+                      </div>
+                      <div className="flex flex-col gap-2 sm:col-span-2">
+                        <Label htmlFor="model">Modelo</Label>
+                        <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Ej: FX-991SP X II" className="h-11" />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {showBagFields ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <Label>Tipo</Label>
+                        <Select value={specificType} onValueChange={setSpecificType}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>{BAG_ITEMS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="bag-brand">Marca</Label>
+                        <Input id="bag-brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Opcional" className="h-11" />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!showBookFields && !showUniformFields && !showSupplyFields && !showTechFields && !showBagFields ? (
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      Usa la descripción para añadir los datos importantes. Evitamos pedir campos innecesarios para publicar más rápido.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </SectionCard>
+
+            <SectionCard
+              icon={<Tag className="h-5 w-5" />}
+              title="Precio o donación"
+              description="Elige si quieres vender el material o donarlo. El pago se acuerda directamente por chat."
+            >
+              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/40 p-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsDonation(false)}
+                  className={`min-h-11 rounded-xl px-3 text-sm font-semibold transition ${!isDonation ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                >
+                  Venta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsDonation(true)}
+                  className={`min-h-11 rounded-xl px-3 text-sm font-semibold transition ${isDonation ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                >
+                  Donación
+                </button>
+              </div>
+
+              {!isDonation ? (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="price">Precio de venta *</Label>
+                    <div className="relative">
                       <Input
                         id="price"
                         type="text"
@@ -443,10 +727,14 @@ export default function NewListingForm({
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                         placeholder="Ej: 12"
+                        className="h-11 pr-9"
                       />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="original-price">Precio original</Label>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="original-price">Precio original</Label>
+                    <div className="relative">
                       <Input
                         id="original-price"
                         type="text"
@@ -454,27 +742,61 @@ export default function NewListingForm({
                         value={originalPrice}
                         onChange={(e) => setOriginalPrice(e.target.value)}
                         placeholder="Opcional"
+                        className="h-11 pr-9"
                       />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {showIsbn ? (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="isbn">ISBN</Label>
-                  <Input id="isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="Opcional para libros" />
                 </div>
-              ) : null}
+              ) : (
+                <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm leading-relaxed text-muted-foreground">
+                  Este anuncio aparecerá como donación. Wetudy facilita el contacto y conserva el historial del acuerdo.
+                </div>
+              )}
+            </SectionCard>
+          </div>
 
-              {submitError && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>}
+          <aside className="lg:sticky lg:top-24">
+            <Card className="border-border bg-background/95 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Resumen</CardTitle>
+                <CardDescription>Revisa lo básico antes de publicar.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="rounded-xl border bg-muted/30 p-3">
+                  <div className="mb-1 flex items-center gap-2 font-medium text-foreground">
+                    <School className="h-4 w-4 text-primary" /> Centro asociado
+                  </div>
+                  <p className="text-muted-foreground">{schoolLabel}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <div className="rounded-xl border bg-muted/20 p-3"><span className="block font-semibold text-foreground">{photos.length}/{MAX_FILES}</span>Fotos</div>
+                  <div className="rounded-xl border bg-muted/20 p-3"><span className="block font-semibold text-foreground">{isDonation ? "Donación" : "Venta"}</span>Tipo</div>
+                  <div className="rounded-xl border bg-muted/20 p-3"><span className="block truncate font-semibold text-foreground">{selectedCategory || "Pendiente"}</span>Categoría</div>
+                  <div className="rounded-xl border bg-muted/20 p-3"><span className="block truncate font-semibold text-foreground">{selectedGradeLevel || "Pendiente"}</span>Curso</div>
+                </div>
+                <p className="rounded-xl bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
+                  La entrega y el pago se acuerdan directamente entre las partes.
+                </p>
+              </CardContent>
+            </Card>
+          </aside>
 
-              <Button type="submit" disabled={loading} className="w-full">
+          {submitError && (
+            <div className="lg:col-span-2 rounded-2xl bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>
+          )}
+
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none lg:col-span-2">
+            <div className="mx-auto flex max-w-5xl gap-3">
+              <Button type="submit" disabled={loading} className="min-h-12 flex-1 text-base sm:flex-none sm:px-8">
                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Publicando...</> : "Publicar anuncio"}
               </Button>
-            </form>
-          </CardContent>
-        </Card>
+              <Link href="/marketplace" className="hidden sm:block">
+                <Button type="button" variant="outline" className="min-h-12">Cancelar</Button>
+              </Link>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
