@@ -80,16 +80,18 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
   const [businessDescription, setBusinessDescription] = useState(initialBusinessDescription);
   const [website, setWebsite] = useState(initialWebsite);
   const [phone, setPhone] = useState(initialPhone);
-  const [shippingAddressLine1, setShippingAddressLine1] = useState(initialShippingAddressLine1);
-  const [shippingAddressLine2, setShippingAddressLine2] = useState(initialShippingAddressLine2);
-  const [shippingCity, setShippingCity] = useState(initialShippingCity);
-  const [shippingRegion, setShippingRegion] = useState(initialShippingRegion);
-  const [shippingCountryCode, setShippingCountryCode] = useState(initialShippingCountryCode || "ES");
+  const [contactAddress, setContactAddress] = useState(initialShippingAddressLine1);
+  const [contactNotes, setContactNotes] = useState(initialShippingAddressLine2);
+  const [contactCity, setContactCity] = useState(initialShippingCity);
+  const [contactRegion, setContactRegion] = useState(initialShippingRegion);
+  const [countryCode, setCountryCode] = useState(initialShippingCountryCode || "ES");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const isBusiness = userType === "business";
+
+  const normalizedGradeLevelOptions = useMemo(() => Array.from(new Set(gradeLevelOptions)).filter(Boolean), [gradeLevelOptions]);
 
   const filteredSchools = useMemo(() => {
     const query = schoolSearch.trim().toLowerCase();
@@ -102,13 +104,8 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     );
   }, [schoolOptions, schoolSearch]);
 
-  const selectedSchool =
-    selectedSchoolId && selectedSchoolId.trim().length > 0
-      ? schoolOptions.find((school) => school.id === selectedSchoolId) || null
-      : null;
-
+  const selectedSchool = selectedSchoolId ? schoolOptions.find((school) => school.id === selectedSchoolId) || null : null;
   const currentUserTypeLabel = userType ? getUserTypeLabel(userType) : "Selecciona un tipo de usuario";
-  const normalizedGradeLevelOptions = useMemo(() => Array.from(new Set(gradeLevelOptions)).filter(Boolean), [gradeLevelOptions]);
 
   const applySchoolAccessCode = async () => {
     setSuccessMessage("");
@@ -176,11 +173,11 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
         business_description: isBusiness ? businessDescription.trim() || null : null,
         website: isBusiness ? website.trim() || null : null,
         phone: phone.trim() || null,
-        shipping_address_line1: shippingAddressLine1.trim() || null,
-        shipping_address_line2: shippingAddressLine2.trim() || null,
-        shipping_city: shippingCity.trim() || null,
-        shipping_region: shippingRegion.trim() || null,
-        shipping_country_code: shippingCountryCode.trim().toUpperCase() || "ES",
+        shipping_address_line1: contactAddress.trim() || null,
+        shipping_address_line2: contactNotes.trim() || null,
+        shipping_city: contactCity.trim() || null,
+        shipping_region: contactRegion.trim() || null,
+        shipping_country_code: countryCode.trim().toUpperCase() || "ES",
       };
 
       const { error: profileError } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
@@ -214,7 +211,9 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     <Card>
       <CardHeader>
         <CardTitle>Editar perfil</CardTitle>
-        <CardDescription>Completa tus datos para vender, comprar y preparar envíos cuando haga falta.</CardDescription>
+        <CardDescription>
+          Añade solo lo necesario para que otros usuarios te reconozcan y puedas coordinar acuerdos con menos fricción.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-8" onSubmit={handleSubmit}>
@@ -231,16 +230,14 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               <Label>Email</Label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                <Input value={email} readOnly className="pl-9 bg-muted/40" />
+                <Input value={email} readOnly className="bg-muted/40 pl-9" />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Tipo de usuario</Label>
               <Select value={userType} onValueChange={(value) => setUserType(value as any)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={currentUserTypeLabel} />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={currentUserTypeLabel} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                   <SelectItem value="student">Estudiante</SelectItem>
@@ -253,13 +250,9 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               <div className="space-y-2">
                 <Label>Curso / nivel</Label>
                 <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un curso" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecciona un curso" /></SelectTrigger>
                   <SelectContent>
-                    {normalizedGradeLevelOptions.map((option) => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
+                    {normalizedGradeLevelOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -353,38 +346,40 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
             </div>
           ) : null}
 
-          <div className="space-y-4">
+          <div className="space-y-4 rounded-2xl border bg-slate-50 p-4">
             <div>
-              <h3 className="text-base font-semibold">Dirección para envíos</h3>
-              <p className="text-sm text-muted-foreground">Completa esta información para poder generar etiquetas automáticas con Sendcloud cuando corresponda.</p>
+              <h3 className="text-base font-semibold">Datos opcionales de contacto</h3>
+              <p className="text-sm text-muted-foreground">
+                No son obligatorios. Puedes guardarlos para acordar entregas con menos mensajes cuando tú decidas compartirlos.
+              </p>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="phone">Teléfono</Label>
                 <div className="relative">
                   <Phone className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                  <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-9" placeholder="600123123" />
+                  <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-9" placeholder="Opcional" />
                 </div>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="shipping_address_line1">Dirección</Label>
-                <Input id="shipping_address_line1" value={shippingAddressLine1} onChange={(e) => setShippingAddressLine1(e.target.value)} placeholder="Calle, número, piso..." />
+                <Label htmlFor="contact_address">Zona o dirección orientativa</Label>
+                <Input id="contact_address" value={contactAddress} onChange={(e) => setContactAddress(e.target.value)} placeholder="Opcional. Ej: barrio, zona o dirección si quieres guardarla" />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="shipping_address_line2">Información adicional</Label>
-                <Input id="shipping_address_line2" value={shippingAddressLine2} onChange={(e) => setShippingAddressLine2(e.target.value)} placeholder="Portal, escalera, referencias..." />
+                <Label htmlFor="contact_notes">Notas de entrega</Label>
+                <Input id="contact_notes" value={contactNotes} onChange={(e) => setContactNotes(e.target.value)} placeholder="Opcional. Ej: tardes, portería, punto de encuentro..." />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="shipping_city">Ciudad</Label>
-                <Input id="shipping_city" value={shippingCity} onChange={(e) => setShippingCity(e.target.value)} placeholder="Madrid" />
+                <Label htmlFor="contact_city">Ciudad</Label>
+                <Input id="contact_city" value={contactCity} onChange={(e) => setContactCity(e.target.value)} placeholder="Madrid" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="shipping_region">Provincia / región</Label>
-                <Input id="shipping_region" value={shippingRegion} onChange={(e) => setShippingRegion(e.target.value)} placeholder="Madrid" />
+                <Label htmlFor="contact_region">Provincia / región</Label>
+                <Input id="contact_region" value={contactRegion} onChange={(e) => setContactRegion(e.target.value)} placeholder="Madrid" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="shipping_country_code">País (ISO)</Label>
-                <Input id="shipping_country_code" value={shippingCountryCode} onChange={(e) => setShippingCountryCode(e.target.value.toUpperCase())} placeholder="ES" maxLength={2} />
+                <Label htmlFor="country_code">País</Label>
+                <Input id="country_code" value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} placeholder="ES" maxLength={2} />
               </div>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { UserBadgePills } from "@/components/profile/user-badge-pills";
-import { Mail, MapPin, GraduationCap, CalendarDays, Building2, BriefcaseBusiness, Globe, Star, Truck, Phone } from "lucide-react";
+import { Mail, MapPin, GraduationCap, CalendarDays, Building2, BriefcaseBusiness, Globe, Star, Phone } from "lucide-react";
 import AccountProfileForm from "@/components/account/account-profile-form";
 import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
@@ -66,14 +66,14 @@ export default async function AccountPage() {
   const normalizedGradeLevels = Array.from(new Set(gradeLevels)).filter(Boolean);
   const averageRatingLabel = typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—";
   const badges = stats.badgesForUserType(userType);
-  const shippingReady = Boolean(typedProfile?.shipping_address_line1 && typedProfile?.shipping_city && typedProfile?.postal_code && typedProfile?.shipping_country_code);
+  const contactReady = Boolean(typedProfile?.phone || typedProfile?.shipping_city || typedProfile?.postal_code);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mi cuenta</h1>
-          <p className="mt-2 text-muted-foreground">Gestiona tu perfil, tu reputación y tus datos de envío en Wetudy.</p>
+          <p className="mt-2 text-muted-foreground">Gestiona tu perfil, tu comunidad y tus datos opcionales de contacto.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline"><Link href="/account/activity">Ver actividad</Link></Button>
@@ -92,7 +92,7 @@ export default async function AccountPage() {
                 <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
                 {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
                 {isBusiness && typedProfile?.is_business_verified ? <Badge>Negocio verificado</Badge> : null}
-                {shippingReady ? <Badge variant="outline">Listo para envíos</Badge> : null}
+                {contactReady ? <Badge variant="outline">Datos de contacto</Badge> : null}
               </div>
             </div>
 
@@ -106,7 +106,6 @@ export default async function AccountPage() {
               <div className="flex items-center gap-2 text-muted-foreground"><Building2 className="h-4 w-4" /><span>{schoolName}</span></div>
               {isBusiness && businessName ? <div className="flex items-center gap-2 text-muted-foreground"><BriefcaseBusiness className="h-4 w-4" /><span>{businessName}</span></div> : null}
               {isBusiness && website ? <div className="flex items-center gap-2 text-muted-foreground"><Globe className="h-4 w-4" /><a href={website} target="_blank" rel="noreferrer" className="hover:text-foreground">{website}</a></div> : null}
-              {shippingReady ? <div className="flex items-center gap-2 text-muted-foreground"><Truck className="h-4 w-4" /><span>{typedProfile?.shipping_city}, {typedProfile?.shipping_country_code}</span></div> : null}
               {createdAt ? <div className="flex items-center gap-2 text-muted-foreground"><CalendarDays className="h-4 w-4" /><span>Miembro desde {new Date(createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}</span></div> : null}
             </div>
 
@@ -118,8 +117,8 @@ export default async function AccountPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Card><CardContent className="p-5"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground"><Star className="h-4 w-4" />Valoración media</div><p className="text-3xl font-bold">{averageRatingLabel}</p></CardContent></Card>
             <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Opiniones</div><p className="text-3xl font-bold">{stats.reviewCount}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Ventas cerradas</div><p className="text-3xl font-bold">{stats.soldListingsCount}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Compras realizadas</div><p className="text-3xl font-bold">{stats.purchasesCount}</p></CardContent></Card>
+            <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Acuerdos como vendedor</div><p className="text-3xl font-bold">{stats.soldListingsCount}</p></CardContent></Card>
+            <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Acuerdos como comprador</div><p className="text-3xl font-bold">{stats.purchasesCount}</p></CardContent></Card>
           </div>
 
           <AccountProfileForm
