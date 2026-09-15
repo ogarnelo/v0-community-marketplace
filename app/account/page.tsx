@@ -41,7 +41,7 @@ const quickActions = [
   { href: "/messages", label: "Mensajes", helper: "Habla por chat", icon: MessageCircle },
   { href: "/favorites", label: "Favoritos", helper: "Guarda material", icon: Heart },
   { href: "/account/activity", label: "Mis acuerdos", helper: "Actividad MVP", icon: Bell },
-  { href: "/support", label: "Soporte", helper: "Contacta con Wetudy", icon: LifeBuoy },
+  { href: "/help", label: "Soporte", helper: "Centro de ayuda", icon: LifeBuoy },
 ];
 
 export default async function AccountPage() {
