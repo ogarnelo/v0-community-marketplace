@@ -110,12 +110,14 @@ export const users: User[] = [
 // --- Mock Categories ---
 export const categories = [
   "Libros de texto",
+  "Lectura y literatura",
   "Material escolar",
-  "Mochilas y estuches",
   "Uniformes",
-  "Tecnologia",
-  "Instrumentos musicales",
-  "Material deportivo",
+  "Tecnología y calculadoras",
+  "Mochilas y estuches",
+  "Música",
+  "Deporte escolar",
+  "Material universitario",
   "Otros",
 ]
 
@@ -133,6 +135,7 @@ export const gradeLevels = [
   "4o ESO",
   "1o Bachillerato",
   "2o Bachillerato",
+  "FP",
   "Universidad",
   "Otros",
 ]
@@ -156,15 +159,15 @@ export const conditionLabels: Record<ItemCondition, string> = {
 export const bookFormats = [
   "Tapa blanda",
   "Tapa dura",
-  "De bolsillo",
-  "Braille",
-  "Audiolibro",
+  "Cuaderno de actividades",
+  "Libro digital con código",
+  "Lote de libros",
   "Otros",
 ]
 
 export const bookLanguages = [
-  "Espanol", "Ingles", "Frances", "Aleman", "Italiano", "Portugues",
-  "Catalan", "Euskera", "Gallego", "Valenciano", "Arabe", "Chino", "Japones", "Ruso", "Hindi",
+  "Español", "Inglés", "Francés", "Alemán", "Italiano", "Portugués",
+  "Catalán", "Euskera", "Gallego", "Valenciano", "Árabe", "Chino", "Japonés", "Ruso", "Hindi",
 ]
 
 // --- Mock Listings ---
@@ -179,13 +182,13 @@ export const listings: Listing[] = [
     id: "l3", title: "Uniforme completo talla 8", description: "Polo, jersey y pantalon del uniforme del colegio. Talla 8 anos. Donacion para quien lo necesite.", category: "Uniformes", gradeLevel: "2o Primaria", condition: "good", type: "donation", photos: ["/placeholder-uniform.jpg"], sellerId: "u1", schoolId: "s1", status: "active", createdAt: "2025-11-08",
   },
   {
-    id: "l4", title: "Calculadora cientifica Casio", description: "Casio FX-991SP X II Iberia. Perfecta para bachillerato y universidad. Como nueva.", category: "Tecnologia", gradeLevel: "1o Bachillerato", condition: "new_with_tags", type: "sale", price: 18, originalPrice: 30, photos: ["/placeholder-calc.jpg"], sellerId: "u3", schoolId: "s3", status: "active", createdAt: "2025-11-10",
+    id: "l4", title: "Calculadora cientifica Casio", description: "Casio FX-991SP X II Iberia. Perfecta para bachillerato y universidad. Como nueva.", category: "Tecnología y calculadoras", gradeLevel: "1o Bachillerato", condition: "new_with_tags", type: "sale", price: 18, originalPrice: 30, photos: ["/placeholder-calc.jpg"], sellerId: "u3", schoolId: "s3", status: "active", createdAt: "2025-11-10",
   },
   {
     id: "l5", title: "Lote libros 1o Primaria", description: "Lote completo de libros para 1o de Primaria del colegio San Miguel. Incluye lengua, mates, cono y ingles.", category: "Libros de texto", gradeLevel: "1o Primaria", condition: "very_good", type: "sale", price: 45, originalPrice: 120, photos: ["/placeholder-books.jpg"], sellerId: "u2", schoolId: "s1", status: "active", createdAt: "2025-11-12",
   },
   {
-    id: "l6", title: "Flauta dulce Yamaha", description: "Flauta dulce soprano Yamaha YRS-24B. Perfecta para clase de musica.", category: "Instrumentos musicales", gradeLevel: "4o Primaria", condition: "new_with_tags", type: "donation", photos: ["/placeholder-flute.jpg"], sellerId: "u5", schoolId: "s2", status: "active", createdAt: "2025-11-14", distance: 3.2,
+    id: "l6", title: "Flauta dulce Yamaha", description: "Flauta dulce soprano Yamaha YRS-24B. Perfecta para clase de musica.", category: "Música", gradeLevel: "4o Primaria", condition: "new_with_tags", type: "donation", photos: ["/placeholder-flute.jpg"], sellerId: "u5", schoolId: "s2", status: "active", createdAt: "2025-11-14", distance: 3.2,
   },
   {
     id: "l7", title: "Atlas geografico ilustrado", description: "Atlas geografico para ESO. Tapa dura, muchas ilustraciones. Muy buen estado.", category: "Libros de texto", gradeLevel: "1o ESO", condition: "very_good", type: "sale", price: 8, originalPrice: 22, photos: ["/placeholder-atlas.jpg"], sellerId: "u5", schoolId: "s2", status: "active", createdAt: "2025-11-15", distance: 3.2,
