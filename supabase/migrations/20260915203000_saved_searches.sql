@@ -39,36 +39,49 @@ create index if not exists saved_searches_category_grade_idx
 
 alter table public.saved_searches enable row level security;
 
-create policy if not exists saved_searches_select_own
-  on public.saved_searches
-  for select
-  to authenticated
-  using (auth.uid() = user_id);
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saved_searches' and policyname = 'saved_searches_select_own') then
+    create policy saved_searches_select_own
+      on public.saved_searches
+      for select
+      to authenticated
+      using (auth.uid() = user_id);
+  end if;
 
-create policy if not exists saved_searches_insert_own
-  on public.saved_searches
-  for insert
-  to authenticated
-  with check (auth.uid() = user_id);
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saved_searches' and policyname = 'saved_searches_insert_own') then
+    create policy saved_searches_insert_own
+      on public.saved_searches
+      for insert
+      to authenticated
+      with check (auth.uid() = user_id);
+  end if;
 
-create policy if not exists saved_searches_update_own
-  on public.saved_searches
-  for update
-  to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saved_searches' and policyname = 'saved_searches_update_own') then
+    create policy saved_searches_update_own
+      on public.saved_searches
+      for update
+      to authenticated
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
 
-create policy if not exists saved_searches_delete_own
-  on public.saved_searches
-  for delete
-  to authenticated
-  using (auth.uid() = user_id);
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saved_searches' and policyname = 'saved_searches_delete_own') then
+    create policy saved_searches_delete_own
+      on public.saved_searches
+      for delete
+      to authenticated
+      using (auth.uid() = user_id);
+  end if;
 
-create policy if not exists saved_searches_admin_read
-  on public.saved_searches
-  for select
-  to authenticated
-  using (public.is_superadmin());
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saved_searches' and policyname = 'saved_searches_admin_read') then
+    create policy saved_searches_admin_read
+      on public.saved_searches
+      for select
+      to authenticated
+      using (public.is_superadmin());
+  end if;
+end $$;
 
 create or replace view public.saved_search_demand_summary as
 select
