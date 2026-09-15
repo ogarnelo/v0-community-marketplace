@@ -14,6 +14,9 @@ test("publish form is mobile-first and organized by scrollable blocks", () => {
   assert.match(publishForm, /Precio o donación/);
   assert.match(publishForm, /fixed inset-x-0 bottom-0/);
   assert.match(publishForm, /sm:static/);
+  assert.doesNotMatch(publishForm, /Responsive móvil, tablet y escritorio/);
+  assert.doesNotMatch(publishForm, /<aside className=/);
+  assert.doesNotMatch(publishForm, /Resumen/);
 });
 
 test("publish flow keeps current MVP scope without exchange, checkout or maps", () => {
@@ -23,6 +26,13 @@ test("publish flow keeps current MVP scope without exchange, checkout or maps", 
   assert.match(publishForm, /Venta/);
   assert.match(publishForm, /Donación/);
   assert.match(publishForm, /La entrega y el pago se acuerdan directamente entre las partes/);
+});
+
+test("course is required only where it adds educational precision", () => {
+  assert.match(publishForm, /COURSE_REQUIRED_CATEGORIES = \["Libros de texto", "Lectura y literatura"\]/);
+  assert.match(publishForm, /Curso \/ Etapa \{courseRequired \? "\*" : "\(opcional\)"\}/);
+  assert.match(publishForm, /Para mochilas, tecnología, uniformes y otros materiales puede servir a varios cursos/);
+  assert.match(publishForm, /selectedGradeLevel \|\| FALLBACK_GRADE_LEVEL/);
 });
 
 test("category details adapt to educational product types", () => {
