@@ -392,7 +392,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
               <SheetTrigger asChild>
                 <Button variant="outline" className="h-11 gap-2 lg:hidden">
                   <SlidersHorizontal className="h-4 w-4" />
-                  <span className="hidden xs:inline">Filtros</span>
+                  <span>Filtros</span>
                   {activeFiltersCount > 0 ? <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge> : null}
                 </Button>
               </SheetTrigger>
