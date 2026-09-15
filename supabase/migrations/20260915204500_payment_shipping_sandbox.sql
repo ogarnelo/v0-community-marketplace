@@ -25,21 +25,30 @@ create index if not exists payment_shipping_sandbox_runs_created_idx
 
 alter table public.payment_shipping_sandbox_runs enable row level security;
 
-create policy if not exists payment_shipping_sandbox_admin_select
-  on public.payment_shipping_sandbox_runs
-  for select
-  to authenticated
-  using (public.is_superadmin());
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'payment_shipping_sandbox_runs' and policyname = 'payment_shipping_sandbox_admin_select') then
+    create policy payment_shipping_sandbox_admin_select
+      on public.payment_shipping_sandbox_runs
+      for select
+      to authenticated
+      using (public.is_superadmin());
+  end if;
 
-create policy if not exists payment_shipping_sandbox_admin_insert
-  on public.payment_shipping_sandbox_runs
-  for insert
-  to authenticated
-  with check (public.is_superadmin());
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'payment_shipping_sandbox_runs' and policyname = 'payment_shipping_sandbox_admin_insert') then
+    create policy payment_shipping_sandbox_admin_insert
+      on public.payment_shipping_sandbox_runs
+      for insert
+      to authenticated
+      with check (public.is_superadmin());
+  end if;
 
-create policy if not exists payment_shipping_sandbox_admin_update
-  on public.payment_shipping_sandbox_runs
-  for update
-  to authenticated
-  using (public.is_superadmin())
-  with check (public.is_superadmin());
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'payment_shipping_sandbox_runs' and policyname = 'payment_shipping_sandbox_admin_update') then
+    create policy payment_shipping_sandbox_admin_update
+      on public.payment_shipping_sandbox_runs
+      for update
+      to authenticated
+      using (public.is_superadmin())
+      with check (public.is_superadmin());
+  end if;
+end $$;
