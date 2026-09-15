@@ -110,12 +110,14 @@ export const users: User[] = [
 // --- Mock Categories ---
 export const categories = [
   "Libros de texto",
+  "Lectura y literatura",
   "Material escolar",
-  "Mochilas y estuches",
   "Uniformes",
-  "Tecnologia",
-  "Instrumentos musicales",
-  "Material deportivo",
+  "Tecnología y calculadoras",
+  "Mochilas y estuches",
+  "Música",
+  "Deporte escolar",
+  "Material universitario",
   "Otros",
 ]
 
@@ -133,6 +135,7 @@ export const gradeLevels = [
   "4o ESO",
   "1o Bachillerato",
   "2o Bachillerato",
+  "FP",
   "Universidad",
   "Otros",
 ]
@@ -156,15 +159,15 @@ export const conditionLabels: Record<ItemCondition, string> = {
 export const bookFormats = [
   "Tapa blanda",
   "Tapa dura",
-  "De bolsillo",
-  "Braille",
-  "Audiolibro",
+  "Cuaderno de actividades",
+  "Libro digital con código",
+  "Lote de libros",
   "Otros",
 ]
 
 export const bookLanguages = [
-  "Espanol", "Ingles", "Frances", "Aleman", "Italiano", "Portugues",
-  "Catalan", "Euskera", "Gallego", "Valenciano", "Arabe", "Chino", "Japones", "Ruso", "Hindi",
+  "Español", "Inglés", "Francés", "Alemán", "Italiano", "Portugués",
+  "Catalán", "Euskera", "Gallego", "Valenciano", "Árabe", "Chino", "Japonés", "Ruso", "Hindi",
 ]
 
 // --- Mock Listings ---
@@ -179,13 +182,13 @@ export const listings: Listing[] = [
     id: "l3", title: "Uniforme completo talla 8", description: "Polo, jersey y pantalon del uniforme del colegio. Talla 8 anos. Donacion para quien lo necesite.", category: "Uniformes", gradeLevel: "2o Primaria", condition: "good", type: "donation", photos: ["/placeholder-uniform.jpg"], sellerId: "u1", schoolId: "s1", status: "active", createdAt: "2025-11-08",
   },
   {
-    id: "l4", title: "Calculadora cientifica Casio", description: "Casio FX-991SP X II Iberia. Perfecta para bachillerato y universidad. Como nueva.", category: "Tecnologia", gradeLevel: "1o Bachillerato", condition: "new_with_tags", type: "sale", price: 18, originalPrice: 30, photos: ["/placeholder-calc.jpg"], sellerId: "u3", schoolId: "s3", status: "active", createdAt: "2025-11-10",
+    id: "l4", title: "Calculadora cientifica Casio", description: "Casio FX-991SP X II Iberia. Perfecta para bachillerato y universidad. Como nueva.", category: "Tecnología y calculadoras", gradeLevel: "1o Bachillerato", condition: "new_with_tags", type: "sale", price: 18, originalPrice: 30, photos: ["/placeholder-calc.jpg"], sellerId: "u3", schoolId: "s3", status: "active", createdAt: "2025-11-10",
   },
   {
     id: "l5", title: "Lote libros 1o Primaria", description: "Lote completo de libros para 1o de Primaria del colegio San Miguel. Incluye lengua, mates, cono y ingles.", category: "Libros de texto", gradeLevel: "1o Primaria", condition: "very_good", type: "sale", price: 45, originalPrice: 120, photos: ["/placeholder-books.jpg"], sellerId: "u2", schoolId: "s1", status: "active", createdAt: "2025-11-12",
   },
   {
-    id: "l6", title: "Flauta dulce Yamaha", description: "Flauta dulce soprano Yamaha YRS-24B. Perfecta para clase de musica.", category: "Instrumentos musicales", gradeLevel: "4o Primaria", condition: "new_with_tags", type: "donation", photos: ["/placeholder-flute.jpg"], sellerId: "u5", schoolId: "s2", status: "active", createdAt: "2025-11-14", distance: 3.2,
+    id: "l6", title: "Flauta dulce Yamaha", description: "Flauta dulce soprano Yamaha YRS-24B. Perfecta para clase de musica.", category: "Música", gradeLevel: "4o Primaria", condition: "new_with_tags", type: "donation", photos: ["/placeholder-flute.jpg"], sellerId: "u5", schoolId: "s2", status: "active", createdAt: "2025-11-14", distance: 3.2,
   },
   {
     id: "l7", title: "Atlas geografico ilustrado", description: "Atlas geografico para ESO. Tapa dura, muchas ilustraciones. Muy buen estado.", category: "Libros de texto", gradeLevel: "1o ESO", condition: "very_good", type: "sale", price: 8, originalPrice: 22, photos: ["/placeholder-atlas.jpg"], sellerId: "u5", schoolId: "s2", status: "active", createdAt: "2025-11-15", distance: 3.2,
@@ -198,85 +201,15 @@ export const listings: Listing[] = [
 // --- Mock Conversations ---
 export const conversations: Conversation[] = [
   { id: "c1", listingId: "l1", participants: ["u1", "u2"], lastMessage: "Perfecto, quedamos manana a la salida?", lastMessageAt: "2025-11-16T10:30:00", unread: 1 },
-  { id: "c2", listingId: "l5", participants: ["u2", "u1"], lastMessage: "Estan todos los libros incluidos?", lastMessageAt: "2025-11-15T18:00:00", unread: 0 },
-  { id: "c3", listingId: "l3", participants: ["u1", "u5"], lastMessage: "Me interesa el uniforme para mi hijo", lastMessageAt: "2025-11-14T09:15:00", unread: 2 },
-]
-
-// --- Mock Messages ---
-export const messages: Message[] = [
-  { id: "m1", conversationId: "c1", senderId: "u2", text: "Hola! Me interesa el libro de mates. Sigue disponible?", timestamp: "2025-11-16T09:00:00" },
-  { id: "m2", conversationId: "c1", senderId: "u1", text: "Si, lo tengo! Puedes pasar a recogerlo por el cole", timestamp: "2025-11-16T09:15:00" },
-  { id: "m3", conversationId: "c1", senderId: "u2", text: "Perfecto, quedamos manana a la salida?", timestamp: "2025-11-16T10:30:00" },
-  { id: "m4", conversationId: "c2", senderId: "u1", text: "Hola Carlos, vi el lote de libros. Estan todos los libros incluidos?", timestamp: "2025-11-15T18:00:00" },
-  { id: "m5", conversationId: "c3", senderId: "u5", text: "Me interesa el uniforme para mi hijo", timestamp: "2025-11-14T09:15:00" },
+  { id: "c2", listingId: "l3", participants: ["u1", "u5"], lastMessage: "Me interesa el uniforme, sigue disponible?", lastMessageAt: "2025-11-15T18:45:00", unread: 0 },
 ]
 
 // --- Mock Reviews ---
 export const reviews: Review[] = [
-  { id: "r1", listingId: "l1", reviewerId: "u2", revieweeId: "u1", rating: 5, comment: "Todo perfecto, el libro estaba tal como lo describio. Muy amable.", createdAt: "2025-11-17" },
-  { id: "r2", listingId: "l5", reviewerId: "u1", revieweeId: "u2", rating: 4, comment: "Buen lote, aunque faltaba el de ingles. Buen precio igualmente.", createdAt: "2025-11-16" },
-  { id: "r3", listingId: "l3", reviewerId: "u5", revieweeId: "u1", rating: 5, comment: "Muy generosa con la donacion. El uniforme estaba impecable.", createdAt: "2025-11-15" },
+  { id: "r1", listingId: "l1", reviewerId: "u2", revieweeId: "u1", rating: 5, comment: "Todo perfecto, libro en buen estado y entrega rapida.", createdAt: "2025-11-10" },
+  { id: "r2", listingId: "l4", reviewerId: "u3", revieweeId: "u5", rating: 4, comment: "Calculadora como nueva.", createdAt: "2025-11-12" },
 ]
 
-// --- Mock Donation Requests ---
 export const donationRequests: DonationRequest[] = [
-  { id: "d1", listingId: "l3", requesterId: "u5", status: "pending", message: "Hola, me gustaria el uniforme para mi hijo que empieza este ano.", createdAt: "2025-11-14" },
-  { id: "d2", listingId: "l6", requesterId: "u2", status: "pending", message: "Mi hija necesita una flauta para clase de musica.", createdAt: "2025-11-15" },
-  { id: "d3", listingId: "l3", requesterId: "u2", status: "pending", message: "Tenemos una situacion dificil y nos vendria muy bien el uniforme.", createdAt: "2025-11-13" },
+  { id: "dr1", listingId: "l3", requesterId: "u5", status: "pending", message: "Hola, me interesa para mi hijo.", createdAt: "2025-11-15" },
 ]
-
-// --- Impact Metrics (school-level) ---
-export const schoolMetrics = {
-  s1: {
-    itemsReused: 156,
-    donationsCompleted: 34,
-    familiesParticipating: 89,
-    moneySaved: 2340,
-  },
-  s2: {
-    itemsReused: 78,
-    donationsCompleted: 12,
-    familiesParticipating: 45,
-    moneySaved: 1150,
-  },
-}
-
-// --- Helper functions ---
-export function getUserById(id: string) {
-  return users.find(u => u.id === id)
-}
-
-export function getSchoolById(id: string) {
-  return schools.find(s => s.id === id)
-}
-
-export function getListingById(id: string) {
-  return listings.find(l => l.id === id)
-}
-
-export function getListingsBySchool(schoolId: string) {
-  return listings.filter(l => l.schoolId === schoolId && l.status === "active")
-}
-
-export function getListingsBySeller(sellerId: string) {
-  return listings.filter(l => l.sellerId === sellerId)
-}
-
-export function getReviewsForUser(userId: string) {
-  return reviews.filter(r => r.revieweeId === userId)
-}
-
-export function getConversationsForUser(userId: string) {
-  return conversations.filter(c => c.participants.includes(userId))
-}
-
-export function getDonationRequestsBySchool(schoolId: string) {
-  return donationRequests.filter(dr => {
-    const listing = getListingById(dr.listingId)
-    return listing?.schoolId === schoolId
-  })
-}
-
-// Current logged-in user (mock session)
-export const currentUser = users[0] // Ana Garcia
-export const currentSchool = schools[0] // CEIP San Miguel
