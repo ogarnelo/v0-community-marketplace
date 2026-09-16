@@ -18,7 +18,7 @@ const steps = [
     icon: Handshake,
     step: "03",
     title: "Contacta y acuerda",
-    description: "Usa el chat para resolver dudas y confirmar el acuerdo. La entrega y el pago se hacen fuera de Wetudy.",
+    description: "Usa el chat para resolver dudas y confirmar el acuerdo. La entrega y el pago se acuerdan directamente entre las partes.",
   },
 ]
 
