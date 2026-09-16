@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -20,6 +21,15 @@ export async function GET(request: Request) {
 
   if (user) {
     const metadata = user.user_metadata || {};
+    const legacyName = splitLegacyFullName(
+      typeof metadata.full_name === "string" ? metadata.full_name : null
+    );
+    const firstName = normalizeNamePart(
+      typeof metadata.first_name === "string" ? metadata.first_name : legacyName.firstName
+    );
+    const lastName = normalizeNamePart(
+      typeof metadata.last_name === "string" ? metadata.last_name : legacyName.lastName
+    );
     const invitedSchoolId =
       typeof metadata.invited_school_id === "string" &&
         metadata.invited_school_id.trim().length > 0
@@ -33,7 +43,9 @@ export async function GET(request: Request) {
     await supabase.from("profiles").upsert(
       {
         id: user.id,
-        full_name: metadata.full_name || null,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        full_name: buildFullName(firstName, lastName),
         user_type:
           metadata.user_type === "parent" || metadata.user_type === "student" || metadata.user_type === "business"
             ? metadata.user_type
