@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       .from("saved_search_matches")
       .select("id, user_id")
       .eq("listing_id", listing.id)
+      .in("saved_search_id", matches.map((match) => match.saved_search_id))
       .is("emailed_at", null);
 
     if (pendingError) throw pendingError;
