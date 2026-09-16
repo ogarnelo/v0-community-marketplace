@@ -33,13 +33,19 @@ export async function POST(request: Request) {
     ]);
 
     if (isConfirmed) {
-      const [{ data: listing }, { data: buyer }, { data: seller }] = await Promise.all([
+      const [{ data: listing }, { data: buyerProfile }, { data: sellerProfile }, buyerAuth, sellerAuth] = await Promise.all([
         admin.from("listings").select("title").eq("id", agreement.listing_id).maybeSingle(),
-        admin.from("profiles").select("email, full_name").eq("id", agreement.buyer_id).maybeSingle(),
-        admin.from("profiles").select("email, full_name").eq("id", agreement.seller_id).maybeSingle(),
+        admin.from("profiles").select("full_name").eq("id", agreement.buyer_id).maybeSingle(),
+        admin.from("profiles").select("full_name").eq("id", agreement.seller_id).maybeSingle(),
+        admin.auth.admin.getUserById(agreement.buyer_id),
+        admin.auth.admin.getUserById(agreement.seller_id),
       ]);
-      await Promise.all([buyer, seller].filter((recipient) => recipient?.email).map(async (recipient) => {
-        try { await sendAgreementConfirmedEmail({ to: recipient!.email, recipientName: recipient!.full_name, listingTitle: listing?.title || "el anuncio", conversationId: agreement.conversation_id }); }
+      const recipients = [
+        { email: buyerAuth.data.user?.email, fullName: buyerProfile?.full_name },
+        { email: sellerAuth.data.user?.email, fullName: sellerProfile?.full_name },
+      ];
+      await Promise.all(recipients.filter((recipient) => recipient.email).map(async (recipient) => {
+        try { await sendAgreementConfirmedEmail({ to: recipient.email!, recipientName: recipient.fullName, listingTitle: listing?.title || "el anuncio", conversationId: agreement.conversation_id }); }
         catch (emailError) { console.error("No se pudo enviar el email de confirmación", emailError); }
       }));
     }
