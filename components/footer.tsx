@@ -30,8 +30,8 @@ export function Footer() {
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">Comunidad</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="/onboarding/join-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Añadir centro</Link></li>
-              <li><Link href="/register-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Registrar centro</Link></li>
+              <li><Link href="/onboarding/join-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vincular mi centro</Link></li>
+              <li><Link href="/register-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Solicitar alta de un centro</Link></li>
               <li><Link href="/help" className="text-sm text-muted-foreground transition-colors hover:text-primary">Centro de ayuda</Link></li>
             </ul>
           </div>
