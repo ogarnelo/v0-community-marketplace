@@ -372,6 +372,13 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
       const { error: listingPhotosError } = await supabase.from("listing_photos").insert(uploadedPhotoRows);
       if (listingPhotosError) throw listingPhotosError;
 
+      await fetch("/api/marketplace/listings/match-saved-searches", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ listingId }),
+}).catch((matchError) => {
+  console.error("No se pudieron procesar los avisos guardados", matchError);
+});
       router.push(`/marketplace/listing/${listingId}`);
       router.refresh();
     } catch (error: any) {
