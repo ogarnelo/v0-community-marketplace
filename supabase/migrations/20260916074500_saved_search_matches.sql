@@ -15,20 +15,19 @@ drop policy if exists "saved_search_matches_select_own" on public.saved_search_m
 create policy "saved_search_matches_select_own"
   on public.saved_search_matches
   for select
-  using (auth.uid() = user_id);
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "saved_search_matches_delete_own" on public.saved_search_matches;
 create policy "saved_search_matches_delete_own"
   on public.saved_search_matches
   for delete
-  using (auth.uid() = user_id);
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
+-- Server-side jobs use the Supabase service role, which bypasses RLS.
+-- No service_role policy is needed here.
 drop policy if exists "saved_search_matches_service_manage" on public.saved_search_matches;
-create policy "saved_search_matches_service_manage"
-  on public.saved_search_matches
-  for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
 
 create index if not exists saved_search_matches_user_created_idx
   on public.saved_search_matches(user_id, created_at desc);
