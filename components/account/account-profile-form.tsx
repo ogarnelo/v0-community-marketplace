@@ -12,6 +12,7 @@ import { Loader2, Save, School, Mail, User2, Search, Check, KeyRound, BriefcaseB
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getUserTypeLabel } from "@/lib/marketplace/formatters";
+import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 
 type SchoolOption = {
   id: string;
@@ -21,7 +22,8 @@ type SchoolOption = {
 };
 
 type AccountProfileFormProps = {
-  initialFullName: string;
+  initialFirstName: string;
+  initialLastName: string;
   initialUserType: "parent" | "student" | "business" | "";
   initialGradeLevel: string;
   initialPostalCode: string;
@@ -47,7 +49,8 @@ type SchoolAccessCodeResult = {
 
 export default function AccountProfileForm(props: AccountProfileFormProps) {
   const {
-    initialFullName,
+    initialFirstName,
+    initialLastName,
     initialUserType,
     initialGradeLevel,
     initialPostalCode,
@@ -67,7 +70,8 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
   } = props;
 
   const router = useRouter();
-  const [fullName, setFullName] = useState(initialFullName);
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
   const [userType, setUserType] = useState<"parent" | "student" | "business" | "">(initialUserType);
   const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
   const [postalCode, setPostalCode] = useState(initialPostalCode);
@@ -141,6 +145,17 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     setSuccessMessage("");
     setErrorMessage("");
 
+    const normalizedFirstName = normalizeNamePart(firstName);
+    const normalizedLastName = normalizeNamePart(lastName);
+
+    if (!normalizedFirstName) {
+      setErrorMessage("El nombre es obligatorio.");
+      return;
+    }
+    if (!normalizedLastName) {
+      setErrorMessage("Los apellidos son obligatorios.");
+      return;
+    }
     if (!userType) {
       setErrorMessage("Debes seleccionar un tipo de usuario antes de guardar.");
       return;
@@ -159,12 +174,15 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
         return;
       }
 
+      const normalizedFullName = buildFullName(normalizedFirstName, normalizedLastName);
       const normalizedPostalCode = postalCode.trim();
       const normalizedSchoolId = selectedSchoolId.trim();
       const selectedSchoolName = normalizedSchoolId.length > 0 ? schoolOptions.find((school) => school.id === normalizedSchoolId)?.name || null : null;
       const payload = {
         id: user.id,
-        full_name: fullName.trim() || null,
+        first_name: normalizedFirstName,
+        last_name: normalizedLastName,
+        full_name: normalizedFullName,
         user_type: userType,
         grade_level: isBusiness ? null : gradeLevel.trim() || null,
         postal_code: normalizedPostalCode || null,
@@ -185,7 +203,9 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
-          full_name: fullName.trim() || null,
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
+          full_name: normalizedFullName,
           user_type: userType,
           grade_level: isBusiness ? null : gradeLevel.trim() || null,
           postal_code: normalizedPostalCode || null,
@@ -218,11 +238,19 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
       <CardContent>
         <form className="space-y-8" onSubmit={handleSubmit}>
           <div className="grid gap-5 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="full_name">Nombre</Label>
+            <div className="space-y-2">
+              <Label htmlFor="first_name">Nombre</Label>
               <div className="relative">
                 <User2 className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                <Input id="full_name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="pl-9" placeholder="Tu nombre" />
+                <Input id="first_name" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="pl-9" placeholder="Nombre" required />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="last_name">Apellidos</Label>
+              <div className="relative">
+                <User2 className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                <Input id="last_name" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} className="pl-9" placeholder="Apellidos" required />
               </div>
             </div>
 
@@ -237,7 +265,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
             <div className="space-y-2">
               <Label>Tipo de usuario</Label>
               <Select value={userType} onValueChange={(value) => setUserType(value as any)}>
-                <SelectTrigger><SelectValue placeholder={currentUserTypeLabel} /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder={currentUserTypeLabel} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="parent">Familia / Tutor legal</SelectItem>
                   <SelectItem value="student">Estudiante</SelectItem>
@@ -250,7 +278,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               <div className="space-y-2">
                 <Label>Curso / nivel</Label>
                 <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona un curso" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un curso" /></SelectTrigger>
                   <SelectContent>
                     {normalizedGradeLevelOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
                   </SelectContent>
@@ -262,7 +290,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               <Label htmlFor="postal_code">Código postal</Label>
               <div className="relative">
                 <MapPin className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                <Input id="postal_code" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className="pl-9" placeholder="28001" />
+                <Input id="postal_code" inputMode="numeric" autoComplete="postal-code" value={postalCode} onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))} className="pl-9" placeholder="28001" maxLength={5} />
               </div>
             </div>
 
@@ -270,12 +298,12 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               <Label>Centro educativo</Label>
               <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="w-full justify-between">
+                  <Button type="button" variant="outline" className="w-full min-w-0 justify-between">
                     <span className="truncate">{selectedSchool ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}` : "Selecciona un centro"}</span>
-                    <School className="ml-2 h-4 w-4 text-muted-foreground" />
+                    <School className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-3" align="start">
+                <PopoverContent className="w-[min(320px,calc(100vw-2rem))] p-3" align="start">
                   <div className="space-y-3">
                     <div className="relative">
                       <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -286,17 +314,17 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
                         <button
                           key={school.id}
                           type="button"
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-muted"
+                          className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted"
                           onClick={() => {
                             setSelectedSchoolId(school.id);
                             setSchoolPopoverOpen(false);
                           }}
                         >
-                          <div>
-                            <p className="font-medium">{school.name}</p>
-                            <p className="text-xs text-muted-foreground">{[school.city, school.postal_code].filter(Boolean).join(" · ")}</p>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{school.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{[school.city, school.postal_code].filter(Boolean).join(" · ")}</p>
                           </div>
-                          {selectedSchoolId === school.id ? <Check className="h-4 w-4 text-[#7EBA28]" /> : null}
+                          {selectedSchoolId === school.id ? <Check className="h-4 w-4 shrink-0 text-[#7EBA28]" /> : null}
                         </button>
                       ))}
                     </div>
@@ -307,12 +335,12 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="school_code">Código de centro</Label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="relative min-w-0 flex-1">
                   <KeyRound className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input id="school_code" value={schoolAccessCode} onChange={(e) => setSchoolAccessCode(e.target.value)} className="pl-9 uppercase" placeholder="Introduce un código" />
                 </div>
-                <Button type="button" variant="outline" onClick={applySchoolAccessCode} disabled={accessCodeLoading}>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={applySchoolAccessCode} disabled={accessCodeLoading}>
                   {accessCodeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Aplicar
                 </Button>
@@ -387,7 +415,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
           {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
           {errorMessage ? <p className="text-sm text-rose-600">{errorMessage}</p> : null}
 
-          <Button type="submit" disabled={loading} className="gap-2">
+          <Button type="submit" disabled={loading} className="w-full gap-2 sm:w-auto">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar cambios
           </Button>
