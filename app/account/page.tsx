@@ -13,6 +13,7 @@ import {
   CalendarDays,
   GraduationCap,
   Heart,
+  KeyRound,
   LifeBuoy,
   Mail,
   MapPin,
@@ -43,6 +44,7 @@ const quickActions = [
   { href: "/favorites", label: "Favoritos", helper: "Guarda material", icon: Heart },
   { href: "/account/saved-searches", label: "Mis búsquedas", helper: "Reabre avisos", icon: Search },
   { href: "/account/activity", label: "Mis acuerdos", helper: "Actividad MVP", icon: Bell },
+  { href: "/account/security", label: "Seguridad", helper: "Cambia tu contraseña", icon: KeyRound },
   { href: "/help", label: "Soporte", helper: "Centro de ayuda", icon: LifeBuoy },
 ];
 
@@ -122,7 +124,7 @@ export default async function AccountPage() {
           </div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
