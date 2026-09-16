@@ -22,9 +22,11 @@ test("register school keeps the authenticated navbar and avoids a duplicate head
 
 test("mobile listing CTA is compact and the marketplace FAB no longer overlays cards", () => {
   const actions = read("components/marketplace/mobile-listing-actions.tsx");
+  const contact = read("components/messages/contact-seller-button.tsx");
   const globals = read("app/globals.css");
   assert.match(actions, /flex max-w-md items-center gap-3/);
   assert.doesNotMatch(actions, /Acuerdo local/);
+  assert.match(contact, /hidden w-full md:inline-flex/);
   assert.match(globals, /a\[href='\/marketplace\/new'\]\.fixed/);
   assert.match(globals, /display: none !important/);
 });
