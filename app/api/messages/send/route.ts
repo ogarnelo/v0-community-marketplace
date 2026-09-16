@@ -16,14 +16,16 @@ export async function POST(request: Request) {
     if (!conversation) return NextResponse.json({ error: "No se encontró la conversación." }, { status: 404 });
     if (conversation.buyer_id !== user.id && conversation.seller_id !== user.id) return NextResponse.json({ error: "No puedes gestionar esta conversación." }, { status: 403 });
     const recipientId = user.id === conversation.buyer_id ? conversation.seller_id : conversation.buyer_id;
-    const [{ count: senderMessageCount }, { data: listing }, { data: recipient }] = await Promise.all([
+    const [{ count: senderMessageCount }, { data: listing }, { data: recipientProfile }, recipientAuth] = await Promise.all([
       admin.from("messages").select("id", { count: "exact", head: true }).eq("conversation_id", conversation.id).eq("sender_id", user.id),
       admin.from("listings").select("title").eq("id", conversation.listing_id).maybeSingle(),
-      admin.from("profiles").select("email, full_name").eq("id", recipientId).maybeSingle(),
+      admin.from("profiles").select("full_name").eq("id", recipientId).maybeSingle(),
+      admin.auth.admin.getUserById(recipientId),
     ]);
-    if ((senderMessageCount || 0) !== 1 || !recipient?.email) return NextResponse.json({ ok: true, skipped: true });
+    const recipientEmail = recipientAuth.data.user?.email;
+    if ((senderMessageCount || 0) !== 1 || !recipientEmail) return NextResponse.json({ ok: true, skipped: true });
     try {
-      await sendFirstMessageEmail({ to: recipient.email, recipientName: recipient.full_name, listingTitle: listing?.title || "el anuncio", conversationId: conversation.id });
+      await sendFirstMessageEmail({ to: recipientEmail, recipientName: recipientProfile?.full_name, listingTitle: listing?.title || "el anuncio", conversationId: conversation.id });
     } catch (emailError) {
       console.error("No se pudo enviar el email del primer mensaje", emailError);
     }
