@@ -28,13 +28,21 @@ import AccountProfileForm from "@/components/account/account-profile-form";
 import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
+import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
 
 type SafeUserMetadata = {
+  first_name?: string;
+  last_name?: string;
   full_name?: string;
   user_type?: string;
   grade_level?: string;
   postal_code?: string;
   school_name?: string;
+};
+
+type AccountProfileWithNames = AccountProfileRow & {
+  first_name?: string | null;
+  last_name?: string | null;
 };
 
 const quickActions = [
@@ -58,7 +66,7 @@ export default async function AccountPage() {
   const [{ data: profile, error: profileError }, { data: schoolsData, error: schoolsError }, stats] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, full_name, user_type, grade_level, postal_code, school_id, shipping_city, phone, created_at")
+      .select("id, first_name, last_name, full_name, user_type, grade_level, postal_code, school_id, shipping_city, phone, created_at")
       .eq("id", user.id)
       .maybeSingle(),
     supabase.from("schools").select("id, name, city, postal_code").order("name", { ascending: true }),
@@ -68,10 +76,12 @@ export default async function AccountPage() {
   if (profileError) console.error("Error cargando profile:", profileError);
   if (schoolsError) console.error("Error cargando schools:", schoolsError);
 
-  const typedProfile = (profile || null) as AccountProfileRow | null;
+  const typedProfile = (profile || null) as AccountProfileWithNames | null;
   const schoolOptions: SchoolRow[] = Array.isArray(schoolsData) ? (schoolsData as SchoolRow[]) : [];
-
-  const fullName = typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
+  const legacyName = splitLegacyFullName(typedProfile?.full_name || metadata.full_name || null);
+  const firstName = normalizeNamePart(typedProfile?.first_name || metadata.first_name || legacyName.firstName);
+  const lastName = normalizeNamePart(typedProfile?.last_name || metadata.last_name || legacyName.lastName);
+  const fullName = buildFullName(firstName, lastName) || typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
   const email = user.email || "Sin email";
   const userType = typedProfile?.user_type || metadata.user_type || null;
   const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
@@ -95,12 +105,12 @@ export default async function AccountPage() {
           <div className="bg-gradient-to-br from-primary/10 via-background to-background p-5 sm:p-7">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-4">
-                <Avatar className="h-16 w-16 border-4 border-background shadow-sm sm:h-20 sm:w-20">
+                <Avatar className="h-16 w-16 shrink-0 border-4 border-background shadow-sm sm:h-20 sm:w-20">
                   <AvatarFallback className="text-lg font-semibold">{getInitials(fullName, email)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-primary">Mi perfil</p>
-                  <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">{fullName}</h1>
+                  <h1 className="break-words text-2xl font-bold tracking-tight sm:truncate sm:text-3xl">{fullName}</h1>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
                     {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
@@ -108,7 +118,7 @@ export default async function AccountPage() {
                   </div>
                 </div>
               </div>
-              <Button asChild className="min-h-11 rounded-full sm:px-6">
+              <Button asChild className="min-h-11 w-full rounded-full sm:w-auto sm:px-6">
                 <Link href="/marketplace/new">Publicar anuncio</Link>
               </Button>
             </div>
@@ -128,10 +138,10 @@ export default async function AccountPage() {
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
-              <Link key={action.href} href={action.href} className="rounded-2xl border bg-background p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <Link key={action.href} href={action.href} className="min-w-0 rounded-2xl border bg-background p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <Icon className="mb-3 h-5 w-5 text-primary" />
-                <p className="font-semibold leading-tight">{action.label}</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{action.helper}</p>
+                <p className="break-words font-semibold leading-tight">{action.label}</p>
+                <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">{action.helper}</p>
               </Link>
             );
           })}
@@ -150,7 +160,8 @@ export default async function AccountPage() {
 
         <div className="mt-6">
           <AccountProfileForm
-            initialFullName={typedProfile?.full_name || ""}
+            initialFirstName={firstName}
+            initialLastName={lastName}
             initialUserType={userType === "parent" || userType === "student" || userType === "business" ? userType : ""}
             initialGradeLevel={typedProfile?.grade_level || ""}
             initialPostalCode={typedProfile?.postal_code || ""}
