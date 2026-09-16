@@ -116,132 +116,132 @@ export default async function PublicProfilePage({
         adminHref={navbarData.adminHref}
       />
 
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-        <div className="mb-6">
+      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8 lg:px-8">
+        <div className="mb-4 sm:mb-6">
           <Link href="/marketplace">
-            <Button variant="ghost" className="gap-2">
+            <Button variant="ghost" className="h-10 gap-2 px-1 sm:px-3">
               <ArrowLeft className="h-4 w-4" />
               Volver al marketplace
             </Button>
           </Link>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-1">
-            <Card className="overflow-hidden">
-              <CardContent className="p-6">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="space-y-4 sm:space-y-6 lg:col-span-1">
+            <Card className="overflow-hidden gap-0 py-0 sm:gap-6 sm:py-6">
+              <CardContent className="p-4 sm:px-6 sm:pb-6 sm:pt-0">
                 <div className="flex flex-col items-center text-center">
-                  <Avatar className="h-20 w-20">
-                    <AvatarFallback className="text-lg">
+                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
+                    <AvatarFallback className="text-base sm:text-lg">
                       {getInitials(sellerName)}
                     </AvatarFallback>
                   </Avatar>
 
-                  <h1 className="mt-4 text-2xl font-bold">{sellerName}</h1>
+                  <h1 className="mt-3 text-xl font-bold sm:mt-4 sm:text-2xl">{sellerName}</h1>
                   <p className="mt-1 text-sm text-muted-foreground">{sellerUserType}</p>
 
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <div className="mt-3 flex flex-wrap justify-center gap-1.5 sm:mt-4 sm:gap-2">
                     <Badge variant="secondary">Perfil público</Badge>
                     {typedProfile.is_business_verified ? <Badge>Negocio verificado</Badge> : null}
                   </div>
                 </div>
 
-                <UserBadgePills badges={badges} className="mt-4 justify-center" />
+                <UserBadgePills badges={badges} className="mt-3 justify-center sm:mt-4" />
 
-                <div className="mt-6 space-y-3 rounded-2xl border p-4">
+                <div className="mt-4 space-y-2 rounded-2xl border p-3 sm:mt-6 sm:space-y-3 sm:p-4">
                   {sellerPostalCode ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
+                      <MapPin className="h-4 w-4 shrink-0" />
                       <span>{sellerPostalCode}</span>
                     </div>
                   ) : null}
 
                   {typedProfile.user_type !== "business" && sellerGradeLevel ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <GraduationCap className="h-4 w-4" />
+                      <GraduationCap className="h-4 w-4 shrink-0" />
                       <span>{sellerGradeLevel}</span>
                     </div>
                   ) : null}
 
                   {typedProfile.user_type === "business" && typedProfile.business_name ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <BriefcaseBusiness className="h-4 w-4" />
+                      <BriefcaseBusiness className="h-4 w-4 shrink-0" />
                       <span>{typedProfile.business_name}</span>
                     </div>
                   ) : null}
 
                   {typedProfile.user_type === "business" && typedProfile.website ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Globe className="h-4 w-4" />
-                      <a href={typedProfile.website} target="_blank" rel="noreferrer" className="hover:text-foreground">
+                    <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                      <Globe className="h-4 w-4 shrink-0" />
+                      <a href={typedProfile.website} target="_blank" rel="noreferrer" className="truncate hover:text-foreground">
                         {typedProfile.website}
                       </a>
                     </div>
                   ) : null}
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <User className="h-4 w-4" />
+                    <User className="h-4 w-4 shrink-0" />
                     <span>Perfil visible dentro de Wetudy</span>
                   </div>
                 </div>
 
                 {typedProfile.user_type === "business" && typedProfile.business_description ? (
-                  <div className="mt-4 rounded-2xl border p-4 text-sm text-muted-foreground">
+                  <div className="mt-3 rounded-2xl border p-3 text-sm text-muted-foreground sm:mt-4 sm:p-4">
                     {typedProfile.business_description}
                   </div>
                 ) : null}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
+            <Card className="gap-4 py-4 sm:gap-6 sm:py-6">
+              <CardHeader className="px-4 sm:px-6">
                 <CardTitle>Confianza del vendedor</CardTitle>
                 <CardDescription>
                   Información pública visible para otros usuarios.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-                <div className="rounded-2xl border p-4">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                    <Star className="h-4 w-4" />
-                    Valoración media
+              <CardContent className="grid grid-cols-3 gap-2 px-4 sm:gap-4 sm:px-6 lg:grid-cols-1">
+                <div className="min-w-0 rounded-2xl border p-3 sm:p-4">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium leading-tight sm:mb-2 sm:gap-2 sm:text-sm">
+                    <Star className="h-4 w-4 shrink-0" />
+                    <span>Valoración media</span>
                   </div>
-                  <p className="text-2xl font-bold">
+                  <p className="text-xl font-bold sm:text-2xl">
                     {typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—"}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border p-4">
-                  <div className="mb-2 text-sm font-medium">Valoraciones</div>
-                  <p className="text-2xl font-bold">{stats.reviewCount}</p>
+                <div className="min-w-0 rounded-2xl border p-3 sm:p-4">
+                  <div className="mb-1.5 text-[11px] font-medium leading-tight sm:mb-2 sm:text-sm">Valoraciones</div>
+                  <p className="text-xl font-bold sm:text-2xl">{stats.reviewCount}</p>
                 </div>
 
-                <div className="rounded-2xl border p-4">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                    <Package className="h-4 w-4" />
-                    Anuncios activos
+                <div className="min-w-0 rounded-2xl border p-3 sm:p-4">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium leading-tight sm:mb-2 sm:gap-2 sm:text-sm">
+                    <Package className="h-4 w-4 shrink-0" />
+                    <span>Anuncios activos</span>
                   </div>
-                  <p className="text-2xl font-bold">{activeListings.length}</p>
+                  <p className="text-xl font-bold sm:text-2xl">{activeListings.length}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="space-y-6 lg:col-span-2">
-            <Card>
-              <CardHeader>
+          <div className="space-y-4 sm:space-y-6 lg:col-span-2">
+            <Card className="gap-4 py-4 sm:gap-6 sm:py-6">
+              <CardHeader className="px-4 sm:px-6">
                 <CardTitle>Anuncios activos</CardTitle>
                 <CardDescription>
                   Material que este vendedor tiene disponible ahora mismo.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 {activeListings.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Este usuario no tiene anuncios activos en este momento.
                   </p>
                 ) : (
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
                     {activeListings.map((listing) => {
                       const firstPhoto = firstPhotoMap.get(listing.id) || null;
                       const isDonation = getNormalizedListingType(listing) === "donation";
@@ -269,17 +269,17 @@ export default async function PublicProfilePage({
                             )}
                           </div>
 
-                          <div className="space-y-3 p-4">
+                          <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div>
+                              <div className="min-w-0">
                                 <h3 className="line-clamp-2 font-semibold">
                                   {listing.title || "Anuncio sin título"}
                                 </h3>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="truncate text-sm text-muted-foreground">
                                   {listing.category || "Sin categoría"}
                                 </p>
                               </div>
-                              <Badge variant={isDonation ? "secondary" : "outline"}>
+                              <Badge className="shrink-0" variant={isDonation ? "secondary" : "outline"}>
                                 {isDonation ? "Donación" : "Venta"}
                               </Badge>
                             </div>
