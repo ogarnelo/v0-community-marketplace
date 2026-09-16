@@ -40,9 +40,13 @@ export async function POST(request: Request) {
     ]);
 
     const recipientId = user.id === conversation.buyer_id ? conversation.seller_id : conversation.buyer_id;
-    const { data: recipient } = await admin.from("profiles").select("email, full_name").eq("id", recipientId).maybeSingle();
-    if (recipient?.email) {
-      try { await sendAgreementProposedEmail({ to: recipient.email, recipientName: recipient.full_name, listingTitle: listing.title || "el anuncio", conversationId: conversation.id }); }
+    const [{ data: recipientProfile }, recipientAuth] = await Promise.all([
+      admin.from("profiles").select("full_name").eq("id", recipientId).maybeSingle(),
+      admin.auth.admin.getUserById(recipientId),
+    ]);
+    const recipientEmail = recipientAuth.data.user?.email;
+    if (recipientEmail) {
+      try { await sendAgreementProposedEmail({ to: recipientEmail, recipientName: recipientProfile?.full_name, listingTitle: listing.title || "el anuncio", conversationId: conversation.id }); }
       catch (emailError) { console.error("No se pudo enviar el email de propuesta", emailError); }
     }
     return NextResponse.json({ ok: true, agreement });
