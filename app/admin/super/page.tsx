@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
-import { Globe } from "lucide-react";
+import { Globe, School, Users } from "lucide-react";
 
 const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
@@ -273,15 +275,26 @@ export default async function SuperAdminPage() {
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <Globe className="h-5 w-5 text-primary-foreground" />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+                <Globe className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
+                <p className="text-sm text-muted-foreground">
+                  Panel global con KPIs, rankings y gestión operativa.
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Super Admin - Wetudy</h1>
-              <p className="text-sm text-muted-foreground">
-                Panel global con KPIs, rankings y gestión operativa.
-              </p>
+
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/admin/super/schools"><School className="h-4 w-4" />Todos los centros</Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/admin/super/users"><Users className="h-4 w-4" />Todos los usuarios</Link>
+              </Button>
             </div>
           </div>
 
@@ -303,5 +316,3 @@ export default async function SuperAdminPage() {
     </div>
   );
 }
-
-
