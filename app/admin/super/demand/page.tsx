@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { buildDemandActionLabel, buildDemandInsights } from "@/lib/admin/demand-insights";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,9 @@ export default async function DemandIntelligencePage() {
   const events = eventResult.data || [];
   const summary = summaryResult.data || [];
   const zeroResults = events.filter((event) => (event.results_count || 0) === 0).length;
+  const actionableInsights = buildDemandInsights(events)
+    .filter((insight) => insight.zeroResults > 0)
+    .slice(0, 12);
   const profile = (profileResult.data as ProfileRow | null) ?? null;
   const navbarUserName = profile?.full_name || user.email || "Super Admin";
 
@@ -134,6 +138,31 @@ export default async function DemandIntelligencePage() {
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" /> Prioridades accionables</CardTitle>
+              <CardDescription>Señales con búsquedas sin resultado, ordenadas para decidir captación y refuerzo de oferta.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              {actionableInsights.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay prioridades pendientes con las señales recientes.</p>
+              ) : null}
+              {actionableInsights.map((insight) => (
+                <div key={`${insight.kind}-${insight.label}`} className="rounded-xl border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{insight.label}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {insight.zeroResults} sin resultado · {insight.searches} búsquedas · última {formatDate(insight.lastSeenAt)}
+                      </p>
+                    </div>
+                    <Badge variant="outline">{buildDemandActionLabel(insight)}</Badge>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
