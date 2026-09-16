@@ -107,7 +107,7 @@ export function SavedSearchesList({ initialSearches }: SavedSearchesListProps) {
                     {item.results_count === 0 ? <Badge variant="outline">Sin resultados</Badge> : null}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Guardada {item.created_at ? new Date(item.created_at).toLocaleDateString("es-ES") : "recientemente"}. Los avisos todavía no envían emails automáticos.
+                    Guardada {item.created_at ? new Date(item.created_at).toLocaleDateString("es-ES") : "recientemente"}. {enabled ? "Aviso activo: te enviaremos un email cuando aparezca una coincidencia." : "Aviso pausado: puedes reactivarlo cuando quieras."}
                   </p>
                 </div>
 
