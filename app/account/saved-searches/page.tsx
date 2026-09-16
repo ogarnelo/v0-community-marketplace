@@ -4,6 +4,7 @@ import { ArrowLeft, Bell, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { SavedSearchesList } from "@/components/account/saved-searches-list";
+import { SavedSearchMatchesList } from "@/components/account/saved-search-matches-list";
 
 export const dynamic = "force-dynamic";
 
@@ -30,16 +31,6 @@ type MatchSearch = {
   category: string | null;
   grade_level: string | null;
 };
-
-function formatMatchedAt(value: string) {
-  return new Intl.DateTimeFormat("es-ES", {
-    timeZone: "Europe/Madrid",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
 
 export default async function SavedSearchesPage() {
   const supabase = await createClient();
@@ -108,6 +99,21 @@ export default async function SavedSearchesPage() {
     }))
     .filter((match) => match.listing?.status === "available");
 
+  const matchItems = visibleMatches.map((match) => {
+    const listing = match.listing!;
+    const savedSearch = match.search;
+    return {
+      id: match.id,
+      listingId: listing.id,
+      listingTitle: listing.title || "Anuncio disponible",
+      category: listing.category,
+      gradeLevel: listing.grade_level,
+      condition: listing.condition,
+      searchLabel: savedSearch?.query || savedSearch?.isbn_query || savedSearch?.category || savedSearch?.grade_level || "Búsqueda guardada",
+      matchedAt: match.matched_at,
+    };
+  });
+
   return (
     <div className="min-h-screen bg-muted/20">
       <div className="mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8 lg:px-8">
@@ -135,37 +141,10 @@ export default async function SavedSearchesPage() {
               <h2 className="mt-1 text-xl font-semibold">Novedades para tus búsquedas</h2>
               <p className="mt-1 text-sm text-muted-foreground">Anuncios disponibles que coinciden con avisos que guardaste.</p>
             </div>
-            {visibleMatches.length > 0 ? <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">{visibleMatches.length}</span> : null}
+            {matchItems.length > 0 ? <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">{matchItems.length}</span> : null}
           </div>
 
-          {visibleMatches.length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              Todavía no hay novedades disponibles. Mantén tus avisos activos y te avisaremos cuando aparezca algo que encaje.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {visibleMatches.map((match) => {
-                const listing = match.listing!;
-                const savedSearch = match.search;
-                const searchLabel = savedSearch?.query || savedSearch?.isbn_query || savedSearch?.category || savedSearch?.grade_level || "Búsqueda guardada";
-                return (
-                  <div key={match.id} className="flex flex-col justify-between rounded-2xl border p-4">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Coincide con: {searchLabel}</p>
-                      <h3 className="mt-2 line-clamp-2 font-semibold text-foreground">{listing.title || "Anuncio disponible"}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {[listing.category, listing.grade_level, listing.condition].filter(Boolean).join(" · ") || "Material disponible"}
-                      </p>
-                      <p className="mt-2 text-xs text-muted-foreground">Detectado {formatMatchedAt(match.matched_at)}</p>
-                    </div>
-                    <Button asChild size="sm" className="mt-4 w-full sm:w-fit">
-                      <Link href={`/marketplace/listing/${listing.id}`}>Ver anuncio</Link>
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <SavedSearchMatchesList initialMatches={matchItems} />
         </section>
 
         <SavedSearchesList initialSearches={(savedSearchesResult.data || []) as any} />
