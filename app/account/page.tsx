@@ -100,65 +100,65 @@ export default async function AccountPage() {
 
   return (
     <div className="min-h-screen bg-muted/20">
-      <div className="mx-auto w-full max-w-6xl px-3 pb-24 pt-4 sm:px-4 sm:py-8 lg:px-8">
-        <div className="mb-5 overflow-hidden rounded-3xl border bg-background shadow-sm sm:mb-8">
-          <div className="bg-gradient-to-br from-primary/10 via-background to-background p-5 sm:p-7">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                <Avatar className="h-16 w-16 shrink-0 border-4 border-background shadow-sm sm:h-20 sm:w-20">
-                  <AvatarFallback className="text-lg font-semibold">{getInitials(fullName, email)}</AvatarFallback>
+      <div className="mx-auto w-full max-w-6xl px-3 pb-20 pt-3 sm:px-4 sm:py-8 lg:px-8">
+        <div className="mb-4 overflow-hidden rounded-3xl border bg-background shadow-sm sm:mb-8">
+          <div className="bg-gradient-to-br from-primary/10 via-background to-background p-4 sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                <Avatar className="h-14 w-14 shrink-0 border-4 border-background shadow-sm sm:h-20 sm:w-20">
+                  <AvatarFallback className="text-base font-semibold sm:text-lg">{getInitials(fullName, email)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-primary">Mi perfil</p>
-                  <h1 className="break-words text-2xl font-bold tracking-tight sm:truncate sm:text-3xl">{fullName}</h1>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <p className="text-xs font-medium text-primary sm:text-sm">Mi perfil</p>
+                  <h1 className="break-words text-xl font-bold tracking-tight sm:truncate sm:text-3xl">{fullName}</h1>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5 sm:mt-2 sm:gap-2">
                     <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
                     {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
                     {contactReady ? <Badge variant="outline">Contacto opcional</Badge> : null}
                   </div>
                 </div>
               </div>
-              <Button asChild className="min-h-11 w-full rounded-full sm:w-auto sm:px-6">
+              <Button asChild className="min-h-10 w-full rounded-full sm:min-h-11 sm:w-auto sm:px-6">
                 <Link href="/marketplace/new">Publicar anuncio</Link>
               </Button>
             </div>
 
-            <div className="mt-5 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-3"><Mail className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{email}</span></div>
-              {typedProfile?.phone ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-3"><Phone className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{typedProfile.phone}</span></div> : null}
-              <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-3"><Building2 className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{schoolName}</span></div>
-              {postalCode ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-3"><MapPin className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">CP {postalCode}</span></div> : null}
-              {gradeLevel ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-3"><GraduationCap className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{gradeLevel}</span></div> : null}
-              {createdAt ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-3"><CalendarDays className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">Desde {new Date(createdAt).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span></div> : null}
+            <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:mt-5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+              <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><Mail className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{email}</span></div>
+              {typedProfile?.phone ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><Phone className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{typedProfile.phone}</span></div> : null}
+              <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><Building2 className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{schoolName}</span></div>
+              {postalCode ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><MapPin className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">CP {postalCode}</span></div> : null}
+              {gradeLevel ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><GraduationCap className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{gradeLevel}</span></div> : null}
+              {createdAt ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><CalendarDays className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">Desde {new Date(createdAt).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span></div> : null}
             </div>
           </div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="mb-4 grid grid-cols-2 gap-2.5 sm:mb-5 sm:grid-cols-4 sm:gap-3 xl:grid-cols-8">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
-              <Link key={action.href} href={action.href} className="min-w-0 rounded-2xl border bg-background p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <Icon className="mb-3 h-5 w-5 text-primary" />
-                <p className="break-words font-semibold leading-tight">{action.label}</p>
-                <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">{action.helper}</p>
+              <Link key={action.href} href={action.href} className="min-w-0 rounded-2xl border bg-background p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4">
+                <Icon className="mb-2 h-5 w-5 text-primary sm:mb-3" />
+                <p className="break-words text-sm font-semibold leading-tight sm:text-base">{action.label}</p>
+                <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground sm:text-xs">{action.helper}</p>
               </Link>
             );
           })}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card><CardContent className="p-5"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground"><Star className="h-4 w-4" />Valoración media</div><p className="text-3xl font-bold">{averageRatingLabel}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Opiniones</div><p className="text-3xl font-bold">{stats.reviewCount}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Acuerdos como vendedor</div><p className="text-3xl font-bold">{stats.soldListingsCount}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><div className="mb-2 text-sm font-medium text-muted-foreground">Acuerdos como comprador</div><p className="text-3xl font-bold">{stats.purchasesCount}</p></CardContent></Card>
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
+          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm"><Star className="h-4 w-4" />Valoración media</div><p className="text-2xl font-bold sm:text-3xl">{averageRatingLabel}</p></CardContent></Card>
+          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Opiniones</div><p className="text-2xl font-bold sm:text-3xl">{stats.reviewCount}</p></CardContent></Card>
+          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Acuerdos vendedor</div><p className="text-2xl font-bold sm:text-3xl">{stats.soldListingsCount}</p></CardContent></Card>
+          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Acuerdos comprador</div><p className="text-2xl font-bold sm:text-3xl">{stats.purchasesCount}</p></CardContent></Card>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <UserBadgePills badges={badges} />
         </div>
 
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <AccountProfileForm
             initialFirstName={firstName}
             initialLastName={lastName}

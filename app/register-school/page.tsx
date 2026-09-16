@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,9 +88,7 @@ export default function RegisterSchoolPage() {
         throw new Error("Debes seleccionar el tipo de centro.");
       }
 
-      if (
-        !SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)
-      ) {
+      if (!SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)) {
         throw new Error("El tipo de centro seleccionado no es válido.");
       }
 
@@ -136,9 +133,7 @@ export default function RegisterSchoolPage() {
     } catch (error: any) {
       console.error("Error creando solicitud de centro:", error);
       setErrorMessage(
-        error?.message ||
-        error?.details ||
-        "No se pudo enviar la solicitud. Inténtalo de nuevo."
+        error?.message || error?.details || "No se pudo enviar la solicitud. Inténtalo de nuevo."
       );
     } finally {
       setLoading(false);
@@ -146,10 +141,9 @@ export default function RegisterSchoolPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar />
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-background">
       <main className="flex-1">
-        <div className="mx-auto max-w-xl px-4 py-10 lg:px-8">
+        <div className="mx-auto w-full max-w-xl overflow-x-hidden px-4 py-8 sm:py-10 lg:px-8">
           <Link
             href="/"
             className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -164,13 +158,9 @@ export default function RegisterSchoolPage() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary/15">
                   <CheckCircle2 className="h-8 w-8 text-secondary" />
                 </div>
-                <h2 className="mt-5 text-xl font-bold text-foreground">
-                  Solicitud recibida
-                </h2>
+                <h2 className="mt-5 text-xl font-bold text-foreground">Solicitud recibida</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Gracias. Hemos registrado tu solicitud y aparecerá en el panel de
-                  superadmin para su revisión. Cuando se apruebe, enviaremos una invitación
-                  al email del centro para activar el acceso admin.
+                  Gracias. Hemos registrado tu solicitud y aparecerá en el panel de superadmin para su revisión. Cuando se apruebe, enviaremos una invitación al email del centro para activar el acceso admin.
                 </p>
                 <Link href="/" className="mt-6">
                   <Button variant="outline">Volver al inicio</Button>
@@ -178,23 +168,20 @@ export default function RegisterSchoolPage() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="border-border">
+            <Card className="min-w-0 border-border">
               <CardHeader>
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                   <School className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-2xl text-foreground">
-                  Registrar centro educativo
-                </CardTitle>
+                <CardTitle className="text-2xl text-foreground">Registrar centro educativo</CardTitle>
                 <CardDescription className="leading-relaxed">
-                  Si tu centro o AMPA aun no tiene codigo de acceso, completa este
-                  formulario y el superadmin podrá aprobar su alta. Tras la aprobación, el centro recibirá un email de invitación para activar su acceso.
+                  Si tu centro o AMPA aun no tiene codigo de acceso, completa este formulario y el superadmin podrá aprobar su alta. Tras la aprobación, el centro recibirá un email de invitación para activar su acceso.
                 </CardDescription>
               </CardHeader>
 
               <CardContent>
-                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-                  <div className="flex flex-col gap-2">
+                <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-5">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="schoolName">Nombre del centro *</Label>
                     <Input
                       id="schoolName"
@@ -205,10 +192,10 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Label>Tipo de centro *</Label>
                     <Select value={schoolType} onValueChange={setSchoolType}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full min-w-0">
                         <SelectValue placeholder="Selecciona" />
                       </SelectTrigger>
                       <SelectContent>
@@ -221,7 +208,7 @@ export default function RegisterSchoolPage() {
                     </Select>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="address">Direccion *</Label>
                     <Input
                       id="address"
@@ -232,8 +219,8 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="flex flex-col gap-2">
+                  <div className="grid min-w-0 gap-4 sm:grid-cols-3">
+                    <div className="flex min-w-0 flex-col gap-2">
                       <Label htmlFor="city">Ciudad *</Label>
                       <Input
                         id="city"
@@ -244,7 +231,7 @@ export default function RegisterSchoolPage() {
                       />
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex min-w-0 flex-col gap-2">
                       <Label htmlFor="postalCode">Codigo Postal *</Label>
                       <Input
                         id="postalCode"
@@ -258,10 +245,10 @@ export default function RegisterSchoolPage() {
                       />
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex min-w-0 flex-col gap-2">
                       <Label>C. Autonoma *</Label>
                       <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full min-w-0">
                           <SelectValue placeholder="Selecciona" />
                         </SelectTrigger>
                         <SelectContent>
@@ -275,7 +262,7 @@ export default function RegisterSchoolPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="email">Email de contacto *</Label>
                     <Input
                       id="email"
@@ -287,7 +274,7 @@ export default function RegisterSchoolPage() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="phone">Telefono (opcional)</Label>
                     <Input
                       id="phone"

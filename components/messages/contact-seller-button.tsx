@@ -119,7 +119,7 @@ export function ContactSellerButton({
   return (
     <Button
       size="lg"
-      className="mt-6 w-full"
+      className="mt-6 hidden w-full md:inline-flex"
       onClick={handleContact}
       disabled={loading}
       type="button"

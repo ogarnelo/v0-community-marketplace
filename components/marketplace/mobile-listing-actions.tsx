@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Handshake, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function formatMobilePrice(value?: number | null) {
@@ -30,24 +30,18 @@ export default function MobileListingActions({
   if (isOwnListing || !isAvailable) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2.5 shadow-[0_-12px_30px_rgba(15,23,42,0.12)] backdrop-blur md:hidden">
-      <div className="mx-auto max-w-md">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              {isDonation ? "Donación disponible" : "Precio orientativo"}
-            </p>
-            <p className="truncate text-base font-bold">
-              {isDonation ? "Gratis" : formatMobilePrice(price)}
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-            <Handshake className="h-3.5 w-3.5" />
-            Acuerdo local
-          </div>
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.1)] backdrop-blur md:hidden">
+      <div className="mx-auto flex max-w-md items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {isDonation ? "Donación" : "Precio orientativo"}
+          </p>
+          <p className="truncate text-lg font-bold leading-tight">
+            {isDonation ? "Gratis" : formatMobilePrice(price)}
+          </p>
         </div>
 
-        <Button asChild size="lg" className="w-full gap-2">
+        <Button asChild size="lg" className="min-h-11 min-w-[9rem] shrink-0 gap-2 px-5">
           <Link href={`/messages?listing=${listingId}`}>
             <MessageCircle className="h-4 w-4" />
             Contactar
