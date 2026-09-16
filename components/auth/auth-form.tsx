@@ -10,22 +10,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Mail, Lock, User, MapPin } from "lucide-react";
 import { gradeLevels } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
+import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 
 type AuthMode = "login" | "signup" | "forgot";
 type SupportedSignupUserType = "parent" | "student" | "";
 
 async function upsertProfileAfterAuth(params: {
   userId: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   userType: SupportedSignupUserType;
   gradeLevel: string;
   postalCode: string;
 }) {
   const supabase = createClient();
+  const fullName = buildFullName(params.firstName, params.lastName);
 
   const payload = {
     id: params.userId,
-    full_name: params.fullName.trim() || null,
+    first_name: normalizeNamePart(params.firstName) || null,
+    last_name: normalizeNamePart(params.lastName) || null,
+    full_name: fullName,
     user_type: params.userType || null,
     grade_level: params.gradeLevel.trim() || null,
     postal_code: params.postalCode.trim() || null,
@@ -72,7 +77,8 @@ export function AuthForm() {
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
 
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
@@ -119,12 +125,19 @@ export function AuthForm() {
   };
 
   const handleSignup = async () => {
-    const normalizedFullName = fullName.trim();
+    const normalizedFirstName = normalizeNamePart(firstName);
+    const normalizedLastName = normalizeNamePart(lastName);
+    const normalizedFullName = buildFullName(normalizedFirstName, normalizedLastName);
     const normalizedEmail = email.trim();
     const normalizedPostalCode = postalCode.trim();
 
-    if (!normalizedFullName) {
-      setError("El nombre completo es obligatorio.");
+    if (!normalizedFirstName) {
+      setError("El nombre es obligatorio.");
+      return;
+    }
+
+    if (!normalizedLastName) {
+      setError("Los apellidos son obligatorios.");
       return;
     }
 
@@ -170,6 +183,8 @@ export function AuthForm() {
         options: {
           emailRedirectTo: callbackUrl.toString(),
           data: {
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
             full_name: normalizedFullName,
             user_type: userType,
             grade_level: gradeLevel,
@@ -183,7 +198,8 @@ export function AuthForm() {
       if (data.user?.id) {
         await upsertProfileAfterAuth({
           userId: data.user.id,
-          fullName: normalizedFullName,
+          firstName: normalizedFirstName,
+          lastName: normalizedLastName,
           userType,
           gradeLevel,
           postalCode: normalizedPostalCode,
@@ -296,18 +312,36 @@ export function AuthForm() {
           )}
 
           {mode === "signup" && (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Nombre completo *</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="name"
-                  placeholder="Tu nombre"
-                  className="pl-10"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor="firstName">Nombre *</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="firstName"
+                    autoComplete="given-name"
+                    placeholder="Nombre"
+                    className="pl-10"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor="lastName">Apellidos *</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="lastName"
+                    autoComplete="family-name"
+                    placeholder="Apellidos"
+                    className="pl-10"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -329,12 +363,12 @@ export function AuthForm() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <Label htmlFor="password">Contraseña</Label>
               {mode === "login" && (
                 <button
                   type="button"
-                  className="text-xs text-primary hover:underline"
+                  className="shrink-0 text-xs text-primary hover:underline"
                   onClick={() => setMode("forgot")}
                 >
                   ¿Olvidaste tu contraseña?
@@ -364,7 +398,7 @@ export function AuthForm() {
                   value={userType || undefined}
                   onValueChange={(v) => setUserType(v as SupportedSignupUserType)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecciona tu perfil" />
                   </SelectTrigger>
                   <SelectContent>
@@ -380,7 +414,7 @@ export function AuthForm() {
               <div className="flex flex-col gap-2">
                 <Label>Curso / Etapa *</Label>
                 <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecciona curso" />
                   </SelectTrigger>
                   <SelectContent>
@@ -399,6 +433,8 @@ export function AuthForm() {
                   <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="postalCode"
+                    inputMode="numeric"
+                    autoComplete="postal-code"
                     placeholder="28001"
                     className="pl-10"
                     required
@@ -406,7 +442,7 @@ export function AuthForm() {
                     pattern="[0-9]{5}"
                     title="Introduce un código postal válido de 5 dígitos"
                     value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
+                    onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
                   />
                 </div>
               </div>

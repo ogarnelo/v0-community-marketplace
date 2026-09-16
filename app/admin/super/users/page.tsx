@@ -4,11 +4,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users } from "lucide-react";
+import { normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
 
 const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type ProfileRow = {
   id: string;
+  first_name: string | null;
+  last_name: string | null;
   full_name: string | null;
   school_id: string | null;
   created_at: string | null;
@@ -18,17 +21,6 @@ type SchoolRow = {
   id: string;
   name: string;
 };
-
-function splitName(fullName?: string | null) {
-  const normalized = fullName?.trim() || "";
-  if (!normalized) return { firstName: "—", lastName: "—" };
-
-  const [firstName, ...rest] = normalized.split(/\s+/);
-  return {
-    firstName: firstName || "—",
-    lastName: rest.join(" ") || "—",
-  };
-}
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -69,7 +61,7 @@ export default async function SuperAdminUsersPage() {
   const admin = createAdminClient();
   const [authUsers, profilesResult, schoolsResult] = await Promise.all([
     listAllAuthUsers(),
-    admin.from("profiles").select("id, full_name, school_id, created_at").returns<ProfileRow[]>(),
+    admin.from("profiles").select("id, first_name, last_name, full_name, school_id, created_at").returns<ProfileRow[]>(),
     admin.from("schools").select("id, name").returns<SchoolRow[]>(),
   ]);
 
@@ -82,9 +74,12 @@ export default async function SuperAdminUsersPage() {
   const rows = authUsers
     .map((authUser) => {
       const profile = profileById.get(authUser.id);
-      const metadataName = typeof authUser.user_metadata?.full_name === "string" ? authUser.user_metadata.full_name : null;
-      const fullName = profile?.full_name || metadataName || authUser.email?.split("@")[0] || "";
-      const { firstName, lastName } = splitName(fullName);
+      const metadataFirstName = typeof authUser.user_metadata?.first_name === "string" ? authUser.user_metadata.first_name : null;
+      const metadataLastName = typeof authUser.user_metadata?.last_name === "string" ? authUser.user_metadata.last_name : null;
+      const metadataFullName = typeof authUser.user_metadata?.full_name === "string" ? authUser.user_metadata.full_name : null;
+      const legacy = splitLegacyFullName(profile?.full_name || metadataFullName || authUser.email?.split("@")[0] || "");
+      const firstName = normalizeNamePart(profile?.first_name || metadataFirstName || legacy.firstName) || "—";
+      const lastName = normalizeNamePart(profile?.last_name || metadataLastName || legacy.lastName) || "—";
       const metadataSchool = typeof authUser.user_metadata?.school_name === "string" ? authUser.user_metadata.school_name : null;
 
       return {
@@ -100,27 +95,27 @@ export default async function SuperAdminUsersPage() {
 
   return (
     <div className="min-h-screen bg-muted/20">
-      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div className="min-w-0">
             <Link href="/admin/super" className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" /> Volver al panel
             </Link>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                 <Users className="h-5 w-5 text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h1 className="text-2xl font-bold tracking-tight">Usuarios</h1>
                 <p className="text-sm text-muted-foreground">Listado completo de cuentas registradas · {rows.length}</p>
               </div>
             </div>
           </div>
-          <Button asChild variant="outline"><Link href="/admin/super/schools">Ver centros</Link></Button>
+          <Button asChild variant="outline" className="w-full sm:w-auto"><Link href="/admin/super/schools">Ver centros</Link></Button>
         </div>
 
         <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overscroll-x-contain">
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
@@ -138,7 +133,7 @@ export default async function SuperAdminUsersPage() {
                     <td className="px-4 py-3 text-foreground">{row.lastName}</td>
                     <td className="px-4 py-3 text-muted-foreground">{row.email}</td>
                     <td className="px-4 py-3 text-muted-foreground">{row.school}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatDate(row.createdAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(row.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
