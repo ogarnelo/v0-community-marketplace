@@ -19,13 +19,14 @@ export default async function MarketplacePage() {
 
   let favoriteIds = new Set<string>();
   let viewerSchoolId = "";
+  let viewerPostalCode = "";
 
   if (user) {
     const [{ data: favorites }, { data: profile }] = await Promise.all([
       supabase.from("favorites").select("listing_id").eq("user_id", user.id),
       supabase
         .from("profiles")
-        .select("id, full_name, user_type, school_id")
+        .select("id, full_name, user_type, school_id, postal_code")
         .eq("id", user.id)
         .maybeSingle(),
     ]);
@@ -36,12 +37,13 @@ export default async function MarketplacePage() {
 
     const typedProfile = (profile as ProfileRow | null) ?? null;
     viewerSchoolId = typedProfile?.school_id?.trim() || "";
+    viewerPostalCode = typedProfile?.postal_code?.trim() || "";
   }
 
   const { data: listingsData, error: listingsError } = await supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
+      "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, postal_code, status, created_at"
     )
     .eq("status", "available")
     .order("created_at", { ascending: false })
@@ -83,6 +85,7 @@ export default async function MarketplacePage() {
     photos: photosMap.get(item.id) || [],
     sellerId: item.seller_id || item.user_id || null,
     schoolId: item.school_id || null,
+    postalCode: item.postal_code || null,
     status: item.status,
     createdAt: item.created_at || null,
     distance: undefined,
@@ -93,6 +96,7 @@ export default async function MarketplacePage() {
     <MarketplaceClient
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
+      initialPostalCode={viewerPostalCode}
     />
   );
 }

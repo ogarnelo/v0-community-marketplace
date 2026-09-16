@@ -80,6 +80,7 @@ export type MarketplaceListing = {
   photos: string[];
   sellerId: string | null;
   schoolId: string | null;
+  postalCode?: string | null;
   status: string | null;
   createdAt: string | null;
   distance?: number;
