@@ -22,58 +22,57 @@ const missionValues = [
     icon: Heart,
     title: "Accesibilidad",
     description:
-      "Reducimos la barrera economica del material escolar para que ninguna familia tenga que elegir entre educar a sus hijos y llegar a fin de mes.",
+      "Facilitamos que las familias encuentren material escolar reutilizable, donaciones y anuncios con precios claros.",
   },
   {
     icon: Recycle,
     title: "Sostenibilidad",
     description:
-      "Alargamos la vida util de cada libro, mochila y uniforme. Cada reutilizacion es un paso hacia un planeta mas limpio.",
+      "Alargamos la vida útil de libros, mochilas, uniformes y otros materiales que todavía pueden seguir utilizándose.",
   },
   {
     icon: Users,
     title: "Comunidad",
     description:
-      "Conectamos familias del mismo centro educativo para que el material pase de mano en mano dentro de una red de confianza.",
+      "Conectamos familias y estudiantes y permitimos priorizar el colegio, la zona o la provincia como referencia de proximidad.",
   },
   {
     icon: Handshake,
-    title: "Donaciones estructuradas",
+    title: "Acuerdos directos",
     description:
-      "Las donaciones llegan a quien mas las necesita gracias a la coordinacion del AMPA y los administradores del centro.",
+      "Wetudy facilita el contacto, el chat y el historial. La entrega y el pago se acuerdan directamente entre las partes.",
   },
 ];
 
 const howSteps = [
   {
     step: "01",
-    title: "Registrate con tu centro",
+    title: "Crea tu cuenta",
     description:
-      "Crea una cuenta gratuita e introduce el codigo de tu centro educativo para unirte a tu comunidad.",
+      "Regístrate, añade tu zona y, si quieres, vincula tu colegio como filtro de confianza.",
   },
   {
     step: "02",
     title: "Publica o busca material",
     description:
-      "Publica lo que ya no necesitas o encuentra lo que buscas. Libros, uniformes, mochilas y mucho mas.",
+      "Publica lo que ya no necesitas o encuentra libros, uniformes, mochilas y otro material escolar.",
   },
   {
     step: "03",
-    title: "Conecta y acuerda",
+    title: "Contacta y acuerda",
     description:
-      "Chatea con vendedores o compradores de tu centro y acordad el intercambio de forma segura.",
+      "Usa el chat para resolver dudas y dejar constancia del acuerdo entre las partes.",
   },
   {
     step: "04",
-    title: "Mide tu impacto",
+    title: "Confirma y valora",
     description:
-      "Cada transaccion se refleja en las metricas de impacto de tu centro: ahorro, reutilizacion y sostenibilidad.",
+      "Cuando ambas partes confirman el acuerdo, pueden valorar la experiencia o reportar un problema si hace falta.",
   },
 ];
 
 export default async function AboutPage() {
   const supabase = await createClient();
-
   const navbarData = await getNavbarData(supabase);
 
   return (
@@ -96,17 +95,15 @@ export default async function AboutPage() {
               Sobre Wetudy
             </Badge>
             <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-              El marketplace escolar que une familias y cuida el planeta
+              Un punto de encuentro para reutilizar material escolar
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Wetudy nace con una mision clara: que ningun material escolar en buen
-              estado acabe en la basura y que todas las familias puedan acceder a lo
-              que sus hijos necesitan sin renunciar a la calidad.
+              Wetudy nace para que el material escolar en buen estado pueda encontrar una segunda vida y para facilitar el contacto entre familias que buscan, venden o donan.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link href="/auth?mode=signup">
                 <Button size="lg" className="gap-2">
-                  Unete ahora <ArrowRight className="h-4 w-4" />
+                  Únete ahora <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
               <Link href="/marketplace">
@@ -123,11 +120,10 @@ export default async function AboutPage() {
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Nuestra mision
+                Nuestra misión
               </h2>
               <p className="mx-auto mt-3 max-w-2xl leading-relaxed text-muted-foreground">
-                Creemos que la educacion es un derecho y la sostenibilidad una
-                responsabilidad. Wetudy combina ambas cosas.
+                Empezamos por un flujo sencillo: publicar, encontrar, contactar, acordar y confirmar.
               </p>
             </div>
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -154,10 +150,10 @@ export default async function AboutPage() {
           <div className="mx-auto max-w-4xl px-4 lg:px-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Como funciona
+                Cómo funciona
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                En cuatro pasos sencillos empiezas a ahorrar y a contribuir.
+                Cuatro pasos para gestionar un acuerdo de material escolar con claridad.
               </p>
             </div>
             <div className="mt-10 grid gap-8 sm:grid-cols-2">
@@ -182,41 +178,37 @@ export default async function AboutPage() {
           <div className="mx-auto max-w-4xl px-4 lg:px-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Medicion de impacto
+                Qué aprendemos durante el MVP
               </h2>
               <p className="mx-auto mt-3 max-w-xl leading-relaxed text-muted-foreground">
-                Cada transaccion en Wetudy genera datos de impacto real que compartimos
-                con centros, familias y administraciones.
+                Medimos uso real para entender qué materiales faltan y dónde podemos mejorar la experiencia.
               </p>
             </div>
             <div className="mt-10 grid gap-6 sm:grid-cols-3">
               <Card className="border-border text-center">
                 <CardContent className="p-6">
                   <BarChart3 className="mx-auto h-8 w-8 text-primary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Panel por centro</h3>
+                  <h3 className="mt-3 font-semibold text-foreground">Actividad real</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Cada colegio tiene metricas propias: articulos reutilizados,
-                    familias activas y ahorro generado.
+                    Observamos anuncios, contactos y acuerdos para entender el recorrido del usuario.
                   </p>
                 </CardContent>
               </Card>
               <Card className="border-border text-center">
                 <CardContent className="p-6">
                   <School className="mx-auto h-8 w-8 text-primary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Ranking publico</h3>
+                  <h3 className="mt-3 font-semibold text-foreground">Necesidades por comunidad</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Los centros mas activos aparecen en nuestro ranking, motivando la
-                    participacion de toda la comunidad.
+                    Las búsquedas guardadas ayudan a detectar demanda por categoría, curso y comunidad.
                   </p>
                 </CardContent>
               </Card>
               <Card className="border-border text-center">
                 <CardContent className="p-6">
                   <Recycle className="mx-auto h-8 w-8 text-secondary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Huella ambiental</h3>
+                  <h3 className="mt-3 font-semibold text-foreground">Reutilización</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Calculamos el CO2 evitado por cada reutilizacion, contribuyendo a
-                    los ODS de Naciones Unidas.
+                    Seguimos qué materiales encuentran una nueva oportunidad antes de ampliar el producto.
                   </p>
                 </CardContent>
               </Card>
@@ -227,19 +219,18 @@ export default async function AboutPage() {
         <section className="border-t border-border bg-primary/5 py-16 lg:py-20">
           <div className="mx-auto max-w-2xl px-4 text-center lg:px-8">
             <h2 className="text-balance text-2xl font-bold text-foreground sm:text-3xl">
-              Forma parte del cambio
+              Forma parte del lanzamiento
             </h2>
             <p className="mt-3 leading-relaxed text-muted-foreground">
-              Unete a miles de familias que ya ahorran, reutilizan y ayudan a otras
-              familias de su comunidad educativa.
+              Únete a Wetudy para buscar, publicar y reutilizar material escolar con otras familias.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link href="/auth?mode=signup">
                 <Button size="lg">Crear cuenta gratis</Button>
               </Link>
-              <Link href="/ranking">
+              <Link href="/marketplace">
                 <Button variant="outline" size="lg">
-                  Ver ranking de centros
+                  Ver marketplace
                 </Button>
               </Link>
             </div>
