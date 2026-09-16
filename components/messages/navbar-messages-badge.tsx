@@ -16,6 +16,11 @@ export function NavbarMessagesBadge({
   const [count, setCount] = useState(initialCount);
 
   useEffect(() => {
+    // On mobile the navbar already receives the unread count from the server.
+    // Avoid opening several realtime channels for hidden desktop controls plus
+    // the mobile drawer itself; Safari can become unstable under that load.
+    if (window.matchMedia("(max-width: 767px)").matches) return;
+
     let isMounted = true;
 
     const loadUnreadCount = async () => {
