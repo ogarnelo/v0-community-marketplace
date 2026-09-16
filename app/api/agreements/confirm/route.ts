@@ -41,12 +41,19 @@ export async function POST(request: Request) {
         admin.auth.admin.getUserById(agreement.seller_id),
       ]);
       const recipients = [
-        { email: buyerAuth.data.user?.email, fullName: buyerProfile?.full_name },
-        { email: sellerAuth.data.user?.email, fullName: sellerProfile?.full_name },
+        { id: agreement.buyer_id, email: buyerAuth.data.user?.email, fullName: buyerProfile?.full_name },
+        { id: agreement.seller_id, email: sellerAuth.data.user?.email, fullName: sellerProfile?.full_name },
       ];
       await Promise.all(recipients.filter((recipient) => recipient.email).map(async (recipient) => {
-        try { await sendAgreementConfirmedEmail({ to: recipient.email!, recipientName: recipient.fullName, listingTitle: listing?.title || "el anuncio", conversationId: agreement.conversation_id }); }
-        catch (emailError) { console.error("No se pudo enviar el email de confirmación", emailError); }
+        try {
+          await sendAgreementConfirmedEmail({
+            to: recipient.email!,
+            recipientName: recipient.fullName,
+            listingTitle: listing?.title || "el anuncio",
+            conversationId: agreement.conversation_id,
+            idempotencyKey: `agreement-confirmed/${agreement.id}/${recipient.id}`,
+          });
+        } catch (emailError) { console.error("No se pudo enviar el email de confirmación", emailError); }
       }));
     }
     return NextResponse.json({ ok: true, agreement: updated });

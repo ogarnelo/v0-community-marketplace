@@ -46,8 +46,15 @@ export async function POST(request: Request) {
     ]);
     const recipientEmail = recipientAuth.data.user?.email;
     if (recipientEmail) {
-      try { await sendAgreementProposedEmail({ to: recipientEmail, recipientName: recipientProfile?.full_name, listingTitle: listing.title || "el anuncio", conversationId: conversation.id }); }
-      catch (emailError) { console.error("No se pudo enviar el email de propuesta", emailError); }
+      try {
+        await sendAgreementProposedEmail({
+          to: recipientEmail,
+          recipientName: recipientProfile?.full_name,
+          listingTitle: listing.title || "el anuncio",
+          conversationId: conversation.id,
+          idempotencyKey: `agreement-proposed/${agreement.id}`,
+        });
+      } catch (emailError) { console.error("No se pudo enviar el email de propuesta", emailError); }
     }
     return NextResponse.json({ ok: true, agreement });
   } catch (error: any) { return NextResponse.json({ error: error?.message || "No se pudo proponer el acuerdo." }, { status: 500 }); }
