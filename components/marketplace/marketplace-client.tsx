@@ -14,6 +14,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 import {
   Popover,
   PopoverContent,
@@ -23,8 +25,10 @@ import { ListingCard } from "@/components/listing-card";
 import { categories, gradeLevels, conditions } from "@/lib/mock-data";
 import {
   Bell,
+  CalendarDays,
   CheckCircle2,
   HelpCircle,
+  MapPin,
   PackageSearch,
   Plus,
   School,
@@ -50,25 +54,35 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function parsePrice(value: string, fallback: number) {
-  const normalized = value.replace(",", ".").replace(/[^0-9.]/g, "");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
 type MarketplaceClientProps = {
   initialListings: MarketplaceListing[];
   initialSchoolId: string;
 };
 
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
+type PublicationDateFilter = "all" | "today" | "7d" | "30d";
 
-const PRICE_PRESETS = [
-  { label: "0-25 €", min: 0, max: 25 },
-  { label: "25-50 €", min: 25, max: 50 },
-  { label: "50-100 €", min: 50, max: 100 },
-  { label: "100-200 €", min: 100, max: 200 },
+const PRICE_MIN = 0;
+const PRICE_MAX = 200;
+const DISTANCE_STEPS = [1, 5, 10, 30, 50, 100, 200, 201] as const;
+const PUBLICATION_DATE_OPTIONS: Array<{ value: PublicationDateFilter; label: string }> = [
+  { value: "today", label: "Hoy" },
+  { value: "7d", label: "Últimos 7 días" },
+  { value: "30d", label: "Últimos 30 días" },
 ];
+
+function formatDistanceLabel(value: number) {
+  return value > 200 ? "+200 km" : `${value} km`;
+}
+
+function publicationDateThreshold(filter: PublicationDateFilter) {
+  if (filter === "all") return null;
+  const threshold = new Date();
+  if (filter === "today") threshold.setHours(0, 0, 0, 0);
+  if (filter === "7d") threshold.setDate(threshold.getDate() - 7);
+  if (filter === "30d") threshold.setDate(threshold.getDate() - 30);
+  return threshold;
+}
 
 export function MarketplaceClient({ initialListings, initialSchoolId }: MarketplaceClientProps) {
   const [dbListings] = useState<MarketplaceListing[]>(initialListings);
@@ -82,12 +96,17 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
   const [sortBy, setSortBy] = useState("newest");
   const [searchQuery, setSearchQuery] = useState("");
   const [isbnQuery, setIsbnQuery] = useState("");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
+  const [priceRange, setPriceRange] = useState<[number, number]>([PRICE_MIN, PRICE_MAX]);
+  const [distanceStepIndex, setDistanceStepIndex] = useState(DISTANCE_STEPS.length - 1);
+  const [publicationDateFilter, setPublicationDateFilter] = useState<PublicationDateFilter>("all");
   const [saveSearchStatus, setSaveSearchStatus] = useState<SaveSearchStatus>("idle");
 
-  const priceMinValue = priceMin.trim() ? parsePrice(priceMin, 0) : 0;
-  const priceMaxValue = priceMax.trim() ? parsePrice(priceMax, 200) : 200;
+  const priceMinValue = priceRange[0];
+  const priceMaxValue = priceRange[1];
+  const radiusKm = DISTANCE_STEPS[distanceStepIndex];
+  const hasPriceFilter = priceMinValue > PRICE_MIN || priceMaxValue < PRICE_MAX;
+  const hasDistanceFilter = !onlyMyCommunity && radiusKm <= 200;
+  const hasDateFilter = publicationDateFilter !== "all";
 
   const hasSearchIntent = Boolean(
     searchQuery.trim() ||
@@ -97,12 +116,14 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
       listingType !== "all" ||
       condition !== "all" ||
       onlyMyCommunity ||
-      priceMinValue > 0 ||
-      priceMaxValue < 200
+      hasPriceFilter ||
+      hasDistanceFilter ||
+      hasDateFilter
   );
 
   const filteredListings = useMemo(() => {
     const normalizedSearch = normalizeText(searchQuery);
+    const dateThreshold = publicationDateThreshold(publicationDateFilter);
 
     const filtered = dbListings.filter((l) => {
       if (l.status !== "available") return false;
@@ -112,6 +133,13 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
       if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false;
       if (listingType !== "all" && l.type !== listingType) return false;
       if (condition !== "all" && l.condition !== condition) return false;
+
+      if (dateThreshold) {
+        if (!l.createdAt) return false;
+        if (new Date(l.createdAt) < dateThreshold) return false;
+      }
+
+      if (hasDistanceFilter && typeof l.distance === "number" && l.distance > radiusKm) return false;
 
       if (normalizedSearch) {
         const matchesSearch =
@@ -166,6 +194,9 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     priceMinValue,
     priceMaxValue,
     sortBy,
+    publicationDateFilter,
+    hasDistanceFilter,
+    radiusKm,
   ]);
 
   useEffect(() => {
@@ -183,11 +214,12 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
           gradeLevel: gradeLevel === "all" ? null : gradeLevel,
           listingType: listingType === "all" ? null : listingType,
           condition: condition === "all" ? null : condition,
-          priceMin: priceMinValue > 0 ? priceMinValue : null,
-          priceMax: priceMaxValue < 200 ? priceMaxValue : null,
+          priceMin: hasPriceFilter ? priceMinValue : null,
+          priceMax: hasPriceFilter ? priceMaxValue : null,
           onlyMyCommunity,
-          nearbyMode: false,
-          radiusKm: null,
+          nearbyMode: hasDistanceFilter,
+          radiusKm: hasDistanceFilter ? radiusKm : null,
+          publicationDate: publicationDateFilter === "all" ? null : publicationDateFilter,
           resultsCount: filteredListings.length,
           sourcePath: "/marketplace",
         }),
@@ -210,13 +242,17 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     onlyMyCommunity,
     priceMinValue,
     priceMaxValue,
+    hasPriceFilter,
+    hasDistanceFilter,
+    radiusKm,
+    publicationDateFilter,
     filteredListings.length,
     hasSearchIntent,
   ]);
 
   useEffect(() => {
     setSaveSearchStatus("idle");
-  }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceMin, priceMax]);
+  }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceRange, radiusKm, publicationDateFilter]);
 
   const activeFiltersCount = [
     onlyMyCommunity,
@@ -224,8 +260,10 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     gradeLevel !== "all",
     listingType !== "all",
     condition !== "all",
-    priceMinValue > 0 || priceMaxValue < 200,
+    hasPriceFilter,
     isbnQuery.length > 0,
+    hasDistanceFilter,
+    hasDateFilter,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
@@ -236,13 +274,9 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     setCondition("all");
     setSearchQuery("");
     setIsbnQuery("");
-    setPriceMin("");
-    setPriceMax("");
-  };
-
-  const applyPricePreset = (min: number, max: number) => {
-    setPriceMin(min === 0 ? "" : String(min));
-    setPriceMax(max === 200 ? "" : String(max));
+    setPriceRange([PRICE_MIN, PRICE_MAX]);
+    setDistanceStepIndex(DISTANCE_STEPS.length - 1);
+    setPublicationDateFilter("all");
   };
 
   const saveSearch = async () => {
@@ -280,6 +314,10 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     }
   };
 
+  const togglePublicationDate = (value: PublicationDateFilter, checked: boolean | "indeterminate") => {
+    setPublicationDateFilter(checked === true ? value : "all");
+  };
+
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
       <div className="rounded-2xl border border-border bg-card p-3">
@@ -296,6 +334,31 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
             : "Añade tu centro en Mi cuenta para activar este filtro."}
         </p>
       </div>
+
+      {!onlyMyCommunity ? (
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <MapPin className="h-4 w-4 text-primary" />
+              Distancia máxima
+            </Label>
+            <span className="text-sm font-semibold text-foreground">{formatDistanceLabel(radiusKm)}</span>
+          </div>
+          <Slider
+            value={[distanceStepIndex]}
+            min={0}
+            max={DISTANCE_STEPS.length - 1}
+            step={1}
+            onValueChange={(value) => setDistanceStepIndex(value[0] ?? DISTANCE_STEPS.length - 1)}
+            className="mt-4"
+          />
+          <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+            {DISTANCE_STEPS.map((step) => (
+              <span key={step}>{step === 201 ? "+200" : step}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <Label className="text-sm font-medium text-foreground">Categoría</Label>
@@ -354,22 +417,38 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
       </div>
 
       <div className="flex flex-col gap-3">
-        <Label className="text-sm font-medium text-foreground">Rango de precio</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="relative">
-            <Input inputMode="decimal" type="text" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className="h-11 pr-6 text-sm" />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
-          </div>
-          <div className="relative">
-            <Input inputMode="decimal" type="text" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} className="h-11 pr-6 text-sm" />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-sm font-medium text-foreground">Rango de precio</Label>
+          <span className="text-sm font-semibold text-foreground">{priceMinValue} € - {priceMaxValue >= PRICE_MAX ? `+${PRICE_MAX} €` : `${priceMaxValue} €`}</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {PRICE_PRESETS.map((preset) => (
-            <Button key={preset.label} type="button" variant="outline" size="sm" onClick={() => applyPricePreset(preset.min, preset.max)}>
-              {preset.label}
-            </Button>
+        <Slider
+          value={priceRange}
+          min={PRICE_MIN}
+          max={PRICE_MAX}
+          step={5}
+          minStepsBetweenThumbs={1}
+          onValueChange={(value) => setPriceRange([value[0] ?? PRICE_MIN, value[1] ?? PRICE_MAX])}
+        />
+        <div className="flex justify-between text-[11px] text-muted-foreground">
+          <span>{PRICE_MIN} €</span>
+          <span>{PRICE_MAX}+ €</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
+        <Label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          Fecha de publicación
+        </Label>
+        <div className="grid gap-3">
+          {PUBLICATION_DATE_OPTIONS.map((option) => (
+            <Label key={option.value} className="flex cursor-pointer items-center gap-3 text-sm font-normal text-foreground">
+              <Checkbox
+                checked={publicationDateFilter === option.value}
+                onCheckedChange={(checked) => togglePublicationDate(option.value, checked)}
+              />
+              {option.label}
+            </Label>
           ))}
         </div>
       </div>
