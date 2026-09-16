@@ -20,7 +20,7 @@ export function HeroSection() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Wetudy conecta familias para publicar, buscar y acordar intercambios de libros, uniformes y material escolar. El contacto se hace por chat y la entrega o el pago se acuerdan directamente entre las partes, fuera de la plataforma.
+            Wetudy conecta familias para publicar, buscar y acordar intercambios de libros, uniformes y material escolar. El contacto se hace por chat. La entrega y el pago se acuerdan directamente entre las partes.
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
