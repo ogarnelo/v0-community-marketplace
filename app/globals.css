@@ -121,6 +121,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: clip;
   }
   input[type='number'] {
     -moz-appearance: textfield;
@@ -129,5 +130,11 @@
   input[type='number']::-webkit-inner-spin-button {
     margin: 0;
     -webkit-appearance: none;
+  }
+}
+
+@media (max-width: 639px) {
+  a[href='/marketplace/new'].fixed {
+    display: none !important;
   }
 }
