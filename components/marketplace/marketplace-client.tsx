@@ -22,13 +22,15 @@ import {
 import { ListingCard } from "@/components/listing-card";
 import { categories, gradeLevels, conditions } from "@/lib/mock-data";
 import {
+  Bell,
+  CheckCircle2,
+  HelpCircle,
+  PackageSearch,
   Plus,
+  School,
   Search,
   SlidersHorizontal,
   X,
-  HelpCircle,
-  PackageSearch,
-  School,
 } from "lucide-react";
 import {
   Sheet,
@@ -59,6 +61,8 @@ type MarketplaceClientProps = {
   initialSchoolId: string;
 };
 
+type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
+
 const PRICE_PRESETS = [
   { label: "0-25 €", min: 0, max: 25 },
   { label: "25-50 €", min: 25, max: 50 },
@@ -80,9 +84,22 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
   const [isbnQuery, setIsbnQuery] = useState("");
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
+  const [saveSearchStatus, setSaveSearchStatus] = useState<SaveSearchStatus>("idle");
 
   const priceMinValue = priceMin.trim() ? parsePrice(priceMin, 0) : 0;
   const priceMaxValue = priceMax.trim() ? parsePrice(priceMax, 200) : 200;
+
+  const hasSearchIntent = Boolean(
+    searchQuery.trim() ||
+      isbnQuery.trim() ||
+      category !== "all" ||
+      gradeLevel !== "all" ||
+      listingType !== "all" ||
+      condition !== "all" ||
+      onlyMyCommunity ||
+      priceMinValue > 0 ||
+      priceMaxValue < 200
+  );
 
   const filteredListings = useMemo(() => {
     const normalizedSearch = normalizeText(searchQuery);
@@ -152,18 +169,6 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
   ]);
 
   useEffect(() => {
-    const hasSearchIntent = Boolean(
-      searchQuery.trim() ||
-        isbnQuery.trim() ||
-        category !== "all" ||
-        gradeLevel !== "all" ||
-        listingType !== "all" ||
-        condition !== "all" ||
-        onlyMyCommunity ||
-        priceMinValue > 0 ||
-        priceMaxValue < 200
-    );
-
     if (!hasSearchIntent) return;
 
     const controller = new AbortController();
@@ -206,7 +211,12 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
     priceMinValue,
     priceMaxValue,
     filteredListings.length,
+    hasSearchIntent,
   ]);
+
+  useEffect(() => {
+    setSaveSearchStatus("idle");
+  }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceMin, priceMax]);
 
   const activeFiltersCount = [
     onlyMyCommunity,
@@ -233,6 +243,41 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
   const applyPricePreset = (min: number, max: number) => {
     setPriceMin(min === 0 ? "" : String(min));
     setPriceMax(max === 200 ? "" : String(max));
+  };
+
+  const saveSearch = async () => {
+    if (!hasSearchIntent || saveSearchStatus === "saving" || saveSearchStatus === "saved") return;
+
+    setSaveSearchStatus("saving");
+
+    try {
+      const response = await fetch("/api/marketplace/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: searchQuery.trim() || null,
+          isbnQuery: isbnQuery.trim() || null,
+          category: category === "all" ? null : category,
+          gradeLevel: gradeLevel === "all" ? null : gradeLevel,
+          listingType: listingType === "all" ? null : listingType,
+          condition: condition === "all" ? null : condition,
+          onlyMyCommunity,
+          resultsCount: filteredListings.length,
+          sourcePath: "/marketplace",
+        }),
+      });
+
+      if (response.status === 401) {
+        setSaveSearchStatus("auth");
+        return;
+      }
+
+      if (!response.ok) throw new Error("saved_search_failed");
+
+      setSaveSearchStatus("saved");
+    } catch {
+      setSaveSearchStatus("error");
+    }
   };
 
   const FilterControls = () => (
@@ -427,14 +472,31 @@ export function MarketplaceClient({ initialListings, initialSchoolId }: Marketpl
                   <EmptyMedia variant="icon"><PackageSearch /></EmptyMedia>
                   <EmptyTitle>No hay anuncios con esos filtros</EmptyTitle>
                   <EmptyDescription>
-                    Hemos guardado esta señal de demanda para entender qué material falta. Prueba a ampliar la búsqueda o publica el primer anuncio.
+                    Podemos guardar esta búsqueda para entender qué material falta y avisarte cuando activemos las notificaciones.
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
+                    {hasSearchIntent ? (
+                      <Button onClick={saveSearch} disabled={saveSearchStatus === "saving" || saveSearchStatus === "saved"} className="gap-2">
+                        {saveSearchStatus === "saved" ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                        {saveSearchStatus === "saving" ? "Guardando..." : saveSearchStatus === "saved" ? "Búsqueda guardada" : "Avísame si aparece"}
+                      </Button>
+                    ) : null}
                     <Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>
-                    <Link href="/marketplace/new"><Button>Publicar anuncio</Button></Link>
+                    <Link href="/marketplace/new"><Button variant={hasSearchIntent ? "outline" : "default"}>Publicar anuncio</Button></Link>
                   </div>
+                  {saveSearchStatus === "auth" ? (
+                    <p className="mt-3 text-center text-sm text-muted-foreground">
+                      Para guardar la búsqueda, <Link href="/auth?next=/marketplace" className="font-medium text-primary underline-offset-4 hover:underline">inicia sesión o crea una cuenta</Link>.
+                    </p>
+                  ) : null}
+                  {saveSearchStatus === "error" ? (
+                    <p className="mt-3 text-center text-sm text-destructive">No se pudo guardar la búsqueda. Prueba de nuevo.</p>
+                  ) : null}
+                  {saveSearchStatus === "saved" ? (
+                    <p className="mt-3 text-center text-sm text-muted-foreground">La hemos guardado como señal de demanda. No enviaremos emails hasta activar las notificaciones.</p>
+                  ) : null}
                 </EmptyContent>
               </Empty>
             ) : (
