@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
+import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 
 export async function POST(request: Request) {
   try {
@@ -37,14 +38,49 @@ export async function POST(request: Request) {
       .filter((search) => savedSearchMatchesListing(search, listing))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
-    if (matches.length === 0) return NextResponse.json({ ok: true, matched: 0 });
+    if (matches.length === 0) return NextResponse.json({ ok: true, matched: 0, emailed: 0 });
 
     const { error: insertError } = await admin
       .from("saved_search_matches")
       .upsert(matches, { onConflict: "saved_search_id,listing_id", ignoreDuplicates: true });
 
     if (insertError) throw insertError;
-    return NextResponse.json({ ok: true, matched: matches.length });
+
+    const { data: pendingMatches, error: pendingError } = await admin
+      .from("saved_search_matches")
+      .select("id, user_id")
+      .eq("listing_id", listing.id)
+      .is("emailed_at", null);
+
+    if (pendingError) throw pendingError;
+
+    let emailed = 0;
+    for (const match of pendingMatches || []) {
+      try {
+        const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(match.user_id);
+        if (recipientError) throw recipientError;
+        if (!recipient.user?.email) continue;
+
+        const result = await sendSavedSearchMatchEmail({
+          to: recipient.user.email,
+          listingId: listing.id,
+          listingTitle: listing.title,
+        });
+        if ("skipped" in result && result.skipped) continue;
+
+        const { error: markError } = await admin
+          .from("saved_search_matches")
+          .update({ emailed_at: new Date().toISOString() })
+          .eq("id", match.id)
+          .is("emailed_at", null);
+        if (markError) throw markError;
+        emailed += 1;
+      } catch (emailError) {
+        console.error("No se pudo enviar un aviso de búsqueda guardada", emailError);
+      }
+    }
+
+    return NextResponse.json({ ok: true, matched: matches.length, emailed });
   } catch (error: any) {
     console.error("No se pudieron generar los matches de búsquedas guardadas", error);
     return NextResponse.json({ error: error?.message || "No se pudieron generar los avisos." }, { status: 500 });
