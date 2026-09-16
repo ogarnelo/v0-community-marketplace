@@ -66,6 +66,7 @@ export async function POST(request: Request) {
           to: recipient.user.email,
           listingId: listing.id,
           listingTitle: listing.title,
+          idempotencyKey: `saved-search-match/${match.id}`,
         });
         if ("skipped" in result && result.skipped) continue;
 
