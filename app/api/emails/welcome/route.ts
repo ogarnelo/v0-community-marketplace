@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isEmailConfigured, sendWelcomeEmail } from "@/lib/emails/transactional";
+import { normalizeEmailAddress } from "@/lib/emails/address";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,12 @@ export async function POST() {
 
   if (userError || !user?.id || !user.email) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const recipientEmail = normalizeEmailAddress(user.email);
+  if (!recipientEmail) {
+    console.warn("Welcome email omitido: destinatario inválido", { userId: user.id });
+    return NextResponse.json({ ok: true, skipped: true, reason: "invalid_recipient" });
   }
 
   const adminSupabase = createAdminClient();
@@ -37,7 +44,7 @@ export async function POST() {
   }
 
   await sendWelcomeEmail({
-    to: user.email,
+    to: recipientEmail,
     recipientName: profile?.full_name || user.user_metadata?.full_name || null,
   });
 
