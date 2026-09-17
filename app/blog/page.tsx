@@ -2,6 +2,14 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { BlogPageClient } from "@/components/blog/blog-page-client";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicMetadata } from "@/lib/seo/site";
+
+export const metadata = createPublicMetadata({
+  title: "Guías para reutilizar material escolar",
+  description:
+    "Consejos prácticos sobre libros de texto usados, uniformes escolares, ahorro familiar y reutilización de material educativo.",
+  path: "/blog",
+});
 
 export default async function BlogPage() {
   const supabase = await createClient();
