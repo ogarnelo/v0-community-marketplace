@@ -1,79 +1,126 @@
-"use client"
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import JsonLd from "@/components/seo/json-ld";
+import { categoryColors, getPostBySlug, posts } from "@/lib/blog-data";
+import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
+import {
+  createPublicMetadata,
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/seo/site";
 
-import { useState } from "react"
-import { useParams } from "next/navigation"
-import Link from "next/link"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, Clock, Calendar, CheckCircle2 } from "lucide-react"
-import { getPostBySlug, categoryColors } from "@/lib/blog-data"
+export function generateStaticParams() {
+  return posts.map((post) => ({ slug: post.slug }));
+}
 
-export default function BlogPostPage() {
-  const params = useParams()
-  const slug = typeof params.slug === "string" ? params.slug : ""
-  const post = getPostBySlug(slug)
-
-  const [email, setEmail] = useState("")
-  const [subscribed, setSubscribed] = useState(false)
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubscribed(true)
-    setEmail("")
-  }
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
 
   if (!post) {
-    return (
-      <div className="flex min-h-screen flex-col bg-background">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center px-4">
-            <h1 className="text-2xl font-bold text-foreground">Articulo no encontrado</h1>
-            <p className="mt-2 text-muted-foreground">El articulo que buscas no existe o ha sido eliminado.</p>
-            <Link href="/blog" className="mt-6 inline-block">
-              <Button variant="outline">Volver al blog</Button>
-            </Link>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    )
+    return {
+      title: "Guía no encontrada",
+      robots: { index: false, follow: true },
+    };
   }
 
-  const colorClass = categoryColors[post.category] ?? "bg-primary text-primary-foreground"
+  const metadata = createPublicMetadata({
+    title: post.title,
+    description: post.description,
+    path: `/blog/${post.slug}`,
+  });
+
+  return {
+    ...metadata,
+    openGraph: {
+      ...metadata.openGraph,
+      type: "article",
+      publishedTime: post.publishedAt,
+      modifiedTime: post.publishedAt,
+      authors: [SITE_NAME],
+    },
+  };
+}
+
+export default async function BlogPostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
+  if (!post) notFound();
+
+  const supabase = await createClient();
+  const navbarData = await getNavbarData(supabase);
+  const colorClass =
+    categoryColors[post.category] ?? "bg-primary text-primary-foreground";
+  const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
+
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.publishedAt,
+    dateModified: post.publishedAt,
+    inLanguage: "es-ES",
+    mainEntityOfPage: canonicalUrl,
+    image: [`${SITE_URL}${DEFAULT_OG_IMAGE}`],
+    author: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: `${SITE_URL}/`,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: `${SITE_URL}/`,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/brand/wetudy-logo-512.png`,
+      },
+    },
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar />
+      <JsonLd data={articleJsonLd} />
+      <Navbar {...navbarData} />
       <main className="flex-1">
-        {/* Hero image area */}
-        <div className="relative w-full bg-muted">
-          <div className="mx-auto max-w-4xl aspect-[21/9] flex items-center justify-center">
-            <span className="text-6xl text-muted-foreground/10 font-mono select-none">{post.category.charAt(0)}</span>
-          </div>
-          <Badge className={`absolute left-1/2 -translate-x-1/2 bottom-4 text-xs rounded-md ${colorClass}`}>
-            {post.category}
-          </Badge>
-        </div>
-
-        <article className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
-          {/* Back link */}
-          <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <article className="mx-auto max-w-3xl px-4 py-8 sm:py-12 lg:px-8">
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
             <ArrowLeft className="h-4 w-4" />
-            Volver al blog
+            Volver a las guías
           </Link>
 
-          {/* Title */}
-          <h1 className="mt-6 text-2xl font-bold text-foreground leading-tight sm:text-3xl text-balance">
+          <Badge className={`mt-6 block w-fit rounded-md text-xs ${colorClass}`}>
+            {post.category}
+          </Badge>
+
+          <h1 className="mt-4 text-balance text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl">
             {post.title}
           </h1>
+          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+            {post.description}
+          </p>
 
-          {/* Meta */}
-          <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          <div className="mt-5 flex flex-wrap gap-4 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="h-4 w-4" />
               {post.date}
@@ -84,62 +131,32 @@ export default function BlogPostPage() {
             </span>
           </div>
 
-          {/* Separator */}
-          <div className="my-6 border-t border-border" />
+          <div className="my-8 border-t border-border" />
 
-          {/* Content */}
-          <div className="flex flex-col gap-5">
-            {post.content.map((paragraph, i) => (
-              <p key={i} className="text-foreground/90 leading-[1.75] text-[15px]">
-                {paragraph}
-              </p>
+          <div className="space-y-5 text-base leading-8 text-foreground/90">
+            {post.content.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
             ))}
           </div>
 
-          {/* Separator */}
-          <div className="my-10 border-t border-border" />
-
-          {/* Newsletter CTA */}
-          <Card className="border-border bg-primary/5">
-            <CardContent className="flex flex-col items-center p-8 text-center">
-              {subscribed ? (
-                <div className="flex flex-col items-center gap-3">
-                  <CheckCircle2 className="h-10 w-10 text-[#7EBA28]" />
-                  <p className="font-semibold text-foreground">Te has suscrito correctamente</p>
-                  <p className="text-sm text-muted-foreground">Recibiras nuestras novedades en tu bandeja de entrada.</p>
-                </div>
-              ) : (
-                <>
-                  <h2 className="text-lg font-bold text-foreground">Te ha gustado este articulo?</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Suscribete para recibir mas consejos de ahorro y sostenibilidad escolar.</p>
-                  <form onSubmit={handleSubscribe} className="mt-4 flex w-full max-w-md gap-2">
-                    <Input
-                      type="email"
-                      placeholder="tu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="flex-1 bg-card"
-                    />
-                    <Button type="submit">Suscribirse</Button>
-                  </form>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Back to blog */}
-          <div className="mt-8 flex justify-center">
-            <Link href="/blog">
-              <Button variant="outline" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Ver todos los articulos
+          <section className="mt-10 rounded-3xl border bg-muted/30 p-6">
+            <h2 className="text-xl font-bold">Busca antes de comprar nuevo</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Consulta material disponible o publica lo que tu familia ya no necesita.
+              La entrega y el pago se acuerdan directamente entre las partes.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Button asChild>
+                <Link href="/marketplace">Buscar material</Link>
               </Button>
-            </Link>
-          </div>
+              <Button asChild variant="outline">
+                <Link href="/vende-tus-libros">Vender o donar libros</Link>
+              </Button>
+            </div>
+          </section>
         </article>
       </main>
       <Footer />
     </div>
-  )
+  );
 }
