@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -112,21 +111,25 @@ export default function RegisterSchoolPage() {
         throw new Error("Debes indicar un email de contacto.");
       }
 
-      const supabase = createClient();
-
-      const { error } = await supabase.from("school_registration_requests").insert({
-        school_name: normalizedSchoolName,
-        school_type: normalizedSchoolType,
-        address: normalizedAddress,
-        city: normalizedCity,
-        postal_code: normalizedPostalCode,
-        region: normalizedRegion,
-        contact_email: normalizedEmail,
-        contact_phone: normalizedPhone || null,
+      const response = await fetch("/api/schools/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schoolName: normalizedSchoolName,
+          schoolType: normalizedSchoolType,
+          address: normalizedAddress,
+          city: normalizedCity,
+          postalCode: normalizedPostalCode,
+          region: normalizedRegion,
+          contactEmail: normalizedEmail,
+          contactPhone: normalizedPhone,
+        }),
       });
 
-      if (error) {
-        throw error;
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result?.error || "No se pudo enviar la solicitud.");
       }
 
       setSubmitted(true);
@@ -187,6 +190,8 @@ export default function RegisterSchoolPage() {
                       id="schoolName"
                       placeholder="CEIP San Miguel"
                       required
+                      minLength={2}
+                      maxLength={160}
                       value={schoolName}
                       onChange={(e) => setSchoolName(e.target.value)}
                     />
@@ -214,6 +219,8 @@ export default function RegisterSchoolPage() {
                       id="address"
                       placeholder="Calle de Alcala, 50"
                       required
+                      minLength={3}
+                      maxLength={250}
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                     />
@@ -226,6 +233,8 @@ export default function RegisterSchoolPage() {
                         id="city"
                         placeholder="Madrid"
                         required
+                        minLength={2}
+                        maxLength={100}
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
                       />
@@ -269,6 +278,7 @@ export default function RegisterSchoolPage() {
                       type="email"
                       placeholder="direccion@colegio.es"
                       required
+                      maxLength={320}
                       value={contactEmail}
                       onChange={(e) => setContactEmail(e.target.value)}
                     />
@@ -280,6 +290,7 @@ export default function RegisterSchoolPage() {
                       id="phone"
                       type="tel"
                       placeholder="912 345 678"
+                      maxLength={40}
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
                     />

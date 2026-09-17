@@ -11,7 +11,6 @@ import { buildDemandActionLabel, buildDemandInsights } from "@/lib/admin/demand-
 
 export const dynamic = "force-dynamic";
 
-const ADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type DemandEvent = {
   id: string;
@@ -58,7 +57,6 @@ export default async function DemandIntelligencePage() {
 
   if (!user) redirect("/auth?next=/admin/super/demand");
 
-  const email = user.email?.toLowerCase() || "";
   const { data: roleRows } = await supabase
     .from("user_roles")
     .select("role")
@@ -66,8 +64,7 @@ export default async function DemandIntelligencePage() {
     .eq("role", "super_admin")
     .limit(1);
 
-  const isSuperAdmin = ADMIN_EMAILS.includes(email) || Boolean(roleRows?.length);
-  if (!isSuperAdmin) redirect("/");
+  if (!roleRows?.length) redirect("/");
 
   const [profileResult, eventResult, summaryResult] = await Promise.all([
     supabase.from("profiles").select("id, full_name").eq("id", user.id).maybeSingle(),

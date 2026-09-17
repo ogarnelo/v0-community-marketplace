@@ -87,7 +87,6 @@ type ActivityItem = {
   detail: string;
 };
 
-const ADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 const TEST_NAMES = new Set(["test", "oscar garnelo"]);
 
 function toDate(value?: string | null) {
@@ -178,7 +177,6 @@ export default async function MvpSuperAdminDashboardPage() {
     redirect("/auth?next=/admin/super/mvp");
   }
 
-  const email = user.email?.toLowerCase() || "";
   const { data: roleRows } = await supabase
     .from("user_roles")
     .select("role")
@@ -186,9 +184,7 @@ export default async function MvpSuperAdminDashboardPage() {
     .eq("role", "super_admin")
     .limit(1);
 
-  const isSuperAdmin = ADMIN_EMAILS.includes(email) || Boolean(roleRows?.length);
-
-  if (!isSuperAdmin) {
+  if (!roleRows?.length) {
     redirect("/");
   }
 

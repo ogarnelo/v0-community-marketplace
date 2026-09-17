@@ -65,3 +65,45 @@ export async function sendSupportTicketAdminEmail(params: {
   if (!response.ok) throw new Error(`Resend error ${response.status}: ${await response.text()}`);
   return response.json();
 }
+
+
+export async function sendSchoolRegistrationAdminEmail(params: {
+  to: string;
+  requestId: string;
+  requesterEmail: string;
+  schoolName: string;
+  schoolType: string;
+  city: string;
+  region: string;
+  idempotencyKey?: string | null;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = getFromEmail();
+
+  if (!apiKey || !from || !params.to) return { skipped: true as const };
+
+  const url = `${getBaseUrl()}/admin/super`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+
+  if (params.idempotencyKey) headers["Idempotency-Key"] = params.idempotencyKey;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Nueva solicitud de centro</title></head><body style="margin:0;background:${BRAND.paleBlue};"><table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td align="center" style="padding:28px 16px;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#fff;border:1px solid ${BRAND.border};border-radius:20px;overflow:hidden;"><tr><td style="background:${BRAND.blue};padding:22px 24px;"><span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:800;color:#fff;">Wetudy</span></td></tr><tr><td style="padding:28px 24px 26px 24px;"><h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${BRAND.text};">Nueva solicitud de centro</h1><p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${BRAND.text};"><strong>${escapeHtml(params.schoolName)}</strong></p><p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${BRAND.text};">${escapeHtml(params.schoolType)} · ${escapeHtml(params.city)} · ${escapeHtml(params.region)}</p><p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${BRAND.muted};">Solicitado por ${escapeHtml(params.requesterEmail)}. El centro no será público hasta que lo apruebes.</p><a href="${url}" style="display:inline-block;padding:13px 18px;background:${BRAND.blue};border-radius:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">Revisar solicitud</a></td></tr><tr><td style="background:#F8FAFC;padding:18px 24px;border-top:1px solid #E5E7EB;"><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:${BRAND.muted};">Solicitud ${escapeHtml(params.requestId)} · Aviso administrativo de Wetudy.</p></td></tr></table></td></tr></table></body></html>`;
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      from,
+      to: [params.to],
+      subject: `Nueva solicitud de centro · ${params.schoolName}`,
+      html,
+      text: `Nueva solicitud de centro: ${params.schoolName}.\n${params.schoolType} · ${params.city} · ${params.region}.\nSolicitado por ${params.requesterEmail}.\n\nEl centro no será público hasta que lo apruebes.\nRevisar: ${url}`,
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Resend error ${response.status}: ${await response.text()}`);
+  return response.json();
+}
