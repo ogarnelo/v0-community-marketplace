@@ -13,7 +13,9 @@ import { createClient } from "@/lib/supabase/client";
 import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || "";
+const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || DEFAULT_TURNSTILE_SITE_KEY;
 
 type AuthMode = "login" | "signup" | "forgot";
 type SupportedSignupUserType = "parent" | "student" | "";
