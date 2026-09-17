@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, School } from "lucide-react";
 
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SchoolRow = {
   id: string;
@@ -32,7 +31,15 @@ export default async function SuperAdminSchoolsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth?next=/admin/super/schools");
-  if (!SUPERADMIN_EMAILS.includes(user.email?.toLowerCase() || "")) redirect("/");
+
+  const { data: superAdminRoles, error: superAdminRoleError } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("role", "super_admin")
+    .limit(1);
+
+  if (superAdminRoleError || !superAdminRoles?.length) redirect("/");
 
   const admin = createAdminClient();
   const [schoolsResult, profilesResult, listingsResult] = await Promise.all([
