@@ -40,7 +40,13 @@ test("account and public profile use compact mobile grids", () => {
   assert.match(profile, /px-3 py-4 sm:px-4 sm:py-8/);
 });
 
-test("mobile pages are guarded from horizontal overflow", () => {
+test("mobile document width stays stable after opening and closing the drawer", () => {
   const globals = read("app/globals.css");
-  assert.match(globals, /overflow-x: clip/);
+  assert.match(globals, /html,\s*\n\s*body \{[\s\S]*max-width: 100%/);
+  assert.match(globals, /overflow-x: hidden/);
+  assert.match(globals, /overflow-y: auto !important/);
+  assert.match(globals, /button\[aria-label='Cerrar menú'\]/);
+  assert.match(globals, /touch-action: none/);
+  assert.match(globals, /#mobile-navigation/);
+  assert.match(globals, /overscroll-behavior: contain/);
 });
