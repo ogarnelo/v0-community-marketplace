@@ -4,6 +4,7 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
 import { Globe, School, Users } from "lucide-react";
 
@@ -116,8 +117,9 @@ export default async function SuperAdminPage() {
     redirect("/");
   }
 
+  const navbarData = await getNavbarData(supabase);
+
   const [
-    { data: profile },
     { data: schools },
     { data: profiles },
     { data: listings },
@@ -127,7 +129,6 @@ export default async function SuperAdminPage() {
     { data: accessCodes },
     { data: listingViews },
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
     supabase
       .from("schools")
       .select("id, name, city, region, school_type")
@@ -244,11 +245,6 @@ export default async function SuperAdminPage() {
     return acc;
   }, {});
 
-  const navbarUserName =
-    (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
-      ? profile.full_name.trim()
-      : null) || user.email || "Super Admin";
-
   const dashboardReports = safeReports.map((report) => ({
     ...report,
     reporter_name: reporterMap.get(report.reporter_id)?.full_name?.trim() || "Usuario",
@@ -271,7 +267,7 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/super" currentUserId={user.id} />
+      <Navbar {...navbarData} />
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
