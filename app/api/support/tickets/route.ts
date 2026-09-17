@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendSupportTicketAdminEmail } from "@/lib/emails/admin-alert-emails";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_TICKETS_PER_HOUR = 2;
@@ -97,6 +98,46 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
+
+    try {
+      const { data: superAdminRoles, error: rolesError } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+
+      if (rolesError) throw rolesError;
+
+      const deliveries = await Promise.allSettled(
+        (superAdminRoles || []).map(async ({ user_id: superAdminUserId }) => {
+          const {
+            data: { user: superAdminUser },
+            error: adminUserError,
+          } = await admin.auth.admin.getUserById(superAdminUserId);
+
+          if (adminUserError) throw adminUserError;
+
+          const to = superAdminUser?.email?.trim();
+          if (!to) return;
+
+          await sendSupportTicketAdminEmail({
+            to,
+            ticketId: ticket.id,
+            senderName: name,
+            senderEmail: email,
+            message,
+            idempotencyKey: `support-ticket-${ticket.id}-${superAdminUserId}`,
+          });
+        })
+      );
+
+      deliveries.forEach((delivery) => {
+        if (delivery.status === "rejected") {
+          console.error("Error enviando aviso por email de support ticket:", delivery.reason);
+        }
+      });
+    } catch (notificationError) {
+      console.error("Error preparando avisos por email de support ticket:", notificationError);
+    }
 
     return NextResponse.json({ ok: true, ticketId: ticket.id });
   } catch (error: any) {
