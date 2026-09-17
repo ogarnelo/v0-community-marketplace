@@ -251,7 +251,7 @@ export function AuthForm() {
       }
 
       setInfoMessage(
-        "Cuenta creada. Revisa tu email para confirmar el registro y completar el acceso. Al iniciar sesión te enviaremos la bienvenida."
+        "Cuenta creada. Te hemos enviado un email de confirmación. Abre el enlace para activar tu cuenta. Si no lo ves en unos minutos, revisa Spam o Correo no deseado. Después podrás iniciar sesión."
       );
       setMode("login");
     } catch (e: any) {
@@ -496,6 +496,10 @@ export function AuthForm() {
                     onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
                   />
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+                Al crear tu cuenta, te enviaremos un email de confirmación. Tendrás que abrir el enlace para activar tu cuenta. Si no lo ves en unos minutos, revisa también la carpeta de Spam o Correo no deseado.
               </div>
             </>
           )}
