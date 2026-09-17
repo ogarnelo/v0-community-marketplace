@@ -11,9 +11,11 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  onValueChange,
+  onValueCommit,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
-  const _values = React.useMemo(
+  const externalValues = React.useMemo(
     () =>
       Array.isArray(value)
         ? value
@@ -22,14 +24,38 @@ function Slider({
           : [min, max],
     [value, defaultValue, min, max],
   )
+  const [liveValues, setLiveValues] = React.useState<number[]>(externalValues)
+  const isInteractingRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!isInteractingRef.current) {
+      setLiveValues(externalValues)
+    }
+  }, [externalValues])
+
+  const handleValueChange = React.useCallback((nextValues: number[]) => {
+    isInteractingRef.current = true
+    setLiveValues(nextValues)
+  }, [])
+
+  const handleValueCommit = React.useCallback(
+    (nextValues: number[]) => {
+      setLiveValues(nextValues)
+      isInteractingRef.current = false
+      onValueChange?.(nextValues)
+      onValueCommit?.(nextValues)
+    },
+    [onValueChange, onValueCommit],
+  )
 
   return (
     <SliderPrimitive.Root
       data-slot="slider"
-      defaultValue={defaultValue}
-      value={value}
+      value={liveValues}
       min={min}
       max={max}
+      onValueChange={handleValueChange}
+      onValueCommit={handleValueCommit}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
         className,
@@ -49,7 +75,7 @@ function Slider({
           }
         />
       </SliderPrimitive.Track>
-      {Array.from({ length: _values.length }, (_, index) => (
+      {Array.from({ length: liveValues.length }, (_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
