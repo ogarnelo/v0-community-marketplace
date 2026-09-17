@@ -44,3 +44,21 @@ test("mobile pages are guarded from horizontal overflow", () => {
   const globals = read("app/globals.css");
   assert.match(globals, /overflow-x: clip/);
 });
+
+test("marketplace sliders keep thumb motion local until the drag is committed", () => {
+  const slider = read("components/ui/slider.tsx");
+  assert.match(slider, /const \[liveValues, setLiveValues\]/);
+  assert.match(slider, /isInteractingRef/);
+  assert.match(slider, /onValueChange=\{handleValueChange\}/);
+  assert.match(slider, /onValueCommit=\{handleValueCommit\}/);
+  assert.match(slider, /onValueChange\?\.\(nextValues\)/);
+});
+
+test("authenticated mobile menu realtime badges use unique channel names", () => {
+  const badge = read("components/messages/navbar-messages-badge.tsx");
+  assert.match(badge, /useId/);
+  assert.match(badge, /channelSuffix/);
+  assert.match(badge, /navbar-unread-messages-\$\{channelSuffix\}/);
+  assert.match(badge, /navbar-unread-conversations-\$\{channelSuffix\}/);
+  assert.match(badge, /navbar-hidden-conversations-\$\{channelSuffix\}/);
+});
