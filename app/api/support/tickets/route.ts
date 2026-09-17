@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const MAX_MESSAGE_LENGTH = 4000;
-const MAX_TICKETS_PER_HOUR = 3;
+const MAX_TICKETS_PER_HOUR = 2;
+const MIN_ACCOUNT_AGE_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +15,24 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Debes iniciar sesión para contactar con soporte." }, { status: 401 });
+    }
+
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: "Confirma tu email antes de contactar con soporte." },
+        { status: 403 }
+      );
+    }
+
+    const accountCreatedAt = Date.parse(user.created_at || "");
+    if (!Number.isFinite(accountCreatedAt) || Date.now() - accountCreatedAt < MIN_ACCOUNT_AGE_MS) {
+      return NextResponse.json(
+        {
+          error:
+            "Por seguridad, las cuentas recién creadas pueden contactar con soporte unos minutos después de registrarse.",
+        },
+        { status: 429 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
