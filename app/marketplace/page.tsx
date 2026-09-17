@@ -1,3 +1,4 @@
+import { createPublicMetadata } from "@/lib/seo/site";
 import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -7,6 +8,13 @@ import {
   type MarketplaceListing,
   type ProfileRow,
 } from "@/lib/types/marketplace";
+
+export const metadata = createPublicMetadata({
+  title: "Material escolar de segunda mano y donaciones",
+  description:
+    "Busca libros de texto, uniformes, mochilas y material escolar de segunda mano o donado. Filtra por curso, categoría, ISBN y distancia.",
+  path: "/marketplace",
+});
 
 export const dynamic = "force-dynamic";
 
