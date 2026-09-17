@@ -138,6 +138,27 @@
   }
 }
 
+@layer components {
+  [data-slot='chart'] {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  [data-slot='chart'] .recharts-responsive-container,
+  [data-slot='chart'] .recharts-wrapper,
+  [data-slot='chart'] .recharts-surface {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  [data-slot='chart'] .recharts-legend-wrapper > div {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+    column-gap: 0.75rem;
+  }
+}
+
 @media (max-width: 639px) {
   a[href='/marketplace/new'].fixed {
     display: none !important;
