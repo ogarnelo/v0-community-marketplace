@@ -2,11 +2,14 @@ import Link from "next/link";
 import { CheckCircle2, MessageCircle, Search, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { createPublicMetadata } from "@/lib/seo/site";
 
-export const metadata = {
-  title: "Cómo funciona Wetudy | Marketplace escolar",
-  description: "Busca, publica y contacta por chat para reutilizar material escolar. La entrega y el pago se acuerdan directamente entre las partes.",
-};
+export const metadata = createPublicMetadata({
+  title: "Cómo funciona",
+  description:
+    "Busca, publica y contacta por chat para reutilizar material escolar. La entrega y el pago se acuerdan directamente entre las partes.",
+  path: "/como-funciona",
+});
 
 const buyerSteps = [
   "Busca por curso, categoría, título, editorial o ISBN.",
