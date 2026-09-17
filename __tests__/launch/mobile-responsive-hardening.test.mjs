@@ -55,6 +55,13 @@ test("mobile document width is clipped without creating a sticky-breaking scroll
   assert.doesNotMatch(globals, /button\[aria-label='Cerrar menú'\]/);
 });
 
+test("mobile navbar is pinned to the visual viewport for isolation browsers", () => {
+  const globals = read("app/globals.css");
+  assert.match(globals, /@media \(max-width: 767px\)/);
+  assert.match(globals, /header\.sticky\.top-0\.z-50 \{[\s\S]*position: fixed;[\s\S]*inset-inline: 0;[\s\S]*transform: translateZ\(0\)/);
+  assert.match(globals, /body:has\(header\.sticky\.top-0\.z-50\) \{[\s\S]*padding-top: 4rem;/);
+});
+
 test("cards and recharts widgets can shrink inside an iPhone viewport", () => {
   const cards = read("components/ui/card.tsx");
   const globals = read("app/globals.css");
