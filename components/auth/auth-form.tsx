@@ -11,6 +11,11 @@ import { Loader2, Mail, Lock, User, MapPin } from "lucide-react";
 import { gradeLevels } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+
+const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || DEFAULT_TURNSTILE_SITE_KEY;
 
 type AuthMode = "login" | "signup" | "forgot";
 type SupportedSignupUserType = "parent" | "student" | "";
@@ -76,6 +81,8 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -85,7 +92,26 @@ export function AuthForm() {
   const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
+  const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
+
+  const requireCaptchaToken = () => {
+    if (captchaIsRequired && !captchaToken) {
+      setError("Completa la verificación de seguridad.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const resetCaptcha = () => {
+    if (!captchaIsRequired) return;
+    setCaptchaToken(null);
+    setCaptchaResetKey((value) => value + 1);
+  };
+
   const handleForgot = async () => {
+    if (!requireCaptchaToken()) return;
+
     setLoading(true);
     setError("");
     setInfoMessage("");
@@ -93,6 +119,7 @@ export function AuthForm() {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth?mode=login`,
+        ...(captchaToken ? { captchaToken } : {}),
       });
 
       if (error) throw error;
@@ -102,17 +129,24 @@ export function AuthForm() {
     } catch (e: any) {
       setError(e?.message ?? "No se pudo enviar el enlace. Inténtalo de nuevo.");
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   };
 
   const handleLogin = async () => {
+    if (!requireCaptchaToken()) return;
+
     setLoading(true);
     setError("");
     setInfoMessage("");
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: captchaToken ? { captchaToken } : undefined,
+      });
       if (error) throw error;
 
       await triggerWelcomeEmail();
@@ -120,6 +154,7 @@ export function AuthForm() {
     } catch (e: any) {
       setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.");
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   };
@@ -166,6 +201,8 @@ export function AuthForm() {
       return;
     }
 
+    if (!requireCaptchaToken()) return;
+
     setLoading(true);
     setError("");
     setInfoMessage("");
@@ -182,6 +219,7 @@ export function AuthForm() {
         password,
         options: {
           emailRedirectTo: callbackUrl.toString(),
+          captchaToken: captchaToken || undefined,
           data: {
             first_name: normalizedFirstName,
             last_name: normalizedLastName,
@@ -219,6 +257,7 @@ export function AuthForm() {
     } catch (e: any) {
       setError(e?.message ?? "No se pudo crear la cuenta. Inténtalo de nuevo.");
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   };
@@ -270,7 +309,19 @@ export function AuthForm() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            {captchaIsRequired ? (
+              <TurnstileWidget
+                key={`forgot-${captchaResetKey}`}
+                siteKey={TURNSTILE_SITE_KEY}
+                onTokenChange={setCaptchaToken}
+              />
+            ) : null}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || (captchaIsRequired && !captchaToken)}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Enviar enlace
             </Button>
@@ -449,7 +500,19 @@ export function AuthForm() {
             </>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          {captchaIsRequired ? (
+            <TurnstileWidget
+              key={`${mode}-${captchaResetKey}`}
+              siteKey={TURNSTILE_SITE_KEY}
+              onTokenChange={setCaptchaToken}
+            />
+          ) : null}
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={loading || (captchaIsRequired && !captchaToken)}
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </Button>
