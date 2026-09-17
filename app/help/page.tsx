@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { createPublicMetadata } from "@/lib/seo/site";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +9,17 @@ import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { HelpCircle, ShoppingBag, Gift, ArrowLeft } from "lucide-react";
 
+export const metadata = createPublicMetadata({
+  title: "Centro de ayuda",
+  description:
+    "Respuestas sobre publicar, buscar, contactar, acordar, donar y reportar material escolar en Wetudy.",
+  path: "/help",
+});
+
 const marketplaceFAQs = [
   {
     q: "Como publico un anuncio de venta?",
-    a: "Accede a tu cuenta, haz clic en 'Publicar anuncio' desde el marketplace o la barra de navegacion. Rellena el formulario con titulo, descripcion, fotos, categoria, estado y precio. Tu anuncio sera visible inmediatamente para los miembros de tu centro.",
+    a: "Accede a tu cuenta, pulsa 'Publicar' y completa el formulario con título, descripción, fotos, categoría, estado y precio o donación. El anuncio aparecerá en la búsqueda pública de material disponible y podrás usar tu centro o tu zona como filtros de proximidad.",
   },
   {
     q: "Como funciona el sistema de favoritos?",
@@ -19,11 +27,11 @@ const marketplaceFAQs = [
   },
   {
     q: "Puedo chatear con el vendedor antes de comprar?",
-    a: "Si, cada anuncio tiene un boton 'Contactar vendedor' que abre un chat privado entre comprador y vendedor. Ahi podeis acordar precio, punto de encuentro y cualquier detalle sobre el articulo.",
+    a: "Sí. Cada anuncio permite abrir un chat privado con la otra parte para preguntar por el estado del artículo y acordar los detalles. La entrega y el pago se acuerdan directamente entre las partes.",
   },
   {
     q: "Como busco articulos cerca de mi?",
-    a: "Activa el modo 'Cerca de mi' en el marketplace. Esto amplia la busqueda a centros de tu zona, mostrando la distancia en kilometros a cada anuncio.",
+    a: "Usa el filtro de distancia y tu código postal aproximado para ordenar o limitar los anuncios cercanos. Wetudy utiliza esa referencia para mostrar proximidad sin publicar tu dirección exacta.",
   },
   {
     q: "Que hago si un articulo no coincide con la descripcion?",
@@ -33,20 +41,20 @@ const marketplaceFAQs = [
 
 const donationFAQs = [
   {
-    q: "Como funcionan las solicitudes de donacion?",
-    a: "Cuando un usuario publica un articulo como donacion, otros miembros del centro pueden solicitar recibirlo. El administrador del centro (AMPA) revisa las solicitudes y decide a quien asignar el articulo, priorizando las familias con mayor necesidad.",
+    q: "¿Cómo funciona una donación?",
+    a: "Publica el artículo como donación. Las personas interesadas pueden contactarte por chat y ambas partes acuerdan directamente la entrega. Cuando el acuerdo termina, podéis confirmarlo en Wetudy.",
   },
   {
-    q: "Quien aprueba las solicitudes de donacion?",
-    a: "El administrador del centro educativo o el representante del AMPA revisa y aprueba cada solicitud. Esto garantiza que las donaciones lleguen a quien mas las necesita de forma justa y transparente.",
+    q: "¿Quién decide a quién se entrega una donación?",
+    a: "En el flujo actual, la persona que publica la donación decide con quién llega a un acuerdo a través del chat. Wetudy facilita el contacto y el historial, pero no asigna automáticamente el material.",
   },
   {
-    q: "Puedo donar material aunque no sea de mi centro?",
-    a: "Si, puedes publicar una donacion y esta sera visible para los miembros de tu centro. Si activas el modo 'Cerca de mi', tambien podra ser vista por familias de centros cercanos.",
+    q: "¿Puedo donar material a alguien de otro centro?",
+    a: "Sí. El centro puede servir como referencia de confianza y filtro, pero la búsqueda también puede abrirse por zona o distancia.",
   },
   {
-    q: "Que tipo de material se puede donar?",
-    a: "Se puede donar cualquier material escolar en buen estado: libros de texto, uniformes, mochilas, material de escritura, instrumentos musicales, calculadoras, etc. Solo pedimos que el articulo este en condiciones de ser utilizado.",
+    q: "¿Qué material puedo donar?",
+    a: "Material escolar reutilizable y en condiciones de uso: libros, uniformes, mochilas, calculadoras y otros artículos educativos. Describe con claridad su estado y añade fotos reales.",
   },
 ];
 
