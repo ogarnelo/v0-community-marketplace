@@ -11,24 +11,44 @@ test("school registration requires an authenticated user", () => {
   assert.match(layout, /redirect\("\/auth\?next=\/register-school"\)/);
 });
 
-test("school requests stay pending until the superadmin approves them", () => {
+test("school requests go through the hardened server endpoint and stay pending", () => {
   const page = read("app/register-school/page.tsx");
+  const requestRoute = read("app/api/schools/requests/route.ts");
   const approvalRoute = read("app/api/admin/approve-school-request/route.ts");
 
-  assert.match(page, /from\("school_registration_requests"\)\.insert/);
+  assert.match(page, /fetch\("\/api\/schools\/requests"/);
+  assert.doesNotMatch(page, /from\("school_registration_requests"\)\.insert/);
   assert.doesNotMatch(page, /from\("schools"\)\.insert/);
   assert.match(page, /superadmin podrá aprobar su alta/);
-  assert.match(approvalRoute, /SUPERADMIN_EMAILS/);
+
+  assert.match(requestRoute, /email_confirmed_at/);
+  assert.match(requestRoute, /MIN_ACCOUNT_AGE_MS/);
+  assert.match(requestRoute, /MAX_REQUESTS_PER_DAY/);
+  assert.match(requestRoute, /requested_by: user\.id/);
+  assert.match(requestRoute, /status: "pending"/);
+  assert.match(requestRoute, /sendSchoolRegistrationAdminEmail/);
+
+  assert.match(approvalRoute, /eq\("role", "super_admin"\)/);
+  assert.doesNotMatch(approvalRoute, /SUPERADMIN_EMAILS/);
   assert.match(approvalRoute, /approve_school_registration_request/);
 });
 
-test("anonymous users cannot insert school registration requests", () => {
+test("browser clients cannot insert school registration requests after server gate", () => {
   const migration = read(
-    "supabase/migrations/20260917204500_harden_school_registration_requests.sql"
+    "supabase/migrations/20260917220600_school_request_server_gate.sql"
   );
 
   assert.match(migration, /revoke insert[\s\S]*from anon/i);
-  assert.match(migration, /drop policy if exists school_registration_requests_insert_public/i);
-  assert.match(migration, /create policy school_registration_requests_insert_authenticated/i);
-  assert.match(migration, /for insert[\s\S]*to authenticated[\s\S]*auth\.uid\(\)/i);
+  assert.match(migration, /revoke insert[\s\S]*from authenticated/i);
+  assert.match(migration, /drop policy if exists school_registration_requests_insert_authenticated/i);
+});
+
+test("school requests notify superadmins in app", () => {
+  const migration = read(
+    "supabase/migrations/20260917220500_launch_security_hardening.sql"
+  );
+
+  assert.match(migration, /notify_superadmins_on_school_request/);
+  assert.match(migration, /school_registration_requested/);
+  assert.match(migration, /where ur\.role = 'super_admin'/);
 });
