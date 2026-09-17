@@ -8,6 +8,8 @@ test("auth form passes Turnstile tokens to Supabase Auth", () => {
   const authForm = read("components/auth/auth-form.tsx");
 
   assert.match(authForm, /NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
+  assert.match(authForm, /DEFAULT_TURNSTILE_SITE_KEY/);
+  assert.match(authForm, /0x4AAAAAAE69ijg1KI5Aks-p/);
   assert.match(authForm, /signInWithPassword\([\s\S]*captchaToken/);
   assert.match(authForm, /resetPasswordForEmail\([\s\S]*captchaToken/);
   assert.match(authForm, /signUp\([\s\S]*captchaToken/);
