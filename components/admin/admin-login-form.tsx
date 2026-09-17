@@ -65,10 +65,7 @@ export function AdminLoginForm() {
 
       const hasSuperAdmin = (roles || []).some((role) => role.role === "super_admin");
       const hasSchoolAdmin = (roles || []).some((role) => role.role === "school_admin");
-      const isProvisionalSuperAdmin =
-        normalizedEmail === "oscar_garnelo@hotmail.com";
-
-      if (hasSuperAdmin || isProvisionalSuperAdmin) {
+      if (hasSuperAdmin) {
         router.push("/admin/super");
         router.refresh();
         return;
