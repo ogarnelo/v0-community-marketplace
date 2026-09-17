@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface NavbarMessagesBadgeProps {
@@ -13,6 +13,7 @@ export function NavbarMessagesBadge({
   initialCount = 0,
 }: NavbarMessagesBadgeProps) {
   const supabase = useMemo(() => createClient(), []);
+  const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [count, setCount] = useState(initialCount);
 
   useEffect(() => {
@@ -59,8 +60,9 @@ export function NavbarMessagesBadge({
 
     void loadUnreadCount();
 
+    const channelSuffix = `${currentUserId}-${instanceId}`;
     const messagesChannel = supabase
-      .channel(`navbar-unread-messages-${currentUserId}`)
+      .channel(`navbar-unread-messages-${channelSuffix}`)
       .on(
         "postgres_changes",
         {
@@ -75,7 +77,7 @@ export function NavbarMessagesBadge({
       .subscribe();
 
     const conversationsChannel = supabase
-      .channel(`navbar-unread-conversations-${currentUserId}`)
+      .channel(`navbar-unread-conversations-${channelSuffix}`)
       .on(
         "postgres_changes",
         {
@@ -90,7 +92,7 @@ export function NavbarMessagesBadge({
       .subscribe();
 
     const hiddenChannel = supabase
-      .channel(`navbar-hidden-conversations-${currentUserId}`)
+      .channel(`navbar-hidden-conversations-${channelSuffix}`)
       .on(
         "postgres_changes",
         {
@@ -111,7 +113,7 @@ export function NavbarMessagesBadge({
       supabase.removeChannel(conversationsChannel);
       supabase.removeChannel(hiddenChannel);
     };
-  }, [currentUserId, supabase]);
+  }, [currentUserId, instanceId, supabase]);
 
   if (count <= 0) return null;
 
