@@ -2,11 +2,14 @@ import Link from "next/link";
 import { BookOpen, Camera, MessageCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { createPublicMetadata } from "@/lib/seo/site";
 
-export const metadata = {
-  title: "Vende tus libros de texto usados | Wetudy",
-  description: "Publica libros de texto usados con foto, curso, editorial e ISBN. Wetudy facilita el contacto entre familias y estudiantes.",
-};
+export const metadata = createPublicMetadata({
+  title: "Vende o dona libros de texto usados",
+  description:
+    "Publica libros de texto usados con fotos, curso, editorial e ISBN y contacta con otras familias interesadas.",
+  path: "/vende-tus-libros",
+});
 
 const steps = [
   { title: "Sube fotos", text: "La primera foto ayuda a que otras familias reconozcan rápido el libro.", icon: Camera },
