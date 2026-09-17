@@ -24,6 +24,21 @@ test("support API authenticates, checks account maturity, rate limits, and deriv
   assert.match(route, /createAdminClient\(\)/);
 });
 
+test("support route emails super admins after a ticket is created without blocking the ticket response", () => {
+  const route = read("app/api/support/tickets/route.ts");
+  const email = read("lib/emails/admin-alert-emails.ts");
+
+  assert.match(route, /sendSupportTicketAdminEmail/);
+  assert.match(route, /\.from\("user_roles"\)/);
+  assert.match(route, /\.eq\("role", "super_admin"\)/);
+  assert.match(route, /admin\.auth\.admin\.getUserById/);
+  assert.match(route, /Promise\.allSettled/);
+  assert.match(route, /support-ticket-\$\{ticket\.id\}-\$\{superAdminUserId\}/);
+  assert.match(email, /Nuevo ticket de soporte/);
+  assert.match(email, /Abrir panel de soporte/);
+  assert.match(email, /Idempotency-Key/);
+});
+
 test("support migration removes public inserts and notifies super admins", () => {
   const migration = read("supabase/migrations/20260917094000_harden_support_tickets_and_notify_superadmins.sql");
   assert.match(migration, /drop policy if exists support_tickets_insert_public/);
