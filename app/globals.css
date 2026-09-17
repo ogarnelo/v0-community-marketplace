@@ -124,8 +124,16 @@
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
+    min-width: 0;
+    position: relative;
     @apply bg-background text-foreground;
   }
   input[type='number'] {

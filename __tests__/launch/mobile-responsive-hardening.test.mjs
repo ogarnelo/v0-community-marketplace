@@ -44,10 +44,13 @@ test("account and public profile use compact mobile grids", () => {
   assert.match(profile, /px-3 py-4 sm:px-4 sm:py-8/);
 });
 
-test("mobile document width is hard-limited without drawer-specific overflow hacks", () => {
+test("mobile document width is clipped without creating a sticky-breaking scroll container", () => {
   const globals = read("app/globals.css");
   assert.match(globals, /html,\s*\n\s*body \{[\s\S]*max-width: 100%/);
-  assert.match(globals, /overflow-x: hidden/);
+  assert.match(globals, /overflow-x: hidden;[\s\S]*overflow-x: clip;/);
+  assert.match(globals, /overscroll-behavior-x: none/);
+  assert.match(globals, /-webkit-text-size-adjust: 100%/);
+  assert.match(globals, /body \{[\s\S]*min-width: 0;[\s\S]*position: relative;/);
   assert.doesNotMatch(globals, /overflow-y: auto !important/);
   assert.doesNotMatch(globals, /button\[aria-label='Cerrar menú'\]/);
 });
