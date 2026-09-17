@@ -4,10 +4,14 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
-test("mobile navbar uses a simple portal drawer instead of the Radix sheet", () => {
+test("mobile navbar stays inside the header instead of using a portal or body scroll lock", () => {
   const navbar = read("components/navbar.tsx");
-  assert.match(navbar, /createPortal/);
   assert.match(navbar, /id="mobile-navigation"/);
+  assert.match(navbar, /absolute right-0 top-full/);
+  assert.match(navbar, /max-h-\[calc\(100dvh-4rem\)\]/);
+  assert.doesNotMatch(navbar, /createPortal/);
+  assert.doesNotMatch(navbar, /document\.body\.style\.overflow/);
+  assert.doesNotMatch(navbar, /fixed inset-0 z-\[100\]/);
   assert.doesNotMatch(navbar, /<Sheet open=/);
   assert.match(navbar, /className="shrink-0 md:hidden"/);
 });
@@ -40,13 +44,10 @@ test("account and public profile use compact mobile grids", () => {
   assert.match(profile, /px-3 py-4 sm:px-4 sm:py-8/);
 });
 
-test("mobile document width stays stable after opening and closing the drawer", () => {
+test("mobile document width is hard-limited without drawer-specific overflow hacks", () => {
   const globals = read("app/globals.css");
   assert.match(globals, /html,\s*\n\s*body \{[\s\S]*max-width: 100%/);
   assert.match(globals, /overflow-x: hidden/);
-  assert.match(globals, /overflow-y: auto !important/);
-  assert.match(globals, /button\[aria-label='Cerrar menú'\]/);
-  assert.match(globals, /touch-action: none/);
-  assert.match(globals, /#mobile-navigation/);
-  assert.match(globals, /overscroll-behavior: contain/);
+  assert.doesNotMatch(globals, /overflow-y: auto !important/);
+  assert.doesNotMatch(globals, /button\[aria-label='Cerrar menú'\]/);
 });
