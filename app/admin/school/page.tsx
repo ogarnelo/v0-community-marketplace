@@ -7,7 +7,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import SchoolAdminDashboard from "@/components/admin/school-admin-dashboard";
 import { DonationRequestsPanel, type DonationRequestAdminItem } from "@/components/admin/donation-requests-panel";
 
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SchoolRow = {
   id: string;
@@ -97,14 +96,12 @@ export default async function SchoolAdminPage() {
     redirect("/auth?next=/admin/school");
   }
 
-  const email = user.email?.toLowerCase() || "";
-  const isSuperAdmin = SUPERADMIN_EMAILS.includes(email);
-
   const [{ data: profile }, { data: roles }] = await Promise.all([
     supabase.from("profiles").select("full_name, school_id").eq("id", user.id).maybeSingle(),
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<RoleRow[]>(),
   ]);
 
+  const isSuperAdmin = (roles || []).some((role) => role.role === "super_admin");
   const schoolAdminRole = (roles || []).find((role) => role.role === "school_admin");
   const effectiveSchoolId = schoolAdminRole?.school_id || profile?.school_id || null;
 
