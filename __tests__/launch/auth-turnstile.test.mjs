@@ -26,3 +26,11 @@ test("Turnstile widget uses Cloudflare's explicit browser challenge", () => {
   assert.match(widget, /expired-callback/);
   assert.match(widget, /error-callback/);
 });
+
+test("signup clearly explains email confirmation and spam folder", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+
+  assert.match(authForm, /email de confirmación/);
+  assert.match(authForm, /activar tu cuenta/);
+  assert.match(authForm, /Spam o Correo no deseado/);
+});
