@@ -33,4 +33,14 @@ test("signup clearly explains email confirmation and spam folder", () => {
   assert.match(authForm, /email de confirmación/);
   assert.match(authForm, /activar tu cuenta/);
   assert.match(authForm, /Spam o Correo no deseado/);
+  assert.match(authForm, /data\.user\?\.id && data\.session/);
+});
+
+test("new-user trigger persists split names before email confirmation", () => {
+  const migration = read("supabase/migrations/20260917215000_sync_profile_names_on_signup.sql");
+
+  assert.match(migration, /first_name/);
+  assert.match(migration, /last_name/);
+  assert.match(migration, /raw_user_meta_data ->> 'first_name'/);
+  assert.match(migration, /raw_user_meta_data ->> 'last_name'/);
 });
