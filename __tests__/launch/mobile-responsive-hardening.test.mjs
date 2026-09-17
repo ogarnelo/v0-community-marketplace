@@ -51,3 +51,15 @@ test("mobile document width is hard-limited without drawer-specific overflow hac
   assert.doesNotMatch(globals, /overflow-y: auto !important/);
   assert.doesNotMatch(globals, /button\[aria-label='Cerrar menú'\]/);
 });
+
+test("cards and recharts widgets can shrink inside an iPhone viewport", () => {
+  const cards = read("components/ui/card.tsx");
+  const globals = read("app/globals.css");
+  assert.match(cards, /flex min-w-0 flex-col/);
+  assert.match(cards, /grid min-w-0 auto-rows-min/);
+  assert.match(cards, /min-w-0 px-6/);
+  assert.match(globals, /\[data-slot='chart'\] \{[\s\S]*min-width: 0;[\s\S]*max-width: 100%;[\s\S]*overflow: hidden;/);
+  assert.match(globals, /recharts-responsive-container/);
+  assert.match(globals, /recharts-legend-wrapper > div/);
+  assert.match(globals, /flex-wrap: wrap/);
+});
