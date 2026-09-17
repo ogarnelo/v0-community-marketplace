@@ -11,11 +11,14 @@ test("support form uses the authenticated server route instead of direct table i
   assert.match(form, /Inicia sesión para contactar con soporte/);
 });
 
-test("support API authenticates, rate limits, and derives identity server-side", () => {
+test("support API authenticates, checks account maturity, rate limits, and derives identity server-side", () => {
   const route = read("app/api/support/tickets/route.ts");
   assert.match(route, /supabase\.auth\.getUser\(\)/);
   assert.match(route, /status: 401/);
-  assert.match(route, /MAX_TICKETS_PER_HOUR = 3/);
+  assert.match(route, /user\.email_confirmed_at/);
+  assert.match(route, /MIN_ACCOUNT_AGE_MS = 10 \* 60 \* 1000/);
+  assert.match(route, /Date\.parse\(user\.created_at/);
+  assert.match(route, /MAX_TICKETS_PER_HOUR = 2/);
   assert.match(route, /\.eq\("user_id", user\.id\)/);
   assert.match(route, /user\.email/);
   assert.match(route, /createAdminClient\(\)/);
