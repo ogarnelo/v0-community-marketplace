@@ -94,6 +94,94 @@ export function Navbar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
+  useEffect(() => {
+    if (!currentUserId || typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedDebug = params.get("viewport_debug");
+
+    if (requestedDebug === "1") {
+      window.sessionStorage.setItem("wetudyViewportDebug", "1");
+    } else if (requestedDebug === "0") {
+      window.sessionStorage.removeItem("wetudyViewportDebug");
+    }
+
+    if (window.sessionStorage.getItem("wetudyViewportDebug") !== "1") return;
+
+    const sessionKey = "wetudyViewportDebugSession";
+    let session = window.sessionStorage.getItem(sessionKey);
+    if (!session) {
+      session = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      window.sessionStorage.setItem(sessionKey, session);
+    }
+
+    let sent = 0;
+    let timer: ReturnType<typeof window.setTimeout> | null = null;
+    const visualViewport = window.visualViewport;
+
+    const send = (reason: string) => {
+      if (sent >= 40) return;
+      sent += 1;
+
+      const root = document.documentElement;
+      const body = document.body;
+      const payload = {
+        reason,
+        path: window.location.pathname,
+        session,
+        innerWidth: window.innerWidth,
+        outerWidth: window.outerWidth,
+        clientWidth: root.clientWidth,
+        scrollWidth: root.scrollWidth,
+        bodyScrollWidth: body?.scrollWidth ?? null,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        visualWidth: visualViewport?.width ?? null,
+        visualOffsetLeft: visualViewport?.offsetLeft ?? null,
+        visualPageLeft: visualViewport?.pageLeft ?? null,
+        visualScale: visualViewport?.scale ?? null,
+        screenWidth: window.screen?.width ?? null,
+        devicePixelRatio: window.devicePixelRatio,
+        menuOpen: open,
+        userAgent: window.navigator.userAgent,
+      };
+
+      void fetch("/api/debug/viewport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+
+    const schedule = (reason: string) => {
+      if (timer !== null || sent >= 40) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        send(reason);
+      }, 350);
+    };
+
+    const onScroll = () => schedule("window-scroll");
+    const onResize = () => schedule("window-resize");
+    const onVisualResize = () => schedule("visual-resize");
+    const onVisualScroll = () => schedule("visual-scroll");
+
+    send(open ? "navbar-open" : "navbar-state");
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
+    visualViewport?.addEventListener("resize", onVisualResize, { passive: true });
+    visualViewport?.addEventListener("scroll", onVisualScroll, { passive: true });
+
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      visualViewport?.removeEventListener("resize", onVisualResize);
+      visualViewport?.removeEventListener("scroll", onVisualScroll);
+    };
+  }, [currentUserId, open, pathname]);
+
   const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
   const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
