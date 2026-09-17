@@ -14,7 +14,7 @@ export function Footer() {
               <span className="font-mono text-lg font-bold text-foreground">Wetudy</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Marketplace escolar comunitario para comprar, vender o donar material educativo con chat e historial del acuerdo.
+              Red para encontrar, publicar y reutilizar material escolar entre familias, con chat e historial del acuerdo.
             </p>
           </div>
 
@@ -33,6 +33,7 @@ export function Footer() {
               <li><Link href="/onboarding/join-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vincular mi centro</Link></li>
               <li><Link href="/register-school" className="text-sm text-muted-foreground transition-colors hover:text-primary">Solicitar alta de un centro</Link></li>
               <li><Link href="/help" className="text-sm text-muted-foreground transition-colors hover:text-primary">Centro de ayuda</Link></li>
+              <li><Link href="/impacto" className="text-sm text-muted-foreground transition-colors hover:text-primary">Impacto</Link></li>
             </ul>
           </div>
 
