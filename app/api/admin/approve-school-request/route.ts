@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SchoolRequestRow = {
   id: string;
@@ -29,9 +28,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado." }, { status: 401 });
     }
 
-    const email = user.email?.toLowerCase() || "";
+    const { data: superAdminRoles, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "super_admin")
+      .limit(1);
 
-    if (!SUPERADMIN_EMAILS.includes(email)) {
+    if (roleError || !superAdminRoles?.length) {
       return NextResponse.json({ error: "No autorizado." }, { status: 403 });
     }
 
