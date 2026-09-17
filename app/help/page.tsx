@@ -50,11 +50,6 @@ const donationFAQs = [
   },
 ];
 
-type SafeUserMetadata = {
-  full_name?: string;
-  user_type?: string;
-};
-
 export default async function HelpPage() {
   const supabase = await createClient();
 
@@ -63,8 +58,8 @@ export default async function HelpPage() {
   } = await supabase.auth.getUser();
   const navbarProps = await getNavbarData(supabase);
 
-  let initialName = navbarProps.userName || "";
-  let initialEmail = user?.email || "";
+  const initialName = navbarProps.userName || "";
+  const initialEmail = user?.email || "";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -155,6 +150,7 @@ export default async function HelpPage() {
                 <HelpContactForm
                   initialName={initialName}
                   initialEmail={initialEmail}
+                  isLoggedIn={navbarProps.isLoggedIn}
                 />
               </CardContent>
             </Card>
