@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { createPublicMetadata } from "@/lib/seo/site";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
@@ -16,6 +17,13 @@ import {
   Handshake,
   School,
 } from "lucide-react";
+
+export const metadata = createPublicMetadata({
+  title: "Sobre la plataforma",
+  description:
+    "Conoce Wetudy: un punto de encuentro para reutilizar libros, uniformes y material escolar entre familias y comunidades educativas.",
+  path: "/about",
+});
 
 const missionValues = [
   {
