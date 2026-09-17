@@ -30,3 +30,10 @@ test("support migration removes public inserts and notifies super admins", () =>
   assert.match(migration, /where ur\.role = 'super_admin'/);
   assert.match(migration, /revoke all on function public\.notify_superadmins_on_support_ticket\(\) from authenticated/);
 });
+
+test("super admin navbar receives unread notification state", () => {
+  const page = read("app/admin/super/page.tsx");
+  assert.match(page, /getNavbarData/);
+  assert.match(page, /const navbarData = await getNavbarData\(supabase\)/);
+  assert.match(page, /<Navbar \{\.\.\.navbarData\} \/>/);
+});
