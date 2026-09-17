@@ -138,25 +138,6 @@
   }
 }
 
-@media (max-width: 767px) {
-  /* iOS Safari can keep a widened visual viewport after toggling body overflow.
-     Keep the document width stable and let the fixed drawer/backdrop own touch
-     interaction instead of mutating the page's scroll container. */
-  body {
-    overflow-y: auto !important;
-  }
-
-  button[aria-label='Cerrar menú'] {
-    touch-action: none;
-    overscroll-behavior: contain;
-  }
-
-  #mobile-navigation {
-    max-width: min(86vw, 20rem);
-    overscroll-behavior: contain;
-  }
-}
-
 @media (max-width: 639px) {
   a[href='/marketplace/new'].fixed {
     display: none !important;
