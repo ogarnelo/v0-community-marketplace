@@ -8,7 +8,6 @@ import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
 import { Globe, School, Users } from "lucide-react";
 
-const SUPERADMIN_EMAILS = ["oscar_garnelo@hotmail.com"];
 
 type SupportTicketRow = {
   id: string;
@@ -111,9 +110,14 @@ export default async function SuperAdminPage() {
     redirect("/auth?next=/admin/super");
   }
 
-  const email = user.email?.toLowerCase() || "";
+  const { data: superAdminRoles, error: superAdminRoleError } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("role", "super_admin")
+    .limit(1);
 
-  if (!SUPERADMIN_EMAILS.includes(email)) {
+  if (superAdminRoleError || !superAdminRoles?.length) {
     redirect("/");
   }
 
