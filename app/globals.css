@@ -167,6 +167,21 @@
   }
 }
 
+@media (max-width: 767px) {
+  header.sticky.top-0.z-50 {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    width: 100%;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  body:has(header.sticky.top-0.z-50) {
+    padding-top: 4rem;
+  }
+}
+
 @media (max-width: 639px) {
   a[href='/marketplace/new'].fixed {
     display: none !important;
