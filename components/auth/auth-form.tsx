@@ -233,7 +233,7 @@ export function AuthForm() {
 
       if (error) throw error;
 
-      if (data.user?.id) {
+      if (data.user?.id && data.session) {
         await upsertProfileAfterAuth({
           userId: data.user.id,
           firstName: normalizedFirstName,
