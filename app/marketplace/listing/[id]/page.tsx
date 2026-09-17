@@ -17,6 +17,7 @@ import { getConditionLabel } from "@/lib/marketplace/formatters";
 import JsonLd from "@/components/seo/json-ld";
 import ListingViewTracker from "@/components/analytics/listing-view-tracker";
 import MobileListingActions from "@/components/marketplace/mobile-listing-actions";
+import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/seo/site";
 
 function formatPrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
@@ -43,22 +44,61 @@ function shouldShowIsbn(category?: string | null, isbn?: string | null) {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const supabase = createAdminClient();
-  const { data: listing } = await supabase
-    .from("listings")
-    .select("id, title, description, price, status")
-    .eq("id", id)
-    .maybeSingle();
 
-  if (!listing) return { title: "Anuncio no encontrado" };
+  const [{ data: listing }, { data: firstPhoto }] = await Promise.all([
+    supabase
+      .from("listings")
+      .select("id, title, description, category, grade_level, price, status")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("listing_photos")
+      .select("url")
+      .eq("listing_id", id)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  const title = listing.title || "Anuncio en Wetudy";
-  const description = listing.description?.slice(0, 155) || "Anuncio de material educativo en Wetudy.";
+  if (!listing) {
+    return {
+      title: "Anuncio no encontrado",
+      robots: { index: false, follow: true },
+    };
+  }
+
+  const title = listing.title || "Material escolar en Wetudy";
+  const context = [listing.category, listing.grade_level].filter(Boolean).join(" · ");
+  const fallbackDescription = context
+    ? `${title}. ${context}. Contacta por chat y acuerda directamente la entrega con la otra parte.`
+    : `${title}. Contacta por chat en Wetudy y acuerda directamente la entrega con la otra parte.`;
+  const description = (listing.description?.trim() || fallbackDescription).slice(0, 160);
+  const canonicalPath = `/marketplace/listing/${listing.id}`;
+  const image = firstPhoto?.url || DEFAULT_OG_IMAGE;
+  const isAvailable = listing.status === "available";
 
   return {
     title,
     description,
-    robots: listing.status === "available" ? { index: true, follow: true } : { index: false, follow: true },
-    openGraph: { title, description, type: "article" },
+    alternates: { canonical: canonicalPath },
+    robots: isAvailable
+      ? { index: true, follow: true }
+      : { index: false, follow: true },
+    openGraph: {
+      title: `${title} | ${SITE_NAME}`,
+      description,
+      type: "website",
+      url: canonicalPath,
+      siteName: SITE_NAME,
+      locale: "es_ES",
+      images: [{ url: image, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | ${SITE_NAME}`,
+      description,
+      images: [image],
+    },
   };
 }
 
@@ -164,12 +204,14 @@ export default async function ListingDetailPage({
     isFavorite: false,
   }));
 
-  const appUrlForJsonLd = process.env.NEXT_PUBLIC_APP_URL || "https://wetudy.com";
+  const appUrlForJsonLd = process.env.NEXT_PUBLIC_APP_URL || SITE_URL;
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: displayTitle,
-    description: listing.description || "Material educativo en Wetudy",
+    description: listing.description || "Material escolar disponible en Wetudy",
+    image: photos.length > 0 ? photos : undefined,
+    category: listing.category || undefined,
     sku: listing.isbn || listing.id,
     offers: {
       "@type": "Offer",
