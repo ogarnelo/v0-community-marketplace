@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SITE_URL } from "@/lib/seo/site";
+import { posts } from "@/lib/blog-data";
 
 export const revalidate = 3600;
 
@@ -15,6 +16,7 @@ const staticPages: Array<{
   { path: "/como-funciona", changeFrequency: "monthly", priority: 0.8 },
   { path: "/about", changeFrequency: "monthly", priority: 0.65 },
   { path: "/help", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/blog", changeFrequency: "monthly", priority: 0.65 },
   { path: "/impacto", changeFrequency: "monthly", priority: 0.55 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
@@ -27,6 +29,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: now,
     changeFrequency: page.changeFrequency,
     priority: page.priority,
+  }));
+
+  const editorialEntries: MetadataRoute.Sitemap = posts.map((post) => ({
+    url: `${SITE_URL}/blog/${post.slug}`,
+    lastModified: new Date(post.publishedAt),
+    changeFrequency: "monthly",
+    priority: 0.55,
   }));
 
   try {
@@ -47,9 +56,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
-    return [...staticEntries, ...listingEntries];
+    return [...staticEntries, ...editorialEntries, ...listingEntries];
   } catch (error) {
     console.error("Error generando sitemap de anuncios:", error);
-    return staticEntries;
+    return [...staticEntries, ...editorialEntries];
   }
 }
