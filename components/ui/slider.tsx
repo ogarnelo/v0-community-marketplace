@@ -11,9 +11,11 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  onValueChange,
+  onValueCommit,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
-  const _values = React.useMemo(
+  const externalValues = React.useMemo(
     () =>
       Array.isArray(value)
         ? value
@@ -23,13 +25,42 @@ function Slider({
     [value, defaultValue, min, max],
   )
 
+  // Keep pointer movement local to the slider. Marketplace filtering can be
+  // expensive, so updating the parent on every pointer event makes the thumb
+  // visibly lag behind the finger/cursor. We commit the selected values when
+  // the interaction ends, while the thumb itself remains fully responsive.
+  const [visualValues, setVisualValues] = React.useState<number[]>(externalValues)
+  const isInteractingRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!isInteractingRef.current) {
+      setVisualValues(externalValues)
+    }
+  }, [externalValues])
+
+  const handleValueChange = React.useCallback((nextValues: number[]) => {
+    isInteractingRef.current = true
+    setVisualValues(nextValues)
+  }, [])
+
+  const handleValueCommit = React.useCallback(
+    (nextValues: number[]) => {
+      isInteractingRef.current = false
+      setVisualValues(nextValues)
+      onValueChange?.(nextValues)
+      onValueCommit?.(nextValues)
+    },
+    [onValueChange, onValueCommit],
+  )
+
   return (
     <SliderPrimitive.Root
       data-slot="slider"
-      defaultValue={defaultValue}
-      value={value}
+      value={visualValues}
       min={min}
       max={max}
+      onValueChange={handleValueChange}
+      onValueCommit={handleValueCommit}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
         className,
@@ -49,7 +80,7 @@ function Slider({
           }
         />
       </SliderPrimitive.Track>
-      {Array.from({ length: _values.length }, (_, index) => (
+      {Array.from({ length: visualValues.length }, (_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}

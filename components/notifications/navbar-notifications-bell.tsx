@@ -41,7 +41,6 @@ function formatRelativeDate(value: string) {
   });
 }
 
-
 function getNotificationLabel(kind: string) {
   switch (kind) {
     case "new_follower":
@@ -74,6 +73,11 @@ export function NavbarNotificationsBell({
   const [markingAllRead, setMarkingAllRead] = useState(false);
 
   useEffect(() => {
+    // This bell is hidden below md. Do not keep a realtime connection alive for
+    // a control the user cannot see; the mobile drawer already gets the server
+    // count and this also avoids extra Safari pressure after login.
+    if (window.matchMedia("(max-width: 767px)").matches) return;
+
     let isMounted = true;
 
     const loadNotifications = async () => {
