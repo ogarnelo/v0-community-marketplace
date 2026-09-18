@@ -5,7 +5,7 @@ import { Toaster } from "sonner"
 import "./globals.css"
 
 const SITE_URL = "https://www.wetudy.com"
-const SITE_TITLE = "Wetudy | Material escolar de segunda mano entre familias"
+const SITE_TITLE = "Wetudy | Reutiliza material escolar entre familias"
 const SITE_DESCRIPTION =
   "Compra, vende o dona libros, uniformes y material escolar de segunda mano. Contacta por chat y acuerda la entrega y el pago directamente entre las partes."
 
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "es_ES",
-    url: SITE_URL,
+    url: `${SITE_URL}/`,
     siteName: "Wetudy",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
@@ -60,8 +60,12 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],
-    shortcut: "/icon.svg",
+    icon: [
+      { url: "/favicon.ico", type: "image/x-icon", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
   },
   manifest: "/manifest.webmanifest",
 }
