@@ -14,6 +14,7 @@ import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { getAuthErrorMessage } from "@/lib/auth/error-messages";
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
+import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 
 const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
 const TURNSTILE_SITE_KEY =
@@ -132,7 +133,7 @@ export function AuthForm() {
     setInfoMessage("");
 
     try {
-      const recoveryCallbackUrl = new URL("/auth/callback", window.location.origin);
+      const recoveryCallbackUrl = new URL("/auth/callback", getAuthPublicOrigin());
       recoveryCallbackUrl.searchParams.set("next", "/auth/update-password");
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -165,7 +166,7 @@ export function AuthForm() {
     setInfoMessage("");
 
     try {
-      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      const callbackUrl = new URL("/auth/callback", getAuthPublicOrigin());
 
       if (nextPath) {
         callbackUrl.searchParams.set("next", nextPath);
@@ -255,6 +256,11 @@ export function AuthForm() {
       return;
     }
 
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
     if (!userType) {
       setError("Debes seleccionar un tipo de usuario.");
       return;
@@ -277,7 +283,7 @@ export function AuthForm() {
     setInfoMessage("");
 
     try {
-      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      const callbackUrl = new URL("/auth/callback", getAuthPublicOrigin());
 
       if (nextPath) {
         callbackUrl.searchParams.set("next", nextPath);
@@ -323,7 +329,7 @@ export function AuthForm() {
       }
 
       setInfoMessage(
-        "Cuenta creada. Te hemos enviado un email de confirmación. Abre el enlace para activar tu cuenta. Si no lo ves en unos minutos, revisa Spam o Correo no deseado. Después podrás iniciar sesión."
+        "Si este email es nuevo en Wetudy, te hemos enviado un enlace de confirmación. Si ya tenías una cuenta, inicia sesión o usa Recuperar contraseña. Revisa también Spam o Correo no deseado."
       );
       setMode("login");
     } catch (e: any) {
@@ -575,10 +581,16 @@ export function AuthForm() {
                 placeholder="••••••••"
                 className="pl-10"
                 required
+                minLength={mode === "signup" ? 8 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+            {mode === "signup" ? (
+              <p className="text-xs text-muted-foreground">
+                Usa al menos 8 caracteres.
+              </p>
+            ) : null}
           </div>
 
           {mode === "signup" && (
