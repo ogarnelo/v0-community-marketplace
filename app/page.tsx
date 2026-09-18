@@ -10,11 +10,12 @@ import { ImpactSection } from "@/components/landing/impact-section";
 import { CTASection } from "@/components/landing/cta-section";
 import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
+import { SEO_ORGANIZATION_ID, SEO_SITE_URL, SEO_WEBSITE_ID } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   title: { absolute: "Wetudy | Reutiliza material escolar entre familias" },
   description: "Compra, vende o dona libros, uniformes y material escolar de segunda mano. Contacta por chat y acuerda entrega y pago directamente entre las partes.",
-  alternates: { canonical: "https://www.wetudy.com/" },
+  alternates: { canonical: `${SEO_SITE_URL}/` },
 };
 
 export default async function LandingPage() {
@@ -26,17 +27,28 @@ export default async function LandingPage() {
     {
       "@context": "https://schema.org",
       "@type": "Organization",
+      "@id": SEO_ORGANIZATION_ID,
       name: "Wetudy",
-      url: "https://www.wetudy.com/",
-      logo: "https://www.wetudy.com/wetudy-icon-512.png",
-      description: "Comunidad para comprar, vender, donar y reutilizar material escolar entre familias.",
+      url: `${SEO_SITE_URL}/`,
+      logo: {
+        "@type": "ImageObject",
+        "@id": `${SEO_SITE_URL}/#logo`,
+        url: `${SEO_SITE_URL}/wetudy-icon-512.png`,
+        contentUrl: `${SEO_SITE_URL}/wetudy-icon-512.png`,
+        width: 512,
+        height: 512,
+        caption: "Wetudy",
+      },
+      description: "Comunidad para encontrar, vender, donar y reutilizar material escolar entre familias.",
     },
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
+      "@id": SEO_WEBSITE_ID,
       name: "Wetudy",
       alternateName: "Wetudy material escolar",
-      url: "https://www.wetudy.com/",
+      url: `${SEO_SITE_URL}/`,
+      publisher: { "@id": SEO_ORGANIZATION_ID },
       inLanguage: "es-ES",
     },
   ];
