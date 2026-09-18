@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -489,6 +490,7 @@ export default function SuperAdminDashboard({
   const [loadingTicketId, setLoadingTicketId] = useState<string | null>(null);
   const [loadingReportId, setLoadingReportId] = useState<string | null>(null);
   const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
+  const [requestRejectNotes, setRequestRejectNotes] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState("");
   const [approvedRequestMeta, setApprovedRequestMeta] = useState<
     Record<string, ApprovedRequestMeta>
@@ -512,6 +514,19 @@ export default function SuperAdminDashboard({
   const filteredSchoolRequests = useMemo(
     () => schoolRequests.filter((item) => isWithinRange(item.created_at, selectedRange)),
     [schoolRequests, selectedRange]
+  );
+
+  const orderedSchoolRequests = useMemo(
+    () =>
+      [...schoolRequests].sort((a, b) => {
+        const aPending = normalizeSchoolRequestStatus(a.status) === "pending" ? 0 : 1;
+        const bPending = normalizeSchoolRequestStatus(b.status) === "pending" ? 0 : 1;
+
+        if (aPending !== bPending) return aPending - bPending;
+
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
+    [schoolRequests]
   );
 
   const filteredListingViews = useMemo(
@@ -730,6 +745,12 @@ export default function SuperAdminDashboard({
           ticket.id === ticketId ? { ...ticket, status: nextStatus } : ticket
         )
       );
+
+      setRequestRejectNotes((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
     } catch (error: any) {
       setGlobalError(error?.message || error?.details || "No se pudo actualizar el ticket.");
     } finally {
@@ -792,6 +813,7 @@ export default function SuperAdminDashboard({
               status: "approved",
               approved_school_id: payload?.school_id || request.approved_school_id,
               reviewed_at: new Date().toISOString(),
+              review_notes: reviewNotes || null,
             }
             : request
         )
@@ -821,10 +843,12 @@ export default function SuperAdminDashboard({
     setGlobalError("");
     setLoadingRequestId(requestId);
 
+    const reviewNotes = (requestRejectNotes[requestId] || "").trim().slice(0, 500);
+
     try {
       const { error } = await supabase.rpc("reject_school_registration_request", {
         request_id: requestId,
-        notes: null,
+        notes: reviewNotes || null,
       });
 
       if (error) throw error;
@@ -1483,7 +1507,7 @@ export default function SuperAdminDashboard({
                   Todavía no hay solicitudes de alta.
                 </div>
               ) : (
-                schoolRequests.map((request) => {
+                orderedSchoolRequests.map((request) => {
                   const normalizedStatus = normalizeSchoolRequestStatus(request.status);
                   const approvedMeta = approvedRequestMeta[request.id];
 
@@ -1547,31 +1571,59 @@ export default function SuperAdminDashboard({
 
                           {normalizedStatus !== "approved" &&
                             normalizedStatus !== "rejected" ? (
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                disabled={loadingRequestId === request.id}
-                                onClick={() => approveSchoolRequest(request.id)}
-                              >
-                                {loadingRequestId === request.id ? (
-                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-                                )}
-                                Aprobar y crear centro
-                              </Button>
+                            <div className="space-y-3">
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`school-request-notes-${request.id}`}
+                                  className="text-xs font-medium text-muted-foreground"
+                                >
+                                  Motivo de rechazo (opcional)
+                                </label>
+                                <Textarea
+                                  id={`school-request-notes-${request.id}`}
+                                  value={requestRejectNotes[request.id] || ""}
+                                  onChange={(event) =>
+                                    setRequestRejectNotes((prev) => ({
+                                      ...prev,
+                                      [request.id]: event.target.value.slice(0, 500),
+                                    }))
+                                  }
+                                  maxLength={500}
+                                  rows={2}
+                                  placeholder="Ej.: centro duplicado, datos insuficientes o solicitud no válida."
+                                  disabled={loadingRequestId === request.id}
+                                />
+                                <p className="text-[11px] text-muted-foreground">
+                                  Se guarda en la revisión administrativa; máximo 500 caracteres.
+                                </p>
+                              </div>
 
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={loadingRequestId === request.id}
-                                onClick={() => rejectSchoolRequest(request.id)}
-                              >
-                                <XCircle className="mr-2 h-3.5 w-3.5" />
-                                Rechazar
-                              </Button>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={loadingRequestId === request.id}
+                                  onClick={() => approveSchoolRequest(request.id)}
+                                >
+                                  {loadingRequestId === request.id ? (
+                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                                  )}
+                                  Aprobar y crear centro
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={loadingRequestId === request.id}
+                                  onClick={() => rejectSchoolRequest(request.id)}
+                                >
+                                  <XCircle className="mr-2 h-3.5 w-3.5" />
+                                  Rechazar
+                                </Button>
+                              </div>
                             </div>
                           ) : null}
                         </div>
