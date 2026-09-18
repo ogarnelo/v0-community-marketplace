@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildSandboxPlan, type PaymentShippingSandboxScenario } from "@/lib/sandbox/payment-shipping";
+import { isPaymentShippingSandboxEnabled } from "@/lib/launch/feature-gates";
 
 const allowedScenarios = new Set<PaymentShippingSandboxScenario>([
   "stripe_connect_onboarding",
@@ -12,6 +13,13 @@ const allowedScenarios = new Set<PaymentShippingSandboxScenario>([
 ]);
 
 export async function POST(request: Request) {
+  if (!isPaymentShippingSandboxEnabled()) {
+    return NextResponse.json(
+      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
+      { status: 404 }
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
