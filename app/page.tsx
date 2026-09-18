@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 
 export const metadata: Metadata = {
-  title: { absolute: "Wetudy | Material escolar de segunda mano entre familias" },
+  title: { absolute: "Wetudy | Reutiliza material escolar entre familias" },
   description: "Compra, vende o dona libros, uniformes y material escolar de segunda mano. Contacta por chat y acuerda entrega y pago directamente entre las partes.",
   alternates: { canonical: "https://www.wetudy.com/" },
 };
@@ -27,8 +27,8 @@ export default async function LandingPage() {
       "@context": "https://schema.org",
       "@type": "Organization",
       name: "Wetudy",
-      url: "https://www.wetudy.com",
-      logo: "https://www.wetudy.com/icon.svg",
+      url: "https://www.wetudy.com/",
+      logo: "https://www.wetudy.com/wetudy-icon-512.png",
       description: "Comunidad para comprar, vender, donar y reutilizar material escolar entre familias.",
     },
     {
@@ -36,7 +36,7 @@ export default async function LandingPage() {
       "@type": "WebSite",
       name: "Wetudy",
       alternateName: "Wetudy material escolar",
-      url: "https://www.wetudy.com",
+      url: "https://www.wetudy.com/",
       inLanguage: "es-ES",
     },
   ];
