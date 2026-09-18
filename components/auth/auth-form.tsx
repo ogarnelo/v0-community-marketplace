@@ -211,7 +211,7 @@ export function AuthForm() {
       const requiresWetudyEmailConfirmation =
         data.user?.user_metadata?.wetudy_email_confirmation_required === true;
 
-      if (requiresWetudyEmailConfirmation && !data.user?.confirmation_sent_at) {
+      if (requiresWetudyEmailConfirmation && !data.user?.email_confirmed_at) {
         await supabase.auth.signOut();
         setError(
           "Esta cuenta no ha pasado por la verificación de email obligatoria. Por seguridad, no hemos iniciado sesión. Solicita un nuevo enlace de activación o inténtalo más tarde."
