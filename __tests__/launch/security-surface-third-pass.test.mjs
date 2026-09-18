@@ -59,3 +59,13 @@ test("school admin privileges never come from user-editable auth metadata", () =
   assert.match(roleGrant, /role: "school_admin"/);
   assert.match(roleGrant, /from\("profiles"\)/);
 });
+
+
+test("listing deletion preserves moderation and conversation history", () => {
+  const route = read("app/api/listings/delete/route.ts");
+
+  assert.match(route, /hasModerationOrConversationHistory/);
+  assert.match(route, /from\("reports"\)[\s\S]*select\("id"\)/);
+  assert.match(route, /mode: "archived"/);
+  assert.doesNotMatch(route, /from\("reports"\)\.delete/);
+});
