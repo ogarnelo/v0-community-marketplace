@@ -16,8 +16,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const listingId = typeof body?.listingId === "string" ? body.listingId.trim() : "";
-    const note = typeof body?.note === "string" ? body.note.trim() : "";
-    const schoolId = typeof body?.schoolId === "string" ? body.schoolId.trim() : null;
+    const note = typeof body?.note === "string" ? body.note.trim().slice(0, 500) : "";
 
     if (!listingId) {
       return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
@@ -28,7 +27,6 @@ export async function POST(request: Request) {
       supabase: adminSupabase,
       listingId,
       actorUserId: user.id,
-      schoolId,
       note,
     });
 
