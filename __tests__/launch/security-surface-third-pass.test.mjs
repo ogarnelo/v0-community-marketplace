@@ -37,3 +37,25 @@ test("user_roles gets an explicit primary key without changing role uniqueness r
   assert.match(migration, /primary key \(id\)/);
   assert.doesNotMatch(migration, /drop index/);
 });
+
+
+test("school admin privileges never come from user-editable auth metadata", () => {
+  const callback = read("app/auth/callback/route.ts");
+  const approval = read("app/api/admin/approve-school-request/route.ts");
+  const invitation = read("app/api/admin/invite-school-admin/route.ts");
+  const roleGrant = read("lib/admin/school-admin-role.ts");
+
+  assert.doesNotMatch(callback, /invited_role|invited_school_id|pending_school_admin_role|pending_school_admin_school_id/);
+  assert.doesNotMatch(callback, /createAdminClient/);
+
+  assert.match(approval, /grantSchoolAdminRole/);
+  assert.match(invitation, /grantSchoolAdminRole/);
+  assert.doesNotMatch(approval, /invited_role|invited_school_id/);
+  assert.doesNotMatch(invitation, /pending_school_admin_role|pending_school_admin_school_id/);
+
+  assert.match(roleGrant, /findAuthUserByEmail/);
+  assert.match(roleGrant, /from\("schools"\)/);
+  assert.match(roleGrant, /from\("user_roles"\)/);
+  assert.match(roleGrant, /role: "school_admin"/);
+  assert.match(roleGrant, /from\("profiles"\)/);
+});
