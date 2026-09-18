@@ -22,9 +22,10 @@ type SupportTicketRow = {
 type ReportRow = {
   id: string;
   reporter_id: string;
-  target_type: "listing" | "conversation";
+  target_type: "listing" | "conversation" | "agreement";
   listing_id: string | null;
   conversation_id: string | null;
+  agreement_id: string | null;
   reason: string;
   details: string | null;
   status: "open" | "reviewing" | "resolved" | "dismissed";
