@@ -31,3 +31,18 @@ test("duplicate active indexes are removed safely", () => {
   assert.match(migration, /drop constraint if exists favorites_user_id_listing_id_key/);
   assert.match(migration, /drop index if exists public\.saved_searches_user_id_created_at_idx/);
 });
+
+
+const followupMigration = readFileSync(
+  new URL("../../supabase/migrations/20260918062000_optimize_active_rls_initplans.sql", import.meta.url),
+  "utf8"
+);
+
+test("remaining active admin and marketplace RLS helpers are statement-stable", () => {
+  assert.match(followupMigration, /\(select public\.is_superadmin\(\)\)/);
+  assert.match(followupMigration, /marketplace_search_events_admin_read/);
+  assert.match(followupMigration, /school_registration_requests_select_superadmin/);
+  assert.match(followupMigration, /support_tickets_select_superadmin/);
+  assert.match(followupMigration, /user_marketplace_preferences/);
+  assert.match(followupMigration, /\(select auth\.uid\(\)\)/);
+});
