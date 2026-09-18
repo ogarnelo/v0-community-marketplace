@@ -72,3 +72,28 @@ test("login exposes a safe confirmation-email resend flow", () => {
   assert.match(authForm, /Spam o Correo no deseado/);
   assert.match(authForm, /Si existe una cuenta pendiente de activar/);
 });
+
+
+test("password recovery returns through the auth callback and exposes a password update form", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+  const updateForm = read("components/auth/update-password-form.tsx");
+  const updatePage = read("app/auth/update-password/page.tsx");
+
+  assert.match(authForm, /recoveryCallbackUrl\.searchParams\.set\("next", "\/auth\/update-password"\)/);
+  assert.match(authForm, /resetPasswordForEmail\([\s\S]*recoveryCallbackUrl\.toString\(\)/);
+  assert.match(updateForm, /supabase\.auth\.updateUser\(\{ password \}\)/);
+  assert.match(updateForm, /Las contraseñas no coinciden/);
+  assert.match(updatePage, /robots:[\s\S]*index: false/);
+});
+
+test("auth redirects reject protocol-relative and backslash paths", () => {
+  const safeNext = read("lib/auth/safe-next.ts");
+  const authForm = read("components/auth/auth-form.tsx");
+  const callback = read("app/auth/callback/route.ts");
+
+  assert.match(safeNext, /value\.startsWith\("\/\/"\)/);
+  assert.match(safeNext, /value\.includes\("\\\\"\)/);
+  assert.match(authForm, /getSafeInternalPath\(searchParams\.get\("next"\)\)/);
+  assert.match(callback, /getSafeInternalPath\(requestUrl\.searchParams\.get\("next"\)\)/);
+  assert.match(callback, /auth_error=invalid_link/);
+});
