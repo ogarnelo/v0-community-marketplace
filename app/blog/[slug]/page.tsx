@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import JsonLd from "@/components/seo/json-ld"
 import { categoryColors, getPostBySlug, posts } from "@/lib/blog-data"
+import { SEO_ORGANIZATION_ID, SEO_SITE_URL, buildBreadcrumbJsonLd } from "@/lib/seo/structured-data"
 
-const SITE_URL = "https://www.wetudy.com"
+const SITE_URL = SEO_SITE_URL
 
 export function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }))
@@ -76,25 +77,18 @@ export default async function BlogPostPage({
     dateModified: post.updatedAt || post.publishedAt,
     inLanguage: "es-ES",
     mainEntityOfPage: canonical,
-    author: {
-      "@type": "Organization",
-      name: "Wetudy",
-      url: SITE_URL,
-    },
-    publisher: {
-      "@type": "Organization",
-      name: "Wetudy",
-      url: SITE_URL,
-      logo: {
-        "@type": "ImageObject",
-        url: `${SITE_URL}/wetudy-icon-512.png`,
-      },
-    },
+    author: { "@id": SEO_ORGANIZATION_ID },
+    publisher: { "@id": SEO_ORGANIZATION_ID },
   }
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Guías", path: "/blog" },
+    { name: post.title, url: canonical },
+  ])
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <JsonLd data={articleJsonLd} />
+      <JsonLd data={[articleJsonLd, breadcrumbJsonLd]} />
       <Navbar />
       <main className="flex-1">
         <div className="relative w-full border-b bg-gradient-to-br from-primary/10 via-background to-secondary/10">
