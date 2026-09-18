@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata = {
-  title: "Cómo funciona Wetudy | Marketplace escolar",
-  description: "Busca, publica y contacta por chat para reutilizar material escolar. La entrega y el pago se acuerdan directamente entre las partes.",
+  title: "Cómo funciona Wetudy",
+  description: "Busca, publica y reutiliza libros, uniformes y material escolar. Contacta por chat y acuerda entrega y pago directamente entre las partes.",
+  alternates: { canonical: "https://www.wetudy.com/como-funciona" },
 };
 
 const buyerSteps = [
