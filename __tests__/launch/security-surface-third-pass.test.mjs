@@ -109,3 +109,12 @@ test("private chat identities and message content are immutable from the browser
   assert.match(migration, /messages_update_read_receipts/);
   assert.match(migration, /sender_id is distinct from \(select auth\.uid\(\)\)/);
 });
+
+
+test("moderation reports cannot bypass the server gate through direct SQL", () => {
+  const migration = read("supabase/migrations/20260918220000_finalize_server_gated_reports.sql");
+
+  assert.match(migration, /drop policy if exists reports_insert_authenticated/);
+  assert.match(migration, /revoke insert, delete, truncate, references, trigger/);
+  assert.doesNotMatch(migration, /grant insert[\s\S]*authenticated/);
+});
