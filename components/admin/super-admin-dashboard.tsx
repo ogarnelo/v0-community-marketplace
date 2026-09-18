@@ -746,11 +746,6 @@ export default function SuperAdminDashboard({
         )
       );
 
-      setRequestRejectNotes((prev) => {
-        const next = { ...prev };
-        delete next[requestId];
-        return next;
-      });
     } catch (error: any) {
       setGlobalError(error?.message || error?.details || "No se pudo actualizar el ticket.");
     } finally {
@@ -813,7 +808,6 @@ export default function SuperAdminDashboard({
               status: "approved",
               approved_school_id: payload?.school_id || request.approved_school_id,
               reviewed_at: new Date().toISOString(),
-              review_notes: reviewNotes || null,
             }
             : request
         )
@@ -860,10 +854,17 @@ export default function SuperAdminDashboard({
               ...request,
               status: "rejected",
               reviewed_at: new Date().toISOString(),
+              review_notes: reviewNotes || null,
             }
             : request
         )
       );
+
+      setRequestRejectNotes((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
     } catch (error: any) {
       setGlobalError(error?.message || error?.details || "No se pudo rechazar la solicitud.");
     } finally {
