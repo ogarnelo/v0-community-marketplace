@@ -8,8 +8,8 @@ create index if not exists reports_agreement_id_idx
   on public.reports (agreement_id)
   where agreement_id is not null;
 
-drop constraint if exists reports_target_check on public.reports;
-drop constraint if exists reports_target_type_check on public.reports;
+alter table public.reports drop constraint if exists reports_target_check;
+alter table public.reports drop constraint if exists reports_target_type_check;
 
 alter table public.reports
   add constraint reports_target_type_check
