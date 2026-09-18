@@ -97,3 +97,19 @@ test("auth redirects reject protocol-relative and backslash paths", () => {
   assert.match(callback, /getSafeInternalPath\(requestUrl\.searchParams\.get\("next"\)\)/);
   assert.match(callback, /auth_error=invalid_link/);
 });
+
+
+test("new Wetudy signups fail closed if email confirmation is bypassed", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+  const welcomeRoute = read("app/api/emails/welcome/route.ts");
+
+  assert.match(authForm, /wetudy_email_confirmation_required: true/);
+  assert.match(authForm, /requiresWetudyEmailConfirmation/);
+  assert.match(authForm, /!data\.user\?\.confirmation_sent_at/);
+  assert.match(authForm, /await supabase\.auth\.signOut\(\)/);
+  assert.match(authForm, /Wetudy requiere verificar el email antes de iniciar sesión/);
+
+  assert.match(welcomeRoute, /wetudy_email_confirmation_required/);
+  assert.match(welcomeRoute, /email_not_verified/);
+  assert.match(welcomeRoute, /!user\.confirmation_sent_at/);
+});
