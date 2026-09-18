@@ -200,12 +200,23 @@ export function AuthForm() {
     setInfoMessage("");
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
         options: captchaToken ? { captchaToken } : undefined,
       });
       if (error) throw error;
+
+      const requiresWetudyEmailConfirmation =
+        data.user?.user_metadata?.wetudy_email_confirmation_required === true;
+
+      if (requiresWetudyEmailConfirmation && !data.user?.confirmation_sent_at) {
+        await supabase.auth.signOut();
+        setError(
+          "Esta cuenta no ha pasado por la verificación de email obligatoria. Por seguridad, no hemos iniciado sesión. Solicita un nuevo enlace de activación o inténtalo más tarde."
+        );
+        return;
+      }
 
       await triggerWelcomeEmail();
       window.location.assign(nextPath || "/account");
@@ -285,6 +296,7 @@ export function AuthForm() {
             user_type: userType,
             grade_level: gradeLevel,
             postal_code: normalizedPostalCode,
+            wetudy_email_confirmation_required: true,
           },
         },
       });
@@ -303,8 +315,10 @@ export function AuthForm() {
       }
 
       if (data.session) {
-        await triggerWelcomeEmail();
-        window.location.assign(nextPath || "/onboarding/join-school");
+        await supabase.auth.signOut();
+        setError(
+          "Wetudy requiere verificar el email antes de iniciar sesión. La cuenta no se ha activado en esta sesión. Revisa la configuración de confirmación por email e inténtalo de nuevo."
+        );
         return;
       }
 
