@@ -113,3 +113,25 @@ test("new Wetudy signups fail closed if email confirmation is bypassed", () => {
   assert.match(welcomeRoute, /email_not_verified/);
   assert.match(welcomeRoute, /!user\.confirmation_sent_at/);
 });
+
+
+test("production auth callbacks use the canonical Wetudy origin", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+  const publicOrigin = read("lib/auth/public-origin.ts");
+
+  assert.match(publicOrigin, /https:\/\/www\.wetudy\.com/);
+  assert.match(publicOrigin, /hostname === "wetudy\.com"/);
+  assert.match(publicOrigin, /hostname === "www\.wetudy\.com"/);
+  assert.match(authForm, /new URL\("\/auth\/callback", getAuthPublicOrigin\(\)\)/);
+});
+
+test("signup requires at least eight password characters and avoids claiming duplicate accounts were created", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+
+  assert.match(authForm, /password\.length < 8/);
+  assert.match(authForm, /La contraseña debe tener al menos 8 caracteres/);
+  assert.match(authForm, /minLength=\{mode === "signup" \? 8 : undefined\}/);
+  assert.match(authForm, /Si este email es nuevo en Wetudy/);
+  assert.match(authForm, /Si ya tenías una cuenta, inicia sesión o usa Recuperar contraseña/);
+  assert.doesNotMatch(authForm, /Cuenta creada\. Te hemos enviado un email de confirmación/);
+});
