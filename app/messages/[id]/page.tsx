@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
 import { canSendNewMessageToListing, isValidListingStatus, type ListingStatus } from "@/lib/marketplace/listing-status";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 import type { ConversationSummary, DonationRequestRow, ListingOfferRow, PaymentIntentRow, ProfileRow, ShipmentRow } from "@/lib/types/marketplace";
 import { getOfferChatPreview } from "@/lib/offers/chat-message";
 import { getDonationChatPreview } from "@/lib/donations/chat-message";
@@ -34,6 +35,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
+  const legacyCommerceEnabled = isLegacyCommerceEnabled();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
 
@@ -71,10 +73,16 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const hasOlderMessages = ((messagesDesc || []) as MessageRow[]).length > 50;
 
   const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }, { data: agreements }] = await Promise.all([
-    adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at").eq("listing_id", typedConversation.listing_id).eq("buyer_id", typedConversation.buyer_id).eq("seller_id", typedConversation.seller_id).order("created_at", { ascending: false }),
+    legacyCommerceEnabled
+      ? adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at").eq("listing_id", typedConversation.listing_id).eq("buyer_id", typedConversation.buyer_id).eq("seller_id", typedConversation.seller_id).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
     adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("listing_id", typedConversation.listing_id).eq("requester_id", typedConversation.buyer_id).order("created_at", { ascending: false }),
-    adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at, metadata").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false }),
-    adminSupabase.from("shipments").select("*").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false }),
+    legacyCommerceEnabled
+      ? adminSupabase.from("payment_intents").select("id, offer_id, listing_id, buyer_id, seller_id, amount, status, updated_at, created_at, metadata").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+    legacyCommerceEnabled
+      ? adminSupabase.from("shipments").select("*").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
     adminSupabase.from("agreements").select("*").eq("conversation_id", typedConversation.id).order("created_at", { ascending: false }).limit(1),
   ]);
 
@@ -160,6 +168,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
               initialOffers={typedOffers}
               initialDonationRequests={typedDonationRequests}
               initialPaymentIntents={(paymentIntents || []) as PaymentIntentRow[]}
+              legacyCommerceEnabled={legacyCommerceEnabled}
             />
           </div>
 
