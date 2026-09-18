@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 import Link from "next/link";
 import { XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default function CheckoutCancelPage() {
+  if (!isLegacyCommerceEnabled()) redirect("/messages");
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
