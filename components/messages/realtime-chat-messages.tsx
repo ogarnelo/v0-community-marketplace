@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Download, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { DonationRequestRow, ListingOfferRow, PaymentIntentRow } from "@/lib/types/marketplace";
-import { parseOfferChatBody } from "@/lib/offers/chat-message";
+import { getOfferChatPreview, parseOfferChatBody } from "@/lib/offers/chat-message";
 import { parseDonationChatBody } from "@/lib/donations/chat-message";
 import { ConversationOfferCard } from "@/components/messages/conversation-offer-card";
 import { ConversationDonationCard } from "@/components/messages/conversation-donation-card";
@@ -35,6 +35,7 @@ type RealtimeChatMessagesProps = {
   initialOffers?: ListingOfferRow[];
   initialDonationRequests?: DonationRequestRow[];
   initialPaymentIntents?: PaymentIntentRow[];
+  legacyCommerceEnabled?: boolean;
 };
 
 function formatMessageDate(date: string) {
@@ -130,6 +131,7 @@ export default function RealtimeChatMessages({
   initialOffers = [],
   initialDonationRequests = [],
   initialPaymentIntents = [],
+  legacyCommerceEnabled = false,
 }: RealtimeChatMessagesProps) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -314,6 +316,7 @@ export default function RealtimeChatMessages({
           : null;
 
         const isActionableOfferCard = !!(
+          legacyCommerceEnabled &&
           parsedOffer &&
           isLatestOfferMessage &&
           ["pending", "countered"].includes(parsedOffer.status) &&
@@ -383,7 +386,7 @@ export default function RealtimeChatMessages({
                 </a>
               ) : null}
 
-              {resolvedOffer && parsedOffer ? (
+              {resolvedOffer && parsedOffer && legacyCommerceEnabled ? (
                 <ConversationOfferCard
                   offer={resolvedOffer}
                   currentUserId={currentUserId}
@@ -394,6 +397,8 @@ export default function RealtimeChatMessages({
                   messageRound={parsedOffer.round}
                   isActionable={isActionableOfferCard}
                 />
+              ) : parsedOffer ? (
+                <p className="text-sm">{getOfferChatPreview(message.body)}</p>
               ) : resolvedDonationRequest && parsedDonation ? (
                 <ConversationDonationCard
                   request={resolvedDonationRequest}
