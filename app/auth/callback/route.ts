@@ -15,15 +15,18 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/auth?auth_error=invalid_link", request.url));
   }
 
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  const { data: exchangeData, error: exchangeError } =
+    await supabase.auth.exchangeCodeForSession(code);
 
   if (exchangeError) {
     return NextResponse.redirect(new URL("/auth?auth_error=invalid_link", request.url));
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // exchangeCodeForSession already returns the authenticated user. Reading the
+  // just-written auth cookies again inside the same request can race on some
+  // browsers/mail webviews and incorrectly make a valid confirmation look
+  // expired even though Supabase has already confirmed the account.
+  const user = exchangeData.user || exchangeData.session?.user || null;
 
   if (!user) {
     return NextResponse.redirect(new URL("/auth?auth_error=invalid_link", request.url));
