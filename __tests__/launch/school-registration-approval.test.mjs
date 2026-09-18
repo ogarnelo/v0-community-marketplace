@@ -52,3 +52,16 @@ test("school requests notify superadmins in app", () => {
   assert.match(migration, /school_registration_requested/);
   assert.match(migration, /where ur\.role = 'super_admin'/);
 });
+
+
+test("superadmin can record a rejection reason and pending requests are prioritized", () => {
+  const dashboard = read("components/admin/super-admin-dashboard.tsx");
+
+  assert.match(dashboard, /requestRejectNotes/);
+  assert.match(dashboard, /Motivo de rechazo \(opcional\)/);
+  assert.match(dashboard, /slice\(0, 500\)/);
+  assert.match(dashboard, /notes: reviewNotes \|\| null/);
+  assert.match(dashboard, /review_notes: reviewNotes \|\| null/);
+  assert.match(dashboard, /orderedSchoolRequests/);
+  assert.match(dashboard, /aPending/);
+});
