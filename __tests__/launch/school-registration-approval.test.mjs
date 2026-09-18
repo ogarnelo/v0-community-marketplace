@@ -33,6 +33,7 @@ test("school requests go through the hardened server endpoint and stay pending",
   assert.doesNotMatch(approvalRoute, /SUPERADMIN_EMAILS/);
   assert.match(approvalRoute, /createAdminClient/);
   assert.match(approvalRoute, /adminSupabase\.rpc\([\s\S]*approve_school_registration_request/);
+  assert.doesNotMatch(approvalRoute, /await supabase\.rpc\([\s\S]*approve_school_registration_request/);
 
   assert.match(rejectionRoute, /eq\("role", "super_admin"\)/);
   assert.match(rejectionRoute, /createAdminClient/);
