@@ -45,7 +45,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No tienes permisos para eliminar este anuncio." }, { status: 403 });
     }
 
-    const [{ data: payments }, { data: acceptedOffer }, { data: approvedDonation }, { data: conversations }] = await Promise.all([
+    const [
+      { data: payments },
+      { data: acceptedOffer },
+      { data: approvedDonation },
+      { data: conversations },
+      { data: reports },
+    ] = await Promise.all([
       admin
         .from("payment_intents")
         .select("id, status")
@@ -68,6 +74,11 @@ export async function POST(request: Request) {
         .select("id")
         .eq("listing_id", listingId)
         .limit(1),
+      admin
+        .from("reports")
+        .select("id")
+        .eq("listing_id", listingId)
+        .limit(1),
     ]);
 
     if ((payments || []).length > 0 || acceptedOffer || approvedDonation) {
@@ -80,11 +91,34 @@ export async function POST(request: Request) {
       );
     }
 
+    const hasModerationOrConversationHistory =
+      (conversations || []).length > 0 || (reports || []).length > 0;
+
+    if (hasModerationOrConversationHistory) {
+      const { error: archiveHistoryError } = await admin
+        .from("listings")
+        .update({ status: "archived" })
+        .eq("id", listingId)
+        .eq("seller_id", user.id);
+
+      if (archiveHistoryError) {
+        return NextResponse.json(
+          { error: archiveHistoryError.message || "No se pudo archivar el anuncio." },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        ok: true,
+        mode: "archived",
+        hadHistory: true,
+      });
+    }
+
     await Promise.allSettled([
       admin.from("favorites").delete().eq("listing_id", listingId),
       admin.from("listing_photos").delete().eq("listing_id", listingId),
       admin.from("listing_views").delete().eq("listing_id", listingId),
-      admin.from("reports").delete().eq("listing_id", listingId),
     ]);
 
     const { error: deleteError } = await admin.from("listings").delete().eq("id", listingId);
@@ -106,7 +140,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, mode: "archived", hadHistory: (conversations || []).length > 0 });
+    return NextResponse.json({ ok: true, mode: "archived", hadHistory: false });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || error?.details || "No se pudo eliminar el anuncio." },
