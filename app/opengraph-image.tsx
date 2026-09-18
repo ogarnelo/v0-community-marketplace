@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og"
 
-export const alt = "Wetudy · Material escolar de segunda mano entre familias"
+export const alt = "Wetudy · Reutiliza material escolar entre familias"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -42,7 +42,7 @@ export default function OpenGraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 980 }}>
           <div style={{ fontSize: 70, lineHeight: 1.04, fontWeight: 800 }}>
-            Material escolar de segunda mano entre familias
+            Reutiliza material escolar entre familias
           </div>
           <div style={{ fontSize: 30, lineHeight: 1.35, color: "#475569" }}>
             Compra, vende o dona libros, uniformes y material escolar. Contacta por chat y acuerda directamente.
