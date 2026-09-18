@@ -1,13 +1,16 @@
 import Link from "next/link";
+import JsonLd from "@/components/seo/json-ld";
+import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 import { CheckCircle2, MessageCircle, Search, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata = {
+export const metadata = buildPublicMetadata({
   title: "Cómo funciona Wetudy",
   description: "Busca, publica y reutiliza libros, uniformes y material escolar. Contacta por chat y acuerda entrega y pago directamente entre las partes.",
-  alternates: { canonical: "https://www.wetudy.com/como-funciona" },
-};
+  path: "/como-funciona",
+});
 
 const buyerSteps = [
   "Busca por curso, categoría, título, editorial o ISBN.",
@@ -22,8 +25,15 @@ const sellerSteps = [
 ];
 
 export default function HowItWorksPage() {
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Cómo funciona", path: "/como-funciona" },
+  ]);
+
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 lg:px-8">
+    <>
+      <JsonLd data={breadcrumbJsonLd} />
+      <main className="mx-auto max-w-5xl px-4 py-10 lg:px-8">
       <section className="text-center">
         <p className="text-sm font-semibold text-primary">Cómo funciona</p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">Reutilizar material escolar sin complicarlo</h1>
@@ -76,6 +86,7 @@ export default function HowItWorksPage() {
         <Button asChild size="lg"><Link href="/marketplace">Ir al marketplace</Link></Button>
         <Button asChild size="lg" variant="outline"><Link href="/marketplace/new">Publicar anuncio</Link></Button>
       </div>
-    </main>
+      </main>
+    </>
   );
 }
