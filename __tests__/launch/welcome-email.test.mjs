@@ -14,6 +14,7 @@ describe("welcome email MVP contract", () => {
     assert.match(route, /No autorizado/);
     assert.match(route, /sendWelcomeEmail/);
     assert.match(route, /user\.email_confirmed_at/);
+    assert.doesNotMatch(route, /!user\.confirmation_sent_at/);
   });
 
   it("does not expose arbitrary recipient sending from the client", () => {
