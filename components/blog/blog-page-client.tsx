@@ -1,12 +1,8 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Leaf, Cpu, PiggyBank, CheckCircle2, Clock } from "lucide-react";
+import { BookOpen, Leaf, Cpu, PiggyBank, Clock } from "lucide-react";
 import { posts, categoryColors } from "@/lib/blog-data";
 
 const topics = [
@@ -14,42 +10,33 @@ const topics = [
     icon: BookOpen,
     title: "Vuelta al cole",
     description:
-      "Consejos para preparar la vuelta al cole ahorrando dinero y cuidando el planeta.",
+      "Ideas para preparar el curso, revisar listas y reutilizar material antes de comprar.",
     color: "bg-primary/10 text-primary",
   },
   {
     icon: Leaf,
     title: "Sostenibilidad",
     description:
-      "Ideas para una vida escolar mas sostenible y respetuosa con el medio ambiente.",
+      "Ideas para alargar la vida útil de libros, uniformes y otros materiales escolares.",
     color: "bg-[#7EBA28]/10 text-[#5a9010]",
   },
   {
     icon: Cpu,
     title: "Tecnologia educativa",
     description:
-      "Las mejores herramientas tecnologicas para complementar la educacion de tus hijos.",
+      "Criterios para elegir herramientas digitales de organización y estudio.",
     color: "bg-primary/10 text-primary",
   },
   {
     icon: PiggyBank,
     title: "Ahorro familiar",
     description:
-      "Estrategias para reducir el gasto escolar sin renunciar a la calidad educativa.",
+      "Formas prácticas de planificar compras y aprovechar material que todavía sirve.",
     color: "bg-[#7EBA28]/10 text-[#5a9010]",
   },
 ];
 
 export function BlogPageClient() {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubscribed(true);
-    setEmail("");
-  };
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 lg:px-8">
       <div className="text-center">
@@ -66,39 +53,17 @@ export function BlogPageClient() {
       </div>
 
       <Card className="mt-10 border-border bg-primary/5">
-        <CardContent className="flex flex-col items-center p-8 text-center">
-          {subscribed ? (
-            <div className="flex flex-col items-center gap-3">
-              <CheckCircle2 className="h-10 w-10 text-[#7EBA28]" />
-              <p className="font-semibold text-foreground">
-                Te has suscrito correctamente
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Recibiras nuestras novedades en tu bandeja de entrada.
-              </p>
-            </div>
-          ) : (
-            <>
-              <h2 className="text-xl font-bold text-foreground">
-                Suscribete a nuestra newsletter
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Recibe consejos de ahorro y sostenibilidad escolar directamente en tu
-                email.
-              </p>
-              <form onSubmit={handleSubscribe} className="mt-4 flex w-full max-w-md gap-2">
-                <Input
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="flex-1 bg-card"
-                />
-                <Button type="submit">Suscribirse</Button>
-              </form>
-            </>
-          )}
+        <CardContent className="p-6 text-center sm:p-8">
+          <h2 className="text-xl font-bold text-foreground">
+            Guías útiles para comprar menos y reutilizar más
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            Publicamos contenido práctico sobre libros usados, uniformes, organización escolar y reutilización. Sin cifras promocionales inventadas ni formularios de suscripción que no estén conectados a un servicio real.
+          </p>
+          <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button asChild><Link href="/marketplace">Buscar material</Link></Button>
+            <Button asChild variant="outline"><Link href="/como-funciona">Cómo funciona Wetudy</Link></Button>
+          </div>
         </CardContent>
       </Card>
 
