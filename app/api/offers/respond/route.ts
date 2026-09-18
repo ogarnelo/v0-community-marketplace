@@ -2,12 +2,20 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { respondToOfferFlow, type OfferAction } from "@/lib/services/offers.service";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 function isOfferAction(value: unknown): value is OfferAction {
   return value === "accept" || value === "reject" || value === "counter";
 }
 
 export async function POST(request: Request) {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json(
+      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
+      { status: 404 }
+    );
+  }
+
   try {
     const supabase = await createClient();
     const {
