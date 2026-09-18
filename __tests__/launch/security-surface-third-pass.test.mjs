@@ -116,5 +116,6 @@ test("moderation reports cannot bypass the server gate through direct SQL", () =
 
   assert.match(migration, /drop policy if exists reports_insert_authenticated/);
   assert.match(migration, /revoke insert, delete, truncate, references, trigger/);
+  assert.match(migration, /revoke select, update[\s\S]*from anon/);
   assert.doesNotMatch(migration, /grant insert[\s\S]*authenticated/);
 });
