@@ -58,7 +58,7 @@ export function BlogPageClient() {
             Guías útiles para comprar menos y reutilizar más
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Publicamos contenido práctico sobre libros usados, uniformes, organización escolar y reutilización. Sin cifras promocionales inventadas ni formularios de suscripción que no estén conectados a un servicio real.
+            Publicamos contenido práctico sobre libros usados, uniformes, organización escolar y reutilización, con recomendaciones claras y útiles para las familias.
           </p>
           <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild><Link href="/marketplace">Buscar material</Link></Button>
