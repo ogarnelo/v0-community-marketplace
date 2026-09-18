@@ -9,11 +9,13 @@ test("Wetudy global SEO uses its own brand and canonical host", () => {
   const icon = read("public/icon.svg");
   const nextConfig = read("next.config.mjs");
 
-  assert.match(layout, /Material escolar de segunda mano entre familias/);
+  assert.match(layout, /Reutiliza material escolar entre familias/);
   assert.doesNotMatch(layout, /Marketplace escolar comunitario/);
   assert.doesNotMatch(layout, /generator:\s*['"]v0\.app/);
   assert.match(layout, /https:\/\/www\.wetudy\.com/);
+  assert.match(layout, /\/favicon\.ico/);
   assert.match(layout, /\/icon\.svg/);
+  assert.match(layout, /\/apple-icon\.png/);
   assert.match(icon, /#2563EB/);
   assert.match(icon, /Wetudy/);
   assert.match(nextConfig, /wetudy\.com/);
@@ -23,6 +25,7 @@ test("Wetudy global SEO uses its own brand and canonical host", () => {
 test("SEO crawl controls expose only intended public surfaces", () => {
   const robots = read("app/robots.ts");
   const sitemap = read("app/sitemap.ts");
+  const manifest = read("app/manifest.ts");
 
   assert.match(robots, /\/api\//);
   assert.match(robots, /\/admin\//);
@@ -35,6 +38,9 @@ test("SEO crawl controls expose only intended public surfaces", () => {
   assert.match(sitemap, /status", "available"/);
   assert.doesNotMatch(sitemap, /\/checkout/);
   assert.doesNotMatch(sitemap, /\/account/);
+  assert.match(sitemap, /seoRefresh/);
+  assert.match(manifest, /wetudy-icon-192\.png/);
+  assert.match(manifest, /wetudy-icon-512\.png/);
 });
 
 test("old fabricated impact/ranking surfaces redirect to About", () => {
