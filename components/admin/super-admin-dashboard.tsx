@@ -843,12 +843,16 @@ export default function SuperAdminDashboard({
     const reviewNotes = (requestRejectNotes[requestId] || "").trim().slice(0, 500);
 
     try {
-      const { error } = await supabase.rpc("reject_school_registration_request", {
-        request_id: requestId,
-        notes: reviewNotes || null,
+      const response = await fetch("/api/admin/reject-school-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, notes: reviewNotes || null }),
       });
+      const payload = await response.json().catch(() => ({}));
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo rechazar la solicitud.");
+      }
 
       setSchoolRequests((prev) =>
         prev.map((request) =>
