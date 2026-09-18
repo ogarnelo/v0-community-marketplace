@@ -46,3 +46,25 @@ test("remaining active admin and marketplace RLS helpers are statement-stable", 
   assert.match(followupMigration, /user_marketplace_preferences/);
   assert.match(followupMigration, /\(select auth\.uid\(\)\)/);
 });
+
+
+const demandMigration = readFileSync(
+  new URL("../../supabase/migrations/20260918194500_optimize_active_demand_rls.sql", import.meta.url),
+  "utf8"
+);
+
+test("active Demand Intelligence RLS uses statement-stable auth checks", () => {
+  assert.match(demandMigration, /Super admins can manage demand campaigns/);
+  assert.match(demandMigration, /Users can insert own demand events/);
+  assert.match(demandMigration, /Users can read own demand requests/);
+  assert.match(demandMigration, /Super admins can manage moderation flags/);
+  assert.match(demandMigration, /\(select auth\.uid\(\)\)/);
+});
+
+test("active Demand Intelligence foreign keys have dedicated indexes", () => {
+  assert.match(demandMigration, /demand_campaigns_created_by_idx/);
+  assert.match(demandMigration, /demand_events_user_id_idx/);
+  assert.match(demandMigration, /demand_events_school_id_idx/);
+  assert.match(demandMigration, /demand_requests_user_id_idx/);
+  assert.match(demandMigration, /demand_requests_school_id_idx/);
+});
