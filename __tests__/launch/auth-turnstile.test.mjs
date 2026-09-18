@@ -135,3 +135,12 @@ test("signup requires at least eight password characters and avoids claiming dup
   assert.match(authForm, /Si ya tenías una cuenta, inicia sesión o usa Recuperar contraseña/);
   assert.doesNotMatch(authForm, /Cuenta creada\. Te hemos enviado un email de confirmación/);
 });
+
+
+test("auth callback trusts the user returned by the code exchange instead of rereading cookies", () => {
+  const callback = read("app/auth/callback/route.ts");
+
+  assert.match(callback, /data: exchangeData/);
+  assert.match(callback, /exchangeData\.user \|\| exchangeData\.session\?\.user/);
+  assert.doesNotMatch(callback, /data: \{ user \}[\s\S]*supabase\.auth\.getUser\(\)/);
+});
