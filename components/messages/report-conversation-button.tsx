@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,44 +47,26 @@ export function ReportConversationButton({
     }
 
     try {
-      const supabase = createClient();
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetType: "conversation",
+          targetId: conversationId,
+          reason,
+          details,
+        }),
+      });
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const payload = await response.json().catch(() => null);
 
-      if (!user) {
+      if (response.status === 401) {
         window.location.assign("/auth?next=/messages");
         return;
       }
 
-      const { data: conversation, error: conversationError } = await supabase
-        .from("conversations")
-        .select("id, buyer_id, seller_id")
-        .eq("id", conversationId)
-        .maybeSingle();
-
-      if (conversationError) {
-        throw conversationError;
-      }
-
-      if (
-        !conversation ||
-        (conversation.buyer_id !== user.id && conversation.seller_id !== user.id)
-      ) {
-        throw new Error("No tienes permisos para reportar esta conversación.");
-      }
-
-      const { error: insertError } = await supabase.from("reports").insert({
-        reporter_id: user.id,
-        target_type: "conversation",
-        conversation_id: conversationId,
-        reason,
-        details: details.trim() || null,
-      });
-
-      if (insertError) {
-        throw insertError;
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo enviar el reporte.");
       }
 
       setSubmitted(true);
@@ -163,6 +144,7 @@ export function ReportConversationButton({
                 rows={4}
                 placeholder="Cuéntanos qué ha ocurrido..."
                 value={details}
+                maxLength={1000}
                 onChange={(e) => setDetails(e.target.value)}
               />
             </div>

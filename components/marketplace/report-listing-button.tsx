@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,41 +49,26 @@ export function ReportListingButton({
     }
 
     try {
-      const supabase = createClient();
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetType: "listing",
+          targetId: listingId,
+          reason,
+          details,
+        }),
+      });
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const payload = await response.json().catch(() => null);
 
-      if (!user) {
+      if (response.status === 401) {
         window.location.assign(`/auth?next=/marketplace/listing/${listingId}`);
         return;
       }
 
-      const { data: listing, error: listingError } = await supabase
-        .from("listings")
-        .select("id")
-        .eq("id", listingId)
-        .maybeSingle();
-
-      if (listingError) {
-        throw listingError;
-      }
-
-      if (!listing) {
-        throw new Error("El anuncio ya no existe.");
-      }
-
-      const { error: insertError } = await supabase.from("reports").insert({
-        reporter_id: user.id,
-        target_type: "listing",
-        listing_id: listingId,
-        reason,
-        details: details.trim() || null,
-      });
-
-      if (insertError) {
-        throw insertError;
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo enviar el reporte.");
       }
 
       setSubmitted(true);
@@ -173,6 +157,7 @@ export function ReportListingButton({
                 rows={4}
                 placeholder="Cuéntanos qué has detectado..."
                 value={details}
+                maxLength={1000}
                 onChange={(e) => setDetails(e.target.value)}
               />
             </div>
