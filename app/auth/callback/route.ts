@@ -2,24 +2,34 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
+import { getSafeInternalPath } from "@/lib/auth/safe-next";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next");
-  const safeNext = next && next.startsWith("/") ? next : null;
+  const safeNext = getSafeInternalPath(requestUrl.searchParams.get("next"));
 
   const supabase = await createClient();
 
-  if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
+  if (!code) {
+    return NextResponse.redirect(new URL("/auth?auth_error=invalid_link", request.url));
+  }
+
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (exchangeError) {
+    return NextResponse.redirect(new URL("/auth?auth_error=invalid_link", request.url));
   }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
+  if (!user) {
+    return NextResponse.redirect(new URL("/auth?auth_error=invalid_link", request.url));
+  }
+
+  {
     const metadata = user.user_metadata || {};
     const legacyName = splitLegacyFullName(
       typeof metadata.full_name === "string" ? metadata.full_name : null
