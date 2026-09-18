@@ -69,3 +69,18 @@ test("listing deletion preserves moderation and conversation history", () => {
   assert.match(route, /mode: "archived"/);
   assert.doesNotMatch(route, /from\("reports"\)\.delete/);
 });
+
+
+test("private chat identities and message content are immutable from the browser", () => {
+  const migration = read("supabase/migrations/20260918205500_harden_private_chat_integrity.sql");
+
+  assert.match(migration, /revoke all on public\.conversations from anon/);
+  assert.match(migration, /revoke all on public\.messages from anon/);
+  assert.match(migration, /grant update \(updated_at\)[\s\S]*public\.conversations/);
+  assert.match(migration, /grant update \(read_at\)[\s\S]*public\.messages/);
+  assert.match(migration, /grant insert \(listing_id, buyer_id, seller_id\)/);
+  assert.match(migration, /l\.seller_id = conversations\.seller_id/);
+  assert.match(migration, /l\.status = 'available'/);
+  assert.match(migration, /messages_update_read_receipts/);
+  assert.match(migration, /sender_id is distinct from \(select auth\.uid\(\)\)/);
+});
