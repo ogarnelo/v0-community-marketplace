@@ -5,6 +5,7 @@ import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from 
 import { buildOfferChatBody } from "@/lib/offers/chat-message";
 import { createNotifications } from "@/lib/notifications";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 function isDeliveryMethod(value: unknown): value is DeliveryMethod {
   return value === "in_person" || value === "shipping";
@@ -15,6 +16,13 @@ function isShipmentTier(value: unknown): value is ShipmentTier {
 }
 
 export async function POST(request: Request) {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json(
+      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
+      { status: 404 }
+    );
+  }
+
   try {
     const supabase = await createClient();
     const {
