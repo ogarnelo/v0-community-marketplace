@@ -67,9 +67,10 @@ type SupportTicketRow = {
 type ReportRow = {
   id: string;
   reporter_id: string;
-  target_type: "listing" | "conversation";
+  target_type: "listing" | "conversation" | "agreement";
   listing_id: string | null;
   conversation_id: string | null;
+  agreement_id: string | null;
   reason: string;
   details: string | null;
   status: "open" | "reviewing" | "resolved" | "dismissed";
@@ -207,6 +208,8 @@ function getReasonLabel(reason: string) {
       return "Contenido inapropiado";
     case "acoso":
       return "Acoso o trato inapropiado";
+    case "agreement_dispute":
+      return "Incidencia del acuerdo";
     case "otro":
       return "Otro";
     default:
@@ -1406,7 +1409,7 @@ export default function SuperAdminDashboard({
                 Reports
               </CardTitle>
               <CardDescription>
-                Reportes enviados por los usuarios sobre anuncios y chats.
+                Reportes enviados por los usuarios sobre anuncios, chats y acuerdos confirmados.
               </CardDescription>
             </CardHeader>
 
@@ -1427,7 +1430,11 @@ export default function SuperAdminDashboard({
                                 {report.status}
                               </Badge>
                               <Badge variant="outline">
-                                {report.target_type === "listing" ? "Anuncio" : "Chat"}
+                                {report.target_type === "listing"
+                                  ? "Anuncio"
+                                  : report.target_type === "agreement"
+                                    ? "Acuerdo"
+                                    : "Chat"}
                               </Badge>
                               <span className="text-sm font-medium text-foreground">
                                 {getReasonLabel(report.reason)}
@@ -1447,6 +1454,22 @@ export default function SuperAdminDashboard({
                                     className="inline-flex items-center gap-1 text-primary hover:underline"
                                   >
                                     Ver anuncio
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Link>
+                                ) : null}
+                              </div>
+                            ) : report.target_type === "agreement" ? (
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                <span>Acuerdo: {report.agreement_id}</span>
+                                {report.listing_title ? (
+                                  <span>• {report.listing_title}</span>
+                                ) : null}
+                                {report.conversation_id ? (
+                                  <Link
+                                    href={`/messages/${report.conversation_id}`}
+                                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    Ver conversación
                                     <ExternalLink className="h-3.5 w-3.5" />
                                   </Link>
                                 ) : null}
