@@ -17,6 +17,17 @@ export async function POST() {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const requiresWetudyEmailConfirmation =
+    user.user_metadata?.wetudy_email_confirmation_required === true;
+
+  if (requiresWetudyEmailConfirmation && !user.confirmation_sent_at) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "email_not_verified",
+    });
+  }
+
   const recipientEmail = normalizeEmailAddress(user.email);
   if (!recipientEmail) {
     console.warn("Welcome email omitido: destinatario inválido", { userId: user.id });
