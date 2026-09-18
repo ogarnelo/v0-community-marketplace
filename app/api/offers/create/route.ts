@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOfferFlow } from "@/lib/services/offers.service";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 export async function POST(request: Request) {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json(
+      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
+      { status: 404 }
+    );
+  }
+
   try {
     const supabase = await createClient();
     const {
