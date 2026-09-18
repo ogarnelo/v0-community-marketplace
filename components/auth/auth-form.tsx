@@ -90,7 +90,11 @@ export function AuthForm() {
 
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() =>
+    searchParams.get("auth_error") === "invalid_link"
+      ? "El enlace de autenticación no es válido o ha caducado. Solicita uno nuevo."
+      : ""
+  );
   const [infoMessage, setInfoMessage] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
