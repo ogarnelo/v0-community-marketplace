@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminFlags } from "@/lib/admin/roles";
+import { findAuthUserByEmail, grantSchoolAdminRole } from "@/lib/admin/school-admin-role";
 
 export async function POST(request: Request) {
   try {
@@ -37,30 +38,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Faltan email o schoolId." }, { status: 400 });
     }
 
+    const existingUser = await findAuthUserByEmail(email);
+
+    if (existingUser) {
+      await grantSchoolAdminRole({
+        userId: existingUser.id,
+        schoolId,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        invited: false,
+        message: "La cuenta ya existía y ya tiene acceso de administración del centro.",
+      });
+    }
+
     const adminSupabase = createAdminClient();
     const origin = new URL(request.url).origin;
 
-    const { error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${origin}/auth/callback?next=/admin/school`,
-      data: {
-        pending_school_admin_role: "school_admin",
-        pending_school_admin_school_id: schoolId,
-        school_name: schoolName || null,
-      },
-    });
+    const { data: inviteData, error } = await adminSupabase.auth.admin.inviteUserByEmail(
+      email,
+      {
+        redirectTo: `${origin}/auth/callback?next=/admin/school`,
+        data: {
+          school_name: schoolName || null,
+        },
+      }
+    );
 
     if (error) {
       return NextResponse.json(
         {
           error:
             error.message ||
-            "No se pudo enviar la invitación al colegio. Revisa si el usuario ya existe.",
+            "No se pudo enviar la invitación al colegio.",
         },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ ok: true });
+    const invitedUserId = inviteData.user?.id;
+
+    if (!invitedUserId) {
+      return NextResponse.json(
+        { error: "La invitación se creó sin un usuario asociado." },
+        { status: 500 }
+      );
+    }
+
+    await grantSchoolAdminRole({
+      userId: invitedUserId,
+      schoolId,
+    });
+
+    return NextResponse.json({ ok: true, invited: true });
   } catch (error: any) {
     return NextResponse.json(
       {
