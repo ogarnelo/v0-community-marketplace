@@ -43,22 +43,58 @@ function shouldShowIsbn(category?: string | null, isbn?: string | null) {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const supabase = createAdminClient();
-  const { data: listing } = await supabase
-    .from("listings")
-    .select("id, title, description, price, status")
-    .eq("id", id)
-    .maybeSingle();
 
-  if (!listing) return { title: "Anuncio no encontrado" };
+  const [{ data: listing }, { data: photo }] = await Promise.all([
+    supabase
+      .from("listings")
+      .select("id, title, description, category, grade_level, price, status, type, listing_type")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("listing_photos")
+      .select("url")
+      .eq("listing_id", id)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  const title = listing.title || "Anuncio en Wetudy";
-  const description = listing.description?.slice(0, 155) || "Anuncio de material educativo en Wetudy.";
+  if (!listing) {
+    return {
+      title: "Anuncio no encontrado",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const title = listing.title || "Material escolar en Wetudy";
+  const contextParts = [listing.category, listing.grade_level].filter(Boolean).join(" · ");
+  const fallbackDescription = contextParts
+    ? `${contextParts}. Material escolar de segunda mano publicado en Wetudy.`
+    : "Material escolar de segunda mano publicado en Wetudy.";
+  const description = listing.description?.trim().slice(0, 155) || fallbackDescription;
+  const canonical = `https://www.wetudy.com/marketplace/listing/${listing.id}`;
+  const image = photo?.url || undefined;
 
   return {
     title,
     description,
-    robots: listing.status === "available" ? { index: true, follow: true } : { index: false, follow: true },
-    openGraph: { title, description, type: "article" },
+    alternates: { canonical },
+    robots: listing.status === "available"
+      ? { index: true, follow: true }
+      : { index: false, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: "website",
+      images: image ? [{ url: image, alt: title }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
   };
 }
 
@@ -165,24 +201,58 @@ export default async function ListingDetailPage({
   }));
 
   const appUrlForJsonLd = process.env.NEXT_PUBLIC_APP_URL || "https://wetudy.com";
+  const canonicalUrl = `${appUrlForJsonLd}/marketplace/listing/${listing.id}`;
+  const normalizedCondition = String(listing.condition || "").toLowerCase();
+  const schemaCondition = normalizedCondition.includes("new") || normalizedCondition.includes("nuevo")
+    ? "https://schema.org/NewCondition"
+    : "https://schema.org/UsedCondition";
+
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: displayTitle,
-    description: listing.description || "Material educativo en Wetudy",
+    description: listing.description || "Material escolar de segunda mano en Wetudy",
     sku: listing.isbn || listing.id,
+    category: listing.category || undefined,
+    image: photos.length > 0 ? photos : undefined,
+    itemCondition: schemaCondition,
     offers: {
       "@type": "Offer",
       priceCurrency: "EUR",
-      price: listing.price || 0,
+      price: isDonation ? 0 : Number(listing.price || 0),
       availability: isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      url: `${appUrlForJsonLd}/marketplace/listing/${listing.id}`,
+      url: canonicalUrl,
     },
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Wetudy",
+        item: `${appUrlForJsonLd}/`,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Material escolar",
+        item: `${appUrlForJsonLd}/marketplace`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: displayTitle,
+        item: canonicalUrl,
+      },
+    ],
   };
 
   return (
     <div className="bg-slate-50/60 pb-28 md:pb-10">
-      <JsonLd data={productJsonLd} />
+      <JsonLd data={[productJsonLd, breadcrumbJsonLd]} />
       <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
 
       <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
