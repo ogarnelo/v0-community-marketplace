@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSendcloudParcel, isSendcloudConfigured } from "@/lib/logistics/sendcloud";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 function hasCompleteShippingAddress(profile: any) {
   return Boolean(
@@ -17,6 +18,13 @@ function pickFullName(profile: any, fallbackEmail?: string | null) {
 }
 
 export async function POST(request: Request) {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json(
+      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
+      { status: 404 }
+    );
+  }
+
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
 
