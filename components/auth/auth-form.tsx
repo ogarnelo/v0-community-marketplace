@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { getAuthErrorMessage } from "@/lib/auth/error-messages";
+import { getSafeInternalPath } from "@/lib/auth/safe-next";
 
 const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
 const TURNSTILE_SITE_KEY =
@@ -63,15 +64,24 @@ export function AuthForm() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  const initialMode = useMemo<AuthMode>(
-    () => (searchParams.get("mode") === "signup" ? "signup" : "login"),
+  const initialMode = useMemo<AuthMode>(() => {
+    const requestedMode = searchParams.get("mode");
+
+    if (
+      requestedMode === "signup" ||
+      requestedMode === "forgot" ||
+      requestedMode === "resend"
+    ) {
+      return requestedMode;
+    }
+
+    return "login";
+  }, [searchParams]);
+
+  const nextPath = useMemo(
+    () => getSafeInternalPath(searchParams.get("next")),
     [searchParams]
   );
-
-  const nextPath = useMemo(() => {
-    const next = searchParams.get("next");
-    return next && next.startsWith("/") ? next : null;
-  }, [searchParams]);
 
   const normalizedGradeLevels = useMemo(
     () => Array.from(new Set(gradeLevels)).filter(Boolean),
@@ -80,7 +90,11 @@ export function AuthForm() {
 
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() =>
+    searchParams.get("auth_error") === "invalid_link"
+      ? "El enlace de autenticación no es válido o ha caducado. Solicita uno nuevo."
+      : ""
+  );
   const [infoMessage, setInfoMessage] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
@@ -118,8 +132,11 @@ export function AuthForm() {
     setInfoMessage("");
 
     try {
+      const recoveryCallbackUrl = new URL("/auth/callback", window.location.origin);
+      recoveryCallbackUrl.searchParams.set("next", "/auth/update-password");
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth?mode=login`,
+        redirectTo: recoveryCallbackUrl.toString(),
         ...(captchaToken ? { captchaToken } : {}),
       });
 
