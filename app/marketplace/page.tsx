@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
 import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
 import { createClient } from "@/lib/supabase/server";
+import { buildPublicMetadata } from "@/lib/seo/metadata";
 import {
   buildPhotosMap,
   type ListingPhotoRow,
@@ -11,11 +11,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata = buildPublicMetadata({
   title: "Material escolar de segunda mano",
   description: "Encuentra libros de texto usados, uniformes, mochilas y material escolar de segunda mano o donado por otras familias.",
-  alternates: { canonical: "https://www.wetudy.com/marketplace" },
-};
+  path: "/marketplace",
+});
 
 export default async function MarketplacePage() {
   const supabase = await createClient();
