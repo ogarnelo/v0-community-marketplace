@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -38,6 +39,11 @@ import {
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Perfil de usuario",
+  robots: { index: false, follow: true },
+};
 
 export default async function PublicProfilePage({
   params,
