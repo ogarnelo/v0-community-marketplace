@@ -10,10 +10,9 @@ export async function requestDonationFlow(params: {
   supabase: SupabaseClient;
   listingId: string;
   actorUserId: string;
-  schoolId?: string | null;
   note?: string | null;
 }) {
-  const { supabase, listingId, actorUserId, schoolId, note } = params;
+  const { supabase, listingId, actorUserId, note } = params;
 
   const { data: listing, error: listingError } = await supabase
     .from("listings")
@@ -62,7 +61,7 @@ export async function requestDonationFlow(params: {
       requester_id: actorUserId,
       status: "pending",
       note: note || null,
-      school_id: schoolId || listing.school_id || null,
+      school_id: listing.school_id || null,
       assigned_to_requester_id: null,
       approved_by_admin_id: null,
       updated_at: now,
