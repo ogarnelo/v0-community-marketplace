@@ -7,16 +7,17 @@ const SITE_URL = "https://www.wetudy.com"
 export const revalidate = 3600
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date()
+  const fallbackNow = new Date()
+  const seoRefresh = new Date("2026-09-18T00:00:00.000Z")
 
   const staticPages: MetadataRoute.Sitemap = [
-    { url: `${SITE_URL}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
-    { url: `${SITE_URL}/marketplace`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${SITE_URL}/como-funciona`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE_URL}/vende-tus-libros`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/help`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${SITE_URL}/`, lastModified: seoRefresh, changeFrequency: "weekly", priority: 1 },
+    { url: `${SITE_URL}/marketplace`, lastModified: seoRefresh, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/como-funciona`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/vende-tus-libros`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/about`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE_URL}/help`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE_URL}/blog`, lastModified: seoRefresh, changeFrequency: "weekly", priority: 0.6 },
   ]
 
   const blogPages: MetadataRoute.Sitemap = posts.map((post) => ({
@@ -37,7 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     const listingPages: MetadataRoute.Sitemap = (listings || []).map((listing) => ({
       url: `${SITE_URL}/marketplace/listing/${listing.id}`,
-      lastModified: listing.updated_at || listing.created_at || now,
+      lastModified: listing.updated_at || listing.created_at || fallbackNow,
       changeFrequency: "weekly",
       priority: 0.7,
     }))
