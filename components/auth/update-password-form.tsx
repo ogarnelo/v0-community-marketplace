@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getAuthErrorMessage } from "@/lib/auth/error-messages";
 
 export function UpdatePasswordForm() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [checkingSession, setCheckingSession] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const [password, setPassword] = useState("");
