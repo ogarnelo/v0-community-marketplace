@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 
 export const metadata: Metadata = {
-  title: "Wetudy | Material escolar de segunda mano entre familias",
+  title: { absolute: "Wetudy | Material escolar de segunda mano entre familias" },
   description: "Compra, vende o dona libros, uniformes y material escolar de segunda mano. Contacta por chat y acuerda entrega y pago directamente entre las partes.",
   alternates: { canonical: "https://www.wetudy.com/" },
 };
