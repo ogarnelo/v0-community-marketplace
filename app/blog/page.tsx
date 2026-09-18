@@ -1,16 +1,17 @@
-import type { Metadata } from "next";
 import JsonLd from "@/components/seo/json-ld";
 import { posts } from "@/lib/blog-data";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { BlogPageClient } from "@/components/blog/blog-page-client";
 import { createClient } from "@/lib/supabase/server";
+import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 
-export const metadata: Metadata = {
+export const metadata = buildPublicMetadata({
   title: "Guías para ahorrar y reutilizar material escolar",
   description: "Consejos prácticos sobre libros de texto usados, uniformes, ahorro familiar y reutilización de material escolar.",
-  alternates: { canonical: "https://www.wetudy.com/blog" },
-};
+  path: "/blog",
+});
 
 export default async function BlogPage() {
   const supabase = await createClient();
@@ -31,6 +32,10 @@ export default async function BlogPage() {
     userName = profile?.full_name?.trim() || user.email || "Mi cuenta";
   }
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Guías", path: "/blog" },
+  ]);
   const itemListJsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
@@ -45,7 +50,7 @@ export default async function BlogPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <JsonLd data={itemListJsonLd} />
+      <JsonLd data={[breadcrumbJsonLd, itemListJsonLd]} />
       <Navbar
         isLoggedIn={Boolean(user)}
         userName={userName}
