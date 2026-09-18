@@ -144,3 +144,21 @@ test("auth callback trusts the user returned by the code exchange instead of rer
   assert.match(callback, /exchangeData\.user \|\| exchangeData\.session\?\.user/);
   assert.doesNotMatch(callback, /data: \{ user \}[\s\S]*supabase\.auth\.getUser\(\)/);
 });
+
+
+test("token-hash confirmation endpoint verifies email links without browser PKCE state", () => {
+  const confirm = read("app/auth/confirm/route.ts");
+  const templates = read("docs/SUPABASE_AUTH_EMAIL_TEMPLATES.md");
+
+  assert.match(confirm, /token_hash/);
+  assert.match(confirm, /supabase\.auth\.verifyOtp/);
+  assert.match(confirm, /type === "recovery"/);
+  assert.match(confirm, /\/onboarding\/join-school/);
+  assert.match(confirm, /\/auth\/update-password/);
+
+  assert.match(templates, /TokenHash/);
+  assert.match(templates, /\/auth\/confirm\?token_hash=\{\{ \.TokenHash \}\}/);
+  assert.match(templates, /type=email/);
+  assert.match(templates, /type=recovery/);
+  assert.doesNotMatch(templates, /href="\{\{ \.ConfirmationURL \}\}"/);
+});
