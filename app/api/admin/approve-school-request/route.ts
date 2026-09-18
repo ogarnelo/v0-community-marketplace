@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
+import { findAuthUserByEmail, grantSchoolAdminRole } from "@/lib/admin/school-admin-role";
 
 type SchoolRequestRow = {
   id: string;
@@ -89,35 +89,39 @@ export async function POST(request: Request) {
     const normalizedContactEmail = schoolRequest.contact_email?.trim().toLowerCase() || null;
 
     if (normalizedContactEmail && approvedSchoolId) {
-      const adminSupabase = createAdminClient();
-      const origin = new URL(request.url).origin;
+      const existingUser = await findAuthUserByEmail(normalizedContactEmail);
 
-      const { error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(
-        normalizedContactEmail,
-        {
-          data: {
-            invited_role: "school_admin",
-            invited_school_id: approvedSchoolId,
-            invited_school_name: schoolRequest.school_name,
-          },
-          redirectTo: `${origin}/auth/callback?next=/admin/school`,
-        }
-      );
-
-      if (inviteError) {
-        const message = inviteError.message || "No se pudo enviar la invitación.";
-
-        if (
-          message.toLowerCase().includes("already been registered") ||
-          message.toLowerCase().includes("already registered") ||
-          message.toLowerCase().includes("already exists")
-        ) {
-          inviteMessage =
-            "La solicitud se ha aprobado, pero ese email ya tiene una cuenta creada o invitada previamente.";
-        } else {
-          throw inviteError;
-        }
+      if (existingUser) {
+        await grantSchoolAdminRole({
+          userId: existingUser.id,
+          schoolId: approvedSchoolId,
+        });
+        inviteMessage =
+          "La cuenta ya existía. Se le ha concedido acceso de administración del centro.";
       } else {
+        const adminSupabase = createAdminClient();
+        const origin = new URL(request.url).origin;
+
+        const { data: inviteData, error: inviteError } =
+          await adminSupabase.auth.admin.inviteUserByEmail(normalizedContactEmail, {
+            data: {
+              school_name: schoolRequest.school_name,
+            },
+            redirectTo: `${origin}/auth/callback?next=/admin/school`,
+          });
+
+        if (inviteError) throw inviteError;
+
+        const invitedUserId = inviteData.user?.id;
+
+        if (!invitedUserId) {
+          throw new Error("La invitación se creó sin un usuario asociado.");
+        }
+
+        await grantSchoolAdminRole({
+          userId: invitedUserId,
+          schoolId: approvedSchoolId,
+        });
         inviteSent = true;
       }
     }
