@@ -18,7 +18,7 @@ const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
 const TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || DEFAULT_TURNSTILE_SITE_KEY;
 
-type AuthMode = "login" | "signup" | "forgot";
+type AuthMode = "login" | "signup" | "forgot" | "resend";
 type SupportedSignupUserType = "parent" | "student" | "";
 
 async function upsertProfileAfterAuth(params: {
@@ -131,6 +131,46 @@ export function AuthForm() {
       setError(getAuthErrorMessage(e, "forgot"));
     } finally {
       resetCaptcha();
+      setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      setError("Introduce el email con el que creaste la cuenta.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setInfoMessage("");
+
+    try {
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+
+      if (nextPath) {
+        callbackUrl.searchParams.set("next", nextPath);
+      }
+
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: callbackUrl.toString(),
+        },
+      });
+
+      if (error) throw error;
+
+      setInfoMessage(
+        "Si existe una cuenta pendiente de activar con ese email, hemos reenviado el enlace de confirmación. Revisa también Spam o Correo no deseado."
+      );
+      setMode("login");
+    } catch (e: any) {
+      setError(getAuthErrorMessage(e, "signup"));
+    } finally {
       setLoading(false);
     }
   };
@@ -266,9 +306,73 @@ export function AuthForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "forgot") return handleForgot();
+    if (mode === "resend") return handleResendConfirmation();
     if (mode === "signup") return handleSignup();
     return handleLogin();
   };
+
+  if (mode === "resend") {
+    return (
+      <Card className="border-border shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl text-foreground">Reenviar activación</CardTitle>
+          <CardDescription>
+            Introduce tu email y te enviaremos de nuevo el enlace para activar la cuenta.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {error && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            {infoMessage && (
+              <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
+                {infoMessage}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="resend-email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="resend-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="tu@email.com"
+                  className="pl-10"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reenviar email de activación
+            </Button>
+
+            <Button
+              variant="ghost"
+              type="button"
+              className="w-full text-sm"
+              onClick={() => {
+                setError("");
+                setMode("login");
+              }}
+            >
+              Volver a iniciar sesión
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (mode === "forgot") {
     return (
@@ -421,7 +525,11 @@ export function AuthForm() {
                 <button
                   type="button"
                   className="shrink-0 text-xs text-primary hover:underline"
-                  onClick={() => setMode("forgot")}
+                  onClick={() => {
+                    setError("");
+                    setInfoMessage("");
+                    setMode("forgot");
+                  }}
                 >
                   ¿Olvidaste tu contraseña?
                 </button>
@@ -522,17 +630,37 @@ export function AuthForm() {
             {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </Button>
 
-          <div className="text-center text-sm text-muted-foreground">
+          <div className="space-y-2 text-center text-sm text-muted-foreground">
             {mode === "login" ? (
               <>
-                ¿No tienes cuenta?{" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary hover:underline"
-                  onClick={() => setMode("signup")}
-                >
-                  Crear cuenta
-                </button>
+                <div>
+                  ¿No tienes cuenta?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => {
+                      setError("");
+                      setInfoMessage("");
+                      setMode("signup");
+                    }}
+                  >
+                    Crear cuenta
+                  </button>
+                </div>
+                <div>
+                  ¿No recibiste el email de activación?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => {
+                      setError("");
+                      setInfoMessage("");
+                      setMode("resend");
+                    }}
+                  >
+                    Reenviarlo
+                  </button>
+                </div>
               </>
             ) : (
               <>
@@ -540,7 +668,11 @@ export function AuthForm() {
                 <button
                   type="button"
                   className="font-medium text-primary hover:underline"
-                  onClick={() => setMode("login")}
+                  onClick={() => {
+                    setError("");
+                    setInfoMessage("");
+                    setMode("login");
+                  }}
                 >
                   Iniciar sesión
                 </button>

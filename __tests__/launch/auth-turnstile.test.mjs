@@ -59,3 +59,16 @@ test("auth errors are translated and confirmation-email failures explain that si
   assert.match(messages, /la cuenta no se ha creado/);
   assert.match(messages, /Spam o Correo no deseado/);
 });
+
+
+test("login exposes a safe confirmation-email resend flow", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+
+  assert.match(authForm, /type AuthMode = "login" \| "signup" \| "forgot" \| "resend"/);
+  assert.match(authForm, /supabase\.auth\.resend\(\{/);
+  assert.match(authForm, /type: "signup"/);
+  assert.match(authForm, /emailRedirectTo: callbackUrl\.toString\(\)/);
+  assert.match(authForm, /Reenviar email de activación/);
+  assert.match(authForm, /Spam o Correo no deseado/);
+  assert.match(authForm, /Si existe una cuenta pendiente de activar/);
+});
