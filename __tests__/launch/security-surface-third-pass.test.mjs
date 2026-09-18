@@ -69,3 +69,29 @@ test("listing deletion preserves moderation and conversation history", () => {
   assert.match(route, /mode: "archived"/);
   assert.doesNotMatch(route, /from\("reports"\)\.delete/);
 });
+
+
+test("moderation reports are created through a validated server gate", () => {
+  const route = read("app/api/reports/route.ts");
+  const listing = read("components/marketplace/report-listing-button.tsx");
+  const conversation = read("components/messages/report-conversation-button.tsx");
+  const migration = read("supabase/migrations/20260918204000_server_gate_reports.sql");
+
+  assert.match(route, /MAX_REPORTS_PER_HOUR = 10/);
+  assert.match(route, /email_confirmed_at/);
+  assert.match(route, /targetType === "listing"/);
+  assert.match(route, /conversation\.buyer_id !== user\.id/);
+  assert.match(route, /\.in\("status", \["open", "reviewing"\]\)/);
+  assert.match(route, /created_at/);
+  assert.match(route, /insertError\.code === "23505"/);
+
+  assert.match(listing, /fetch\("\/api\/reports"/);
+  assert.match(conversation, /fetch\("\/api\/reports"/);
+  assert.doesNotMatch(listing, /from\("reports"\)\.insert/);
+  assert.doesNotMatch(conversation, /from\("reports"\)\.insert/);
+
+  assert.match(migration, /revoke insert, delete, truncate, references, trigger/);
+  assert.match(migration, /reports_active_listing_reporter_unique_idx/);
+  assert.match(migration, /reports_active_conversation_reporter_unique_idx/);
+  assert.match(migration, /notify_superadmins_on_report/);
+});
