@@ -14,14 +14,14 @@ export function Footer() {
               <span className="font-mono text-lg font-bold text-foreground">Wetudy</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Marketplace escolar comunitario para comprar, vender o donar material educativo con chat e historial del acuerdo.
+              Comunidad para comprar, vender, donar y reutilizar material escolar con chat e historial del acuerdo.
             </p>
           </div>
 
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">Usar Wetudy</h4>
             <ul className="flex flex-col gap-2">
-              <li><Link href="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-primary">Marketplace</Link></li>
+              <li><Link href="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-primary">Buscar material</Link></li>
               <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Publicar anuncio</Link></li>
               <li><Link href="/auth?mode=signup" className="text-sm text-muted-foreground transition-colors hover:text-primary">Crear cuenta</Link></li>
             </ul>

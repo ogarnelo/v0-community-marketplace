@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from '@/lib/payments/pricing'
 import { getAcceptedOfferAmount } from '@/lib/payments/offer-amount'
+import { isLegacyCommerceEnabled } from '@/lib/launch/feature-gates'
 
 type OfferWithListing = {
   id: string
@@ -29,6 +30,10 @@ export async function startCheckoutSession(params: {
   deliveryMethod: DeliveryMethod
   shipmentTier: ShipmentTier
 }) {
+  if (!isLegacyCommerceEnabled()) {
+    throw new Error('Esta función no está activa durante el lanzamiento inicial de Wetudy.')
+  }
+
   const { offerId, deliveryMethod, shipmentTier } = params
 
   const supabase = await createClient()
@@ -210,6 +215,10 @@ export async function startCheckoutSession(params: {
 export async function confirmPaymentComplete(params: {
   offerId: string
 }) {
+  if (!isLegacyCommerceEnabled()) {
+    throw new Error('Esta función no está activa durante el lanzamiento inicial de Wetudy.')
+  }
+
   const { offerId } = params
 
   const supabase = await createClient()
@@ -281,6 +290,10 @@ export async function confirmPaymentComplete(params: {
  * Verifica el estado de una sesión de Stripe Checkout.
  */
 export async function checkSessionStatus(sessionId: string) {
+  if (!isLegacyCommerceEnabled()) {
+    return { paymentStatus: 'unavailable', status: 'disabled' }
+  }
+
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId)
     return {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,10 @@ function getStripe() {
 }
 
 export async function POST(request: Request) {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json({ ok: false }, { status: 404 });
+  }
+
   const stripe = getStripe();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -69,6 +74,10 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json({ ok: false }, { status: 404 });
+  }
+
   return NextResponse.json(
     {
       ok: true,

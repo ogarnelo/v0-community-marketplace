@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CheckoutSummary } from "@/components/payments/checkout-summary";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import { getAcceptedOfferAmount } from "@/lib/payments/offer-amount";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 type OfferPageRow = {
   id: string;
@@ -65,6 +66,8 @@ export default async function CheckoutOfferPage({
 }: {
   params: Promise<{ offerId: string }>;
 }) {
+  if (!isLegacyCommerceEnabled()) redirect("/messages");
+
   const { offerId } = await params;
   const supabase = await createClient();
 

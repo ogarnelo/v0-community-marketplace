@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata = {
-  title: "Vende tus libros de texto usados | Wetudy",
-  description: "Publica libros de texto usados con foto, curso, editorial e ISBN. Wetudy facilita el contacto entre familias y estudiantes.",
+  title: "Vender o donar libros de texto usados",
+  description: "Publica libros de texto de segunda mano con fotos, curso, editorial e ISBN para que otras familias encuentren justo lo que necesitan.",
+  alternates: { canonical: "https://www.wetudy.com/vende-tus-libros" },
 };
 
 const steps = [

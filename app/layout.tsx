@@ -1,38 +1,74 @@
-import type { Metadata, Viewport } from 'next'
-import { Inter, DM_Sans } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import { Toaster } from 'sonner'
-import './globals.css'
+import type { Metadata, Viewport } from "next"
+import { Inter, DM_Sans } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
+import { Toaster } from "sonner"
+import "./globals.css"
+
+const SITE_URL = "https://www.wetudy.com"
+const SITE_TITLE = "Wetudy | Material escolar de segunda mano entre familias"
+const SITE_DESCRIPTION =
+  "Compra, vende o dona libros, uniformes y material escolar de segunda mano. Contacta por chat y acuerda la entrega y el pago directamente entre las partes."
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
-const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans", weight: ["400", "500", "600", "700"] })
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  weight: ["400", "500", "600", "700"],
+})
 
 export const metadata: Metadata = {
-  title: 'Wetudy - Marketplace escolar comunitario',
-  description: 'Compra, vende y dona material escolar dentro de tu comunidad educativa. Ahorro, sostenibilidad y comunidad.',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+  metadataBase: new URL(SITE_URL),
+  applicationName: "Wetudy",
+  title: {
+    default: SITE_TITLE,
+    template: "%s | Wetudy",
   },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    "material escolar de segunda mano",
+    "libros de texto usados",
+    "uniformes escolares de segunda mano",
+    "comprar material escolar usado",
+    "vender libros de texto",
+    "donar material escolar",
+  ],
+  creator: "Wetudy",
+  publisher: "Wetudy",
+  category: "education",
+  openGraph: {
+    type: "website",
+    locale: "es_ES",
+    url: SITE_URL,
+    siteName: "Wetudy",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],
+    shortcut: "/icon.svg",
+  },
+  manifest: "/manifest.webmanifest",
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1D9FDA',
-  width: 'device-width',
+  themeColor: "#2563EB",
+  width: "device-width",
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,

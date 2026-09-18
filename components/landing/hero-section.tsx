@@ -32,7 +32,7 @@ export function HeroSection() {
             </Link>
             <Link href="/marketplace">
               <Button variant="outline" size="lg" className="px-8">
-                Ver marketplace
+                Explorar material
               </Button>
             </Link>
           </div>

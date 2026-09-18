@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -16,6 +17,12 @@ import {
   Handshake,
   School,
 } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Sobre Wetudy y la reutilización de material escolar",
+  description: "Conoce Wetudy: una comunidad para publicar, encontrar y reutilizar libros, uniformes y material escolar entre familias.",
+  alternates: { canonical: "https://www.wetudy.com/about" },
+};
 
 const missionValues = [
   {
