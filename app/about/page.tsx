@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/json-ld";
+import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
@@ -18,11 +20,11 @@ import {
   School,
 } from "lucide-react";
 
-export const metadata: Metadata = {
+export const metadata = buildPublicMetadata({
   title: "Sobre Wetudy y la reutilización de material escolar",
   description: "Conoce Wetudy: una comunidad para publicar, encontrar y reutilizar libros, uniformes y material escolar entre familias.",
-  alternates: { canonical: "https://www.wetudy.com/about" },
-};
+  path: "/about",
+});
 
 const missionValues = [
   {
@@ -82,8 +84,14 @@ export default async function AboutPage() {
   const supabase = await createClient();
   const navbarData = await getNavbarData(supabase);
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Sobre Wetudy", path: "/about" },
+  ]);
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <JsonLd data={breadcrumbJsonLd} />
       <Navbar
         isLoggedIn={navbarData.isLoggedIn}
         userName={navbarData.userName}
