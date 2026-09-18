@@ -36,21 +36,20 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    let schoolId: string | null = null;
-
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("school_id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      schoolId = profile?.school_id || null;
+    if (!user) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "auth_required_for_analytics" });
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("school_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const schoolId = profile?.school_id || null;
     const admin = createAdminClient();
     const { error } = await admin.from("marketplace_search_events").insert({
-      user_id: user?.id || null,
+      user_id: user.id,
       school_id: schoolId,
       query: cleanText(payload.query),
       isbn_query: cleanText(payload.isbnQuery),
@@ -62,9 +61,9 @@ export async function POST(request: Request) {
       price_max: cleanNumber(payload.priceMax),
       only_my_community: Boolean(payload.onlyMyCommunity),
       nearby_mode: Boolean(payload.nearbyMode),
-      radius_km: cleanNumber(payload.radiusKm),
-      results_count: cleanNumber(payload.resultsCount),
-      source_path: cleanText(payload.sourcePath) || "/marketplace",
+      radius_km: Math.min(500, Math.max(0, cleanNumber(payload.radiusKm) || 0)) || null,
+      results_count: Math.min(10000, Math.max(0, cleanNumber(payload.resultsCount) || 0)),
+      source_path: "/marketplace",
     });
 
     if (error) {
