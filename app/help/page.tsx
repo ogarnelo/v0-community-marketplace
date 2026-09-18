@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import JsonLd from "@/components/seo/json-ld";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -8,10 +10,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { HelpCircle, ShoppingBag, Gift, ArrowLeft } from "lucide-react";
 
+export const metadata: Metadata = {
+  title: "Ayuda sobre compra, venta y donación de material escolar",
+  description: "Respuestas sobre publicaciones, chat, acuerdos, donaciones, favoritos y seguridad en Wetudy.",
+  alternates: { canonical: "https://www.wetudy.com/help" },
+};
+
 const marketplaceFAQs = [
   {
     q: "Como publico un anuncio de venta?",
-    a: "Accede a tu cuenta, haz clic en 'Publicar anuncio' desde el marketplace o la barra de navegacion. Rellena el formulario con titulo, descripcion, fotos, categoria, estado y precio. Tu anuncio sera visible inmediatamente para los miembros de tu centro.",
+    a: "Accede a tu cuenta y pulsa 'Publicar'. Añade título, descripción, fotos, categoría, estado y, si es una venta, el precio orientativo. El anuncio disponible podrá encontrarse en Wetudy según los filtros de búsqueda.",
   },
   {
     q: "Como funciona el sistema de favoritos?",
@@ -19,11 +27,11 @@ const marketplaceFAQs = [
   },
   {
     q: "Puedo chatear con el vendedor antes de comprar?",
-    a: "Si, cada anuncio tiene un boton 'Contactar vendedor' que abre un chat privado entre comprador y vendedor. Ahi podeis acordar precio, punto de encuentro y cualquier detalle sobre el articulo.",
+    a: "Sí. Cada anuncio disponible permite abrir un chat privado entre las partes. Ahí podéis resolver dudas y acordar precio final, entrega y cualquier detalle del artículo.",
   },
   {
     q: "Como busco articulos cerca de mi?",
-    a: "Activa el modo 'Cerca de mi' en el marketplace. Esto amplia la busqueda a centros de tu zona, mostrando la distancia en kilometros a cada anuncio.",
+    a: "Puedes usar el filtro de distancia y tu código postal para ordenar anuncios por proximidad aproximada. Wetudy no publica tu ubicación exacta.",
   },
   {
     q: "Que hago si un articulo no coincide con la descripcion?",
@@ -33,22 +41,22 @@ const marketplaceFAQs = [
 
 const donationFAQs = [
   {
-    q: "Como funcionan las solicitudes de donacion?",
-    a: "Cuando un usuario publica un articulo como donacion, otros miembros del centro pueden solicitar recibirlo. El administrador del centro (AMPA) revisa las solicitudes y decide a quien asignar el articulo, priorizando las familias con mayor necesidad.",
+    q: "¿Cómo funciona una donación?",
+    a: "El anuncio se publica como donación. La persona interesada contacta por chat y ambas partes acuerdan directamente la entrega. Cuando el acuerdo se confirma, queda historial en Wetudy.",
   },
   {
-    q: "Quien aprueba las solicitudes de donacion?",
-    a: "El administrador del centro educativo o el representante del AMPA revisa y aprueba cada solicitud. Esto garantiza que las donaciones lleguen a quien mas las necesita de forma justa y transparente.",
+    q: "¿Wetudy decide quién recibe una donación?",
+    a: "No. En el MVP Wetudy facilita la publicación, el contacto y el historial, pero no asigna beneficiarios ni decide a quién debe entregarse un artículo.",
   },
   {
-    q: "Puedo donar material aunque no sea de mi centro?",
-    a: "Si, puedes publicar una donacion y esta sera visible para los miembros de tu centro. Si activas el modo 'Cerca de mi', tambien podra ser vista por familias de centros cercanos.",
+    q: "¿Puedo donar material a una familia de otro centro?",
+    a: "Sí. El centro puede servir como referencia de confianza, pero la búsqueda también puede hacerse por zona o proximidad, según los filtros disponibles.",
   },
   {
-    q: "Que tipo de material se puede donar?",
-    a: "Se puede donar cualquier material escolar en buen estado: libros de texto, uniformes, mochilas, material de escritura, instrumentos musicales, calculadoras, etc. Solo pedimos que el articulo este en condiciones de ser utilizado.",
+    q: "¿Qué material puedo donar?",
+    a: "Libros, uniformes, mochilas y otros materiales escolares que puedan seguir utilizándose. Describe el estado con claridad y añade fotos reales del artículo.",
   },
-];
+]
 
 export default async function HelpPage() {
   const supabase = await createClient();
@@ -60,9 +68,19 @@ export default async function HelpPage() {
 
   const initialName = navbarProps.userName || "";
   const initialEmail = user?.email || "";
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [...marketplaceFAQs, ...donationFAQs].map((faq) => ({
+      "@type": "Question",
+      name: faq.q,
+      acceptedAnswer: { "@type": "Answer", text: faq.a },
+    })),
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <JsonLd data={faqJsonLd} />
       <Navbar {...navbarProps} />
 
       <main className="flex-1">
