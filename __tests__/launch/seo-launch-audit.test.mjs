@@ -135,3 +135,18 @@ test("homepage entity graph links Wetudy organization, logo and website", () => 
   assert.match(home, /contentUrl/);
   assert.match(home, /publisher: \{ "@id": SEO_ORGANIZATION_ID \}/);
 });
+
+
+test("active chat hides legacy commerce reads and actions unless explicitly enabled", () => {
+  const page = read("app/messages/[id]/page.tsx");
+  const realtime = read("components/messages/realtime-chat-messages.tsx");
+
+  assert.match(page, /isLegacyCommerceEnabled/);
+  assert.match(page, /legacyCommerceEnabled[\s\S]*listing_offers/);
+  assert.match(page, /legacyCommerceEnabled[\s\S]*payment_intents/);
+  assert.match(page, /legacyCommerceEnabled[\s\S]*shipments/);
+  assert.match(page, /legacyCommerceEnabled=\{legacyCommerceEnabled\}/);
+  assert.match(realtime, /legacyCommerceEnabled = false/);
+  assert.match(realtime, /resolvedOffer && parsedOffer && legacyCommerceEnabled/);
+  assert.match(realtime, /getOfferChatPreview\(message\.body\)/);
+});
