@@ -12,6 +12,7 @@ import { gradeLevels } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { getAuthErrorMessage } from "@/lib/auth/error-messages";
 
 const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
 const TURNSTILE_SITE_KEY =
@@ -127,7 +128,7 @@ export function AuthForm() {
       setMode("login");
       setInfoMessage("Te hemos enviado un enlace para restablecer tu contraseña.");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo enviar el enlace. Inténtalo de nuevo.");
+      setError(getAuthErrorMessage(e, "forgot"));
     } finally {
       resetCaptcha();
       setLoading(false);
@@ -152,7 +153,7 @@ export function AuthForm() {
       await triggerWelcomeEmail();
       window.location.assign(nextPath || "/account");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo iniciar sesión. Revisa tus datos.");
+      setError(getAuthErrorMessage(e, "login"));
     } finally {
       resetCaptcha();
       setLoading(false);
@@ -255,7 +256,7 @@ export function AuthForm() {
       );
       setMode("login");
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo crear la cuenta. Inténtalo de nuevo.");
+      setError(getAuthErrorMessage(e, "signup"));
     } finally {
       resetCaptcha();
       setLoading(false);

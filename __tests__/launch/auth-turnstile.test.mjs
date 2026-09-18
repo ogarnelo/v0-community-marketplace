@@ -44,3 +44,18 @@ test("new-user trigger persists split names before email confirmation", () => {
   assert.match(migration, /raw_user_meta_data ->> 'first_name'/);
   assert.match(migration, /raw_user_meta_data ->> 'last_name'/);
 });
+
+
+test("auth errors are translated and confirmation-email failures explain that signup did not complete", () => {
+  const authForm = read("components/auth/auth-form.tsx");
+  const messages = read("lib/auth/error-messages.ts");
+
+  assert.match(authForm, /getAuthErrorMessage\(e, "signup"\)/);
+  assert.match(authForm, /getAuthErrorMessage\(e, "login"\)/);
+  assert.match(authForm, /getAuthErrorMessage\(e, "forgot"\)/);
+
+  assert.match(messages, /email_address_not_authorized/);
+  assert.match(messages, /error sending confirmation email/);
+  assert.match(messages, /la cuenta no se ha creado/);
+  assert.match(messages, /Spam o Correo no deseado/);
+});
