@@ -95,3 +95,27 @@ test("moderation reports are created through a validated server gate", () => {
   assert.match(migration, /reports_active_conversation_reporter_unique_idx/);
   assert.match(migration, /notify_superadmins_on_report/);
 });
+
+test("private chat identities and message content are immutable from the browser", () => {
+  const migration = read("supabase/migrations/20260918205500_harden_private_chat_integrity.sql");
+
+  assert.match(migration, /revoke all on public\.conversations from anon/);
+  assert.match(migration, /revoke all on public\.messages from anon/);
+  assert.match(migration, /grant update \(updated_at\)[\s\S]*public\.conversations/);
+  assert.match(migration, /grant update \(read_at\)[\s\S]*public\.messages/);
+  assert.match(migration, /grant insert \(listing_id, buyer_id, seller_id\)/);
+  assert.match(migration, /l\.seller_id = conversations\.seller_id/);
+  assert.match(migration, /l\.status = 'available'/);
+  assert.match(migration, /messages_update_read_receipts/);
+  assert.match(migration, /sender_id is distinct from \(select auth\.uid\(\)\)/);
+});
+
+
+test("moderation reports cannot bypass the server gate through direct SQL", () => {
+  const migration = read("supabase/migrations/20260918220000_finalize_server_gated_reports.sql");
+
+  assert.match(migration, /drop policy if exists reports_insert_authenticated/);
+  assert.match(migration, /revoke insert, delete, truncate, references, trigger/);
+  assert.match(migration, /revoke select, update[\s\S]*from anon/);
+  assert.doesNotMatch(migration, /grant insert[\s\S]*authenticated/);
+});

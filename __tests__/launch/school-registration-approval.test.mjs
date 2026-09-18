@@ -15,6 +15,7 @@ test("school requests go through the hardened server endpoint and stay pending",
   const page = read("app/register-school/page.tsx");
   const requestRoute = read("app/api/schools/requests/route.ts");
   const approvalRoute = read("app/api/admin/approve-school-request/route.ts");
+  const rejectionRoute = read("app/api/admin/reject-school-request/route.ts");
 
   assert.match(page, /fetch\("\/api\/schools\/requests"/);
   assert.doesNotMatch(page, /from\("school_registration_requests"\)\.insert/);
@@ -30,7 +31,13 @@ test("school requests go through the hardened server endpoint and stay pending",
 
   assert.match(approvalRoute, /eq\("role", "super_admin"\)/);
   assert.doesNotMatch(approvalRoute, /SUPERADMIN_EMAILS/);
-  assert.match(approvalRoute, /approve_school_registration_request/);
+  assert.match(approvalRoute, /createAdminClient/);
+  assert.match(approvalRoute, /adminSupabase\.rpc\([\s\S]*approve_school_registration_request/);
+  assert.doesNotMatch(approvalRoute, /await supabase\.rpc\([\s\S]*approve_school_registration_request/);
+
+  assert.match(rejectionRoute, /eq\("role", "super_admin"\)/);
+  assert.match(rejectionRoute, /createAdminClient/);
+  assert.match(rejectionRoute, /admin\.rpc\("reject_school_registration_request"/);
 });
 
 test("browser clients cannot insert school registration requests after server gate", () => {
@@ -58,6 +65,8 @@ test("superadmin can record a rejection reason and pending requests are prioriti
   const dashboard = read("components/admin/super-admin-dashboard.tsx");
 
   assert.match(dashboard, /requestRejectNotes/);
+  assert.match(dashboard, /fetch\("\/api\/admin\/reject-school-request"/);
+  assert.doesNotMatch(dashboard, /supabase\.rpc\("reject_school_registration_request"/);
   assert.match(dashboard, /Motivo de rechazo \(opcional\)/);
   assert.match(dashboard, /slice\(0, 500\)/);
   assert.match(dashboard, /notes: reviewNotes \|\| null/);

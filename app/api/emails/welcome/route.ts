@@ -20,7 +20,7 @@ export async function POST() {
   const requiresWetudyEmailConfirmation =
     user.user_metadata?.wetudy_email_confirmation_required === true;
 
-  if (requiresWetudyEmailConfirmation && !user.confirmation_sent_at) {
+  if (requiresWetudyEmailConfirmation && !user.email_confirmed_at) {
     return NextResponse.json({
       ok: true,
       skipped: true,
