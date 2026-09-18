@@ -1,13 +1,16 @@
 import Link from "next/link";
+import JsonLd from "@/components/seo/json-ld";
+import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 import { BookOpen, Camera, MessageCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata = {
+export const metadata = buildPublicMetadata({
   title: "Vender o donar libros de texto usados",
   description: "Publica libros de texto de segunda mano con fotos, curso, editorial e ISBN para que otras familias encuentren justo lo que necesitan.",
-  alternates: { canonical: "https://www.wetudy.com/vende-tus-libros" },
-};
+  path: "/vende-tus-libros",
+});
 
 const steps = [
   { title: "Sube fotos", text: "La primera foto ayuda a que otras familias reconozcan rápido el libro.", icon: Camera },
@@ -16,8 +19,15 @@ const steps = [
 ];
 
 export default function SellYourBooksPage() {
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Vender o donar libros usados", path: "/vende-tus-libros" },
+  ]);
+
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 lg:px-8">
+    <>
+      <JsonLd data={breadcrumbJsonLd} />
+      <main className="mx-auto max-w-5xl px-4 py-10 lg:px-8">
       <section className="rounded-3xl bg-gradient-to-br from-primary/10 via-background to-muted/40 p-6 sm:p-10">
         <p className="text-sm font-semibold text-primary">Libros de texto usados</p>
         <h1 className="mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">
@@ -56,6 +66,7 @@ export default function SellYourBooksPage() {
           <Search className="hidden h-12 w-12 text-primary sm:block" />
         </div>
       </section>
-    </main>
+      </main>
+    </>
   );
 }
