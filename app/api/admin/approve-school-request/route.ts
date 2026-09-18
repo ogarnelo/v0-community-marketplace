@@ -69,7 +69,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data, error } = await supabase.rpc(
+    const adminSupabase = createAdminClient();
+    const { data, error } = await adminSupabase.rpc(
       "approve_school_registration_request",
       { request_id: requestId }
     );
@@ -99,7 +100,6 @@ export async function POST(request: Request) {
         inviteMessage =
           "La cuenta ya existía. Se le ha concedido acceso de administración del centro.";
       } else {
-        const adminSupabase = createAdminClient();
         const origin = new URL(request.url).origin;
 
         const { data: inviteData, error: inviteError } =
