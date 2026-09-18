@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from "@/lib/payments/pricing";
 import { getAcceptedOfferAmount } from "@/lib/payments/offer-amount";
+import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 function isShipmentTier(value: unknown): value is ShipmentTier {
   return value === "none" || value === "small" || value === "medium" || value === "large";
@@ -13,6 +14,13 @@ function isDeliveryMethod(value: unknown): value is DeliveryMethod {
 }
 
 export async function POST(request: Request) {
+  if (!isLegacyCommerceEnabled()) {
+    return NextResponse.json(
+      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
+      { status: 404 }
+    );
+  }
+
   try {
     const supabase = await createClient();
     const {
