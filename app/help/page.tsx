@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import JsonLd from "@/components/seo/json-ld";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
@@ -8,13 +7,15 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { HelpContactForm } from "@/components/help/help-contact-form";
 import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
+import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 import { HelpCircle, ShoppingBag, Gift, ArrowLeft } from "lucide-react";
 
-export const metadata: Metadata = {
+export const metadata = buildPublicMetadata({
   title: "Ayuda sobre compra, venta y donación de material escolar",
   description: "Respuestas sobre publicaciones, chat, acuerdos, donaciones, favoritos y seguridad en Wetudy.",
-  alternates: { canonical: "https://www.wetudy.com/help" },
-};
+  path: "/help",
+});
 
 const marketplaceFAQs = [
   {
@@ -68,6 +69,10 @@ export default async function HelpPage() {
 
   const initialName = navbarProps.userName || "";
   const initialEmail = user?.email || "";
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Ayuda", path: "/help" },
+  ]);
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -80,7 +85,7 @@ export default async function HelpPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <JsonLd data={faqJsonLd} />
+      <JsonLd data={[breadcrumbJsonLd, faqJsonLd]} />
       <Navbar {...navbarProps} />
 
       <main className="flex-1">

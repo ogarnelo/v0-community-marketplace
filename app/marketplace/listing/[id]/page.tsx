@@ -17,6 +17,7 @@ import { getConditionLabel } from "@/lib/marketplace/formatters";
 import JsonLd from "@/components/seo/json-ld";
 import ListingViewTracker from "@/components/analytics/listing-view-tracker";
 import MobileListingActions from "@/components/marketplace/mobile-listing-actions";
+import { SEO_SITE_URL, buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 
 function formatPrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
@@ -72,7 +73,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? `${contextParts}. Material escolar de segunda mano publicado en Wetudy.`
     : "Material escolar de segunda mano publicado en Wetudy.";
   const description = listing.description?.trim().slice(0, 155) || fallbackDescription;
-  const canonical = `https://www.wetudy.com/marketplace/listing/${listing.id}`;
+  const canonical = `${SEO_SITE_URL}/marketplace/listing/${listing.id}`;
   const image = photo?.url || undefined;
 
   return {
@@ -200,12 +201,21 @@ export default async function ListingDetailPage({
     isFavorite: false,
   }));
 
-  const appUrlForJsonLd = process.env.NEXT_PUBLIC_APP_URL || "https://wetudy.com";
-  const canonicalUrl = `${appUrlForJsonLd}/marketplace/listing/${listing.id}`;
+  const canonicalUrl = `${SEO_SITE_URL}/marketplace/listing/${listing.id}`;
   const normalizedCondition = String(listing.condition || "").toLowerCase();
   const schemaCondition = normalizedCondition.includes("new") || normalizedCondition.includes("nuevo")
     ? "https://schema.org/NewCondition"
     : "https://schema.org/UsedCondition";
+  const hasExplicitPrice = typeof listing.price === "number" && Number.isFinite(listing.price);
+  const offerJsonLd = isDonation || hasExplicitPrice
+    ? {
+        "@type": "Offer",
+        priceCurrency: "EUR",
+        price: isDonation ? 0 : listing.price,
+        availability: isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        url: canonicalUrl,
+      }
+    : undefined;
 
   const productJsonLd = {
     "@context": "https://schema.org",
@@ -216,39 +226,14 @@ export default async function ListingDetailPage({
     category: listing.category || undefined,
     image: photos.length > 0 ? photos : undefined,
     itemCondition: schemaCondition,
-    offers: {
-      "@type": "Offer",
-      priceCurrency: "EUR",
-      price: isDonation ? 0 : Number(listing.price || 0),
-      availability: isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      url: canonicalUrl,
-    },
+    offers: offerJsonLd,
   };
 
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Wetudy",
-        item: `${appUrlForJsonLd}/`,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Material escolar",
-        item: `${appUrlForJsonLd}/marketplace`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: displayTitle,
-        item: canonicalUrl,
-      },
-    ],
-  };
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Wetudy", path: "/" },
+    { name: "Material escolar", path: "/marketplace" },
+    { name: displayTitle, url: canonicalUrl },
+  ]);
 
   return (
     <div className="bg-slate-50/60 pb-28 md:pb-10">

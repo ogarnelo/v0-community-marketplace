@@ -64,13 +64,18 @@ test("blog content avoids unsupported promotional claims and has article SEO", (
   assert.doesNotMatch(blog, /Te has suscrito correctamente|handleSubscribe/);
 });
 
-test("listing pages publish canonical metadata and structured product data", () => {
+test("listing pages publish canonical metadata and truthful structured product data", () => {
   const page = read("app/marketplace/listing/[id]/page.tsx");
+  const structured = read("lib/seo/structured-data.ts");
 
   assert.match(page, /alternates: \{ canonical \}/);
   assert.match(page, /Product/);
-  assert.match(page, /BreadcrumbList/);
+  assert.match(page, /buildBreadcrumbJsonLd/);
+  assert.match(structured, /BreadcrumbList/);
   assert.match(page, /itemCondition/);
+  assert.match(page, /hasExplicitPrice/);
+  assert.doesNotMatch(page, /Number\(listing\.price \|\| 0\)/);
+  assert.match(page, /SEO_SITE_URL/);
   assert.match(page, /images: image/);
 });
 
@@ -86,6 +91,7 @@ test("inactive legacy commerce stays gated during MVP launch", () => {
     "app/api/shipments/mark-delivered/route.ts",
     "app/api/shipments/mark-dispatched/route.ts",
     "app/api/stripe/webhook/route.ts",
+    "app/api/reviews/create/route.ts",
     "app/actions/stripe.ts",
   ];
 
@@ -93,4 +99,39 @@ test("inactive legacy commerce stays gated during MVP launch", () => {
   for (const path of paths) {
     assert.match(read(path), /isLegacyCommerceEnabled/);
   }
+});
+
+
+test("public SEO pages publish their own canonical social metadata and breadcrumb graph", () => {
+  const metadataBuilder = read("lib/seo/metadata.ts");
+  const structured = read("lib/seo/structured-data.ts");
+  const pages = [
+    "app/about/page.tsx",
+    "app/help/page.tsx",
+    "app/como-funciona/page.tsx",
+    "app/vende-tus-libros/page.tsx",
+    "app/blog/page.tsx",
+  ];
+
+  assert.match(metadataBuilder, /openGraph/);
+  assert.match(metadataBuilder, /twitter/);
+  assert.match(structured, /SEO_ORGANIZATION_ID/);
+  assert.match(structured, /SEO_WEBSITE_ID/);
+  assert.match(structured, /BreadcrumbList/);
+
+  for (const path of pages) {
+    const source = read(path);
+    assert.match(source, /buildPublicMetadata/);
+    assert.match(source, /buildBreadcrumbJsonLd/);
+  }
+});
+
+test("homepage entity graph links Wetudy organization, logo and website", () => {
+  const home = read("app/page.tsx");
+
+  assert.match(home, /SEO_ORGANIZATION_ID/);
+  assert.match(home, /SEO_WEBSITE_ID/);
+  assert.match(home, /ImageObject/);
+  assert.match(home, /contentUrl/);
+  assert.match(home, /publisher: \{ "@id": SEO_ORGANIZATION_ID \}/);
 });
