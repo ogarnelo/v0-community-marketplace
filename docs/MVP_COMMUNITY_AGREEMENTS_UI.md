@@ -7,7 +7,7 @@ Este bloque conecta la interfaz de Wetudy con la capa `agreements` creada en Sup
 Para el MVP, Wetudy no intenta cerrar pagos, envíos ni checkout. El flujo visible se centra en:
 
 ```txt
-publicar -> contactar -> acordar fuera de Wetudy -> confirmar ambas partes -> valorar/reportar
+publicar -> contactar -> acordar directamente -> confirmar ambas partes -> valorar/reportar
 ```
 
 ## Qué cambia en la interfaz

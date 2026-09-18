@@ -23,3 +23,45 @@ test("chat includes agreement panel", () => {
   assert.match(page, /AgreementPanel/, "message detail should render agreement panel");
   assert.match(page, /agreement_reviews/, "message detail should load agreement reviews");
 });
+
+
+test("agreement mutations use atomic service-role RPCs", () => {
+  const migration = read("supabase/migrations/20260918202500_harden_agreement_integrity.sql");
+  const propose = read("app/api/agreements/propose/route.ts");
+  const confirm = read("app/api/agreements/confirm/route.ts");
+  const cancel = read("app/api/agreements/cancel/route.ts");
+  const dispute = read("app/api/agreements/dispute/route.ts");
+
+  assert.match(migration, /server_propose_agreement/);
+  assert.match(migration, /server_confirm_agreement/);
+  assert.match(migration, /server_cancel_agreement/);
+  assert.match(migration, /server_dispute_agreement/);
+  assert.match(migration, /grant execute[\s\S]*service_role/);
+  assert.match(migration, /revoke insert, update, delete[\s\S]*public\.agreements/);
+
+  assert.match(propose, /admin\.rpc\("server_propose_agreement"/);
+  assert.match(confirm, /admin\.rpc\("server_confirm_agreement"/);
+  assert.match(cancel, /admin\.rpc\("server_cancel_agreement"/);
+  assert.match(dispute, /admin\.rpc\("server_dispute_agreement"/);
+});
+
+test("agreement incidents are valid reports and only confirmed agreements can open them", () => {
+  const migration = read("supabase/migrations/20260918202500_harden_agreement_integrity.sql");
+  const panel = read("components/agreements/agreement-panel.tsx");
+  const dashboard = read("components/admin/super-admin-dashboard.tsx");
+
+  assert.match(migration, /target_type in \('listing', 'conversation', 'agreement'\)/);
+  assert.match(migration, /agreement_id uuid references public\.agreements/);
+  assert.match(migration, /Only confirmed agreements can open an agreement incident/);
+  assert.match(migration, /agreement_type = 'donation' then 'archived'/);
+  assert.match(panel, /agreement\?\.status === "confirmed"/);
+  assert.match(dashboard, /Incidencia del acuerdo/);
+});
+
+test("conversation report RLS requires real participation", () => {
+  const migration = read("supabase/migrations/20260918202500_harden_agreement_integrity.sql");
+
+  assert.match(migration, /target_type = 'conversation'/);
+  assert.match(migration, /c\.buyer_id = \(select auth\.uid\(\)\)/);
+  assert.match(migration, /c\.seller_id = \(select auth\.uid\(\)\)/);
+});

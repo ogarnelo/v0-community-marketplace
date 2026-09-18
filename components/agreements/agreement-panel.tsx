@@ -204,10 +204,10 @@ export default function AgreementPanel({
           </div>
         ) : null}
 
-        {agreement && agreement.status !== "disputed" ? (
+        {agreement?.status === "confirmed" ? (
           <div className="mt-3">
             <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => runAction("/api/agreements/dispute", { agreementId: agreement.id, note: "Incidencia reportada desde el chat" }, "dispute")} disabled={!!loadingAction}>
-              Reportar incidencia del acuerdo
+              Reportar incidencia del acuerdo confirmado
             </Button>
           </div>
         ) : null}
