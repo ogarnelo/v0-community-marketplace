@@ -1,26 +1,30 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { BarChart3, Heart, Users, Settings } from "lucide-react"
+import { BarChart3, Leaf, School, Users } from "lucide-react"
 
 const benefits = [
   {
-    icon: Heart,
-    title: "Donaciones visibles",
-    description: "Las familias pueden publicar material para donar y dejar constancia del acuerdo por chat.",
+    icon: School,
+    title: "Participa en el marketplace",
+    description:
+      "El colegio o AMPA puede publicar material para venta o donación, buscar anuncios y contactar con otras personas de la comunidad.",
   },
   {
     icon: Users,
-    title: "Comunidad educativa",
-    description: "El colegio ayuda como referencia de confianza, pero la búsqueda también puede abrirse por zona o provincia.",
+    title: "Activa tu comunidad",
+    description:
+      "Comparte el enlace, QR o código del centro para que familias y estudiantes se vinculen y encuentren material con más contexto y confianza.",
   },
   {
     icon: BarChart3,
-    title: "Aprendizaje del lanzamiento",
-    description: "Primero medimos uso real: anuncios, contactos, acuerdos y necesidades de las familias.",
+    title: "Seguimiento de acuerdos",
+    description:
+      "Consulta anuncios, acuerdos confirmados, ventas, donaciones, visitas e incidencias asociadas a la comunidad del centro.",
   },
   {
-    icon: Settings,
-    title: "Moderación básica",
-    description: "Reportes y revisión manual para mantener una experiencia segura durante el MVP.",
+    icon: Leaf,
+    title: "Reportes e impacto",
+    description:
+      "Exporta informes PDF y CSV, programa reportes mensuales y consulta métricas de reutilización, valor circular y CO₂e potencialmente evitado.",
   },
 ]
 
@@ -47,7 +51,7 @@ export function BenefitsSchools() {
               Para colegios y AMPAs
             </h2>
             <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">
-              Wetudy puede ayudar a ordenar intercambios y donaciones de material escolar sin depender de grupos de WhatsApp o anuncios en papel.
+              Wetudy tiene la misión de ayudar a ordenar intercambios y donaciones de material escolar, fomentando la sostenibilidad, la comunicación y el acceso a recursos en comunidad.
             </p>
           </div>
         </div>
