@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Heart,
   Activity,
+  QrCode,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -190,11 +191,14 @@ export function Navbar({
   const navItems = useMemo(
     () => [
       { href: "/marketplace", label: "Marketplace", icon: BookOpen },
+      ...(effectiveAdminHref === "/admin/school"
+        ? [{ href: "/admin/school?tab=access", label: "Código de colegio", icon: QrCode }]
+        : []),
       { href: "/favorites", label: "Favoritos", icon: Heart },
       { href: publishHref, label: "Publicar", icon: Plus },
       { href: "/messages", label: "Mensajes", icon: MessageCircle },
     ],
-    [publishHref]
+    [effectiveAdminHref, publishHref]
   );
 
   const handleMobileLogout = async () => {

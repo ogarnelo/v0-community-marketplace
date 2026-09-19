@@ -23,6 +23,9 @@ test("school admins can share a direct centre link and QR", () => {
   assert.match(qrRoute, /school_admin/);
   assert.match(qrRoute, /onboarding\/join-school/);
   assert.match(qrRoute, /image\/svg\+xml/);
+  assert.match(qrRoute, /QRCode\.toBuffer/);
+  assert.match(qrRoute, /image\/png/);
+  assert.match(qrRoute, /download.*attachment/);
   assert.match(pkg, /"qrcode": "\^1\.5\.4"/);
 });
 
@@ -34,7 +37,14 @@ test("shared centre links preselect an active school and preserve it through sig
   assert.match(joinPage, /\/api\/schools\/public\?id=/);
   assert.doesNotMatch(joinPage, /\.from\("schools"\)/);
   assert.match(joinPage, /Preparando el centro/);
+  assert.match(joinPage, /¿Ya tienes cuenta en Wetudy\?/);
+  assert.match(joinPage, /Ya tengo cuenta/);
+  assert.match(joinPage, /Crear cuenta/);
+  assert.match(joinPage, /auth\?mode=login&next=/);
   assert.match(joinPage, /auth\?mode=signup&next=/);
+  assert.match(joinPage, /join=1/);
+  assert.match(joinPage, /linkCurrentUserToSchool/);
+  assert.match(joinPage, /router\.replace\("\/marketplace"\)/);
   assert.match(joinPage, /resolveSchoolFromId/);
 
   assert.match(publicSchoolsRoute, /createAdminClient/);
@@ -49,4 +59,21 @@ test("school search can link users without requiring a code", () => {
   assert.match(joinPage, /tócalo para vincular tu cuenta/);
   assert.match(joinPage, /setFound\(school\)/);
   assert.doesNotMatch(joinPage, /Debes validar primero un código de acceso activo/);
+});
+
+
+test("school admins get a direct code menu and easy QR sharing", () => {
+  const navbar = read("components/navbar.tsx");
+  const dashboard = read("components/admin/school-admin-dashboard.tsx");
+
+  assert.match(navbar, /Código de colegio/);
+  assert.match(navbar, /\/admin\/school\?tab=access/);
+  assert.match(navbar, /effectiveAdminHref === "\/admin\/school"/);
+
+  assert.match(dashboard, /new URLSearchParams\(window\.location\.search\)\.get\("tab"\)/);
+  assert.match(dashboard, /Código de colegio/);
+  assert.match(dashboard, /Compartir QR/);
+  assert.match(dashboard, /Descargar QR/);
+  assert.match(dashboard, /navigator\.canShare/);
+  assert.match(dashboard, /files: \[file\]/);
 });
