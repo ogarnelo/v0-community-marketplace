@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { AppNotificationRow } from "@/lib/notifications";
+import { getNotificationDestination, type AppNotificationRow } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -153,7 +153,7 @@ export function NavbarNotificationsBell({
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
 
-    window.location.assign(notification.href || "/account/activity");
+    window.location.assign(getNotificationDestination(notification));
   };
 
   return (
