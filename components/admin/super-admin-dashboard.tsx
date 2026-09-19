@@ -1676,24 +1676,28 @@ export default function SuperAdminDashboard({
                                 {request.contact_phone ? ` • ${request.contact_phone}` : ""}
                               </p>
 
-                              {approvedMeta ? (
+                              {normalizedStatus === "approved" ? (
                                 <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                                   <p className="font-medium">Centro aprobado</p>
-                                  <p className="mt-1">
-                                    Código generado:{" "}
-                                    <span className="font-mono font-semibold">
-                                      {approvedMeta.accessCode}
-                                    </span>
-                                  </p>
-                                  <p className="mt-1 text-xs">
-                                    School ID: {approvedMeta.schoolId}
-                                  </p>
-                                  {request.contact_email ? (
+                                  {approvedMeta?.accessCode ? (
+                                    <p className="mt-1">
+                                      Código generado:{" "}
+                                      <span className="font-mono font-semibold">
+                                        {approvedMeta.accessCode}
+                                      </span>
+                                    </p>
+                                  ) : null}
+                                  {request.approved_school_id ? (
+                                    <p className="mt-1 text-xs">
+                                      School ID: {request.approved_school_id}
+                                    </p>
+                                  ) : null}
+                                  {request.contact_email && request.approved_school_id ? (
                                     <Button
                                       type="button"
                                       size="sm"
                                       variant="outline"
-                                      className="mt-3 bg-white text-emerald-800"
+                                      className="mt-3 w-full bg-white text-emerald-800 sm:w-auto"
                                       disabled={loadingRequestId === request.id}
                                       onClick={() => resendSchoolAdminAccess(request.id)}
                                     >
@@ -1702,7 +1706,11 @@ export default function SuperAdminDashboard({
                                       ) : null}
                                       Reenviar acceso al centro
                                     </Button>
-                                  ) : null}
+                                  ) : (
+                                    <p className="mt-2 text-xs text-emerald-800">
+                                      No hay email de contacto o centro aprobado asociado para reenviar el acceso.
+                                    </p>
+                                  )}
                                 </div>
                               ) : null}
 
