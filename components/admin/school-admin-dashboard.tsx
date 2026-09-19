@@ -102,6 +102,15 @@ type ImpactSubscription = {
   last_sent_month: string | null;
 };
 
+type ImpactDelivery = {
+  id: string;
+  email: string;
+  period_key: string;
+  period_label: string;
+  source: "manual" | "cron";
+  sent_at: string;
+};
+
 type Props = {
   school: SchoolRow | null;
   listings: ListingRow[];
@@ -113,6 +122,7 @@ type Props = {
   agreements: AgreementRow[];
   reportSubscription: ImpactSubscription | null;
   currentUserEmail: string;
+  reportDeliveries: ImpactDelivery[];
 };
 
 type RangeKey = "90d" | "365d" | "total";
@@ -206,6 +216,7 @@ export default function SchoolAdminDashboard({
   agreements,
   reportSubscription,
   currentUserEmail,
+  reportDeliveries,
 }: Props) {
   const [range, setRange] = useState<RangeKey>("365d");
   const [copiedCode, setCopiedCode] = useState(false);
@@ -634,6 +645,33 @@ export default function SchoolAdminDashboard({
                 {monthlyStatus ? (
                   <p className="text-xs text-muted-foreground" role="status">{monthlyStatus}</p>
                 ) : null}
+
+                <div className="rounded-xl border bg-muted/20 p-3">
+                  <p className="text-sm font-medium">Historial de informes</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {monthlyEnabled
+                      ? `Próximo envío automático: día ${monthlyDay} de cada mes.`
+                      : "El envío automático está desactivado."}
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {reportDeliveries.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Todavía no hay informes registrados.</p>
+                    ) : (
+                      reportDeliveries.slice(0, 6).map((delivery) => (
+                        <div key={delivery.id} className="flex flex-col gap-1 rounded-lg border bg-background px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-medium text-foreground">{delivery.period_label}</p>
+                            <p className="text-muted-foreground">{delivery.email}</p>
+                          </div>
+                          <div className="text-muted-foreground sm:text-right">
+                            <p>{delivery.source === "cron" ? "Automático" : "Manual"}</p>
+                            <p>{formatDate(delivery.sent_at)}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>

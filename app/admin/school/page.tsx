@@ -92,6 +92,15 @@ type ImpactSubscriptionRow = {
   last_sent_month: string | null;
 };
 
+type ImpactDeliveryRow = {
+  id: string;
+  email: string;
+  period_key: string;
+  period_label: string;
+  source: "manual" | "cron";
+  sent_at: string;
+};
+
 type DonationRequestRow = {
   id: string;
   listing_id: string | null;
@@ -144,6 +153,7 @@ export default async function SchoolAdminPage() {
     { data: donationRequests },
     { data: agreements },
     { data: impactSubscription },
+    { data: impactDeliveries },
   ] = await Promise.all([
     adminSupabase
       .from("schools")
@@ -198,6 +208,13 @@ export default async function SchoolAdminPage() {
       .eq("school_id", effectiveSchoolId)
       .eq("user_id", user.id)
       .maybeSingle<ImpactSubscriptionRow>(),
+    adminSupabase
+      .from("school_impact_report_deliveries")
+      .select("id, email, period_key, period_label, source, sent_at")
+      .eq("school_id", effectiveSchoolId)
+      .order("sent_at", { ascending: false })
+      .limit(12)
+      .returns<ImpactDeliveryRow[]>(),
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
@@ -295,6 +312,7 @@ export default async function SchoolAdminPage() {
             agreements={safeAgreements}
             reportSubscription={impactSubscription || null}
             currentUserEmail={user.email || ""}
+            reportDeliveries={(impactDeliveries || []) as ImpactDeliveryRow[]}
           />
 
           <DonationRequestsPanel requests={pendingDonationRequests} />

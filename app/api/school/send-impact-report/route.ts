@@ -80,11 +80,32 @@ export async function POST(request: Request) {
     });
     const pdf = renderSchoolImpactPdf(report);
 
-    await sendMonthlySchoolImpactEmail({
+    const emailResult = await sendMonthlySchoolImpactEmail({
       to: email,
       report,
       pdf,
     });
+
+    const providerMessageId =
+      emailResult && typeof emailResult === "object" && "id" in emailResult && typeof emailResult.id === "string"
+        ? emailResult.id
+        : null;
+
+    const { error: deliveryError } = await admin
+      .from("school_impact_report_deliveries")
+      .insert({
+        school_id: schoolRole.school_id,
+        user_id: user.id,
+        email,
+        period_key: period.key,
+        period_label: period.label,
+        source: "manual",
+        provider_message_id: providerMessageId,
+      });
+
+    if (deliveryError) {
+      console.error("No se pudo registrar el historial del informe manual:", deliveryError);
+    }
 
     const { data: existingSubscription, error: subscriptionReadError } = await admin
       .from("school_impact_report_subscriptions")
