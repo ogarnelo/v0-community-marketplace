@@ -509,10 +509,23 @@ export default function SuperAdminDashboard({
   const [globalError, setGlobalError] = useState("");
 
   useEffect(() => {
-    if (activeTab !== "schools" || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
 
     const targetId = decodeURIComponent(window.location.hash.replace(/^#/, ""));
-    if (!targetId.startsWith("school-request-")) return;
+    const targetTab = targetId.startsWith("school-request-")
+      ? "schools"
+      : targetId.startsWith("support-ticket-")
+        ? "support"
+        : targetId.startsWith("report-")
+          ? "reports"
+          : null;
+
+    if (!targetTab) return;
+
+    if (activeTab !== targetTab) {
+      setActiveTab(targetTab);
+      return;
+    }
 
     const timer = window.setTimeout(() => {
       document.getElementById(targetId)?.scrollIntoView({
@@ -522,7 +535,7 @@ export default function SuperAdminDashboard({
     }, 50);
 
     return () => window.clearTimeout(timer);
-  }, [activeTab, schoolRequests]);
+  }, [activeTab, schoolRequests, supportTickets, reports]);
 
   const [approvedRequestMeta, setApprovedRequestMeta] = useState<
     Record<string, ApprovedRequestMeta>
@@ -868,6 +881,30 @@ export default function SuperAdminDashboard({
       }
     } catch (error: any) {
       setGlobalError(error?.message || error?.details || "No se pudo aprobar la solicitud.");
+    } finally {
+      setLoadingRequestId(null);
+    }
+  };
+
+  const resendSchoolAdminAccess = async (requestId: string) => {
+    setGlobalError("");
+    setLoadingRequestId(requestId);
+
+    try {
+      const response = await fetch("/api/admin/resend-school-admin-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo reenviar el acceso.");
+      }
+
+      setGlobalError(payload?.message || "Acceso enviado de nuevo.");
+    } catch (error: any) {
+      setGlobalError(error?.message || "No se pudo reenviar el acceso.");
     } finally {
       setLoadingRequestId(null);
     }
@@ -1428,7 +1465,7 @@ export default function SuperAdminDashboard({
                 </div>
               ) : (
                 supportTickets.map((ticket) => (
-                  <Card key={ticket.id} className="border-border">
+                  <Card key={ticket.id} id={`support-ticket-${ticket.id}`} className="scroll-mt-24 border-border target:ring-2 target:ring-primary/40">
                     <CardContent className="p-4">
                       <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1489,7 +1526,7 @@ export default function SuperAdminDashboard({
                 </div>
               ) : (
                 reports.map((report) => (
-                  <Card key={report.id} className="border-border">
+                  <Card key={report.id} id={`report-${report.id}`} className="scroll-mt-24 border-border target:ring-2 target:ring-primary/40">
                     <CardContent className="p-4">
                       <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1651,6 +1688,21 @@ export default function SuperAdminDashboard({
                                   <p className="mt-1 text-xs">
                                     School ID: {approvedMeta.schoolId}
                                   </p>
+                                  {request.contact_email ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-3 bg-white text-emerald-800"
+                                      disabled={loadingRequestId === request.id}
+                                      onClick={() => resendSchoolAdminAccess(request.id)}
+                                    >
+                                      {loadingRequestId === request.id ? (
+                                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                      ) : null}
+                                      Reenviar acceso al centro
+                                    </Button>
+                                  ) : null}
                                 </div>
                               ) : null}
 
