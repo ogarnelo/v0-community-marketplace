@@ -46,16 +46,6 @@ export function BenefitsFamilies() {
                   </div>
                   <h3 className="text-sm font-semibold text-foreground">{benefit.title}</h3>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{benefit.description}</p>
-                  {benefit.title === "Ahorro flexible" ? (
-                    <a
-                      href="https://www.telemadrid.es/programas/madrid-directo/Los-libros-de-segunda-mano-una-opcion-para-ahorrar-hasta-un-70-en-la-vuelta-al-cole-2-2919928014--20260826075825.html"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-block text-[11px] font-medium text-primary hover:underline"
-                    >
-                      Fuente: Telemadrid, 2026
-                    </a>
-                  ) : null}
                 </CardContent>
               </Card>
             ))}
