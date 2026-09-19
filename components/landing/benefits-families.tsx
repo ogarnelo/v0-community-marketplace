@@ -5,7 +5,7 @@ const benefits = [
   {
     icon: PiggyBank,
     title: "Ahorro flexible",
-    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. Un estudio de Wallapop de 2026 sitúa en 193 € el ahorro medio al recurrir a productos reutilizados para la vuelta al cole frente al mercado de primera mano.",
+    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. Según RTVE, recurrir a artículos usados en la vuelta al cole puede reducir el gasto hasta un 50%, y los libros de texto de segunda mano pueden encontrarse a mitad de precio frente a comprarlos nuevos.",
   },
   {
     icon: ShieldCheck,
@@ -48,12 +48,12 @@ export function BenefitsFamilies() {
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{benefit.description}</p>
                   {benefit.title === "Ahorro flexible" ? (
                     <a
-                      href="https://about.wallapop.com/la-vuelta-al-cole-obliga-a-casi-el-60-de-las-familias-a-buscar-formulas-de-ahorro-para-hacer-frente-al-gasto/"
+                      href="https://www.rtve.es/noticias/20260819/vuelta-cole-mas-cara-historia-ayudas-trucos-ahorrar/17193990.shtml"
                       target="_blank"
                       rel="noreferrer"
                       className="mt-2 inline-block text-[11px] font-medium text-primary hover:underline"
                     >
-                      Fuente: Wallapop, 2026
+                      Fuente: RTVE, 2026
                     </a>
                   ) : null}
                 </CardContent>
