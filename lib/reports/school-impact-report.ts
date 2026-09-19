@@ -345,6 +345,131 @@ export function renderSchoolImpactPdf(report: SchoolImpactReport) {
   }
   pushPage();
 
+  const hasChartData =
+    report.reusedItems > 0 ||
+    report.soldItems > 0 ||
+    report.donatedItems > 0 ||
+    report.activeListings > 0 ||
+    report.listingViews > 0 ||
+    report.estimatedAvoidedCo2 > 0;
+
+  if (hasChartData) {
+    const drawHorizontalBars = (
+      title: string,
+      rows: Array<{ label: string; value: number; display: string }>,
+      color: "blue" | "green"
+    ) => {
+      if (y < 220) pushPage();
+
+      commands.push(
+        `BT /F2 13 Tf 44 ${y} Td <${pdfHexText(title)}> Tj ET`
+      );
+      y -= 24;
+
+      const maxValue = Math.max(...rows.map((row) => row.value), 1);
+      const maxWidth = 410;
+
+      for (const row of rows) {
+        commands.push(
+          `BT /F1 9.5 Tf 44 ${y} Td <${pdfHexText(`${row.label}: ${row.display}`)}> Tj ET`
+        );
+        y -= 15;
+
+        commands.push(`0.92 0.94 0.97 rg 44 ${y} ${maxWidth} 11 re f`);
+
+        const barWidth = Math.max(
+          row.value > 0 ? 4 : 0,
+          Math.min(maxWidth, (row.value / maxValue) * maxWidth)
+        );
+
+        if (barWidth > 0) {
+          commands.push(
+            color === "green"
+              ? `0.494 0.729 0.157 rg 44 ${y} ${barWidth.toFixed(2)} 11 re f`
+              : `0.145 0.388 0.918 rg 44 ${y} ${barWidth.toFixed(2)} 11 re f`
+          );
+        }
+
+        y -= 27;
+      }
+
+      commands.push("0 0 0 rg");
+      y -= 12;
+    };
+
+    commands.push(
+      `BT /F2 18 Tf 44 ${y} Td <${pdfHexText("Gráficos de impacto")}> Tj ET`
+    );
+    y -= 28;
+    commands.push(
+      `BT /F1 10 Tf 44 ${y} Td <${pdfHexText(
+        "Los gráficos se generan únicamente cuando existen datos reales en el periodo."
+      )}> Tj ET`
+    );
+    y -= 32;
+
+    if (report.soldItems > 0 || report.donatedItems > 0) {
+      drawHorizontalBars(
+        "Acuerdos confirmados",
+        [
+          { label: "Ventas", value: report.soldItems, display: String(report.soldItems) },
+          {
+            label: "Donaciones",
+            value: report.donatedItems,
+            display: String(report.donatedItems),
+          },
+        ],
+        "blue"
+      );
+    }
+
+    if (
+      report.reusedItems > 0 ||
+      report.activeListings > 0 ||
+      report.listingViews > 0
+    ) {
+      drawHorizontalBars(
+        "Actividad y alcance",
+        [
+          {
+            label: "Artículos reutilizados",
+            value: report.reusedItems,
+            display: String(report.reusedItems),
+          },
+          {
+            label: "Anuncios activos",
+            value: report.activeListings,
+            display: String(report.activeListings),
+          },
+          {
+            label: "Visitas a anuncios",
+            value: report.listingViews,
+            display: String(report.listingViews),
+          },
+        ],
+        "blue"
+      );
+    }
+
+    if (report.estimatedAvoidedCo2 > 0) {
+      if (y < 130) pushPage();
+      commands.push(`0.94 0.98 0.91 rg 44 ${y - 54} 470 66 re f`);
+      commands.push(
+        `0 0 0 rg BT /F2 12 Tf 58 ${y - 20} Td <${pdfHexText(
+          "Estimación ambiental"
+        )}> Tj ET`
+      );
+      commands.push(
+        `BT /F2 20 Tf 58 ${y - 45} Td <${pdfHexText(
+          `${report.estimatedAvoidedCo2.toFixed(1)} kg CO2e potencialmente evitado`
+        )}> Tj ET`
+      );
+      y -= 88;
+    }
+
+    pushPage();
+  }
+
   const objects: string[] = [];
   const pageIds: number[] = [];
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
