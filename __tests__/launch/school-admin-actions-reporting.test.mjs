@@ -43,6 +43,12 @@ test("school impact dashboard supports direct PDF export and monthly email sched
   assert.match(pdfRoute, /Content-Type": "application\/pdf"/);
   assert.match(pdfRoute, /renderSchoolImpactPdf/);
   assert.match(reportLib, /SCHOOL_BOOK_CO2E_KG = 2\.1/);
+  assert.match(reportLib, /monthlyImpact/);
+  assert.match(reportLib, /buildVisualImpactPage/);
+  assert.match(reportLib, /Composición de la reutilización/);
+  assert.match(reportLib, /Evolución mensual de reutilización/);
+  assert.match(reportLib, /if \(report\.reusedItems <= 0\) return null/);
+  assert.match(reportLib, /monthly\.length >= 2/);
   assert.match(reportLib, /%PDF-1\.4/);
   assert.match(subscriptionRoute, /dayOfMonth/);
   assert.match(subscriptionRoute, /school_admin/);
