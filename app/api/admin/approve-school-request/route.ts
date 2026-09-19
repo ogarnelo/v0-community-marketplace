@@ -71,8 +71,11 @@ export async function POST(request: Request) {
 
     const adminSupabase = createAdminClient();
     const { data, error } = await adminSupabase.rpc(
-      "approve_school_registration_request",
-      { request_id: requestId }
+      "server_approve_school_registration_request",
+      {
+        request_id: requestId,
+        reviewer_id: user.id,
+      }
     );
 
     if (error) {
