@@ -1605,7 +1605,11 @@ export default function SuperAdminDashboard({
                   const approvedMeta = approvedRequestMeta[request.id];
 
                   return (
-                    <Card\n                      key={request.id}\n                      id={`school-request-${request.id}`}\n                      className="scroll-mt-24 border-border target:ring-2 target:ring-primary/40"\n                    >
+                    <Card
+                      key={request.id}
+                      id={`school-request-${request.id}`}
+                      className="scroll-mt-24 border-border target:ring-2 target:ring-primary/40"
+                    >
                       <CardContent className="p-4">
                         <div className="flex flex-col gap-4">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
