@@ -115,6 +115,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       period: period.label,
+      periodKey: period.key,
       message: `Informe de ${period.label} enviado a ${email}.`,
     });
   } catch (error: any) {
