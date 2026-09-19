@@ -57,22 +57,24 @@ export default function JoinSchoolPage() {
       }
 
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("schools")
-          .select("id, name, city")
-          .eq("id", schoolId)
-          .eq("is_active", true)
-          .maybeSingle<SchoolSearchRow>();
+        const response = await fetch(`/api/schools/public?id=${encodeURIComponent(schoolId)}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          school?: SchoolSearchRow | null;
+          error?: string;
+        };
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error(payload.error || "No se pudo cargar el centro.");
+        }
 
-        if (!data) {
+        if (!payload.school) {
           setError("Este enlace de centro ya no está disponible. Puedes buscar el centro manualmente.");
           return;
         }
 
-        setFound(data);
+        setFound(payload.school);
         setShowSearch(false);
       } catch (error) {
         console.error("Error cargando centro compartido:", error);
@@ -92,17 +94,17 @@ export default function JoinSchoolPage() {
       setSearchLoading(true);
 
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("schools")
-          .select("id, name, city")
-          .eq("is_active", true)
-          .order("name", { ascending: true })
-          .limit(100);
+        const response = await fetch("/api/schools/public", { cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as {
+          schools?: SchoolSearchRow[];
+          error?: string;
+        };
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error(payload.error || "No se pudieron cargar los centros.");
+        }
 
-        setSearchResults((data || []) as SchoolSearchRow[]);
+        setSearchResults(payload.schools || []);
       } catch (error) {
         console.error("Error cargando centros:", error);
       } finally {
@@ -119,20 +121,23 @@ export default function JoinSchoolPage() {
   };
 
   const resolveSchoolFromId = async (schoolId: string) => {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("schools")
-      .select("id, name, city")
-      .eq("id", schoolId)
-      .eq("is_active", true)
-      .maybeSingle<SchoolSearchRow>();
+    const response = await fetch(`/api/schools/public?id=${encodeURIComponent(schoolId)}`, {
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      school?: SchoolSearchRow | null;
+      error?: string;
+    };
 
-    if (error) throw error;
-    if (!data) {
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo validar el centro.");
+    }
+
+    if (!payload.school) {
       throw new Error("Este centro no está disponible actualmente.");
     }
 
-    return data;
+    return payload.school;
   };
 
   const resolveSchoolFromCode = async (normalizedCode: string) => {
