@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findAuthUserByEmail, grantSchoolAdminRole } from "@/lib/admin/school-admin-role";
+import { provisionSchoolAdminAccess } from "@/lib/admin/school-admin-invitation";
 
 type SchoolRequestRow = {
   id: string;
@@ -93,40 +93,19 @@ export async function POST(request: Request) {
     const normalizedContactEmail = schoolRequest.contact_email?.trim().toLowerCase() || null;
 
     if (normalizedContactEmail && approvedSchoolId) {
-      const existingUser = await findAuthUserByEmail(normalizedContactEmail);
+      const origin = new URL(request.url).origin;
+      const access = await provisionSchoolAdminAccess({
+        email: normalizedContactEmail,
+        schoolId: approvedSchoolId,
+        schoolName: schoolRequest.school_name,
+        origin,
+        idempotencyKeyPrefix: `school-admin-${schoolRequest.id}`,
+      });
 
-      if (existingUser) {
-        await grantSchoolAdminRole({
-          userId: existingUser.id,
-          schoolId: approvedSchoolId,
-        });
-        inviteMessage =
-          "La cuenta ya existía. Se le ha concedido acceso de administración del centro.";
-      } else {
-        const origin = new URL(request.url).origin;
-
-        const { data: inviteData, error: inviteError } =
-          await adminSupabase.auth.admin.inviteUserByEmail(normalizedContactEmail, {
-            data: {
-              school_name: schoolRequest.school_name,
-            },
-            redirectTo: `${origin}/auth/callback?next=/admin/school`,
-          });
-
-        if (inviteError) throw inviteError;
-
-        const invitedUserId = inviteData.user?.id;
-
-        if (!invitedUserId) {
-          throw new Error("La invitación se creó sin un usuario asociado.");
-        }
-
-        await grantSchoolAdminRole({
-          userId: invitedUserId,
-          schoolId: approvedSchoolId,
-        });
-        inviteSent = true;
-      }
+      inviteSent = access.activationSent;
+      inviteMessage = access.existingConfirmedUser
+        ? "La cuenta ya existía. Se le ha concedido acceso de administración del centro."
+        : "Se ha enviado un email corporativo para activar la cuenta, crear contraseña y entrar al panel del centro.";
     }
 
     return NextResponse.json({
