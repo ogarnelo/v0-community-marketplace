@@ -399,7 +399,7 @@ export function Navbar({
                 />
               ) : null}
 
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2 px-2">
                     <Avatar className="h-8 w-8">
@@ -411,7 +411,7 @@ export function Navbar({
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" sideOffset={8} collisionPadding={12} className="w-56">
                   <DropdownMenuItem asChild>
                     <Link href="/account" className="gap-2">
                       <User className="h-4 w-4" />

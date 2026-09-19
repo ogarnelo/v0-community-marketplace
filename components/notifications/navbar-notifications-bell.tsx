@@ -157,7 +157,7 @@ export function NavbarNotificationsBell({
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant={unreadCount > 0 ? "secondary" : "ghost"} size="icon" className="relative">
           <Bell className="h-5 w-5" />
@@ -170,7 +170,7 @@ export function NavbarNotificationsBell({
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-[26rem]">
+      <DropdownMenuContent align="end" sideOffset={8} collisionPadding={12} className="w-[26rem] max-w-[calc(100vw-1rem)]">
         <div className="flex items-center justify-between px-2 py-1.5">
           <div><DropdownMenuLabel className="p-0">Notificaciones</DropdownMenuLabel><p className="text-xs text-muted-foreground">{unreadCount > 0 ? `Tienes ${unreadCount} sin leer` : "Todo al día"}</p></div>
           <Button
