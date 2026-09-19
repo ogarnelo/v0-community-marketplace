@@ -73,12 +73,12 @@ const schoolFAQs = [
     a: "El centro puede compartir un enlace directo, un código QR o el código del centro. Las familias también pueden buscar el colegio por nombre y seleccionarlo durante el onboarding o desde su cuenta.",
   },
   {
-    q: "¿Qué seguimiento tiene un centro sobre su comunidad?",
-    a: "El panel muestra métricas asociadas al centro, como miembros, anuncios, acuerdos confirmados, ventas, donaciones, visitas e incidencias. El administrador no obtiene acceso a conversaciones privadas ajenas.",
+    q: "¿Qué información ofrece el panel del centro?",
+    a: "El panel ofrece indicadores generales de actividad, participación y reutilización de la comunidad. No muestra el contenido de conversaciones ni el detalle de acuerdos entre usuarios.",
   },
   {
     q: "¿Qué reportes puede obtener un colegio o AMPA?",
-    a: "Puede exportar informes PDF y CSV con métricas de actividad y reutilización, consultar estimaciones ambientales cuando existe una metodología verificable y programar un informe mensual por email.",
+    a: "Puede consultar reportes de actividad e impacto con indicadores de reutilización, ahorro y sostenibilidad de su comunidad, incluido CO₂ cuando existe una metodología verificable.",
   },
 ];
 
