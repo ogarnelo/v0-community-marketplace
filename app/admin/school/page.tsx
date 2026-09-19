@@ -23,6 +23,9 @@ type ListingRow = {
   category: string | null;
   grade_level: string | null;
   price: number | null;
+  original_price: number | null;
+  estimated_retail_price: number | null;
+  isbn: string | null;
   type: string | null;
   status: string | null;
   condition: string | null;
@@ -69,6 +72,16 @@ type SchoolAdminRoleRow = {
 type ListingViewRow = {
   listing_id: string;
   viewed_at: string;
+};
+
+type AgreementRow = {
+  id: string;
+  listing_id: string | null;
+  agreement_type: string | null;
+  status: string | null;
+  amount: number | null;
+  confirmed_at: string | null;
+  created_at: string | null;
 };
 
 type DonationRequestRow = {
@@ -121,6 +134,7 @@ export default async function SchoolAdminPage() {
     { data: accessCodes },
     { data: schoolAdminRoles },
     { data: donationRequests },
+    { data: agreements },
   ] = await Promise.all([
     adminSupabase
       .from("schools")
@@ -129,7 +143,7 @@ export default async function SchoolAdminPage() {
       .maybeSingle<SchoolRow>(),
     adminSupabase
       .from("listings")
-      .select("id, title, category, grade_level, price, type, status, condition, seller_id, school_id, created_at")
+      .select("id, title, category, grade_level, price, original_price, estimated_retail_price, isbn, type, status, condition, seller_id, school_id, created_at")
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<ListingRow[]>(),
@@ -163,6 +177,12 @@ export default async function SchoolAdminPage() {
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<DonationRequestRow[]>(),
+    adminSupabase
+      .from("agreements")
+      .select("id, listing_id, agreement_type, status, amount, confirmed_at, created_at")
+      .eq("school_id", effectiveSchoolId)
+      .order("created_at", { ascending: false })
+      .returns<AgreementRow[]>(),
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
@@ -171,6 +191,7 @@ export default async function SchoolAdminPage() {
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
   const safeReports = (reports || []) as ReportRow[];
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
+  const safeAgreements = (agreements || []) as AgreementRow[];
 
   const listingIds = safeListings.map((item) => item.id);
 
@@ -240,7 +261,7 @@ export default async function SchoolAdminPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Panel Admin - {school?.name || "Centro"}</h1>
-              <p className="text-sm text-muted-foreground">Dashboard del centro con KPIs, rankings y conversión.</p>
+              <p className="text-sm text-muted-foreground">Impacto, sostenibilidad, actividad y comunidad del centro.</p>
             </div>
           </div>
 
@@ -252,6 +273,7 @@ export default async function SchoolAdminPage() {
             reports={safeListingReports}
             accessCodes={safeAccessCodes}
             listingViews={safeListingViews}
+            agreements={safeAgreements}
           />
 
           <DonationRequestsPanel requests={pendingDonationRequests} />
