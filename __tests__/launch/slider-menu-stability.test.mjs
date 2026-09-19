@@ -18,3 +18,14 @@ test("authenticated mobile navbar avoids hidden realtime subscriptions", () => {
   assert.match(messages, /matchMedia\("\(max-width: 767px\)"\)/);
   assert.match(notifications, /matchMedia\("\(max-width: 767px\)"\)/);
 });
+
+
+test("desktop navbar dropdowns do not acquire a modal page lock", () => {
+  const navbar = read("components/navbar.tsx");
+  const notifications = read("components/notifications/navbar-notifications-bell.tsx");
+
+  assert.match(navbar, /<DropdownMenu modal=\{false\}>/);
+  assert.match(notifications, /<DropdownMenu modal=\{false\}>/);
+  assert.match(navbar, /collisionPadding=\{12\}/);
+  assert.match(notifications, /collisionPadding=\{12\}/);
+});
