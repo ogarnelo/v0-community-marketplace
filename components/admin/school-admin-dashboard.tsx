@@ -13,9 +13,11 @@ import {
   Leaf,
   Package,
   Printer,
+  QrCode,
   Recycle,
   Save,
   Send,
+  Share2,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -220,6 +222,7 @@ export default function SchoolAdminDashboard({
 }: Props) {
   const [range, setRange] = useState<RangeKey>("365d");
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [monthlyEnabled, setMonthlyEnabled] = useState(reportSubscription?.enabled ?? false);
   const [monthlyEmail, setMonthlyEmail] = useState(reportSubscription?.email || currentUserEmail);
   const [monthlyDay, setMonthlyDay] = useState(reportSubscription?.day_of_month || 1);
@@ -337,6 +340,41 @@ export default function SchoolAdminDashboard({
     await navigator.clipboard.writeText(latestAccessCode);
     setCopiedCode(true);
     window.setTimeout(() => setCopiedCode(false), 1600);
+  };
+
+  const getSchoolShareUrl = () => {
+    if (!school?.id || typeof window === "undefined") return "";
+    const url = new URL("/onboarding/join-school", window.location.origin);
+    url.searchParams.set("school", school.id);
+    return url.toString();
+  };
+
+  const copySchoolShareLink = async () => {
+    const url = getSchoolShareUrl();
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    setCopiedShareLink(true);
+    window.setTimeout(() => setCopiedShareLink(false), 1800);
+  };
+
+  const shareSchoolLink = async () => {
+    const url = getSchoolShareUrl();
+    if (!url) return;
+
+    const shareText = `Únete a ${school?.name || "nuestro centro"} en Wetudy.`;
+
+    if (typeof navigator.share === "function") {
+      await navigator.share({
+        title: `Wetudy · ${school?.name || "Centro"}`,
+        text: shareText,
+        url,
+      });
+      return;
+    }
+
+    await navigator.clipboard.writeText(`${shareText} ${url}`);
+    setCopiedShareLink(true);
+    window.setTimeout(() => setCopiedShareLink(false), 1800);
   };
 
   const saveMonthlyReport = async () => {
@@ -796,22 +834,61 @@ export default function SchoolAdminDashboard({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {latestAccessCode ? (
-                <div className="flex flex-col gap-3 rounded-xl border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Código activo</p>
-                    <p className="mt-1 font-mono text-2xl font-bold tracking-wider">{latestAccessCode}</p>
+              <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                <div className="space-y-3">
+                  <div className="rounded-xl border bg-muted/30 p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Enlace directo recomendado</p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      Compártelo por WhatsApp, email o web. La familia abrirá Wetudy con
+                      <strong className="text-foreground"> {school?.name || "el centro"} ya seleccionado</strong>.
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+                      <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={copySchoolShareLink}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        {copiedShareLink ? "Enlace copiado" : "Copiar enlace"}
+                      </Button>
+                      <Button type="button" className="w-full sm:w-auto" onClick={shareSchoolLink}>
+                        <Share2 className="mr-2 h-4 w-4" />
+                        Compartir centro
+                      </Button>
+                    </div>
                   </div>
-                  <Button type="button" variant="outline" onClick={copyAccessCode}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    {copiedCode ? "Copiado" : "Copiar código"}
+
+                  {latestAccessCode ? (
+                    <div className="rounded-xl border bg-muted/30 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Código alternativo</p>
+                      <p className="mt-1 font-mono text-2xl font-bold tracking-wider">{latestAccessCode}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Úsalo si una familia prefiere introducir el código manualmente.
+                      </p>
+                      <Button type="button" variant="outline" className="mt-3 w-full sm:w-auto" onClick={copyAccessCode}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        {copiedCode ? "Copiado" : "Copiar código"}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-col items-center rounded-xl border bg-background p-4">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                    <QrCode className="h-4 w-4" />
+                    QR del centro
+                  </div>
+                  <img
+                    src="/api/school/share-qr"
+                    alt={`QR para unirse a ${school?.name || "este centro"} en Wetudy`}
+                    className="h-52 w-52 rounded-lg bg-white p-2"
+                  />
+                  <p className="mt-2 max-w-52 text-center text-xs text-muted-foreground">
+                    Ideal para carteles, circulares y reuniones del AMPA.
+                  </p>
+                  <Button asChild type="button" size="sm" variant="ghost" className="mt-2">
+                    <a href="/api/school/share-qr" target="_blank" rel="noopener noreferrer">
+                      Abrir QR
+                    </a>
                   </Button>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No hay un código de acceso activo para este centro.
-                </p>
-              )}
+              </div>
             </CardContent>
           </Card>
 
