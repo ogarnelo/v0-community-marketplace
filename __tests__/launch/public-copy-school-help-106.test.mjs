@@ -21,10 +21,10 @@ test("home copy reflects community, schools and current product language", () =>
   assert.match(how, /ponle precio o dónalo\./);
   assert.doesNotMatch(how, /dónalo!/);
 
-  assert.match(families, /hasta un 50%/);
-  assert.match(families, /libros de texto de segunda mano pueden encontrarse a mitad de precio/);
-  assert.match(families, /Fuente: RTVE, 2026/);
-  assert.doesNotMatch(families, /Wallapop/);
+  assert.match(families, /entre el 50% y el 70%/);
+  assert.match(families, /En libros de texto/);
+  assert.match(families, /Fuente: Telemadrid, 2026/);
+  assert.doesNotMatch(families, /Wallapop|RTVE/);
   assert.match(families, /priorizar la búsqueda directamente en tu comunidad/);
   assert.match(families, /chat con historial y registro de transacción/);
 
