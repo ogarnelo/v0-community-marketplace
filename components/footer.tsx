@@ -14,7 +14,7 @@ export function Footer() {
               <span className="font-mono text-lg font-bold text-foreground">Wetudy</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Comunidad para comprar, vender, donar y reutilizar material escolar con chat e historial del acuerdo.
+              Compra, vende y dona material escolar en comunidad.
             </p>
           </div>
 
@@ -48,7 +48,7 @@ export function Footer() {
 
         <div className="mt-10 border-t border-border pt-6">
           <p className="text-center text-sm text-muted-foreground">
-            2026 Wetudy. La entrega y el pago se acuerdan directamente entre las partes.
+            2026 Wetudy
           </p>
         </div>
       </div>
