@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -507,6 +507,23 @@ export default function SuperAdminDashboard({
   const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
   const [requestRejectNotes, setRequestRejectNotes] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState("");
+
+  useEffect(() => {
+    if (activeTab !== "schools" || typeof window === "undefined") return;
+
+    const targetId = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    if (!targetId.startsWith("school-request-")) return;
+
+    const timer = window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 50);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTab, schoolRequests]);
+
   const [approvedRequestMeta, setApprovedRequestMeta] = useState<
     Record<string, ApprovedRequestMeta>
   >(initialApprovedRequestMeta);
@@ -1588,7 +1605,11 @@ export default function SuperAdminDashboard({
                   const approvedMeta = approvedRequestMeta[request.id];
 
                   return (
-                    <Card key={request.id} className="border-border">
+                    <Card
+                      key={request.id}
+                      id={`school-request-${request.id}`}
+                      className="scroll-mt-24 border-border target:ring-2 target:ring-primary/40"
+                    >
                       <CardContent className="p-4">
                         <div className="flex flex-col gap-4">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

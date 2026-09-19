@@ -41,8 +41,9 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const { error } = await admin.rpc("reject_school_registration_request", {
+    const { error } = await admin.rpc("server_reject_school_registration_request", {
       request_id: requestId,
+      reviewer_id: user.id,
       notes,
     });
 

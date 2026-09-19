@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { AppNotificationRow } from "@/lib/notifications";
+import { getNotificationDestination, type AppNotificationRow } from "@/lib/notifications";
 
 type ActivityNotificationsListProps = {
   initialNotifications: AppNotificationRow[];
@@ -42,19 +42,6 @@ function getNotificationLabel(kind: string) {
     default:
       return "Actividad";
   }
-}
-
-function getNotificationHref(notification: AppNotificationRow) {
-  if (notification.kind === "school_registration_requested") {
-    return "/admin/super?tab=schools";
-  }
-
-  const href = notification.href?.trim();
-  if (!href || !href.startsWith("/") || href.startsWith("//")) {
-    return "/account/activity";
-  }
-
-  return href;
 }
 
 export function ActivityNotificationsList({
@@ -123,7 +110,7 @@ export function ActivityNotificationsList({
       }
     }
 
-    router.push(getNotificationHref(notification));
+    router.push(getNotificationDestination(notification));
     router.refresh();
   };
 

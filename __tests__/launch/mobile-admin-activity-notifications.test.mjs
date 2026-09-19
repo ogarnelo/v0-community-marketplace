@@ -13,8 +13,11 @@ test("activity renders the notifications that feed the header badge", () => {
   assert.match(list, /Aquí aparecen los avisos que generan el contador del header/);
   assert.match(list, /\/api\/notifications\/read-all/);
   assert.match(list, /\/api\/notifications\/read/);
-  assert.match(list, /school_registration_requested/);
-  assert.match(list, /\/admin\/super\?tab=schools/);
+  assert.match(list, /getNotificationDestination/);
+
+  const notifications = read("lib/notifications.ts");
+  assert.match(notifications, /school_registration_requested/);
+  assert.match(notifications, /\/admin\/super\?tab=schools#school-request-/);
 });
 
 test("superadmin school review is immediately actionable on mobile", () => {
@@ -30,4 +33,6 @@ test("superadmin school review is immediately actionable on mobile", () => {
   assert.match(dashboard, /pendingSchoolRequestCount/);
   assert.match(dashboard, /Aprobar y crear centro/);
   assert.match(dashboard, /Rechazar/);
+  assert.match(dashboard, /id=\{`school-request-\$\{request\.id\}`\}/);
+  assert.match(dashboard, /scrollIntoView/);
 });
