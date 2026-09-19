@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { SchoolManagementActions } from "@/components/admin/school-management-actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -120,6 +121,7 @@ type SchoolSummaryRow = {
   city: string | null;
   region: string | null;
   school_type: string | null;
+  is_active: boolean | null;
 };
 
 type ProfileSummaryRow = {
@@ -1326,43 +1328,71 @@ export default function SuperAdminDashboard({
                     Aún no hay centros para analizar.
                   </p>
                 ) : (
-                  schoolSummaries.map((school) => (
-                    <div key={school.id} className="rounded-xl border border-border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-foreground">{school.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {school.city || "Ciudad"}
-                            {school.region ? ` • ${school.region}` : ""}
-                          </p>
-                        </div>
-                        <Badge variant="outline">
-                          {getSchoolTypeLabel(school.school_type)}
-                        </Badge>
-                      </div>
+                  schoolSummaries.map((school) => {
+                    const approvedRequest = schoolRequests.find(
+                      (request) =>
+                        request.approved_school_id === school.id &&
+                        normalizeSchoolRequestStatus(request.status) === "approved"
+                    );
 
-                      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-                        <div className="rounded-lg bg-muted/40 p-3">
-                          <p className="text-xs text-muted-foreground">Miembros</p>
-                          <p className="mt-1 font-semibold text-foreground">
-                            {school.members}
-                          </p>
+                    return (
+                      <div key={school.id} className="rounded-xl border border-border p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-semibold text-foreground">{school.name}</p>
+                              <Badge variant={school.is_active === false ? "secondary" : "outline"}>
+                                {school.is_active === false ? "Desactivado" : "Activo"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {school.city || "Ciudad"}
+                              {school.region ? ` • ${school.region}` : ""}
+                            </p>
+                          </div>
+                          <Badge variant="outline">
+                            {getSchoolTypeLabel(school.school_type)}
+                          </Badge>
                         </div>
-                        <div className="rounded-lg bg-muted/40 p-3">
-                          <p className="text-xs text-muted-foreground">Anuncios</p>
-                          <p className="mt-1 font-semibold text-foreground">
-                            {school.listings}
-                          </p>
+
+                        <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <p className="text-xs text-muted-foreground">Miembros</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {school.members}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <p className="text-xs text-muted-foreground">Anuncios</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {school.listings}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <p className="text-xs text-muted-foreground">Ventas</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {Math.round(school.salesVolume)}€
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-lg bg-muted/40 p-3">
-                          <p className="text-xs text-muted-foreground">Ventas</p>
-                          <p className="mt-1 font-semibold text-foreground">
-                            {Math.round(school.salesVolume)}€
-                          </p>
-                        </div>
+
+                        <SchoolManagementActions
+                          schoolId={school.id}
+                          schoolName={school.name}
+                          isActive={school.is_active !== false}
+                          requestId={approvedRequest?.id}
+                          contactEmail={approvedRequest?.contact_email}
+                          compact
+                        />
+
+                        <Button asChild size="sm" variant="ghost" className="mt-2 w-full sm:w-auto">
+                          <Link href={`/admin/super/schools#school-${school.id}`}>
+                            Gestionar centro
+                          </Link>
+                        </Button>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>

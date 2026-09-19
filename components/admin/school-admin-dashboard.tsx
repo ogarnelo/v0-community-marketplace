@@ -14,6 +14,8 @@ import {
   Package,
   Printer,
   Recycle,
+  Save,
+  Send,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -93,6 +95,12 @@ type AgreementRow = {
   created_at: string | null;
 };
 
+type ImpactSubscription = {
+  enabled: boolean;
+  email: string;
+  day_of_month: number;
+};
+
 type Props = {
   school: SchoolRow | null;
   listings: ListingRow[];
@@ -102,6 +110,8 @@ type Props = {
   accessCodes: SchoolAccessCodeRow[];
   listingViews: ListingViewRow[];
   agreements: AgreementRow[];
+  reportSubscription: ImpactSubscription | null;
+  currentUserEmail: string;
 };
 
 type RangeKey = "90d" | "365d" | "total";
@@ -193,9 +203,16 @@ export default function SchoolAdminDashboard({
   accessCodes,
   listingViews,
   agreements,
+  reportSubscription,
+  currentUserEmail,
 }: Props) {
   const [range, setRange] = useState<RangeKey>("365d");
   const [copiedCode, setCopiedCode] = useState(false);
+  const [monthlyEnabled, setMonthlyEnabled] = useState(reportSubscription?.enabled ?? false);
+  const [monthlyEmail, setMonthlyEmail] = useState(reportSubscription?.email || currentUserEmail);
+  const [monthlyDay, setMonthlyDay] = useState(reportSubscription?.day_of_month || 1);
+  const [monthlySaving, setMonthlySaving] = useState(false);
+  const [monthlyStatus, setMonthlyStatus] = useState("");
 
   const listingById = useMemo(
     () => new Map(listings.map((listing) => [listing.id, listing])),
@@ -306,6 +323,34 @@ export default function SchoolAdminDashboard({
     await navigator.clipboard.writeText(latestAccessCode);
     setCopiedCode(true);
     window.setTimeout(() => setCopiedCode(false), 1600);
+  };
+
+  const saveMonthlyReport = async () => {
+    setMonthlySaving(true);
+    setMonthlyStatus("");
+
+    try {
+      const response = await fetch("/api/school/report-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: monthlyEnabled,
+          email: monthlyEmail,
+          dayOfMonth: monthlyDay,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo guardar la programación.");
+      }
+
+      setMonthlyStatus(payload?.message || "Programación guardada.");
+    } catch (error: any) {
+      setMonthlyStatus(error?.message || "No se pudo guardar la programación.");
+    } finally {
+      setMonthlySaving(false);
+    }
   };
 
   return (
@@ -457,29 +502,91 @@ export default function SchoolAdminDashboard({
             </Card>
           </div>
 
-          <Card className="border-border print:border-0 print:shadow-none">
-            <CardHeader>
-              <CardTitle>Exportar evidencia</CardTitle>
-              <CardDescription>
-                Genera una base reutilizable para memorias, subvenciones, consejo escolar o informes ESG.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" onClick={downloadCsv} className="w-full sm:w-auto">
-                <Download className="mr-2 h-4 w-4" />
-                Descargar CSV de impacto
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={() => window.print()}
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Imprimir / guardar PDF
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-border print:border-0 print:shadow-none">
+              <CardHeader>
+                <CardTitle>Exportar evidencia</CardTitle>
+                <CardDescription>
+                  Genera una base reutilizable para memorias, subvenciones, consejo escolar o informes ESG.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <Button type="button" onClick={downloadCsv} className="w-full sm:w-auto">
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar CSV de impacto
+                </Button>
+                <Button asChild type="button" variant="outline" className="w-full sm:w-auto">
+                  <a href={`/api/school/impact-report?range=${range}`}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Exportar informe a PDF
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Informe mensual automático
+                </CardTitle>
+                <CardDescription>
+                  Recibe por email el informe del mes anterior con el PDF adjunto.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <label className="flex items-center gap-3 rounded-xl border p-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={monthlyEnabled}
+                    onChange={(event) => setMonthlyEnabled(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Enviar informe todos los meses
+                </label>
+
+                <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+                  <label className="space-y-1.5 text-sm">
+                    <span className="font-medium">Email</span>
+                    <input
+                      type="email"
+                      value={monthlyEmail}
+                      onChange={(event) => setMonthlyEmail(event.target.value)}
+                      className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      placeholder="admin@centro.es"
+                    />
+                  </label>
+                  <label className="space-y-1.5 text-sm">
+                    <span className="font-medium">Día</span>
+                    <select
+                      value={monthlyDay}
+                      onChange={(event) => setMonthlyDay(Number(event.target.value))}
+                      className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    >
+                      {[1, 5, 10, 15, 20, 25, 28].map((day) => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={monthlySaving}
+                  onClick={saveMonthlyReport}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {monthlySaving ? "Guardando..." : "Guardar programación"}
+                </Button>
+
+                {monthlyStatus ? (
+                  <p className="text-xs text-muted-foreground" role="status">{monthlyStatus}</p>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4 space-y-4">

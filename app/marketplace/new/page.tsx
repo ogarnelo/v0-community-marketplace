@@ -59,6 +59,7 @@ export default async function NewListingPage() {
       .from("schools")
       .select("id, name, city")
       .eq("id", typedProfile.school_id)
+      .eq("is_active", true)
       .maybeSingle();
 
     if (schoolError) {

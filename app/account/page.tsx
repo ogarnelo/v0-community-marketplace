@@ -69,7 +69,7 @@ export default async function AccountPage() {
       .select("id, first_name, last_name, full_name, user_type, grade_level, postal_code, school_id, shipping_city, phone, created_at")
       .eq("id", user.id)
       .maybeSingle(),
-    supabase.from("schools").select("id, name, city, postal_code").order("name", { ascending: true }),
+    supabase.from("schools").select("id, name, city, postal_code").eq("is_active", true).order("name", { ascending: true }),
     getUserProfileStats(supabase, user.id),
   ]);
 

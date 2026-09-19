@@ -56,6 +56,7 @@ export default function JoinSchoolPage() {
         const { data, error } = await supabase
           .from("schools")
           .select("id, name, city")
+          .eq("is_active", true)
           .order("name", { ascending: true })
           .limit(100);
 

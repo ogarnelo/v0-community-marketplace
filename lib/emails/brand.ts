@@ -120,6 +120,11 @@ export async function sendBrandedEmail(params: {
   html: string;
   text: string;
   idempotencyKey?: string | null;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentType?: string;
+  }>;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = getEmailFrom();
@@ -146,6 +151,11 @@ export async function sendBrandedEmail(params: {
       subject: params.subject,
       html: params.html,
       text: params.text,
+      attachments: params.attachments?.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        content_type: attachment.contentType,
+      })),
     }),
   });
 

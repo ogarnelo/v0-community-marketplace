@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { SchoolManagementActions } from "@/components/admin/school-management-actions";
 import { ArrowLeft, School } from "lucide-react";
 
 
@@ -12,6 +14,14 @@ type SchoolRow = {
   city: string | null;
   region: string | null;
   school_type: string | null;
+  is_active: boolean | null;
+};
+
+type SchoolRequestRow = {
+  id: string;
+  approved_school_id: string | null;
+  contact_email: string | null;
+  status: string | null;
 };
 
 type ProfileRow = { id: string; school_id: string | null };
@@ -42,15 +52,21 @@ export default async function SuperAdminSchoolsPage() {
   if (superAdminRoleError || !superAdminRoles?.length) redirect("/");
 
   const admin = createAdminClient();
-  const [schoolsResult, profilesResult, listingsResult] = await Promise.all([
-    admin.from("schools").select("id, name, city, region, school_type").order("name", { ascending: true }).returns<SchoolRow[]>(),
+  const [schoolsResult, profilesResult, listingsResult, requestsResult] = await Promise.all([
+    admin.from("schools").select("id, name, city, region, school_type, is_active").order("name", { ascending: true }).returns<SchoolRow[]>(),
     admin.from("profiles").select("id, school_id").returns<ProfileRow[]>(),
     admin.from("listings").select("id, school_id").returns<ListingRow[]>(),
+    admin
+      .from("school_registration_requests")
+      .select("id, approved_school_id, contact_email, status")
+      .eq("status", "approved")
+      .returns<SchoolRequestRow[]>(),
   ]);
 
   if (schoolsResult.error) throw schoolsResult.error;
   if (profilesResult.error) throw profilesResult.error;
   if (listingsResult.error) throw listingsResult.error;
+  if (requestsResult.error) throw requestsResult.error;
 
   const memberCounts = new Map<string, number>();
   const listingCounts = new Map<string, number>();
@@ -66,6 +82,15 @@ export default async function SuperAdminSchoolsPage() {
   }
 
   const schools = schoolsResult.data || [];
+  const approvedRequestBySchoolId = new Map<string, SchoolRequestRow>();
+
+  for (const request of requestsResult.data || []) {
+    if (request.approved_school_id && !approvedRequestBySchoolId.has(request.approved_school_id)) {
+      approvedRequestBySchoolId.set(request.approved_school_id, request);
+    }
+  }
+
+  const activeCount = schools.filter((school) => school.is_active !== false).length;
 
   return (
     <div className="min-h-screen bg-muted/20">
@@ -81,42 +106,68 @@ export default async function SuperAdminSchoolsPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">Centros</h1>
-                <p className="text-sm text-muted-foreground">Listado completo de centros activos · {schools.length}</p>
+                <p className="text-sm text-muted-foreground">
+                  {activeCount} activos · {schools.length - activeCount} desactivados · {schools.length} total
+                </p>
               </div>
             </div>
           </div>
           <Button asChild variant="outline"><Link href="/admin/super/users">Ver usuarios</Link></Button>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Centro</th>
-                  <th className="px-4 py-3 font-semibold">Tipo</th>
-                  <th className="px-4 py-3 font-semibold">Ciudad</th>
-                  <th className="px-4 py-3 font-semibold">Región</th>
-                  <th className="px-4 py-3 text-right font-semibold">Usuarios</th>
-                  <th className="px-4 py-3 text-right font-semibold">Anuncios</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {schools.map((school) => (
-                  <tr key={school.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-3 font-medium text-foreground">{school.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{schoolTypeLabel(school.school_type)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{school.city || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{school.region || "—"}</td>
-                    <td className="px-4 py-3 text-right font-medium">{memberCounts.get(school.id) || 0}</td>
-                    <td className="px-4 py-3 text-right font-medium">{listingCounts.get(school.id) || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {schools.length === 0 ? (
+          <div className="rounded-2xl border bg-background p-8 text-center text-sm text-muted-foreground shadow-sm">
+            No hay centros registrados.
           </div>
-          {schools.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No hay centros registrados.</p> : null}
-        </div>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {schools.map((school) => {
+              const request = approvedRequestBySchoolId.get(school.id);
+
+              return (
+                <div
+                  key={school.id}
+                  id={`school-${school.id}`}
+                  className="scroll-mt-24 rounded-2xl border bg-background p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="truncate text-lg font-semibold">{school.name}</h2>
+                        <Badge variant={school.is_active === false ? "secondary" : "outline"}>
+                          {school.is_active === false ? "Desactivado" : "Activo"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {schoolTypeLabel(school.school_type)} · {school.city || "Sin ciudad"}
+                        {school.region ? ` · ${school.region}` : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-muted/40 p-3">
+                      <p className="text-xs text-muted-foreground">Miembros</p>
+                      <p className="mt-1 text-xl font-semibold">{memberCounts.get(school.id) || 0}</p>
+                    </div>
+                    <div className="rounded-xl bg-muted/40 p-3">
+                      <p className="text-xs text-muted-foreground">Anuncios</p>
+                      <p className="mt-1 text-xl font-semibold">{listingCounts.get(school.id) || 0}</p>
+                    </div>
+                  </div>
+
+                  <SchoolManagementActions
+                    schoolId={school.id}
+                    schoolName={school.name}
+                    isActive={school.is_active !== false}
+                    requestId={request?.id}
+                    contactEmail={request?.contact_email}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
