@@ -34,7 +34,7 @@ export default function MobileListingActions({
       <div className="mx-auto flex max-w-md items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            {isDonation ? "Donación" : "Precio orientativo"}
+            {isDonation ? "Donación" : "Precio"}
           </p>
           <p className="truncate text-lg font-bold leading-tight">
             {isDonation ? "Gratis" : formatMobilePrice(price)}
