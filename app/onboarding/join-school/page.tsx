@@ -44,6 +44,46 @@ export default function JoinSchoolPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SchoolSearchRow[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [sharedSchoolLoading, setSharedSchoolLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSharedSchool = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const schoolId = params.get("school")?.trim();
+
+      if (!schoolId) {
+        setSharedSchoolLoading(false);
+        return;
+      }
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("schools")
+          .select("id, name, city")
+          .eq("id", schoolId)
+          .eq("is_active", true)
+          .maybeSingle<SchoolSearchRow>();
+
+        if (error) throw error;
+
+        if (!data) {
+          setError("Este enlace de centro ya no está disponible. Puedes buscar el centro manualmente.");
+          return;
+        }
+
+        setFound(data);
+        setShowSearch(false);
+      } catch (error) {
+        console.error("Error cargando centro compartido:", error);
+        setError("No se pudo abrir el centro compartido. Puedes buscarlo manualmente.");
+      } finally {
+        setSharedSchoolLoading(false);
+      }
+    };
+
+    void loadSharedSchool();
+  }, []);
 
   useEffect(() => {
     const loadSchools = async () => {
@@ -76,6 +116,23 @@ export default function JoinSchoolPage() {
   const skipSchoolLinking = () => {
     router.push("/marketplace");
     router.refresh();
+  };
+
+  const resolveSchoolFromId = async (schoolId: string) => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("schools")
+      .select("id, name, city")
+      .eq("id", schoolId)
+      .eq("is_active", true)
+      .maybeSingle<SchoolSearchRow>();
+
+    if (error) throw error;
+    if (!data) {
+      throw new Error("Este centro no está disponible actualmente.");
+    }
+
+    return data;
   };
 
   const resolveSchoolFromCode = async (normalizedCode: string) => {
@@ -155,10 +212,6 @@ export default function JoinSchoolPage() {
     setError("");
 
     try {
-      if (!validatedCode) {
-        throw new Error("Debes validar primero un código de acceso activo.");
-      }
-
       const supabase = createClient();
 
       const {
@@ -166,16 +219,17 @@ export default function JoinSchoolPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign("/auth?mode=signup");
+        const next = encodeURIComponent(`/onboarding/join-school?school=${found.id}`);
+        window.location.assign(`/auth?mode=signup&next=${next}`);
         return;
       }
 
-      const result = await resolveSchoolFromCode(validatedCode);
+      const school = await resolveSchoolFromId(found.id);
 
       const { error: profileError } = await supabase.from("profiles").upsert(
         {
           id: user.id,
-          school_id: result.schoolId,
+          school_id: school.id,
         },
         { onConflict: "id" }
       );
@@ -184,7 +238,7 @@ export default function JoinSchoolPage() {
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
-          school_name: result.school.name,
+          school_name: school.name,
         },
       });
 
@@ -202,7 +256,7 @@ export default function JoinSchoolPage() {
 
       if (
         typeof error?.message === "string" &&
-        error.message.toLowerCase().includes("código")
+        error.message.toLowerCase().includes("centro")
       ) {
         setFound(null);
         setValidatedCode("");
@@ -241,7 +295,12 @@ export default function JoinSchoolPage() {
         </CardHeader>
 
         <CardContent>
-          {!found ? (
+          {sharedSchoolLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Preparando el centro...
+            </div>
+          ) : !found ? (
             <div className="flex flex-col gap-4">
               <form onSubmit={handleCodeSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
@@ -309,9 +368,15 @@ export default function JoinSchoolPage() {
                       </p>
                     ) : (
                       filteredSchools.map((school) => (
-                        <div
+                        <button
                           key={school.id}
-                          className="flex items-center gap-3 border-b border-border p-3 last:border-b-0"
+                          type="button"
+                          className="flex w-full items-center gap-3 border-b border-border p-3 text-left transition hover:bg-muted/50 last:border-b-0"
+                          onClick={() => {
+                            setFound(school);
+                            setShowSearch(false);
+                            setError("");
+                          }}
                         >
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                             <School className="h-4 w-4 text-primary" />
@@ -324,13 +389,13 @@ export default function JoinSchoolPage() {
                               {school.city || "Ciudad no indicada"}
                             </p>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>
 
                   <p className="text-center text-xs text-muted-foreground">
-                    Si tu centro ya aparece, pide su código de acceso. Si no existe todavía, puedes registrarlo o continuar y añadirlo después.
+                    Si tu centro aparece, tócalo para vincular tu cuenta. Si no existe todavía, puedes registrarlo o continuar y añadirlo después.
                   </p>
 
                   <Link href="/register-school">
