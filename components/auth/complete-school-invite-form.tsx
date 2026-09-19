@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Lock, School } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, School } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
   const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -84,14 +86,23 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="school-invite-password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
                 minLength={8}
                 required
-                className="pl-10"
+                className="pl-10 pr-11"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((current) => !current)}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -101,14 +112,23 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="school-invite-password-repeat"
-                type="password"
+                type={showRepeatPassword ? "text" : "password"}
                 autoComplete="new-password"
                 minLength={8}
                 required
-                className="pl-10"
+                className="pl-10 pr-11"
                 value={repeatPassword}
                 onChange={(event) => setRepeatPassword(event.target.value)}
               />
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label={showRepeatPassword ? "Ocultar contraseña repetida" : "Mostrar contraseña repetida"}
+                aria-pressed={showRepeatPassword}
+                onClick={() => setShowRepeatPassword((current) => !current)}
+              >
+                {showRepeatPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 

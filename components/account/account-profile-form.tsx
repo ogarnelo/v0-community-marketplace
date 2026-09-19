@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, School, Mail, User2, Search, Check, KeyRound, BriefcaseBusiness, Globe, FileText, MapPin, Phone } from "lucide-react";
+import { Loader2, Save, School, Mail, User2, Search, Check, KeyRound, BriefcaseBusiness, Globe, FileText, MapPin, Phone, Copy, Share2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getUserTypeLabel } from "@/lib/marketplace/formatters";
@@ -40,6 +40,10 @@ type AccountProfileFormProps = {
   email: string;
   gradeLevelOptions: string[];
   schoolOptions: SchoolOption[];
+  isSchoolAdmin: boolean;
+  managedSchoolId: string;
+  managedSchoolName: string;
+  managedSchoolAccessCode: string;
 };
 
 type SchoolAccessCodeResult = {
@@ -67,6 +71,10 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     email,
     gradeLevelOptions,
     schoolOptions,
+    isSchoolAdmin,
+    managedSchoolId,
+    managedSchoolName,
+    managedSchoolAccessCode,
   } = props;
 
   const router = useRouter();
@@ -80,6 +88,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
   const [schoolPopoverOpen, setSchoolPopoverOpen] = useState(false);
   const [schoolAccessCode, setSchoolAccessCode] = useState("");
   const [accessCodeLoading, setAccessCodeLoading] = useState(false);
+  const [managedCodeCopied, setManagedCodeCopied] = useState(false);
   const [businessName, setBusinessName] = useState(initialBusinessName);
   const [businessDescription, setBusinessDescription] = useState(initialBusinessDescription);
   const [website, setWebsite] = useState(initialWebsite);
@@ -140,6 +149,32 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     }
   };
 
+  const copyManagedSchoolCode = async () => {
+    if (!managedSchoolAccessCode) return;
+    await navigator.clipboard.writeText(managedSchoolAccessCode);
+    setManagedCodeCopied(true);
+    window.setTimeout(() => setManagedCodeCopied(false), 1800);
+  };
+
+  const shareManagedSchoolCode = async () => {
+    if (!managedSchoolAccessCode) return;
+
+    const shareText =
+      `Únete a ${managedSchoolName || "nuestro centro"} en Wetudy con el código ${managedSchoolAccessCode}. También puedes buscar el centro desde Wetudy.`;
+
+    if (typeof navigator.share === "function") {
+      await navigator.share({
+        title: `Código Wetudy · ${managedSchoolName || "Centro"}`,
+        text: shareText,
+      });
+      return;
+    }
+
+    await navigator.clipboard.writeText(shareText);
+    setManagedCodeCopied(true);
+    window.setTimeout(() => setManagedCodeCopied(false), 1800);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccessMessage("");
@@ -176,8 +211,14 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
 
       const normalizedFullName = buildFullName(normalizedFirstName, normalizedLastName);
       const normalizedPostalCode = postalCode.trim();
-      const normalizedSchoolId = selectedSchoolId.trim();
-      const selectedSchoolName = normalizedSchoolId.length > 0 ? schoolOptions.find((school) => school.id === normalizedSchoolId)?.name || null : null;
+      const normalizedSchoolId = isSchoolAdmin
+        ? managedSchoolId.trim()
+        : selectedSchoolId.trim();
+      const selectedSchoolName = isSchoolAdmin
+        ? managedSchoolName || null
+        : normalizedSchoolId.length > 0
+          ? schoolOptions.find((school) => school.id === normalizedSchoolId)?.name || null
+          : null;
       const payload = {
         id: user.id,
         first_name: normalizedFirstName,
@@ -294,58 +335,118 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               </div>
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label>Centro educativo</Label>
-              <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="w-full min-w-0 justify-between">
-                    <span className="truncate">{selectedSchool ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}` : "Selecciona un centro"}</span>
-                    <School className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[min(320px,calc(100vw-2rem))] p-3" align="start">
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                      <Input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="pl-9" placeholder="Busca por nombre, ciudad o CP" />
-                    </div>
-                    <div className="max-h-60 space-y-1 overflow-y-auto">
-                      {filteredSchools.map((school) => (
-                        <button
-                          key={school.id}
-                          type="button"
-                          className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted"
-                          onClick={() => {
-                            setSelectedSchoolId(school.id);
-                            setSchoolPopoverOpen(false);
-                          }}
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{school.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{[school.city, school.postal_code].filter(Boolean).join(" · ")}</p>
-                          </div>
-                          {selectedSchoolId === school.id ? <Check className="h-4 w-4 shrink-0 text-[#7EBA28]" /> : null}
-                        </button>
-                      ))}
-                    </div>
+            {isSchoolAdmin ? (
+              <div className="md:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <School className="h-5 w-5" />
                   </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="school_code">Código de centro</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <div className="relative min-w-0 flex-1">
-                  <KeyRound className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                  <Input id="school_code" value={schoolAccessCode} onChange={(e) => setSchoolAccessCode(e.target.value)} className="pl-9 uppercase" placeholder="Introduce un código" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">Tu centro en Wetudy</p>
+                    <p className="mt-1 break-words text-base font-bold text-foreground">
+                      {managedSchoolName || selectedSchool?.name || "Centro"}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      Esta cuenta administra el centro, por eso no necesitas introducir ni cambiar un código.
+                      Comparte el código con familias y usuarios para que se vinculen a vuestra comunidad.
+                      También pueden localizar el colegio desde el buscador de centros de Wetudy.
+                    </p>
+                  </div>
                 </div>
-                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={applySchoolAccessCode} disabled={accessCodeLoading}>
-                  {accessCodeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Aplicar
-                </Button>
+
+                <div className="mt-4 rounded-xl border border-blue-200 bg-background p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Código de tu centro
+                  </p>
+                  {managedSchoolAccessCode ? (
+                    <>
+                      <p className="mt-2 break-all font-mono text-2xl font-bold tracking-[0.16em] text-foreground">
+                        {managedSchoolAccessCode}
+                      </p>
+                      <div className="mt-3 grid gap-2 sm:flex">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full sm:w-auto"
+                          onClick={copyManagedSchoolCode}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          {managedCodeCopied ? "Copiado" : "Copiar código"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full sm:w-auto"
+                          onClick={shareManagedSchoolCode}
+                        >
+                          <Share2 className="mr-2 h-4 w-4" />
+                          Compartir código
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No hay un código activo. Puedes revisarlo desde el Panel del centro.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Centro educativo</Label>
+                  <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" className="w-full min-w-0 justify-between">
+                        <span className="truncate">{selectedSchool ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}` : "Selecciona un centro"}</span>
+                        <School className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[min(320px,calc(100vw-2rem))] p-3" align="start">
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                          <Input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="pl-9" placeholder="Busca por nombre, ciudad o CP" />
+                        </div>
+                        <div className="max-h-60 space-y-1 overflow-y-auto">
+                          {filteredSchools.map((school) => (
+                            <button
+                              key={school.id}
+                              type="button"
+                              className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted"
+                              onClick={() => {
+                                setSelectedSchoolId(school.id);
+                                setSchoolPopoverOpen(false);
+                              }}
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{school.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{[school.city, school.postal_code].filter(Boolean).join(" · ")}</p>
+                              </div>
+                              {selectedSchoolId === school.id ? <Check className="h-4 w-4 shrink-0 text-[#7EBA28]" /> : null}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="school_code">Código de centro</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative min-w-0 flex-1">
+                      <KeyRound className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input id="school_code" value={schoolAccessCode} onChange={(e) => setSchoolAccessCode(e.target.value)} className="pl-9 uppercase" placeholder="Introduce un código" />
+                    </div>
+                    <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={applySchoolAccessCode} disabled={accessCodeLoading}>
+                      {accessCodeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Aplicar
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {isBusiness ? (
