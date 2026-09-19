@@ -516,7 +516,11 @@ export default function SchoolAdminDashboard({
                   Descargar CSV de impacto
                 </Button>
                 <Button asChild type="button" variant="outline" className="w-full sm:w-auto">
-                  <a href={`/api/school/impact-report?range=${range}`}>
+                  <a
+                    href={`/api/school/impact-report?range=${range}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <Printer className="mr-2 h-4 w-4" />
                     Exportar informe a PDF
                   </a>
