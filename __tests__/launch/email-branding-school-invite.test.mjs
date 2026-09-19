@@ -35,11 +35,11 @@ test("school admin onboarding uses custom TokenHash-style activation and passwor
   assert.match(invitation, /auth\.admin\.generateLink/);
   assert.match(invitation, /properties\.hashed_token/);
   assert.match(invitation, /type: "invite"/);
-  assert.match(invitation, /type: "magiclink"/);
+  assert.match(invitation, /type: "magiclink"/);\n  assert.match(invitation, /cameFromSchoolInvite/);\n  assert.match(invitation, /school_admin_onboarding_complete/);
   assert.doesNotMatch(approval, /inviteUserByEmail/);
   assert.match(approval, /provisionSchoolAdminAccess/);
   assert.match(resend, /provisionSchoolAdminAccess/);
   assert.match(confirm, /\/auth\/complete-invite\?next=\/admin\/school/);
-  assert.match(complete, /supabase\.auth\.updateUser\(\{ password \}\)/);
+  assert.match(complete, /school_admin_onboarding_complete: true/);
   assert.match(complete, /Esta misma cuenta también funciona como una cuenta normal de Wetudy/);
 });

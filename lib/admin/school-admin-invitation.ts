@@ -72,7 +72,17 @@ export async function provisionSchoolAdminAccess(params: {
     schoolId: params.schoolId,
   });
 
-  if (!authUser.email_confirmed_at) {
+  const schoolInviteCompleted =
+    authUser.user_metadata?.school_admin_onboarding_complete === true;
+  const cameFromSchoolInvite =
+    authUser.user_metadata?.account_context === "school_admin" ||
+    (Boolean(authUser.invited_at) &&
+      typeof authUser.user_metadata?.school_name === "string");
+
+  if (
+    !authUser.email_confirmed_at ||
+    (cameFromSchoolInvite && !schoolInviteCompleted)
+  ) {
     const { data, error } = await admin.auth.admin.generateLink({
       type: "magiclink",
       email: normalizedEmail,
