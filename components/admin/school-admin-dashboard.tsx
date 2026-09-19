@@ -99,6 +99,7 @@ type ImpactSubscription = {
   enabled: boolean;
   email: string;
   day_of_month: number;
+  last_sent_month: string | null;
 };
 
 type Props = {
@@ -212,7 +213,9 @@ export default function SchoolAdminDashboard({
   const [monthlyEmail, setMonthlyEmail] = useState(reportSubscription?.email || currentUserEmail);
   const [monthlyDay, setMonthlyDay] = useState(reportSubscription?.day_of_month || 1);
   const [monthlySaving, setMonthlySaving] = useState(false);
+  const [monthlySending, setMonthlySending] = useState(false);
   const [monthlyStatus, setMonthlyStatus] = useState("");
+  const [lastSentMonth, setLastSentMonth] = useState(reportSubscription?.last_sent_month || null);
 
   const listingById = useMemo(
     () => new Map(listings.map((listing) => [listing.id, listing])),
@@ -350,6 +353,31 @@ export default function SchoolAdminDashboard({
       setMonthlyStatus(error?.message || "No se pudo guardar la programación.");
     } finally {
       setMonthlySaving(false);
+    }
+  };
+
+  const sendMonthlyReportNow = async () => {
+    setMonthlySending(true);
+    setMonthlyStatus("");
+
+    try {
+      const response = await fetch("/api/school/send-impact-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: monthlyEmail }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo enviar el informe.");
+      }
+
+      setLastSentMonth(payload?.periodKey || payload?.period || lastSentMonth);
+      setMonthlyStatus(payload?.message || "Informe enviado.");
+    } catch (error: any) {
+      setMonthlyStatus(error?.message || "No se pudo enviar el informe.");
+    } finally {
+      setMonthlySending(false);
     }
   };
 
@@ -574,16 +602,34 @@ export default function SchoolAdminDashboard({
                   </label>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  disabled={monthlySaving}
-                  onClick={saveMonthlyReport}
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {monthlySaving ? "Guardando..." : "Guardar programación"}
-                </Button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    disabled={monthlySaving || monthlySending}
+                    onClick={saveMonthlyReport}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {monthlySaving ? "Guardando..." : "Guardar programación"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto"
+                    disabled={monthlySaving || monthlySending || !monthlyEmail.trim()}
+                    onClick={sendMonthlyReportNow}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {monthlySending ? "Enviando..." : "Enviar informe ahora"}
+                  </Button>
+                </div>
+
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {lastSentMonth
+                    ? `Último periodo enviado: ${lastSentMonth}. El envío manual cuenta como el informe de ese mes y evita duplicados automáticos.`
+                    : "Todavía no se ha enviado ningún informe mensual desde esta cuenta."}
+                </p>
 
                 {monthlyStatus ? (
                   <p className="text-xs text-muted-foreground" role="status">{monthlyStatus}</p>

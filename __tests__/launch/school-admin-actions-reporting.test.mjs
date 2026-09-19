@@ -29,6 +29,7 @@ test("school impact dashboard supports direct PDF export and monthly email sched
   const pdfRoute = read("app/api/school/impact-report/route.ts");
   const reportLib = read("lib/reports/school-impact-report.ts");
   const subscriptionRoute = read("app/api/school/report-subscription/route.ts");
+  const manualSendRoute = read("app/api/school/send-impact-report/route.ts");
   const cronRoute = read("app/api/cron/school-impact-reports/route.ts");
   const email = read("lib/emails/school-impact-report-email.ts");
   const brand = read("lib/emails/brand.ts");
@@ -37,7 +38,10 @@ test("school impact dashboard supports direct PDF export and monthly email sched
   assert.match(dashboard, /Exportar informe a PDF/);
   assert.match(dashboard, /Informe mensual automático/);
   assert.match(dashboard, /Guardar programación/);
+  assert.match(dashboard, /Enviar informe ahora/);
+  assert.match(dashboard, /Último periodo enviado/);
   assert.match(dashboard, /api\/school\/report-subscription/);
+  assert.match(dashboard, /api\/school\/send-impact-report/);
   assert.match(dashboard, /api\/school\/impact-report\?range=/);
 
   assert.match(pdfRoute, /Content-Type": "application\/pdf"/);
@@ -46,6 +50,10 @@ test("school impact dashboard supports direct PDF export and monthly email sched
   assert.match(reportLib, /%PDF-1\.4/);
   assert.match(subscriptionRoute, /dayOfMonth/);
   assert.match(subscriptionRoute, /school_admin/);
+  assert.match(manualSendRoute, /school_admin/);
+  assert.match(manualSendRoute, /previousCalendarMonth/);
+  assert.match(manualSendRoute, /sendMonthlySchoolImpactEmail/);
+  assert.match(manualSendRoute, /last_sent_month: period\.key/);
   assert.match(cronRoute, /process\.env\.CRON_SECRET/);
   assert.match(cronRoute, /previousCalendarMonth/);
   assert.match(email, /application\/pdf/);

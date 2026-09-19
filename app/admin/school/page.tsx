@@ -89,6 +89,7 @@ type ImpactSubscriptionRow = {
   enabled: boolean;
   email: string;
   day_of_month: number;
+  last_sent_month: string | null;
 };
 
 type DonationRequestRow = {
@@ -193,7 +194,7 @@ export default async function SchoolAdminPage() {
       .returns<AgreementRow[]>(),
     adminSupabase
       .from("school_impact_report_subscriptions")
-      .select("enabled, email, day_of_month")
+      .select("enabled, email, day_of_month, last_sent_month")
       .eq("school_id", effectiveSchoolId)
       .eq("user_id", user.id)
       .maybeSingle<ImpactSubscriptionRow>(),
