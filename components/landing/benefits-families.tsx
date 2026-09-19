@@ -5,22 +5,22 @@ const benefits = [
   {
     icon: PiggyBank,
     title: "Ahorro flexible",
-    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso.",
+    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. Como referencia general, OCU estima un ahorro medio del 21% en compras de segunda mano frente al precio anunciado.",
   },
   {
     icon: ShieldCheck,
     title: "Comunidad como filtro de confianza",
-    description: "Puedes priorizar tu colegio o tu zona, sin limitar el marketplace solo a una comunidad cerrada.",
+    description: "Puedes priorizar la búsqueda directamente en tu comunidad (colegio) o buscar a tu alrededor sin limitar el alcance.",
   },
   {
     icon: MessageCircle,
     title: "Contacto directo por chat",
-    description: "Pregunta, acuerda detalles y deja constancia de la conversación antes de confirmar el acuerdo entre las partes.",
+    description: "Pregunta, acuerda detalles y cierra tu acuerdo con seguridad a través de un chat con historial y registro de transacción.",
   },
   {
     icon: Star,
     title: "Historial y valoraciones",
-    description: "Tras un acuerdo confirmado, las partes pueden valorar la experiencia y reportar problemas si hace falta.",
+    description: "Tras un acuerdo confirmado, las partes pueden valorar la experiencia o reportar una incidencia en caso de que sea necesario.",
   },
 ]
 
@@ -46,6 +46,16 @@ export function BenefitsFamilies() {
                   </div>
                   <h3 className="text-sm font-semibold text-foreground">{benefit.title}</h3>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{benefit.description}</p>
+                  {benefit.title === "Ahorro flexible" ? (
+                    <a
+                      href="https://www.ocu.org/organizacion/prensa/notas-de-prensa/2026/segundamano180226"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Fuente: OCU, 2026
+                    </a>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
