@@ -39,5 +39,8 @@ test("superadmin school review is immediately actionable on mobile", () => {
   assert.match(dashboard, /scrollIntoView/);
   assert.match(dashboard, /id=\{`support-ticket-\$\{ticket\.id\}`\}/);
   assert.match(dashboard, /id=\{`report-\$\{report\.id\}`\}/);
+  assert.match(dashboard, /normalizedStatus === "approved"/);
+  assert.match(dashboard, /request\.contact_email && request\.approved_school_id/);
+  assert.match(dashboard, /w-full bg-white text-emerald-800 sm:w-auto/);
   assert.match(dashboard, /Reenviar acceso al centro/);
 });
