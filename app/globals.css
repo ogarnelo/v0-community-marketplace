@@ -182,6 +182,42 @@
   }
 }
 
+@media (max-width: 767px) {
+  body:has(header.sticky.top-0.z-50)
+    main
+    > :first-child:is(
+      [class~='py-10'],
+      [class~='py-12'],
+      [class~='py-14'],
+      [class~='py-16'],
+      [class~='py-20'],
+      [class~='py-24'],
+      [class~='pt-12'],
+      [class~='pt-14'],
+      [class~='pt-16'],
+      [class~='pt-20'],
+      [class~='pt-24']
+    ),
+  body:has(header.sticky.top-0.z-50)
+    main
+    > :first-child
+    > :first-child:is(
+      [class~='py-10'],
+      [class~='py-12'],
+      [class~='py-14'],
+      [class~='py-16'],
+      [class~='py-20'],
+      [class~='py-24'],
+      [class~='pt-12'],
+      [class~='pt-14'],
+      [class~='pt-16'],
+      [class~='pt-20'],
+      [class~='pt-24']
+    ) {
+    padding-top: 2rem !important;
+  }
+}
+
 @media (max-width: 639px) {
   a[href='/marketplace/new'].fixed {
     display: none !important;
