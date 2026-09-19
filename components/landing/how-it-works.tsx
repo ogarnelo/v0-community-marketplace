@@ -12,7 +12,7 @@ const steps = [
     icon: Search,
     step: "02",
     title: "Busca o publica material",
-    description: "Publica material escolar, añade imágenes, descripción, curso, estado del producto y ponle precio o dónalo!",
+    description: "Publica material escolar, añade imágenes, descripción, curso, estado del producto y ponle precio o dónalo.",
   },
   {
     icon: Handshake,

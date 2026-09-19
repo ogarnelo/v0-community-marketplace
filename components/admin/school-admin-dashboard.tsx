@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   BookOpen,
   CheckCircle2,
@@ -800,8 +799,8 @@ export default function SchoolAdminDashboard({
             <MetricCard
               icon={<CheckCircle2 className="h-5 w-5" />}
               value={String(reusedItems)}
-              label="Acuerdos confirmados"
-              detail="Operaciones que llegaron al cierre confirmado por ambas partes."
+              label="Artículos reutilizados"
+              detail="Indicador agregado de acuerdos confirmados durante el periodo."
             />
             <MetricCard
               icon={<Eye className="h-5 w-5" />}
@@ -817,42 +816,6 @@ export default function SchoolAdminDashboard({
             />
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Últimos acuerdos confirmados</CardTitle>
-              <CardDescription>Actividad que sustenta las métricas de reutilización.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {confirmedAgreements.length === 0 ? (
-                <p className="py-6 text-sm text-muted-foreground">
-                  Todavía no hay acuerdos confirmados en este periodo.
-                </p>
-              ) : (
-                confirmedAgreements.slice(0, 10).map((agreement) => {
-                  const listing = agreement.listing_id
-                    ? listingById.get(agreement.listing_id)
-                    : undefined;
-                  return (
-                    <div key={agreement.id} className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-medium">{listing?.title || "Anuncio"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {agreement.agreement_type === "donation" ? "Donación" : "Venta"} · {formatDate(agreement.confirmed_at || agreement.created_at)}
-                        </p>
-                      </div>
-                      {agreement.listing_id ? (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/marketplace/listing/${agreement.listing_id}`}>
-                            Ver anuncio
-                          </Link>
-                        </Button>
-                      ) : null}
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="community" className="mt-4 space-y-4">

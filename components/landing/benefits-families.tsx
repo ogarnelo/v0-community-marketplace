@@ -5,7 +5,7 @@ const benefits = [
   {
     icon: PiggyBank,
     title: "Ahorro flexible",
-    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. Como referencia general, OCU estima un ahorro medio del 21% en compras de segunda mano frente al precio anunciado.",
+    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. Un estudio de Wallapop de 2026 sitúa en 193 € el ahorro medio al recurrir a productos reutilizados para la vuelta al cole frente al mercado de primera mano.",
   },
   {
     icon: ShieldCheck,
@@ -48,12 +48,12 @@ export function BenefitsFamilies() {
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{benefit.description}</p>
                   {benefit.title === "Ahorro flexible" ? (
                     <a
-                      href="https://www.ocu.org/organizacion/prensa/notas-de-prensa/2026/segundamano180226"
+                      href="https://about.wallapop.com/la-vuelta-al-cole-obliga-a-casi-el-60-de-las-familias-a-buscar-formulas-de-ahorro-para-hacer-frente-al-gasto/"
                       target="_blank"
                       rel="noreferrer"
                       className="mt-2 inline-block text-[11px] font-medium text-primary hover:underline"
                     >
-                      Fuente: OCU, 2026
+                      Fuente: Wallapop, 2026
                     </a>
                   ) : null}
                 </CardContent>

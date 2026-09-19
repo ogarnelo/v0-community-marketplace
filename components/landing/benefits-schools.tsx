@@ -16,15 +16,15 @@ const benefits = [
   },
   {
     icon: BarChart3,
-    title: "Seguimiento de acuerdos",
+    title: "Actividad de la comunidad",
     description:
-      "Consulta anuncios, acuerdos confirmados, ventas, donaciones, visitas e incidencias asociadas a la comunidad del centro.",
+      "Consulta indicadores generales de participación y reutilización para entender cómo evoluciona la comunidad, sin acceder a conversaciones ni al detalle de acuerdos entre usuarios.",
   },
   {
     icon: Leaf,
     title: "Reportes e impacto",
     description:
-      "Exporta informes PDF y CSV, programa reportes mensuales y consulta métricas de reutilización, valor circular y CO₂e potencialmente evitado.",
+      "Accede a reportes exclusivos de tu comunidad con indicadores de reutilización, ahorro y sostenibilidad, incluyendo datos de CO₂.",
   },
 ]
 

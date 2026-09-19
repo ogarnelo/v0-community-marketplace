@@ -14,20 +14,26 @@ test("home copy reflects community, schools and current product language", () =>
 
   assert.match(hero, /Compra, vende y dona material escolar en/);
   assert.match(hero, /text-primary">comunidad/);
-  assert.match(hero, /fomentando el ahorro y la sostenibilidad/);
+  assert.match(hero, /familias y estudiantes de una misma comunidad/);
+  assert.match(hero, /grid-cols-\[2\.5rem_1fr\]/);
 
   assert.match(how, /vincula tu colegio para encontrar material dentro de tu comunidad/);
-  assert.match(how, /ponle precio o dónalo!/);
+  assert.match(how, /ponle precio o dónalo\./);
+  assert.doesNotMatch(how, /dónalo!/);
 
-  assert.match(families, /ahorro medio del 21%/);
-  assert.match(families, /Fuente: OCU, 2026/);
+  assert.match(families, /193 €/);
+  assert.match(families, /productos reutilizados para la vuelta al cole/);
+  assert.match(families, /Fuente: Wallapop, 2026/);
   assert.match(families, /priorizar la búsqueda directamente en tu comunidad/);
   assert.match(families, /chat con historial y registro de transacción/);
 
   assert.match(schools, /Participa en el marketplace/);
   assert.match(schools, /Activa tu comunidad/);
-  assert.match(schools, /Seguimiento de acuerdos/);
+  assert.match(schools, /Actividad de la comunidad/);
+  assert.match(schools, /sin acceder a conversaciones ni al detalle de acuerdos/);
   assert.match(schools, /Reportes e impacto/);
+  assert.match(schools, /incluyendo datos de CO₂/);
+  assert.doesNotMatch(schools, /PDF y CSV|reportes mensuales|CO₂e potencialmente evitado/);
 
   assert.match(cta, /Únete a Wetudy para encontrar y reutilizar material escolar/);
   assert.match(footer, /Compra, vende y dona material escolar en comunidad/);
@@ -47,7 +53,9 @@ test("about and help avoid launch-only language and explain school capabilities"
   assert.match(help, /Colegios y AMPAs/);
   assert.match(help, /¿Cómo puede un colegio o AMPA crear una cuenta en Wetudy\?/);
   assert.match(help, /¿Qué puede hacer un colegio o AMPA con su cuenta\?/);
-  assert.match(help, /programar un informe mensual por email/);
+  assert.match(help, /¿Qué información ofrece el panel del centro\?/);
+  assert.match(help, /No muestra el contenido de conversaciones ni el detalle de acuerdos entre usuarios/);
+  assert.match(help, /incluido CO₂ cuando existe una metodología verificable/);
   assert.doesNotMatch(help, /En el MVP Wetudy facilita/);
   assert.doesNotMatch(help, /precio orientativo/i);
 });
@@ -70,4 +78,18 @@ test("mobile layout reduces excessive first-section top spacing", () => {
   assert.match(globals, /main\s*> :first-child/);
   assert.match(globals, /padding-top: 2rem !important/);
   assert.match(globals, /\[class~='py-16'\]/);
+});
+
+
+test("school centre dashboard only exposes aggregate activity, not a transaction feed", () => {
+  const dashboard = read("components/admin/school-admin-dashboard.tsx");
+  const impact = read("components/landing/impact-section.tsx");
+
+  assert.doesNotMatch(dashboard, /Últimos acuerdos confirmados/);
+  assert.doesNotMatch(dashboard, /Ver anuncio/);
+  assert.match(dashboard, /Artículos reutilizados/);
+  assert.match(dashboard, /Indicador agregado de acuerdos confirmados/);
+
+  assert.doesNotMatch(impact, /validar con familias reales|antes de añadir pagos|envíos o servicios profesionales/);
+  assert.match(impact, /alargar la vida útil del material escolar/);
 });
