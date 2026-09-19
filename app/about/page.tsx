@@ -58,7 +58,7 @@ const howSteps = [
     step: "01",
     title: "Crea tu cuenta",
     description:
-      "Regístrate, añade tu zona y, si quieres, vincula tu colegio como filtro de confianza.",
+      "Regístrate, añade tu zona y vincula tu colegio para encontrar material dentro de tu comunidad.",
   },
   {
     step: "02",
@@ -193,19 +193,19 @@ export default async function AboutPage() {
           <div className="mx-auto max-w-4xl px-4 lg:px-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                Qué aprendemos durante el MVP
+                Impacto y aprendizaje de la comunidad
               </h2>
               <p className="mx-auto mt-3 max-w-xl leading-relaxed text-muted-foreground">
-                Medimos uso real para entender qué materiales faltan y dónde podemos mejorar la experiencia.
+                Medimos cómo se utiliza Wetudy para mejorar la experiencia, facilitar el ahorro y entender el impacto de la reutilización de material escolar.
               </p>
             </div>
             <div className="mt-10 grid gap-6 sm:grid-cols-3">
               <Card className="border-border text-center">
                 <CardContent className="p-6">
                   <BarChart3 className="mx-auto h-8 w-8 text-primary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Actividad real</h3>
+                  <h3 className="mt-3 font-semibold text-foreground">Actividad y ahorro</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Observamos anuncios, contactos y acuerdos para entender el recorrido del usuario.
+                    Seguimos anuncios y acuerdos confirmados para entender cómo la reutilización ayuda a reducir el gasto escolar.
                   </p>
                 </CardContent>
               </Card>
@@ -214,16 +214,16 @@ export default async function AboutPage() {
                   <School className="mx-auto h-8 w-8 text-primary" />
                   <h3 className="mt-3 font-semibold text-foreground">Necesidades por comunidad</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Las búsquedas guardadas ayudan a detectar demanda por categoría, curso y comunidad.
+                    Las búsquedas y la actividad ayudan a detectar qué material necesita cada comunidad, curso y etapa educativa.
                   </p>
                 </CardContent>
               </Card>
               <Card className="border-border text-center">
                 <CardContent className="p-6">
                   <Recycle className="mx-auto h-8 w-8 text-secondary" />
-                  <h3 className="mt-3 font-semibold text-foreground">Reutilización</h3>
+                  <h3 className="mt-3 font-semibold text-foreground">Reutilización y sostenibilidad</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Seguimos qué materiales encuentran una nueva oportunidad antes de ampliar el producto.
+                    Medimos materiales reutilizados y, cuando existe una metodología verificable, estimamos su impacto ambiental de forma separada y transparente.
                   </p>
                 </CardContent>
               </Card>
@@ -234,7 +234,7 @@ export default async function AboutPage() {
         <section className="border-t border-border bg-primary/5 py-16 lg:py-20">
           <div className="mx-auto max-w-2xl px-4 text-center lg:px-8">
             <h2 className="text-balance text-2xl font-bold text-foreground sm:text-3xl">
-              Forma parte del lanzamiento
+              Forma parte del cambio
             </h2>
             <p className="mt-3 leading-relaxed text-muted-foreground">
               Únete a Wetudy para buscar, publicar y reutilizar material escolar con otras familias.
