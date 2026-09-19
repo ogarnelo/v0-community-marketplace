@@ -38,7 +38,12 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
 
     setLoading(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+        data: {
+          school_admin_onboarding_complete: true,
+        },
+      });
       if (updateError) throw updateError;
       router.replace(destination);
       router.refresh();
