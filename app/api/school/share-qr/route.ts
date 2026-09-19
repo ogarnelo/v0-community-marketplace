@@ -32,6 +32,31 @@ export async function GET(request: Request) {
     const shareUrl = new URL("/onboarding/join-school", origin);
     shareUrl.searchParams.set("school", schoolRole.school_id);
 
+    const format = new URL(request.url).searchParams.get("format");
+    const download = new URL(request.url).searchParams.get("download") === "1";
+
+    if (format === "png") {
+      const png = await QRCode.toBuffer(shareUrl.toString(), {
+        type: "png",
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 720,
+        color: {
+          dark: "#111827",
+          light: "#FFFFFF",
+        },
+      });
+
+      return new NextResponse(new Uint8Array(png), {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "private, max-age=300",
+          "Content-Disposition": `${download ? "attachment" : "inline"}; filename="wetudy-centro-qr.png"`,
+        },
+      });
+    }
+
     const svg = await QRCode.toString(shareUrl.toString(), {
       type: "svg",
       errorCorrectionLevel: "M",
