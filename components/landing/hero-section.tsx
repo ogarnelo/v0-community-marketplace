@@ -5,7 +5,7 @@ import { ArrowRight, Leaf, Users, MapPin } from "lucide-react"
 
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-card pb-16 pt-20 lg:pb-24 lg:pt-28">
+    <section className="relative overflow-hidden bg-card pb-14 pt-8 sm:pt-12 lg:pb-24 lg:pt-20">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-secondary/5" />
       <div className="relative mx-auto max-w-7xl px-4 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
@@ -15,12 +15,12 @@ export function HeroSection() {
           </Badge>
 
           <h1 className="text-balance text-4xl font-bold leading-tight tracking-tight text-foreground md:text-5xl lg:text-6xl">
-            Encuentra, reutiliza y acuerda material escolar con otras{" "}
-            <span className="text-primary">familias</span>
+            Compra, vende y dona material escolar en{" "}
+            <span className="text-primary">comunidad</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Wetudy conecta familias para publicar, buscar y acordar intercambios de libros, uniformes y material escolar. El contacto se hace por chat. La entrega y el pago se acuerdan directamente entre las partes.
+            Wetudy conecta usuarios y familias con su propia comunidad, fomentando el ahorro y la sostenibilidad a través de la reutilización de material escolar en cada etapa educativa.
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
