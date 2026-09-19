@@ -89,6 +89,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
   const [schoolAccessCode, setSchoolAccessCode] = useState("");
   const [accessCodeLoading, setAccessCodeLoading] = useState(false);
   const [managedCodeCopied, setManagedCodeCopied] = useState(false);
+  const [managedLinkCopied, setManagedLinkCopied] = useState(false);
   const [businessName, setBusinessName] = useState(initialBusinessName);
   const [businessDescription, setBusinessDescription] = useState(initialBusinessDescription);
   const [website, setWebsite] = useState(initialWebsite);
@@ -156,23 +157,40 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     window.setTimeout(() => setManagedCodeCopied(false), 1800);
   };
 
+  const getManagedSchoolShareUrl = () => {
+    if (!managedSchoolId || typeof window === "undefined") return "";
+    const url = new URL("/onboarding/join-school", window.location.origin);
+    url.searchParams.set("school", managedSchoolId);
+    return url.toString();
+  };
+
+  const copyManagedSchoolLink = async () => {
+    const url = getManagedSchoolShareUrl();
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    setManagedLinkCopied(true);
+    window.setTimeout(() => setManagedLinkCopied(false), 1800);
+  };
+
   const shareManagedSchoolCode = async () => {
-    if (!managedSchoolAccessCode) return;
+    const url = getManagedSchoolShareUrl();
+    if (!url) return;
 
     const shareText =
-      `Únete a ${managedSchoolName || "nuestro centro"} en Wetudy con el código ${managedSchoolAccessCode}. También puedes buscar el centro desde Wetudy.`;
+      `Únete a ${managedSchoolName || "nuestro centro"} en Wetudy. El centro aparecerá ya seleccionado.`;
 
     if (typeof navigator.share === "function") {
       await navigator.share({
-        title: `Código Wetudy · ${managedSchoolName || "Centro"}`,
+        title: `Wetudy · ${managedSchoolName || "Centro"}`,
         text: shareText,
+        url,
       });
       return;
     }
 
-    await navigator.clipboard.writeText(shareText);
-    setManagedCodeCopied(true);
-    window.setTimeout(() => setManagedCodeCopied(false), 1800);
+    await navigator.clipboard.writeText(`${shareText} ${url}`);
+    setManagedLinkCopied(true);
+    window.setTimeout(() => setManagedLinkCopied(false), 1800);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -348,8 +366,8 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
                     </p>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       Esta cuenta administra el centro, por eso no necesitas introducir ni cambiar un código.
-                      Comparte el código con familias y usuarios para que se vinculen a vuestra comunidad.
-                      También pueden localizar el colegio desde el buscador de centros de Wetudy.
+                      Lo más sencillo es compartir el enlace directo: las familias abrirán Wetudy con el centro ya seleccionado.
+                      También pueden buscar el colegio por nombre o utilizar el código manualmente.
                     </p>
                   </div>
                 </div>
@@ -363,26 +381,37 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
                       <p className="mt-2 break-all font-mono text-2xl font-bold tracking-[0.16em] text-foreground">
                         {managedSchoolAccessCode}
                       </p>
-                      <div className="mt-3 grid gap-2 sm:flex">
+                      <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+                        <Button
+                          type="button"
+                          className="w-full sm:w-auto"
+                          onClick={shareManagedSchoolCode}
+                        >
+                          <Share2 className="mr-2 h-4 w-4" />
+                          Compartir centro
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full sm:w-auto"
+                          onClick={copyManagedSchoolLink}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          {managedLinkCopied ? "Enlace copiado" : "Copiar enlace"}
+                        </Button>
                         <Button
                           type="button"
                           variant="outline"
                           className="w-full sm:w-auto"
                           onClick={copyManagedSchoolCode}
                         >
-                          <Copy className="mr-2 h-4 w-4" />
-                          {managedCodeCopied ? "Copiado" : "Copiar código"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full sm:w-auto"
-                          onClick={shareManagedSchoolCode}
-                        >
-                          <Share2 className="mr-2 h-4 w-4" />
-                          Compartir código
+                          <KeyRound className="mr-2 h-4 w-4" />
+                          {managedCodeCopied ? "Código copiado" : "Copiar código"}
                         </Button>
                       </div>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        El QR para carteles y circulares está disponible en Panel del centro → Acceso.
+                      </p>
                     </>
                   ) : (
                     <p className="mt-2 text-sm text-muted-foreground">
