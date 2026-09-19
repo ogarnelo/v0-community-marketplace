@@ -174,7 +174,7 @@ export default async function AccountActivityPage() {
                       <p className="font-medium">{listingsMap.get(conversation.listing_id || "") || "Anuncio"}</p>
                       <p className="text-sm text-muted-foreground">Con {profilesMap.get(otherId || "") || "Usuario"}</p>
                     </div>
-                    <Button asChild size="sm" variant="outline"><Link href="/messages">Abrir chat</Link></Button>
+                    <Button asChild size="sm" variant="outline"><Link href={`/messages/${conversation.id}`}>Abrir chat</Link></Button>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">Última actividad: {formatDate(conversation.updated_at || conversation.created_at)}</p>
                 </div>
@@ -188,7 +188,7 @@ export default async function AccountActivityPage() {
           <CardContent className="space-y-3">
             {agreements.length === 0 ? <p className="text-sm text-muted-foreground">Aún no has confirmado acuerdos.</p> : null}
             {agreements.map((agreement) => (
-              <div key={agreement.id} className="rounded-xl border p-3">
+              <div key={agreement.id} id={`agreement-${agreement.id}`} className="scroll-mt-24 rounded-xl border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">{listingsMap.get(agreement.listing_id || "") || "Anuncio"}</p>

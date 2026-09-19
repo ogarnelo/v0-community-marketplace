@@ -56,18 +56,46 @@ export async function createNotifications(
 }
 
 
+function metadataString(
+  notification: Pick<AppNotificationRow, "metadata">,
+  key: string
+) {
+  const value = notification.metadata?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function getNotificationDestination(
   notification: Pick<AppNotificationRow, "kind" | "href" | "metadata">
 ) {
   if (notification.kind === "school_registration_requested") {
-    const requestId =
-      typeof notification.metadata?.school_request_id === "string"
-        ? notification.metadata.school_request_id.trim()
-        : "";
-
+    const requestId = metadataString(notification, "school_request_id");
     return requestId
       ? `/admin/super?tab=schools#school-request-${encodeURIComponent(requestId)}`
       : "/admin/super?tab=schools";
+  }
+
+  if (notification.kind === "support_ticket_created") {
+    const ticketId = metadataString(notification, "support_ticket_id");
+    return ticketId
+      ? `/admin/super?tab=support#support-ticket-${encodeURIComponent(ticketId)}`
+      : "/admin/super?tab=support";
+  }
+
+  if (
+    notification.kind === "moderation_report_created" ||
+    notification.kind === "report_created"
+  ) {
+    const reportId = metadataString(notification, "report_id");
+    return reportId
+      ? `/admin/super?tab=reports#report-${encodeURIComponent(reportId)}`
+      : "/admin/super?tab=reports";
+  }
+
+  if (notification.kind === "saved_search_match") {
+    const listingId = metadataString(notification, "listing_id");
+    if (listingId) {
+      return `/marketplace/listing/${encodeURIComponent(listingId)}`;
+    }
   }
 
   const href = notification.href?.trim();

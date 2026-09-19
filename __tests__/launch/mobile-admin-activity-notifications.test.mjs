@@ -18,6 +18,8 @@ test("activity renders the notifications that feed the header badge", () => {
   const notifications = read("lib/notifications.ts");
   assert.match(notifications, /school_registration_requested/);
   assert.match(notifications, /\/admin\/super\?tab=schools#school-request-/);
+  assert.match(notifications, /\/admin\/super\?tab=support#support-ticket-/);
+  assert.match(notifications, /\/admin\/super\?tab=reports#report-/);
 });
 
 test("superadmin school review is immediately actionable on mobile", () => {
@@ -35,4 +37,7 @@ test("superadmin school review is immediately actionable on mobile", () => {
   assert.match(dashboard, /Rechazar/);
   assert.match(dashboard, /id=\{`school-request-\$\{request\.id\}`\}/);
   assert.match(dashboard, /scrollIntoView/);
+  assert.match(dashboard, /id=\{`support-ticket-\$\{ticket\.id\}`\}/);
+  assert.match(dashboard, /id=\{`report-\$\{report\.id\}`\}/);
+  assert.match(dashboard, /Reenviar acceso al centro/);
 });

@@ -27,7 +27,11 @@ export async function GET(request: NextRequest) {
   }
 
   const fallbackDestination =
-    type === "recovery" ? "/auth/update-password" : "/onboarding/join-school";
+    type === "recovery"
+      ? "/auth/update-password"
+      : type === "invite" || type === "magiclink"
+        ? "/auth/complete-invite?next=/admin/school"
+        : "/onboarding/join-school";
   const destination = safeNext || fallbackDestination;
 
   const redirectTo = new URL(destination, request.url);
