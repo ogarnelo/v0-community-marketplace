@@ -54,3 +54,26 @@ export async function createNotifications(
     }))
   );
 }
+
+
+export function getNotificationDestination(
+  notification: Pick<AppNotificationRow, "kind" | "href" | "metadata">
+) {
+  if (notification.kind === "school_registration_requested") {
+    const requestId =
+      typeof notification.metadata?.school_request_id === "string"
+        ? notification.metadata.school_request_id.trim()
+        : "";
+
+    return requestId
+      ? `/admin/super?tab=schools#school-request-${encodeURIComponent(requestId)}`
+      : "/admin/super?tab=schools";
+  }
+
+  const href = notification.href?.trim();
+  if (!href || !href.startsWith("/") || href.startsWith("//")) {
+    return "/account/activity";
+  }
+
+  return href;
+}
