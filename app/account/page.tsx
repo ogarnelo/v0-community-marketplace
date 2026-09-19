@@ -45,6 +45,11 @@ type AccountProfileWithNames = AccountProfileRow & {
   last_name?: string | null;
 };
 
+type UserRoleRow = {
+  role: string;
+  school_id: string | null;
+};
+
 const quickActions = [
   { href: "/marketplace/new", label: "Publicar", helper: "Sube material", icon: PlusCircle },
   { href: "/account/listings", label: "Mis anuncios", helper: "Gestiona tu catálogo", icon: NotebookTabs },
@@ -63,21 +68,32 @@ export default async function AccountPage() {
 
   const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 
-  const [{ data: profile, error: profileError }, { data: schoolsData, error: schoolsError }, stats] = await Promise.all([
+  const [
+    { data: profile, error: profileError },
+    { data: schoolsData, error: schoolsError },
+    { data: roles, error: rolesError },
+    stats,
+  ] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, first_name, last_name, full_name, user_type, grade_level, postal_code, school_id, shipping_city, phone, created_at")
       .eq("id", user.id)
       .maybeSingle(),
     supabase.from("schools").select("id, name, city, postal_code").eq("is_active", true).order("name", { ascending: true }),
+    supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<UserRoleRow[]>(),
     getUserProfileStats(supabase, user.id),
   ]);
 
   if (profileError) console.error("Error cargando profile:", profileError);
   if (schoolsError) console.error("Error cargando schools:", schoolsError);
+  if (rolesError) console.error("Error cargando roles:", rolesError);
 
   const typedProfile = (profile || null) as AccountProfileWithNames | null;
   const schoolOptions: SchoolRow[] = Array.isArray(schoolsData) ? (schoolsData as SchoolRow[]) : [];
+  const schoolAdminRole = ((roles || []) as UserRoleRow[]).find(
+    (role) => role.role === "school_admin" && role.school_id
+  );
+  const managedSchoolId = schoolAdminRole?.school_id || "";
   const legacyName = splitLegacyFullName(typedProfile?.full_name || metadata.full_name || null);
   const firstName = normalizeNamePart(typedProfile?.first_name || metadata.first_name || legacyName.firstName);
   const lastName = normalizeNamePart(typedProfile?.last_name || metadata.last_name || legacyName.lastName);
@@ -88,11 +104,27 @@ export default async function AccountPage() {
   const postalCode = typedProfile?.postal_code || metadata.postal_code || null;
   const createdAt = typedProfile?.created_at || user.created_at || null;
 
-  const selectedSchool = typedProfile?.school_id && typedProfile.school_id.trim().length > 0
-    ? schoolOptions.find((school) => school.id === typedProfile.school_id) || null
+  const effectiveSchoolId =
+    managedSchoolId || (typedProfile?.school_id && typedProfile.school_id.trim().length > 0
+      ? typedProfile.school_id
+      : "");
+
+  const selectedSchool = effectiveSchoolId
+    ? schoolOptions.find((school) => school.id === effectiveSchoolId) || null
     : null;
 
   const schoolName = selectedSchool?.name || (typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0 ? metadata.school_name.trim() : "Centro no asignado");
+
+  const { data: managedAccessCodeRow } = managedSchoolId
+    ? await supabase
+        .from("school_access_codes")
+        .select("code")
+        .eq("school_id", managedSchoolId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ code: string }>()
+    : { data: null as { code: string } | null };
   const normalizedGradeLevels = Array.from(new Set(gradeLevels)).filter(Boolean);
   const averageRatingLabel = typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—";
   const badges = stats.badgesForUserType(userType);
@@ -165,7 +197,7 @@ export default async function AccountPage() {
             initialUserType={userType === "parent" || userType === "student" || userType === "business" ? userType : ""}
             initialGradeLevel={typedProfile?.grade_level || ""}
             initialPostalCode={typedProfile?.postal_code || ""}
-            initialSchoolId={typedProfile?.school_id || ""}
+            initialSchoolId={effectiveSchoolId}
             initialBusinessName=""
             initialBusinessDescription=""
             initialWebsite=""
@@ -178,6 +210,10 @@ export default async function AccountPage() {
             email={email}
             gradeLevelOptions={normalizedGradeLevels}
             schoolOptions={schoolOptions}
+            isSchoolAdmin={Boolean(managedSchoolId)}
+            managedSchoolId={managedSchoolId}
+            managedSchoolName={schoolName}
+            managedSchoolAccessCode={managedAccessCodeRow?.code || ""}
           />
         </div>
       </div>
