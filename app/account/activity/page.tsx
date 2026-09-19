@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/marketplace/formatters";
+import { ActivityNotificationsList } from "@/components/notifications/activity-notifications-list";
+import type { AppNotificationRow } from "@/lib/notifications";
 import type { DonationRequestRow, ListingOfferRow, ListingRow } from "@/lib/types/marketplace";
 
 type AgreementRow = {
@@ -84,13 +86,14 @@ export default async function AccountActivityPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
 
-  const [sentOffersResult, receivedOffersResult, myListingsResult, sentDonationsResult, conversationsResult, agreementsResult] = await Promise.all([
+  const [sentOffersResult, receivedOffersResult, myListingsResult, sentDonationsResult, conversationsResult, agreementsResult, notificationsResult] = await Promise.all([
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("seller_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("listings").select("id, title, seller_id").eq("seller_id", user.id),
     adminSupabase.from("donation_requests").select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id").eq("requester_id", user.id).order("created_at", { ascending: false }),
     adminSupabase.from("conversations").select("id, listing_id, buyer_id, seller_id, created_at, updated_at").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`).order("updated_at", { ascending: false }),
     adminSupabase.from("agreements").select("id, listing_id, buyer_id, seller_id, status, amount, created_at, confirmed_at").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`).order("created_at", { ascending: false }),
+    supabase.from("notifications").select("id, user_id, kind, title, body, href, metadata, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
   ]);
 
   const myListings = (myListingsResult.data || []) as ListingRow[];
@@ -111,6 +114,7 @@ export default async function AccountActivityPage() {
   const receivedDonations = receivedDonationData;
   const conversations = (conversationsResult.data || []) as ConversationRow[];
   const agreements = (agreementsResult.data || []) as AgreementRow[];
+  const notifications = (notificationsResult.data || []) as AppNotificationRow[];
 
   const listingIds = Array.from(new Set([
     ...sentOffers.map((offer) => offer.listing_id),
@@ -147,6 +151,8 @@ export default async function AccountActivityPage() {
         </div>
         <Button asChild variant="outline"><Link href="/account/listings">Volver a mis anuncios</Link></Button>
       </div>
+
+      <ActivityNotificationsList initialNotifications={notifications} />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Conversaciones</p><p className="mt-2 text-3xl font-bold">{conversations.length}</p></CardContent></Card>
