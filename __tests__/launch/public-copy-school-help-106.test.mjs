@@ -23,8 +23,7 @@ test("home copy reflects community, schools and current product language", () =>
 
   assert.match(families, /entre el 50% y el 70%/);
   assert.match(families, /En libros de texto/);
-  assert.match(families, /Fuente: Telemadrid, 2026/);
-  assert.doesNotMatch(families, /Wallapop|RTVE/);
+  assert.doesNotMatch(families, /Fuente:|Telemadrid|Wallapop|RTVE/);
   assert.match(families, /priorizar la búsqueda directamente en tu comunidad/);
   assert.match(families, /chat con historial y registro de transacción/);
 
