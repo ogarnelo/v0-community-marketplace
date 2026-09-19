@@ -10,7 +10,7 @@ export function CTASection() {
           Empieza a ahorrar hoy
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-pretty text-primary-foreground/80">
-          Únete a Wetudy para encontrar, publicar y reutilizar material escolar con otras familias. Crear una cuenta es gratis y el acuerdo se gestiona directamente entre las partes.
+          Únete a Wetudy para encontrar y reutilizar material escolar con otras familias. Crear una cuenta es gratis y el acuerdo se gestiona directamente entre las partes.
         </p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Link href="/auth?mode=signup">

@@ -140,7 +140,7 @@ export default function AgreementPanel({
                 Wetudy conserva el historial del chat y del acuerdo. La entrega y el pago se acuerdan directamente entre las partes.
               </p>
               {!isDonation && formatPrice(agreement?.amount ?? listingPrice) ? (
-                <p className="mt-1 text-sm font-medium text-slate-800">Precio orientativo: {formatPrice(agreement?.amount ?? listingPrice)}</p>
+                <p className="mt-1 text-sm font-medium text-slate-800">Precio: {formatPrice(agreement?.amount ?? listingPrice)}</p>
               ) : null}
             </div>
           </div>

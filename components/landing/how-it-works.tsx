@@ -6,13 +6,13 @@ const steps = [
     icon: UserPlus,
     step: "01",
     title: "Crea tu cuenta",
-    description: "Regístrate como familia o estudiante, añade tu zona y, si quieres, vincula tu colegio como filtro de confianza.",
+    description: "Regístrate como familia o estudiante, añade tu zona y vincula tu colegio para encontrar material dentro de tu comunidad.",
   },
   {
     icon: Search,
     step: "02",
     title: "Busca o publica material",
-    description: "Publica libros, uniformes o material escolar con foto, precio o donación, curso y estado del producto.",
+    description: "Publica material escolar, añade imágenes, descripción, curso, estado del producto y ponle precio o dónalo!",
   },
   {
     icon: Handshake,
@@ -31,7 +31,7 @@ export function HowItWorks() {
             Cómo funciona
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-pretty text-muted-foreground">
-            Un flujo simple para lanzar rápido: publicar, encontrar, contactar y acordar.
+            Un flujo simple para publicar, encontrar, contactar y acordar.
           </p>
         </div>
 

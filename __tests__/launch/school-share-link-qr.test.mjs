@@ -28,12 +28,19 @@ test("school admins can share a direct centre link and QR", () => {
 
 test("shared centre links preselect an active school and preserve it through signup", () => {
   const joinPage = read("app/onboarding/join-school/page.tsx");
+  const publicSchoolsRoute = read("app/api/schools/public/route.ts");
 
   assert.match(joinPage, /params\.get\("school"\)/);
-  assert.match(joinPage, /eq\("is_active", true\)/);
+  assert.match(joinPage, /\/api\/schools\/public\?id=/);
+  assert.doesNotMatch(joinPage, /\.from\("schools"\)/);
   assert.match(joinPage, /Preparando el centro/);
   assert.match(joinPage, /auth\?mode=signup&next=/);
   assert.match(joinPage, /resolveSchoolFromId/);
+
+  assert.match(publicSchoolsRoute, /createAdminClient/);
+  assert.match(publicSchoolsRoute, /eq\("is_active", true\)/);
+  assert.match(publicSchoolsRoute, /select\("id, name, city"\)/);
+  assert.doesNotMatch(publicSchoolsRoute, /school_access_codes/);
 });
 
 test("school search can link users without requiring a code", () => {

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
 import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
-import { HelpCircle, ShoppingBag, Gift, ArrowLeft } from "lucide-react";
+import { HelpCircle, ShoppingBag, Gift, ArrowLeft, School } from "lucide-react";
 
 export const metadata = buildPublicMetadata({
   title: "Ayuda sobre compra, venta y donación de material escolar",
@@ -20,7 +20,7 @@ export const metadata = buildPublicMetadata({
 const marketplaceFAQs = [
   {
     q: "Como publico un anuncio de venta?",
-    a: "Accede a tu cuenta y pulsa 'Publicar'. Añade título, descripción, fotos, categoría, estado y, si es una venta, el precio orientativo. El anuncio disponible podrá encontrarse en Wetudy según los filtros de búsqueda.",
+    a: "Accede a tu cuenta y pulsa 'Publicar'. Añade título, descripción, fotos, categoría, estado y, si es una venta, el precio. El anuncio disponible podrá encontrarse en Wetudy según los filtros de búsqueda.",
   },
   {
     q: "Como funciona el sistema de favoritos?",
@@ -47,7 +47,7 @@ const donationFAQs = [
   },
   {
     q: "¿Wetudy decide quién recibe una donación?",
-    a: "No. En el MVP Wetudy facilita la publicación, el contacto y el historial, pero no asigna beneficiarios ni decide a quién debe entregarse un artículo.",
+    a: "Wetudy facilita la publicación, el contacto y el historial, pero no asigna beneficiarios ni decide a quién debe entregarse un artículo.",
   },
   {
     q: "¿Puedo donar material a una familia de otro centro?",
@@ -58,6 +58,29 @@ const donationFAQs = [
     a: "Libros, uniformes, mochilas y otros materiales escolares que puedan seguir utilizándose. Describe el estado con claridad y añade fotos reales del artículo.",
   },
 ]
+
+const schoolFAQs = [
+  {
+    q: "¿Cómo puede un colegio o AMPA crear una cuenta en Wetudy?",
+    a: "Desde 'Solicitar alta de un centro' se envían los datos del colegio o AMPA para revisión. Cuando el alta se aprueba, la persona de contacto recibe un email para crear su contraseña y acceder al panel del centro.",
+  },
+  {
+    q: "¿Qué puede hacer un colegio o AMPA con su cuenta?",
+    a: "La misma cuenta puede usar Wetudy para publicar material para venta o donación, buscar anuncios y contactar por chat. Además, desde el panel del centro puede compartir el acceso de su comunidad, consultar actividad y generar reportes.",
+  },
+  {
+    q: "¿Cómo se vinculan las familias con el colegio?",
+    a: "El centro puede compartir un enlace directo, un código QR o el código del centro. Las familias también pueden buscar el colegio por nombre y seleccionarlo durante el onboarding o desde su cuenta.",
+  },
+  {
+    q: "¿Qué seguimiento tiene un centro sobre su comunidad?",
+    a: "El panel muestra métricas asociadas al centro, como miembros, anuncios, acuerdos confirmados, ventas, donaciones, visitas e incidencias. El administrador no obtiene acceso a conversaciones privadas ajenas.",
+  },
+  {
+    q: "¿Qué reportes puede obtener un colegio o AMPA?",
+    a: "Puede exportar informes PDF y CSV con métricas de actividad y reutilización, consultar estimaciones ambientales cuando existe una metodología verificable y programar un informe mensual por email.",
+  },
+];
 
 export default async function HelpPage() {
   const supabase = await createClient();
@@ -76,7 +99,7 @@ export default async function HelpPage() {
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: [...marketplaceFAQs, ...donationFAQs].map((faq) => ({
+    mainEntity: [...marketplaceFAQs, ...donationFAQs, ...schoolFAQs].map((faq) => ({
       "@type": "Question",
       name: faq.q,
       acceptedAnswer: { "@type": "Answer", text: faq.a },
@@ -145,6 +168,30 @@ export default async function HelpPage() {
                 <Accordion type="single" collapsible className="w-full">
                   {donationFAQs.map((faq, i) => (
                     <AccordionItem key={i} value={`dn-${i}`} className="px-5">
+                      <AccordionTrigger className="text-left text-sm font-medium text-foreground">
+                        {faq.q}
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 text-sm leading-relaxed text-muted-foreground">
+                        {faq.a}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-8">
+            <div className="mb-4 flex items-center gap-2">
+              <School className="h-5 w-5 text-primary" />
+              <h2 className="text-xl font-bold text-foreground">Colegios y AMPAs</h2>
+            </div>
+
+            <Card className="border-border">
+              <CardContent className="p-0">
+                <Accordion type="single" collapsible className="w-full">
+                  {schoolFAQs.map((faq, i) => (
+                    <AccordionItem key={i} value={`school-${i}`} className="px-5">
                       <AccordionTrigger className="text-left text-sm font-medium text-foreground">
                         {faq.q}
                       </AccordionTrigger>
