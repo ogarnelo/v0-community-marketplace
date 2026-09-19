@@ -41,5 +41,10 @@ test("school admin onboarding uses custom TokenHash-style activation and passwor
   assert.match(resend, /provisionSchoolAdminAccess/);
   assert.match(confirm, /\/auth\/complete-invite\?next=\/admin\/school/);
   assert.match(complete, /school_admin_onboarding_complete: true/);
+  assert.match(complete, /type=\{showPassword \? "text" : "password"\}/);
+  assert.match(complete, /type=\{showRepeatPassword \? "text" : "password"\}/);
+  assert.match(complete, /Mostrar contraseña/);
+  assert.match(complete, /Ocultar contraseña/);
+  assert.match(complete, /aria-pressed=\{showPassword\}/);
   assert.match(complete, /Esta misma cuenta también funciona como una cuenta normal de Wetudy/);
 });
