@@ -17,7 +17,7 @@ export function ImpactSection() {
             Impacto desde el primer intercambio
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-pretty text-muted-foreground">
-            Estamos lanzando Wetudy para validar con familias reales antes de añadir pagos, envíos o servicios profesionales.
+            Cada artículo que se reutiliza puede reducir el gasto de una familia, alargar la vida útil del material escolar y evitar residuos innecesarios.
           </p>
         </div>
 
