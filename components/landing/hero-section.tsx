@@ -20,7 +20,7 @@ export function HeroSection() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Wetudy conecta usuarios y familias con su propia comunidad, fomentando el ahorro y la sostenibilidad a través de la reutilización de material escolar en cada etapa educativa.
+            Wetudy reúne a familias y estudiantes de una misma comunidad para ahorrar en cada curso y dar una segunda vida a libros, uniformes y material escolar.
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
@@ -37,8 +37,8 @@ export function HeroSection() {
             </Link>
           </div>
 
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
+          <div className="mx-auto mt-10 grid max-w-sm gap-5 text-sm text-muted-foreground sm:mt-12 sm:max-w-none sm:grid-cols-3 sm:gap-8">
+            <div className="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-left">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                 <Users className="h-5 w-5 text-primary" />
               </div>
@@ -47,7 +47,7 @@ export function HeroSection() {
                 <p className="text-xs">familias y centros</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-left">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10">
                 <Leaf className="h-5 w-5 text-secondary" />
               </div>
@@ -56,7 +56,7 @@ export function HeroSection() {
                 <p className="text-xs">menos gasto y residuos</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-left">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                 <MapPin className="h-5 w-5 text-primary" />
               </div>
