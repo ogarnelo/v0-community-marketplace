@@ -32,12 +32,12 @@ test("school requests go through the hardened server endpoint and stay pending",
   assert.match(approvalRoute, /eq\("role", "super_admin"\)/);
   assert.doesNotMatch(approvalRoute, /SUPERADMIN_EMAILS/);
   assert.match(approvalRoute, /createAdminClient/);
-  assert.match(approvalRoute, /adminSupabase\.rpc\([\s\S]*approve_school_registration_request/);
+  assert.match(approvalRoute, /adminSupabase\.rpc\([\s\S]*server_approve_school_registration_request/);\n  assert.match(approvalRoute, /reviewer_id: user\.id/);
   assert.doesNotMatch(approvalRoute, /await supabase\.rpc\([\s\S]*approve_school_registration_request/);
 
   assert.match(rejectionRoute, /eq\("role", "super_admin"\)/);
   assert.match(rejectionRoute, /createAdminClient/);
-  assert.match(rejectionRoute, /admin\.rpc\("reject_school_registration_request"/);
+  assert.match(rejectionRoute, /admin\.rpc\("server_reject_school_registration_request"/);\n  assert.match(rejectionRoute, /reviewer_id: user\.id/);
 });
 
 test("browser clients cannot insert school registration requests after server gate", () => {
@@ -73,4 +73,19 @@ test("superadmin can record a rejection reason and pending requests are prioriti
   assert.match(dashboard, /review_notes: reviewNotes \|\| null/);
   assert.match(dashboard, /orderedSchoolRequests/);
   assert.match(dashboard, /aPending/);
+});
+
+
+test("server school review RPCs validate reviewer id without relying on auth.uid", () => {
+  const migration = read(
+    "supabase/migrations/20260919062500_fix_server_school_review_context.sql"
+  );
+
+  assert.match(migration, /server_approve_school_registration_request/);
+  assert.match(migration, /server_reject_school_registration_request/);
+  assert.match(migration, /ur\.user_id = reviewer_id/);
+  assert.match(migration, /ur\.role = 'super_admin'/);
+  assert.match(migration, /reviewed_by = reviewer_id/);
+  assert.match(migration, /grant execute[\s\S]*to service_role/i);
+  assert.doesNotMatch(migration, /auth\.uid\(\)/);
 });
