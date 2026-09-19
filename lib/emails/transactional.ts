@@ -59,12 +59,14 @@ function button(label: string, href: string, variant: "primary" | "secondary" = 
 }
 
 function wordmark() {
+  const logoUrl = `${getBaseUrl()}/icon.svg`;
   return `
     <table cellpadding="0" cellspacing="0" border="0" role="presentation">
       <tr>
-        <td bgcolor="#ffffff" style="background-color:#ffffff;border-radius:12px;padding-top:8px;padding-right:12px;padding-bottom:8px;padding-left:12px;">
-          <span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:24px;font-weight:800;letter-spacing:-0.4px;color:${BRAND.blue};">Wetudy</span>
+        <td style="padding-right:10px;vertical-align:middle;">
+          <img src="${logoUrl}" width="40" height="40" border="0" alt="Wetudy" style="display:block;width:40px;height:40px;border-radius:10px;" />
         </td>
+        <td style="font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:24px;font-weight:800;letter-spacing:-0.4px;color:#ffffff;vertical-align:middle;">Wetudy</td>
       </tr>
     </table>
   `;
@@ -94,6 +96,9 @@ function emailShell(params: { preview: string; title: string; body: string }) {
                 </tr>
               </table>
             </td>
+          </tr>
+          <tr>
+            <td bgcolor="${BRAND.green}" style="height:4px;background-color:${BRAND.green};font-size:1px;line-height:4px;">&nbsp;</td>
           </tr>
           <tr>
             <td style="padding-top:28px;padding-right:24px;padding-bottom:26px;padding-left:24px;">
