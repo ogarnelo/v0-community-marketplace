@@ -15,6 +15,7 @@ type SchoolRow = {
   region: string | null;
   postal_code: string | null;
   school_type: string | null;
+  is_active: boolean | null;
 };
 
 type ListingRow = {
@@ -84,6 +85,12 @@ type AgreementRow = {
   created_at: string | null;
 };
 
+type ImpactSubscriptionRow = {
+  enabled: boolean;
+  email: string;
+  day_of_month: number;
+};
+
 type DonationRequestRow = {
   id: string;
   listing_id: string | null;
@@ -135,10 +142,11 @@ export default async function SchoolAdminPage() {
     { data: schoolAdminRoles },
     { data: donationRequests },
     { data: agreements },
+    { data: impactSubscription },
   ] = await Promise.all([
     adminSupabase
       .from("schools")
-      .select("id, name, city, region, postal_code, school_type")
+      .select("id, name, city, region, postal_code, school_type, is_active")
       .eq("id", effectiveSchoolId)
       .maybeSingle<SchoolRow>(),
     adminSupabase
@@ -183,6 +191,12 @@ export default async function SchoolAdminPage() {
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<AgreementRow[]>(),
+    adminSupabase
+      .from("school_impact_report_subscriptions")
+      .select("enabled, email, day_of_month")
+      .eq("school_id", effectiveSchoolId)
+      .eq("user_id", user.id)
+      .maybeSingle<ImpactSubscriptionRow>(),
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
@@ -192,6 +206,10 @@ export default async function SchoolAdminPage() {
   const safeReports = (reports || []) as ReportRow[];
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const safeAgreements = (agreements || []) as AgreementRow[];
+
+  if (school?.is_active === false && !isSuperAdmin) {
+    redirect("/");
+  }
 
   const listingIds = safeListings.map((item) => item.id);
 
@@ -274,6 +292,8 @@ export default async function SchoolAdminPage() {
             accessCodes={safeAccessCodes}
             listingViews={safeListingViews}
             agreements={safeAgreements}
+            reportSubscription={impactSubscription || null}
+            currentUserEmail={user.email || ""}
           />
 
           <DonationRequestsPanel requests={pendingDonationRequests} />
