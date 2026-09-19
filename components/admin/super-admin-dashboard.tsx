@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -486,6 +487,17 @@ export default function SuperAdminDashboard({
   initialListingViews,
 }: SuperAdminDashboardProps) {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab =
+    requestedTab && ["overview", "support", "reports", "schools"].includes(requestedTab)
+      ? requestedTab
+      : initialSchoolRequests.some(
+          (request) => normalizeSchoolRequestStatus(request.status) === "pending"
+        )
+        ? "schools"
+        : "overview";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedRange, setSelectedRange] = useState<RangeKey>("90d");
   const [supportTickets, setSupportTickets] = useState(initialSupportTickets);
   const [reports, setReports] = useState(initialReports);
@@ -517,6 +529,14 @@ export default function SuperAdminDashboard({
   const filteredSchoolRequests = useMemo(
     () => schoolRequests.filter((item) => isWithinRange(item.created_at, selectedRange)),
     [schoolRequests, selectedRange]
+  );
+
+  const pendingSchoolRequestCount = useMemo(
+    () =>
+      schoolRequests.filter(
+        (request) => normalizeSchoolRequestStatus(request.status) === "pending"
+      ).length,
+    [schoolRequests]
   );
 
   const orderedSchoolRequests = useMemo(
@@ -1052,12 +1072,40 @@ export default function SuperAdminDashboard({
         </div>
       ) : null}
 
-      <Tabs defaultValue="overview" className="mt-6">
-        <TabsList className="flex flex-wrap">
-          <TabsTrigger value="overview">Dashboard</TabsTrigger>
-          <TabsTrigger value="support">Soporte</TabsTrigger>
-          <TabsTrigger value="reports">Moderación</TabsTrigger>
-          <TabsTrigger value="schools">Altas de centros</TabsTrigger>
+      {pendingSchoolRequestCount > 0 ? (
+        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium text-amber-900">
+              {pendingSchoolRequestCount === 1
+                ? "Hay 1 alta de centro pendiente"
+                : `Hay ${pendingSchoolRequestCount} altas de centros pendientes`}
+            </p>
+            <p className="mt-1 text-sm text-amber-800">
+              Revisa la solicitud para aprobarla o rechazarla.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => setActiveTab("schools")}
+          >
+            Revisar ahora
+          </Button>
+        </div>
+      ) : null}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:flex sm:w-fit sm:flex-wrap">
+          <TabsTrigger value="overview" className="h-9">Dashboard</TabsTrigger>
+          <TabsTrigger value="support" className="h-9">Soporte</TabsTrigger>
+          <TabsTrigger value="reports" className="h-9">Moderación</TabsTrigger>
+          <TabsTrigger value="schools" className="h-9 gap-2">
+            Altas de centros
+            {pendingSchoolRequestCount > 0 ? (
+              <Badge variant="destructive">{pendingSchoolRequestCount}</Badge>
+            ) : null}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
