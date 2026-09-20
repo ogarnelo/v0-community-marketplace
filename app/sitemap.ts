@@ -4,7 +4,7 @@ import { posts } from "@/lib/blog-data"
 
 const SITE_URL = "https://www.wetudy.com"
 
-export const revalidate = 3600
+export const revalidate = 0
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const fallbackNow = new Date()
