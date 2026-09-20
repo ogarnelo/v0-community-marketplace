@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { getNormalizedListingType } from "@/lib/marketplace/listing-type";
 import { Navbar } from "@/components/navbar";
@@ -18,11 +19,9 @@ import { Badge } from "@/components/ui/badge";
 import { UserBadgePills } from "@/components/profile/user-badge-pills";
 import {
   ArrowLeft,
-  MapPin,
   Star,
   User,
   Package,
-  GraduationCap,
   BriefcaseBusiness,
   Globe,
 } from "lucide-react";
@@ -54,11 +53,19 @@ export default async function PublicProfilePage({
   const supabase = await createClient();
 
   const navbarData = await getNavbarData(supabase);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: profile, error: profileError } = await supabase
+  if (!user) {
+    redirect(`/auth?next=${encodeURIComponent(`/profile/${id}`)}`);
+  }
+
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select(
-      "id, full_name, user_type, grade_level, postal_code, business_name, business_description, website, is_business_verified"
+      "id, full_name, user_type, business_name, business_description, website, is_business_verified"
     )
     .eq("id", id)
     .maybeSingle();
@@ -104,8 +111,6 @@ export default async function PublicProfilePage({
     typedProfile.full_name?.trim() ||
     "Miembro de Wetudy";
   const sellerUserType = getUserTypeLabel(typedProfile.user_type);
-  const sellerPostalCode = typedProfile.postal_code || null;
-  const sellerGradeLevel = typedProfile.grade_level || null;
   const badges = stats.badgesForUserType(typedProfile.user_type);
 
   return (
@@ -155,20 +160,6 @@ export default async function PublicProfilePage({
                 <UserBadgePills badges={badges} className="mt-3 justify-center sm:mt-4" />
 
                 <div className="mt-4 space-y-2 rounded-2xl border p-3 sm:mt-6 sm:space-y-3 sm:p-4">
-                  {sellerPostalCode ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4 shrink-0" />
-                      <span>{sellerPostalCode}</span>
-                    </div>
-                  ) : null}
-
-                  {typedProfile.user_type !== "business" && sellerGradeLevel ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <GraduationCap className="h-4 w-4 shrink-0" />
-                      <span>{sellerGradeLevel}</span>
-                    </div>
-                  ) : null}
-
                   {typedProfile.user_type === "business" && typedProfile.business_name ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BriefcaseBusiness className="h-4 w-4 shrink-0" />
