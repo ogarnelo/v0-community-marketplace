@@ -773,7 +773,7 @@ export default function EditListingPage() {
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {isDonation
-                      ? "El admin de tu centro gestionará las solicitudes"
+                      ? "Gestiona las solicitudes directamente con la otra persona por chat"
                       : "Establece un precio para tu material"}
                   </p>
                 </div>
