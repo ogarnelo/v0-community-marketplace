@@ -105,6 +105,13 @@ export async function startCheckoutSession(params: {
     .eq('seller_id', typedOffer.seller_id)
     .maybeSingle()
 
+  const checkoutIdempotencyKey = [
+    "wetudy-checkout-v1",
+    offerId,
+    deliveryMethod,
+    shipmentTier,
+  ].join(":")
+
   let session
   try {
     session = await stripe.checkout.sessions.create({
@@ -155,6 +162,8 @@ export async function startCheckoutSession(params: {
         delivery_method: deliveryMethod,
         shipment_tier: shipmentTier,
       },
+    }, {
+      idempotencyKey: checkoutIdempotencyKey,
     })
   } catch (stripeError: unknown) {
     const errorMessage = stripeError instanceof Error ? stripeError.message : 'Error desconocido de Stripe'
