@@ -132,36 +132,19 @@ export function ConversationsSidebar({
       if (!conversation) return;
       if (conversation.buyer_id !== currentUserId && conversation.seller_id !== currentUserId) return;
 
-      const otherUserId = conversation.buyer_id === currentUserId ? conversation.seller_id : conversation.buyer_id;
+      const response = await fetch(
+        `/api/messages/conversation-summary?conversation_id=${encodeURIComponent(conversationId)}`,
+        { cache: "no-store" }
+      );
 
-      const [{ data: listing }, { data: profile }, { data: latestMessage }] = await Promise.all([
-        supabase
-          .from("listings")
-          .select("title")
-          .eq("id", conversation.listing_id)
-          .maybeSingle(),
-        supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", otherUserId)
-          .maybeSingle(),
-        supabase
-          .from("messages")
-          .select("body, created_at, attachment_name")
-          .eq("conversation_id", conversationId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
+      if (!response.ok) return;
 
-      const newItem: ConversationSummary = {
-        id: conversation.id,
-        otherName: profile?.full_name?.trim() || "Usuario",
-        listingTitle: listing?.title || "Anuncio",
-        latestMessageBody: latestMessage ? buildPreviewText(latestMessage) : "Sin mensajes todavía",
-        latestMessageCreatedAt: latestMessage?.created_at || null,
-        unreadCount: 0,
-      };
+      const payload = (await response.json().catch(() => null)) as {
+        conversation?: ConversationSummary;
+      } | null;
+      const newItem = payload?.conversation;
+
+      if (!newItem) return;
 
       setItems((prev) => {
         if (prev.some((item) => item.id === newItem.id)) return prev;
