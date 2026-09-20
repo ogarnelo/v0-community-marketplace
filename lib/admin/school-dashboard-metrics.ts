@@ -44,10 +44,6 @@ type ListingViewMetricRow = {
   viewed_at: string | null;
 };
 
-type ReportMetricRow = {
-  status: string | null;
-};
-
 const SCHOOL_BOOK_CO2E_KG = 2.1;
 
 function normalize(value: string | null | undefined) {
@@ -83,7 +79,7 @@ export function buildSchoolDashboardMetrics(params: {
   listings: ListingMetricRow[];
   agreements: AgreementMetricRow[];
   listingViews: ListingViewMetricRow[];
-  reports: ReportMetricRow[];
+  openReports: number;
   membersCount: number;
   schoolAdminsCount: number;
   now?: Date;
@@ -147,8 +143,6 @@ export function buildSchoolDashboardMetrics(params: {
     activeListings: params.listings.filter((listing) =>
       ["available", "reserved"].includes(listing.status || "")
     ).length,
-    openReports: params.reports.filter((report) =>
-      ["open", "reviewing"].includes(report.status || "")
-    ).length,
+    openReports: params.openReports,
   };
 }
