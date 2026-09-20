@@ -43,7 +43,8 @@ test("home copy reflects community, schools and current product language", () =>
 
 test("about and help avoid launch-only language and explain school capabilities", () => {
   const about = read("app/about/page.tsx");
-  const help = read("app/help/page.tsx");\n  const terms = read("app/terms/page.tsx");
+  const help = read("app/help/page.tsx");
+  const terms = read("app/terms/page.tsx");
 
   assert.match(about, /Impacto y aprendizaje de la comunidad/);
   assert.match(about, /Reutilización y sostenibilidad/);
@@ -57,7 +58,10 @@ test("about and help avoid launch-only language and explain school capabilities"
   assert.match(help, /No muestra el contenido de conversaciones ni el detalle de acuerdos entre usuarios/);
   assert.match(help, /incluido CO₂ cuando existe una metodología verificable/);
   assert.doesNotMatch(help, /En el MVP Wetudy facilita/);
-  assert.doesNotMatch(help, /precio orientativo/i);\n\n  assert.match(terms, /La entrega y el pago se acuerdan directamente entre las partes\./);\n  assert.doesNotMatch(terms, /flujo de lanzamiento actual|lanzamiento inicial/);
+  assert.doesNotMatch(help, /precio orientativo/i);
+
+  assert.match(terms, /La entrega y el pago se acuerdan directamente entre las partes\./);
+  assert.doesNotMatch(terms, /flujo de lanzamiento actual|lanzamiento inicial/);
 });
 
 test("user-facing sale labels say price, not indicative price", () => {
