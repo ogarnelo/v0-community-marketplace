@@ -3,11 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const BLOCKING_PAYMENT_STATUSES = [
+  "draft",
   "requires_payment_method",
   "requires_confirmation",
-  "requires_action",
   "processing",
-  "paid",
+  "requires_capture",
   "succeeded",
 ] as const;
 
