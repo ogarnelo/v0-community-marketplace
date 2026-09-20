@@ -352,7 +352,7 @@ export default function EditListingPage() {
     return null;
   };
 
-  const uploadNewPhotos = async (listingIdValue: string) => {
+  const uploadNewPhotos = async (listingIdValue: string, userId: string) => {
     if (newPhotos.length === 0) return [];
 
     const supabase = createClient();
@@ -366,7 +366,7 @@ export default function EditListingPage() {
       const file = item.file;
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const safeName = sanitizeFileName(file.name);
-      const filePath = `${listingIdValue}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+      const filePath = `${userId}/${listingIdValue}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
 
       const { error: uploadError } = await supabase.storage
         .from(STORAGE_BUCKET)
@@ -485,7 +485,7 @@ export default function EditListingPage() {
         }
       }
 
-      const uploadedRows = await uploadNewPhotos(listingId);
+      const uploadedRows = await uploadNewPhotos(listingId, user.id);
 
       if (uploadedRows.length > 0) {
         const { error: insertPhotosError } = await supabase
