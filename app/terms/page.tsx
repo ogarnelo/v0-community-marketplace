@@ -19,7 +19,7 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold">Acuerdos entre usuarios</h2>
-            <p className="mt-2">La entrega y el pago se acuerdan directamente entre las partes. Wetudy no procesa el pago ni organiza el envío dentro del flujo de lanzamiento actual.</p>
+            <p className="mt-2">La entrega y el pago se acuerdan directamente entre las partes.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold">Publicaciones</h2>
