@@ -5,7 +5,7 @@ const benefits = [
   {
     icon: PiggyBank,
     title: "Ahorro flexible",
-    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. En libros de texto, comprar de segunda mano puede suponer un ahorro de entre el 50% y el 70% frente a comprarlos nuevos.",
+    description: "Encuentra material escolar de segunda mano, donaciones o anuncios con precio claro para reducir el gasto de cada curso. En libros de texto, comprar de segunda mano puede suponer un ahorro de entre el 50% y el 75% frente a comprarlos nuevos.",
   },
   {
     icon: ShieldCheck,
