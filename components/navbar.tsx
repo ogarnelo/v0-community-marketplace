@@ -187,18 +187,19 @@ export function Navbar({
   const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
   const showMessagesBadge = Boolean(currentUserId);
+  const schoolAdminNavigation = effectiveAdminHref === "/admin/school";
 
   const navItems = useMemo(
     () => [
       { href: "/marketplace", label: "Marketplace", icon: BookOpen },
-      ...(effectiveAdminHref === "/admin/school"
-        ? [{ href: "/admin/school?tab=access", label: "Código de colegio", icon: QrCode }]
-        : []),
       { href: "/favorites", label: "Favoritos", icon: Heart },
       { href: publishHref, label: "Publicar", icon: Plus },
       { href: "/messages", label: "Mensajes", icon: MessageCircle },
+      ...(schoolAdminNavigation
+        ? [{ href: "/admin/school?tab=access", label: "Código de colegio", icon: QrCode }]
+        : []),
     ],
-    [effectiveAdminHref, publishHref]
+    [publishHref, schoolAdminNavigation]
   );
 
   const handleMobileLogout = async () => {
@@ -228,7 +229,7 @@ export function Navbar({
     <aside
       id="mobile-navigation"
       aria-label="Menú de navegación"
-      className="absolute right-0 top-full z-[60] max-h-[calc(100dvh-4rem)] w-[86%] max-w-80 overflow-y-auto overscroll-contain border-b border-l border-border bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl md:hidden"
+      className={`absolute right-0 top-full z-[60] max-h-[calc(100dvh-4rem)] w-[86%] max-w-80 overflow-y-auto overscroll-contain border-b border-l border-border bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl ${schoolAdminNavigation ? "min-[1180px]:hidden" : "md:hidden"}`}
     >
       <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
         {isLoggedIn ? (
@@ -371,7 +372,7 @@ export function Navbar({
 
         {isLoggedIn ? (
           <>
-            <nav className="hidden items-center gap-1 md:flex">
+            <nav className={schoolAdminNavigation ? "hidden items-center gap-1 min-[1180px]:flex" : "hidden items-center gap-1 md:flex"}>
               {navItems.map(({ href, label, icon: Icon }) => (
                 <Button
                   key={href + label}
@@ -394,7 +395,7 @@ export function Navbar({
               ))}
             </nav>
 
-            <div className="hidden items-center gap-2 md:flex">
+            <div className={schoolAdminNavigation ? "hidden items-center gap-2 min-[1180px]:flex" : "hidden items-center gap-2 md:flex"}>
               {currentUserId ? (
                 <NavbarNotificationsBell
                   currentUserId={currentUserId}
@@ -458,7 +459,7 @@ export function Navbar({
               type="button"
               variant="ghost"
               size="icon"
-              className="shrink-0 md:hidden"
+              className={schoolAdminNavigation ? "shrink-0 min-[1180px]:hidden" : "shrink-0 md:hidden"}
               aria-expanded={open}
               aria-controls="mobile-navigation"
               onClick={() => setOpen((value) => !value)}
