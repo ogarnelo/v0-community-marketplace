@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
-import { Globe, School, Users } from "lucide-react";
+import { Globe, Leaf, Search, School, Users } from "lucide-react";
 
 
 type SupportTicketRow = {
@@ -291,6 +291,12 @@ export default async function SuperAdminPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/admin/super/sustainability"><Leaf className="h-4 w-4" />Impacto y sostenibilidad</Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/admin/super/demand"><Search className="h-4 w-4" />Insights y demanda</Link>
+              </Button>
               <Button asChild variant="outline" className="gap-2">
                 <Link href="/admin/super/schools"><School className="h-4 w-4" />Todos los centros</Link>
               </Button>
