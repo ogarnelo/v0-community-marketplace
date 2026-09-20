@@ -17,6 +17,7 @@ test("school dashboard serializes aggregate metrics instead of individual activi
   assert.match(page, /select\("user_id", \{ count: "exact", head: true \}\)/);
   assert.doesNotMatch(page, /DonationRequestsPanel|donation_requests|requesterProfiles|requesterName/);
   assert.doesNotMatch(page, /select\("id, full_name, school_id, user_type, grade_level"\)/);
+  assert.match(page, /school_impact_report_deliveries[\s\S]*\.eq\("user_id", user\.id\)/);
 
   assert.match(dashboard, /metrics: SchoolDashboardMetrics/);
   assert.match(dashboard, /metrics\.ranges\[range\]/);
