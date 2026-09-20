@@ -41,60 +41,10 @@ type SchoolRow = {
   school_type: string | null;
 };
 
-type ListingRow = {
-  id: string;
-  title: string | null;
-  category: string | null;
-  grade_level: string | null;
-  price: number | null;
-  original_price: number | null;
-  estimated_retail_price: number | null;
-  isbn: string | null;
-  type: string | null;
-  status: string | null;
-  condition: string | null;
-  seller_id: string | null;
-  school_id: string | null;
-  created_at: string;
-};
-
-type ProfileRow = {
-  id: string;
-  full_name: string | null;
-  school_id: string | null;
-  user_type: string | null;
-  grade_level: string | null;
-};
-
-type ReportRow = {
-  id: string;
-  target_type: "listing" | "conversation";
-  listing_id: string | null;
-  conversation_id: string | null;
-  reason: string;
-  status: string;
-  created_at: string;
-};
-
 type SchoolAccessCodeRow = {
   code: string;
   is_active: boolean;
   created_at: string;
-};
-
-type ListingViewRow = {
-  listing_id: string;
-  viewed_at: string;
-};
-
-type AgreementRow = {
-  id: string;
-  listing_id: string | null;
-  agreement_type: string | null;
-  status: string | null;
-  amount: number | null;
-  confirmed_at: string | null;
-  created_at: string | null;
 };
 
 type ImpactSubscription = {
