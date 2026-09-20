@@ -19,7 +19,7 @@ Estado: preparado para validación manual con dos cuentas reales.
 - Rechazar una solicitud de prueba y confirmar que no crea un centro.
 
 ## 3. Flujo MVP entre dos cuentas
-- Cuenta A publica un anuncio con foto, categoría, curso, precio orientativo y código postal.
+- Cuenta A publica un anuncio con foto, categoría, curso, precio y código postal.
 - Cuenta B encuentra el anuncio mediante búsqueda/filtros.
 - Cuenta B contacta con A desde el anuncio.
 - Comprobar conversación y aviso del primer mensaje.
@@ -41,8 +41,10 @@ Estado: preparado para validación manual con dos cuentas reales.
 - Probar al menos otro iPhone o iPad sin Zscaler para separar incompatibilidad de proxy/navegador de un bug general de Wetudy.
 
 ## 6. Cierre de lanzamiento
+- Ejecutar `npm run mvp:ready` contra producción y confirmar que pasa.
 - Revisar errores 4xx/5xx de producción.
 - Revisar Security Advisor y Performance Advisor.
 - Confirmar que no hay PRs antiguos peligrosos abiertos.
 - Confirmar que checkout, pagos y envíos integrados siguen fuera del MVP.
+- Confirmar que la home mantiene el ahorro del 50%-75% en libros de texto sin mostrar una fuente o marca.
 - Verificar que el texto de acuerdo local sigue siendo: "La entrega y el pago se acuerdan directamente entre las partes."
