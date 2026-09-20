@@ -230,57 +230,84 @@ export async function confirmPaymentComplete(params: {
 
   const adminSupabase = createAdminClient()
 
-  // Verificar que el pago realmente se completó consultando el payment_intent
-  const { data: paymentIntent } = await adminSupabase
+  const { data: paymentIntent, error: paymentLookupError } = await adminSupabase
     .from('payment_intents')
     .select('id, status, listing_id, metadata')
     .eq('offer_id', offerId)
     .eq('buyer_id', user.id)
     .maybeSingle()
 
-  if (!paymentIntent) {
-    throw new Error('No se encontró el intent de pago.')
+  if (paymentLookupError || !paymentIntent) {
+    throw new Error(paymentLookupError?.message || 'No se encontró el intent de pago.')
   }
 
-  // Verificar con Stripe que la sesión está pagada
   const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
-  if (sessionId) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(sessionId)
-      if (session.payment_status !== 'paid') {
-        throw new Error('El pago aún no se ha completado en Stripe.')
-      }
-    } catch {
-      // Si no podemos verificar con Stripe, confiamos en el estado local
-    }
+  if (!sessionId || typeof sessionId !== 'string') {
+    throw new Error('No se encontró una sesión de Stripe asociada al pago.')
+  }
+
+  let session
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'No se pudo verificar el pago con Stripe.'
+    throw new Error(`No se pudo verificar el pago con Stripe: ${message}`)
+  }
+
+  if (session.payment_status !== 'paid') {
+    throw new Error('El pago aún no se ha completado en Stripe.')
+  }
+
+  if (session.metadata?.offer_id !== offerId || session.metadata?.buyer_id !== user.id) {
+    throw new Error('La sesión de Stripe no corresponde a esta operación.')
+  }
+
+  const expectedTotal = Number(paymentIntent.metadata?.total_buyer_amount)
+  if (
+    Number.isFinite(expectedTotal) &&
+    expectedTotal > 0 &&
+    session.amount_total !== Math.round(expectedTotal * 100)
+  ) {
+    throw new Error('El importe confirmado por Stripe no coincide con la operación.')
   }
 
   const now = new Date().toISOString()
 
-  // Actualizar payment_intent
-  await adminSupabase
+  const { error: paymentUpdateError } = await adminSupabase
     .from('payment_intents')
     .update({
-      status: 'paid',
+      status: 'succeeded',
       updated_at: now,
     })
-    .eq('offer_id', offerId)
+    .eq('id', paymentIntent.id)
+    .eq('buyer_id', user.id)
 
-  // La oferta debe mantenerse como aceptada. El pago se refleja en payment_intents.
-  await adminSupabase
+  if (paymentUpdateError) {
+    throw new Error(paymentUpdateError.message || 'No se pudo actualizar el estado del pago.')
+  }
+
+  const { error: offerUpdateError } = await adminSupabase
     .from('listing_offers')
     .update({
       status: 'accepted',
       responded_at: now,
     })
     .eq('id', offerId)
+    .eq('buyer_id', user.id)
 
-  // Actualizar listing a vendido
+  if (offerUpdateError) {
+    throw new Error(offerUpdateError.message || 'No se pudo actualizar la oferta.')
+  }
+
   if (paymentIntent.listing_id) {
-    await adminSupabase
+    const { error: listingUpdateError } = await adminSupabase
       .from('listings')
       .update({ status: 'sold' })
       .eq('id', paymentIntent.listing_id)
+
+    if (listingUpdateError) {
+      throw new Error(listingUpdateError.message || 'No se pudo actualizar el anuncio.')
+    }
   }
 
   return { success: true }
@@ -292,6 +319,25 @@ export async function confirmPaymentComplete(params: {
 export async function checkSessionStatus(sessionId: string) {
   if (!isLegacyCommerceEnabled()) {
     return { paymentStatus: 'unavailable', status: 'disabled' }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Debes iniciar sesión.')
+  }
+
+  const adminSupabase = createAdminClient()
+  const { data: ownedPayment, error: paymentLookupError } = await adminSupabase
+    .from('payment_intents')
+    .select('id')
+    .eq('buyer_id', user.id)
+    .contains('metadata', { stripe_checkout_session_id: sessionId })
+    .maybeSingle()
+
+  if (paymentLookupError || !ownedPayment) {
+    throw new Error('No puedes consultar esta sesión de pago.')
   }
 
   try {
