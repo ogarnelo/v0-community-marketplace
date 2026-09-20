@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       roles: (roles || []) as Array<{ role: string; school_id: string | null }>,
     });
 
-    if (!adminFlags.canAccessAdmin) {
+    if (!adminFlags.isSuperAdmin) {
       return NextResponse.json({ error: "Sin permisos." }, { status: 403 });
     }
 
@@ -49,14 +49,6 @@ export async function POST(request: Request) {
 
     if (!donationRequest || !donationRequest.listing_id) {
       return NextResponse.json({ error: "Solicitud no encontrada." }, { status: 404 });
-    }
-
-    const allowedSchoolId = adminFlags.isSuperAdmin
-      ? donationRequest.school_id
-      : adminFlags.schoolAdminSchoolId;
-
-    if (!adminFlags.isSuperAdmin && donationRequest.school_id !== allowedSchoolId) {
-      return NextResponse.json({ error: "No puedes revisar solicitudes de otro centro." }, { status: 403 });
     }
 
     const { data: listing } = await adminSupabase
