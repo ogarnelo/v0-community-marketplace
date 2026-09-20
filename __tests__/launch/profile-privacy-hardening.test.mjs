@@ -8,6 +8,7 @@ const migration = read("supabase/migrations/20260920111500_profile_privacy_harde
 const publicProfile = read("app/profile/[id]/page.tsx");
 const messagesPage = read("app/messages/page.tsx");
 const messageDetail = read("app/messages/[id]/page.tsx");
+const accountListings = read("app/account/listings/page.tsx");
 const sidebar = read("components/messages/conversations-sidebar.tsx");
 const conversationSummary = read("app/api/messages/conversation-summary/route.ts");
 const joinSchool = read("app/onboarding/join-school/page.tsx");
@@ -31,6 +32,8 @@ test("public and chat profile reads are server-side and field-limited", () => {
 
   assert.match(messagesPage, /const admin = createAdminClient\(\)/);
   assert.match(messageDetail, /adminSupabase\.from\("profiles"\)/);
+  assert.match(accountListings, /const admin = createAdminClient\(\)/);
+  assert.match(accountListings, /admin[\s\S]*\.from\("profiles"\)[\s\S]*\.select\("id, full_name"\)/);
   assert.doesNotMatch(sidebar, /\.from\("profiles"\)/);
   assert.match(sidebar, /\/api\/messages\/conversation-summary/);
 
