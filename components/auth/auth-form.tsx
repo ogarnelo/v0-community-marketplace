@@ -610,7 +610,7 @@ export function AuthForm() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Las cuentas de vendedor profesional no están activas durante el MVP.
+                  Las cuentas de vendedor profesional no están disponibles en Wetudy.
                 </p>
               </div>
 

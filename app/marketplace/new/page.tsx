@@ -34,10 +34,10 @@ export default async function NewListingPage() {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center lg:px-8">
         <div className="rounded-2xl border bg-card p-8 shadow-sm">
-          <p className="text-sm font-semibold text-primary">MVP familias</p>
-          <h1 className="mt-2 text-2xl font-bold text-foreground">Los vendedores profesionales aún no están activos</h1>
+          <p className="text-sm font-semibold text-primary">Cuenta profesional</p>
+          <h1 className="mt-2 text-2xl font-bold text-foreground">La publicación para cuentas profesionales no está disponible</h1>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            En esta primera etapa Wetudy se centra en familias y estudiantes. Las cuentas profesionales se revisarán más adelante, cuando el flujo comunitario esté validado.
+            Wetudy está orientado a familias y estudiantes. Las cuentas profesionales no pueden publicar anuncios.
           </p>
           <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild>
