@@ -59,7 +59,7 @@ async function processCheckoutSessionEvent(
   const admin = createAdminClient();
   const { data: paymentIntent, error: paymentLookupError } = await admin
     .from("payment_intents")
-    .select("id, listing_id, buyer_id, offer_id, status, metadata")
+    .select("id, listing_id, conversation_id, buyer_id, seller_id, offer_id, status, shipping_amount, shipment_tier, metadata")
     .eq("offer_id", offerId)
     .eq("buyer_id", buyerId)
     .maybeSingle();
@@ -117,6 +117,44 @@ async function processCheckoutSessionEvent(
 
     if (listingUpdateError) {
       throw listingUpdateError;
+    }
+  }
+
+  if (
+    nextStatus === "succeeded" &&
+    paymentIntent.metadata?.delivery_method === "shipping"
+  ) {
+    const { data: existingShipment, error: shipmentLookupError } = await admin
+      .from("shipments")
+      .select("id")
+      .eq("payment_intent_id", paymentIntent.id)
+      .maybeSingle();
+
+    if (shipmentLookupError) {
+      throw shipmentLookupError;
+    }
+
+    if (!existingShipment) {
+      const { error: shipmentInsertError } = await admin.from("shipments").insert({
+        payment_intent_id: paymentIntent.id,
+        listing_id: paymentIntent.listing_id,
+        conversation_id: paymentIntent.conversation_id || null,
+        buyer_id: paymentIntent.buyer_id,
+        seller_id: paymentIntent.seller_id,
+        provider: "internal_stub",
+        shipment_tier: paymentIntent.shipment_tier || "small",
+        status: "draft",
+        shipping_amount: paymentIntent.shipping_amount || null,
+        payload: {
+          source: "stripe_webhook",
+          checkout_session_id: session.id,
+        },
+        updated_at: now,
+      });
+
+      if (shipmentInsertError && shipmentInsertError.code !== "23505") {
+        throw shipmentInsertError;
+      }
     }
   }
 
