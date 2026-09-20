@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   CheckCircle2,
@@ -30,6 +30,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { SchoolDashboardMetrics, SchoolDashboardRangeKey } from "@/lib/admin/school-dashboard-metrics";
 
 type SchoolRow = {
   id: string;
@@ -114,35 +115,18 @@ type ImpactDelivery = {
 
 type Props = {
   school: SchoolRow | null;
-  listings: ListingRow[];
-  members: ProfileRow[];
-  schoolAdmins: ProfileRow[];
-  reports: ReportRow[];
+  metrics: SchoolDashboardMetrics;
   accessCodes: SchoolAccessCodeRow[];
-  listingViews: ListingViewRow[];
-  agreements: AgreementRow[];
   reportSubscription: ImpactSubscription | null;
   currentUserEmail: string;
   reportDeliveries: ImpactDelivery[];
 };
-
-type RangeKey = "90d" | "365d" | "total";
 
 const SCHOOL_BOOK_CO2E_KG = 2.1;
 const CARBON_FOOTPRINT_SOURCE =
   "https://www.carbonfootprintitaly.it/en/registro/prodotti/p-2023-0003/";
 const GHG_PROTOCOL_SOURCE =
   "https://ghgprotocol.org/estimating-and-reporting-avoided-emissions";
-
-function isWithinRange(value: string | null, range: RangeKey) {
-  if (!value || range === "total") return Boolean(value);
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return false;
-
-  const start = new Date();
-  start.setDate(start.getDate() - (range === "90d" ? 90 : 365));
-  return parsed >= start;
-}
 
 function formatDate(value: string | null) {
   if (!value) return "Sin fecha";
@@ -160,23 +144,6 @@ function formatMoney(value: number) {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function normalize(value: string | null | undefined) {
-  return (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function isSchoolBook(listing: ListingRow | undefined) {
-  if (!listing) return false;
-  if (listing.isbn?.trim()) return true;
-
-  const text = normalize(`${listing.category || ""} ${listing.title || ""}`);
-  return ["libro", "libros", "texto", "lectura", "textbook", "book", "manual"].some(
-    (token) => text.includes(token)
-  );
 }
 
 function MetricCard({
@@ -208,18 +175,13 @@ function MetricCard({
 
 export default function SchoolAdminDashboard({
   school,
-  listings,
-  members,
-  schoolAdmins,
-  reports,
+  metrics,
   accessCodes,
-  listingViews,
-  agreements,
   reportSubscription,
   currentUserEmail,
   reportDeliveries,
 }: Props) {
-  const [range, setRange] = useState<RangeKey>("365d");
+  const [range, setRange] = useState<SchoolDashboardRangeKey>("365d");
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [activeTab, setActiveTab] = useState("impact");
@@ -240,65 +202,26 @@ export default function SchoolAdminDashboard({
     }
   }, []);
 
-  const listingById = useMemo(
-    () => new Map(listings.map((listing) => [listing.id, listing])),
-    [listings]
-  );
-
-  const confirmedAgreements = useMemo(
-    () =>
-      agreements.filter(
-        (agreement) =>
-          agreement.status === "confirmed" &&
-          isWithinRange(agreement.confirmed_at || agreement.created_at, range)
-      ),
-    [agreements, range]
-  );
-
-  const filteredListings = useMemo(
-    () => listings.filter((listing) => isWithinRange(listing.created_at, range)),
-    [listings, range]
-  );
-
-  const filteredViews = useMemo(
-    () => listingViews.filter((view) => isWithinRange(view.viewed_at, range)),
-    [listingViews, range]
-  );
-
-  const reusedItems = confirmedAgreements.length;
-  const donatedItems = confirmedAgreements.filter(
-    (agreement) => agreement.agreement_type === "donation"
-  ).length;
-  const soldItems = confirmedAgreements.filter(
-    (agreement) => agreement.agreement_type !== "donation"
-  ).length;
-
-  const circularValue = confirmedAgreements.reduce(
-    (sum, agreement) =>
-      agreement.agreement_type !== "donation" && typeof agreement.amount === "number"
-        ? sum + agreement.amount
-        : sum,
-    0
-  );
-
-  const reusedBooks = confirmedAgreements.filter((agreement) =>
-    agreement.listing_id
-      ? isSchoolBook(listingById.get(agreement.listing_id))
-      : false
-  ).length;
-
-  const estimatedAvoidedCo2 = reusedBooks * SCHOOL_BOOK_CO2E_KG;
-  const unquantifiedItems = Math.max(0, reusedItems - reusedBooks);
-  const activeListings = listings.filter((listing) =>
-    ["available", "reserved"].includes(listing.status || "")
-  ).length;
-  const openReports = reports.filter((report) =>
-    ["open", "reviewing"].includes(report.status || "")
-  ).length;
-  const reuseRate =
-    filteredListings.length > 0
-      ? Math.min(100, (reusedItems / filteredListings.length) * 100)
-      : 0;
+  const selectedMetrics = metrics.ranges[range];
+  const {
+    publishedListings,
+    reusedItems,
+    donatedItems,
+    soldItems,
+    circularValue,
+    reusedBooks,
+    estimatedAvoidedCo2,
+    unquantifiedItems,
+    listingViews,
+    reuseRate,
+  } = selectedMetrics;
+  const {
+    membersCount,
+    schoolAdminsCount,
+    listingsHistoricalCount,
+    activeListings,
+    openReports,
+  } = metrics;
   const latestAccessCode = accessCodes.find((item) => item.is_active)?.code || null;
 
   const reportRows = [
@@ -311,10 +234,10 @@ export default function SchoolAdminDashboard({
     ["Libros escolares incluidos en estimación CO2e", String(reusedBooks)],
     ["CO2e potencialmente evitado estimado (kg)", estimatedAvoidedCo2.toFixed(1)],
     ["Artículos reutilizados sin factor CO2e específico", String(unquantifiedItems)],
-    ["Miembros vinculados al centro", String(members.length)],
-    ["Administradores del centro", String(schoolAdmins.length)],
+    ["Miembros vinculados al centro", String(membersCount)],
+    ["Administradores del centro", String(schoolAdminsCount)],
     ["Anuncios activos", String(activeListings)],
-    ["Visitas a anuncios en periodo", String(filteredViews.length)],
+    ["Visitas a anuncios en periodo", String(listingViews)],
     ["Incidencias abiertas/en revisión", String(openReports)],
     ["Factor orientativo libro escolar (kg CO2e/unidad)", String(SCHOOL_BOOK_CO2E_KG)],
     ["Metodología", "Emisiones evitadas reportadas separadamente; estimación condicionada a sustitución de compra nueva equivalente."],
@@ -565,9 +488,9 @@ export default function SchoolAdminDashboard({
             />
             <MetricCard
               icon={<Users className="h-5 w-5" />}
-              value={String(members.length)}
+              value={String(membersCount)}
               label="Comunidad vinculada"
-              detail={`${schoolAdmins.length} administrador(es) de centro.`}
+              detail={`${schoolAdminsCount} administrador(es) de centro.`}
             />
           </div>
 
@@ -599,7 +522,7 @@ export default function SchoolAdminDashboard({
                 </div>
                 <div className="rounded-xl border p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Alcance</p>
-                  <p className="mt-2 text-xl font-semibold">{filteredViews.length} visitas</p>
+                  <p className="mt-2 text-xl font-semibold">{listingViews} visitas</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Visitas registradas en anuncios del centro durante el periodo.
                   </p>
@@ -792,7 +715,7 @@ export default function SchoolAdminDashboard({
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
               icon={<Package className="h-5 w-5" />}
-              value={String(filteredListings.length)}
+              value={String(publishedListings)}
               label="Anuncios publicados"
               detail="Nuevos anuncios asociados al centro durante el periodo."
             />
@@ -804,7 +727,7 @@ export default function SchoolAdminDashboard({
             />
             <MetricCard
               icon={<Eye className="h-5 w-5" />}
-              value={String(filteredViews.length)}
+              value={String(listingViews)}
               label="Visitas registradas"
               detail="Interés medido en las fichas de los anuncios del centro."
             />
@@ -822,19 +745,19 @@ export default function SchoolAdminDashboard({
           <div className="grid gap-4 sm:grid-cols-3">
             <MetricCard
               icon={<Users className="h-5 w-5" />}
-              value={String(members.length)}
+              value={String(membersCount)}
               label="Miembros"
               detail="Perfiles actualmente vinculados al centro."
             />
             <MetricCard
               icon={<ShieldCheck className="h-5 w-5" />}
-              value={String(schoolAdmins.length)}
+              value={String(schoolAdminsCount)}
               label="Administradores"
               detail="Usuarios con rol school_admin para este centro."
             />
             <MetricCard
               icon={<Package className="h-5 w-5" />}
-              value={String(listings.length)}
+              value={String(listingsHistoricalCount)}
               label="Anuncios históricos"
               detail="Publicaciones asociadas al centro."
             />
@@ -842,23 +765,12 @@ export default function SchoolAdminDashboard({
 
           <Card>
             <CardHeader>
-              <CardTitle>Administradores del centro</CardTitle>
+              <CardTitle>Privacidad de la comunidad</CardTitle>
               <CardDescription>
-                La misma cuenta puede usar Wetudy normalmente y administrar el centro.
+                Este panel muestra métricas agregadas del centro. No expone nombres de miembros,
+                conversaciones ni el detalle de acuerdos entre usuarios.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {schoolAdmins.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay administradores visibles.</p>
-              ) : (
-                schoolAdmins.map((admin) => (
-                  <div key={admin.id} className="flex items-center justify-between rounded-xl border p-3">
-                    <span className="font-medium">{admin.full_name || "Administrador"}</span>
-                    <Badge variant="outline">school_admin</Badge>
-                  </div>
-                ))
-              )}
-            </CardContent>
           </Card>
         </TabsContent>
 
