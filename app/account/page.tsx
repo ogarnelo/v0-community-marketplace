@@ -56,7 +56,7 @@ const quickActions = [
   { href: "/messages", label: "Mensajes", helper: "Habla por chat", icon: MessageCircle },
   { href: "/favorites", label: "Favoritos", helper: "Guarda material", icon: Heart },
   { href: "/account/saved-searches", label: "Mis búsquedas", helper: "Reabre avisos", icon: Search },
-  { href: "/account/activity", label: "Mis acuerdos", helper: "Actividad MVP", icon: Bell },
+  { href: "/account/activity", label: "Mis acuerdos", helper: "Actividad reciente", icon: Bell },
   { href: "/account/security", label: "Seguridad", helper: "Cambia tu contraseña", icon: KeyRound },
   { href: "/help", label: "Soporte", helper: "Centro de ayuda", icon: LifeBuoy },
 ];
