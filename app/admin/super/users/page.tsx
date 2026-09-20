@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { ArrowLeft, Users } from "lucide-react";
 import { normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
 
@@ -34,6 +37,7 @@ function formatDate(value?: string | null) {
 }
 
 async function listAllAuthUsers() {
+  const navbarData = await getNavbarData(supabase);
   const admin = createAdminClient();
   const users = [] as Awaited<ReturnType<typeof admin.auth.admin.listUsers>>["data"]["users"];
   const perPage = 1000;
@@ -101,7 +105,9 @@ export default async function SuperAdminUsersPage() {
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="flex min-h-screen flex-col bg-muted/20">
+      <Navbar {...navbarData} />
+      <main className="flex-1">
       <div className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -149,6 +155,8 @@ export default async function SuperAdminUsersPage() {
           {rows.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No hay usuarios registrados.</p> : null}
         </div>
       </div>
+      </main>
+      <Footer />
     </div>
   );
 }
