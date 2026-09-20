@@ -46,11 +46,6 @@ type AccountProfileFormProps = {
   managedSchoolAccessCode: string;
 };
 
-type SchoolAccessCodeResult = {
-  school_id: string;
-  schools: { id: string; name: string; city: string | null; postal_code: string | null } | null;
-};
-
 export default function AccountProfileForm(props: AccountProfileFormProps) {
   const {
     initialFirstName,
@@ -131,18 +126,20 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
     }
     setAccessCodeLoading(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("school_access_codes")
-        .select("school_id, schools(id, name, city, postal_code)")
-        .eq("code", normalizedCode)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (error) throw error;
-      const result = (data as SchoolAccessCodeResult | null) ?? null;
-      if (!result?.schools?.id) throw new Error("Ese código de centro no existe o ya no está activo.");
-      setSelectedSchoolId(result.schools.id);
-      setSuccessMessage(`Código aplicado correctamente. Nuevo centro: ${result.schools.name}.`);
+      const response = await fetch("/api/schools/resolve-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: normalizedCode }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        school?: SchoolOption;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.school?.id) {
+        throw new Error(payload?.error || "Ese código de centro no existe o ya no está activo.");
+      }
+      setSelectedSchoolId(payload.school.id);
+      setSuccessMessage(`Código aplicado correctamente. Nuevo centro: ${payload.school.name}.`);
     } catch (error: any) {
       setErrorMessage(error?.message || error?.details || "No se pudo validar el código del centro.");
     } finally {
