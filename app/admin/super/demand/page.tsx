@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Search, TrendingUp, AlertTriangle, School } from "lucide-react";
+import { ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { buildDemandActionLabel, buildDemandInsights } from "@/lib/admin/demand-insights";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +67,8 @@ export default async function DemandIntelligencePage() {
 
   if (!roleRows?.length) redirect("/");
 
-  const [profileResult, eventResult, summaryResult] = await Promise.all([
+  const [navbarData, profileResult, eventResult, summaryResult] = await Promise.all([
+    getNavbarData(supabase),
     supabase.from("profiles").select("id, full_name").eq("id", user.id).maybeSingle(),
     supabase
       .from("marketplace_search_events")
@@ -93,23 +95,43 @@ export default async function DemandIntelligencePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName={navbarUserName} isAdmin isSuperAdmin adminHref="/admin/super" currentUserId={user.id} />
+      <Navbar {...navbarData} />
       <main className="flex-1">
         <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Button asChild variant="ghost" size="sm" className="mb-2 -ml-3 gap-2">
-                <Link href="/admin/super/mvp"><ArrowLeft className="h-4 w-4" /> Volver al dashboard MVP</Link>
+                <Link href="/admin/super"><ArrowLeft className="h-4 w-4" /> Volver al Super Admin</Link>
               </Button>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">Demand intelligence</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Insights y demanda</h1>
               <p className="text-sm text-muted-foreground">
-                Señales de búsqueda, filtros sin resultados y oportunidades por categoría/curso.
+                Señales de búsqueda, filtros sin resultados y oportunidades de producto por categoría y curso.
               </p>
             </div>
-            <Badge variant={zeroResults ? "destructive" : "secondary"} className="w-fit gap-2 px-3 py-1">
-              {zeroResults ? <AlertTriangle className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
-              {zeroResults ? `${zeroResults} búsquedas sin resultado recientes` : "Sin huecos detectados"}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="sm" className="gap-2">
+                <Link href="/api/admin/super/report?format=pdf&range=90d">
+                  <Download className="h-4 w-4" />
+                  Informe PDF
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="gap-2">
+                <Link href="/api/admin/super/report?format=csv&range=90d">
+                  <Download className="h-4 w-4" />
+                  CSV
+                </Link>
+              </Button>
+              <Button asChild size="sm" className="gap-2">
+                <Link href="/admin/super/sustainability">
+                  <Leaf className="h-4 w-4" />
+                  Sostenibilidad
+                </Link>
+              </Button>
+              <Badge variant={zeroResults ? "destructive" : "secondary"} className="w-fit gap-2 px-3 py-1">
+                {zeroResults ? <AlertTriangle className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+                {zeroResults ? `${zeroResults} búsquedas sin resultado recientes` : "Sin huecos detectados"}
+              </Badge>
+            </div>
           </div>
 
           <section className="grid gap-4 sm:grid-cols-3">
