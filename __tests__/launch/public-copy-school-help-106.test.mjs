@@ -21,7 +21,7 @@ test("home copy reflects community, schools and current product language", () =>
   assert.match(how, /ponle precio o dónalo\./);
   assert.doesNotMatch(how, /dónalo!/);
 
-  assert.match(families, /entre el 50% y el 70%/);
+  assert.match(families, /entre el 50% y el 75%/);
   assert.match(families, /En libros de texto/);
   assert.doesNotMatch(families, /Fuente:|Telemadrid|Wallapop|RTVE/);
   assert.match(families, /priorizar la búsqueda directamente en tu comunidad/);
