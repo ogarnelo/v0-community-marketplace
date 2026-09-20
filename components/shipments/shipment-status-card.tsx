@@ -9,18 +9,22 @@ import type { ShipmentRow } from "@/lib/types/marketplace";
 
 function getStatusLabel(status: string | null | undefined) {
   switch (status) {
-    case "label_created":
-      return "Etiqueta creada";
-    case "ready_to_ship":
-      return "Lista para enviar";
-    case "dispatched":
-      return "Enviado";
+    case "draft":
+      return "Pendiente de preparación";
+    case "quoted":
+      return "Envío calculado";
+    case "label_pending":
+      return "Etiqueta pendiente";
+    case "label_ready":
+      return "Etiqueta lista";
+    case "in_transit":
+      return "En tránsito";
     case "delivered":
       return "Entregado";
+    case "failed":
+      return "Error en el envío";
     case "cancelled":
       return "Cancelado";
-    case "manual_pending":
-      return "Pendiente de preparación";
     default:
       return status || "Pendiente";
   }
@@ -36,6 +40,10 @@ export function ShipmentStatusCard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localShipment, setLocalShipment] = useState(shipment);
+  const canRequestLabel =
+    Boolean(canCreateLabel) &&
+    !localShipment.label_url &&
+    ["draft", "quoted", "label_pending"].includes(String(localShipment.status));
 
   async function handleCreateLabel() {
     setLoading(true);
@@ -91,7 +99,7 @@ export function ShipmentStatusCard({
               <a href={localShipment.label_url} target="_blank" rel="noreferrer">Descargar etiqueta</a>
             </Button>
           ) : null}
-          {canCreateLabel && !localShipment.label_url ? (
+          {canRequestLabel ? (
             <Button size="sm" onClick={handleCreateLabel} disabled={loading}>
               {loading ? "Creando..." : "Crear etiqueta"}
             </Button>
