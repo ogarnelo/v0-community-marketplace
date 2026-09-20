@@ -86,7 +86,7 @@ export function ConversationDonationCard({
 
       {isRequester && localStatus === "approved" ? (
         <p className="mt-3 text-xs text-slate-600">
-          La donación ha sido aceptada. Puedes usar este chat para cerrar la entrega en mano o el envío.
+          La donación ha sido aceptada. Puedes usar este chat para acordar la entrega directamente.
         </p>
       ) : null}
     </div>

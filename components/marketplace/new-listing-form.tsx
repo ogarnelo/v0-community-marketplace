@@ -400,7 +400,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
           <p className="text-sm font-medium text-primary">Nuevo anuncio</p>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-4xl">Sube tu anuncio</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Completa lo imprescindible y Wetudy adaptará los detalles según la categoría. Sin pagos ni envíos integrados por ahora.
+            Completa lo imprescindible y Wetudy adaptará los detalles según la categoría. La entrega y el pago se acuerdan directamente entre las partes.
           </p>
         </div>
 

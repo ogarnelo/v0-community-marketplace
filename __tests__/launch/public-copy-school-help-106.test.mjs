@@ -64,6 +64,16 @@ test("about and help avoid launch-only language and explain school capabilities"
   assert.doesNotMatch(terms, /flujo de lanzamiento actual|lanzamiento inicial/);
 });
 
+test("publication and donation copy keep delivery direct and stable", () => {
+  const newListingForm = read("components/marketplace/new-listing-form.tsx");
+  const donationCard = read("components/messages/conversation-donation-card.tsx");
+
+  assert.match(newListingForm, /La entrega y el pago se acuerdan directamente entre las partes\./);
+  assert.doesNotMatch(newListingForm, /por ahora|pagos ni envíos integrados/i);
+  assert.match(donationCard, /acordar la entrega directamente/);
+  assert.doesNotMatch(donationCard, /entrega en mano o el envío/);
+});
+
 test("user-facing sale labels say price, not indicative price", () => {
   const mobileActions = read("components/marketplace/mobile-listing-actions.tsx");
   const agreementPanel = read("components/agreements/agreement-panel.tsx");
