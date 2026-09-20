@@ -5,8 +5,7 @@ import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SchoolAdminDashboard from "@/components/admin/school-admin-dashboard";
-import { DonationRequestsPanel, type DonationRequestAdminItem } from "@/components/admin/donation-requests-panel";
-
+import { buildSchoolDashboardMetrics } from "@/lib/admin/school-dashboard-metrics";
 
 type SchoolRow = {
   id: string;
@@ -18,39 +17,13 @@ type SchoolRow = {
   is_active: boolean | null;
 };
 
-type ListingRow = {
+type ListingMetricRow = {
   id: string;
   title: string | null;
   category: string | null;
-  grade_level: string | null;
-  price: number | null;
-  original_price: number | null;
-  estimated_retail_price: number | null;
   isbn: string | null;
-  type: string | null;
   status: string | null;
-  condition: string | null;
-  seller_id: string | null;
-  school_id: string | null;
-  created_at: string;
-};
-
-type ProfileRow = {
-  id: string;
-  full_name: string | null;
-  school_id: string | null;
-  user_type: string | null;
-  grade_level: string | null;
-};
-
-type ReportRow = {
-  id: string;
-  target_type: "listing" | "conversation";
-  listing_id: string | null;
-  conversation_id: string | null;
-  reason: string;
-  status: string;
-  created_at: string;
+  created_at: string | null;
 };
 
 type RoleRow = {
@@ -64,19 +37,11 @@ type SchoolAccessCodeRow = {
   created_at: string;
 };
 
-type SchoolAdminRoleRow = {
-  user_id: string;
-  role: string;
-  school_id: string | null;
+type ListingViewMetricRow = {
+  viewed_at: string | null;
 };
 
-type ListingViewRow = {
-  listing_id: string;
-  viewed_at: string;
-};
-
-type AgreementRow = {
-  id: string;
+type AgreementMetricRow = {
   listing_id: string | null;
   agreement_type: string | null;
   status: string | null;
@@ -99,19 +64,6 @@ type ImpactDeliveryRow = {
   period_label: string;
   source: "manual" | "cron";
   sent_at: string;
-};
-
-type DonationRequestRow = {
-  id: string;
-  listing_id: string | null;
-  requester_id: string | null;
-  assigned_to_requester_id: string | null;
-  approved_by_admin_id: string | null;
-  status: string | null;
-  note: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  school_id: string | null;
 };
 
 export default async function SchoolAdminPage() {
@@ -139,18 +91,15 @@ export default async function SchoolAdminPage() {
     if (isSuperAdmin) {
       redirect("/admin/super");
     }
-
     redirect("/");
   }
 
   const [
     { data: school },
     { data: listings },
-    { data: members },
-    { data: reports },
+    { count: membersCount },
     { data: accessCodes },
-    { data: schoolAdminRoles },
-    { data: donationRequests },
+    { count: schoolAdminsCount },
     { data: agreements },
     { data: impactSubscription },
     { data: impactDeliveries },
@@ -162,21 +111,14 @@ export default async function SchoolAdminPage() {
       .maybeSingle<SchoolRow>(),
     adminSupabase
       .from("listings")
-      .select("id, title, category, grade_level, price, original_price, estimated_retail_price, isbn, type, status, condition, seller_id, school_id, created_at")
+      .select("id, title, category, isbn, status, created_at")
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
-      .returns<ListingRow[]>(),
+      .returns<ListingMetricRow[]>(),
     adminSupabase
       .from("profiles")
-      .select("id, full_name, school_id, user_type, grade_level")
-      .eq("school_id", effectiveSchoolId)
-      .returns<ProfileRow[]>(),
-    adminSupabase
-      .from("reports")
-      .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
-      .eq("target_type", "listing")
-      .order("created_at", { ascending: false })
-      .returns<ReportRow[]>(),
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", effectiveSchoolId),
     adminSupabase
       .from("school_access_codes")
       .select("code, is_active, created_at")
@@ -186,22 +128,15 @@ export default async function SchoolAdminPage() {
       .returns<SchoolAccessCodeRow[]>(),
     adminSupabase
       .from("user_roles")
-      .select("user_id, role, school_id")
+      .select("user_id", { count: "exact", head: true })
       .eq("school_id", effectiveSchoolId)
-      .eq("role", "school_admin")
-      .returns<SchoolAdminRoleRow[]>(),
-    adminSupabase
-      .from("donation_requests")
-      .select("id, listing_id, requester_id, assigned_to_requester_id, approved_by_admin_id, status, note, created_at, updated_at, school_id")
-      .eq("school_id", effectiveSchoolId)
-      .order("created_at", { ascending: false })
-      .returns<DonationRequestRow[]>(),
+      .eq("role", "school_admin"),
     adminSupabase
       .from("agreements")
-      .select("id, listing_id, agreement_type, status, amount, confirmed_at, created_at")
+      .select("listing_id, agreement_type, status, amount, confirmed_at, created_at")
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
-      .returns<AgreementRow[]>(),
+      .returns<AgreementMetricRow[]>(),
     adminSupabase
       .from("school_impact_report_subscriptions")
       .select("enabled, email, day_of_month, last_sent_month")
@@ -212,73 +147,50 @@ export default async function SchoolAdminPage() {
       .from("school_impact_report_deliveries")
       .select("id, email, period_key, period_label, source, sent_at")
       .eq("school_id", effectiveSchoolId)
+      .eq("user_id", user.id)
       .order("sent_at", { ascending: false })
       .limit(12)
       .returns<ImpactDeliveryRow[]>(),
   ]);
 
-  const safeListings = (listings || []) as ListingRow[];
-  const safeMembers = (members || []) as ProfileRow[];
-  const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
-  const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
-  const safeReports = (reports || []) as ReportRow[];
-  const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
-  const safeAgreements = (agreements || []) as AgreementRow[];
-
   if (school?.is_active === false && !isSuperAdmin) {
     redirect("/");
   }
 
-  const listingIds = safeListings.map((item) => item.id);
+  const safeListings = (listings || []) as ListingMetricRow[];
+  const safeAgreements = (agreements || []) as AgreementMetricRow[];
+  const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
+  const listingIds = safeListings.map((listing) => listing.id);
 
-  const { data: listingViews } =
+  const [{ data: listingViews }, { count: openReports }] =
     listingIds.length > 0
-      ? await adminSupabase
-        .from("listing_views")
-        .select("listing_id, viewed_at")
-        .in("listing_id", listingIds)
-        .order("viewed_at", { ascending: false })
-        .returns<ListingViewRow[]>()
-      : { data: [] as ListingViewRow[] };
+      ? await Promise.all([
+          adminSupabase
+            .from("listing_views")
+            .select("viewed_at")
+            .in("listing_id", listingIds)
+            .order("viewed_at", { ascending: false })
+            .returns<ListingViewMetricRow[]>(),
+          adminSupabase
+            .from("reports")
+            .select("id", { count: "exact", head: true })
+            .eq("target_type", "listing")
+            .in("listing_id", listingIds)
+            .in("status", ["open", "reviewing"]),
+        ])
+      : [
+          { data: [] as ListingViewMetricRow[] },
+          { count: 0 },
+        ];
 
-  const safeListingViews = (listingViews || []) as ListingViewRow[];
-  const safeListingReports = safeReports.filter((report) =>
-    safeListings.some((listing) => listing.id === report.listing_id)
-  );
-
-  const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
-  const schoolAdmins = safeMembers.filter((member) => schoolAdminIds.includes(member.id));
-
-  const requesterIds = Array.from(
-    new Set(
-      safeDonationRequests.map((request) => request.requester_id).filter((value): value is string => !!value)
-    )
-  );
-
-  const requesterNameMap = new Map<string, string>();
-
-  if (requesterIds.length > 0) {
-    const { data: requesterProfiles } = await adminSupabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", requesterIds);
-
-    for (const profileRow of (requesterProfiles || []) as Array<{ id: string; full_name: string | null }>) {
-      requesterNameMap.set(profileRow.id, profileRow.full_name || "Usuario");
-    }
-  }
-
-  const listingTitleMap = new Map(safeListings.map((listing) => [listing.id, listing.title || "Anuncio sin título"]));
-
-  const pendingDonationRequests: DonationRequestAdminItem[] = safeDonationRequests.map((request) => ({
-    id: request.id,
-    listingId: request.listing_id || "",
-    listingTitle: request.listing_id ? listingTitleMap.get(request.listing_id) || "Anuncio" : "Anuncio",
-    requesterName: request.requester_id ? requesterNameMap.get(request.requester_id) || "Usuario" : "Usuario",
-    status: request.status,
-    note: request.note,
-    createdAt: request.created_at,
-  }));
+  const metrics = buildSchoolDashboardMetrics({
+    listings: safeListings,
+    agreements: safeAgreements,
+    listingViews: (listingViews || []) as ListingViewMetricRow[],
+    openReports: openReports || 0,
+    membersCount: membersCount || 0,
+    schoolAdminsCount: schoolAdminsCount || 0,
+  });
 
   const navbarUserName =
     (typeof profile?.full_name === "string" && profile.full_name.trim().length > 0
@@ -303,19 +215,12 @@ export default async function SchoolAdminPage() {
 
           <SchoolAdminDashboard
             school={school || null}
-            listings={safeListings}
-            members={safeMembers}
-            schoolAdmins={schoolAdmins}
-            reports={safeListingReports}
+            metrics={metrics}
             accessCodes={safeAccessCodes}
-            listingViews={safeListingViews}
-            agreements={safeAgreements}
             reportSubscription={impactSubscription || null}
             currentUserEmail={user.email || ""}
             reportDeliveries={(impactDeliveries || []) as ImpactDeliveryRow[]}
           />
-
-          <DonationRequestsPanel requests={pendingDonationRequests} />
         </div>
       </main>
 
