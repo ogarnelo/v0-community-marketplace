@@ -162,32 +162,34 @@ export default async function SchoolAdminPage() {
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const listingIds = safeListings.map((listing) => listing.id);
 
-  const [{ data: listingViews }, { count: openReports }] =
-    listingIds.length > 0
-      ? await Promise.all([
-          adminSupabase
-            .from("listing_views")
-            .select("viewed_at")
-            .in("listing_id", listingIds)
-            .order("viewed_at", { ascending: false })
-            .returns<ListingViewMetricRow[]>(),
-          adminSupabase
-            .from("reports")
-            .select("id", { count: "exact", head: true })
-            .eq("target_type", "listing")
-            .in("listing_id", listingIds)
-            .in("status", ["open", "reviewing"]),
-        ])
-      : [
-          { data: [] as ListingViewMetricRow[] },
-          { count: 0 },
-        ];
+  let listingViews: ListingViewMetricRow[] = [];
+  let openReports = 0;
+
+  if (listingIds.length > 0) {
+    const [viewsResult, reportsResult] = await Promise.all([
+      adminSupabase
+        .from("listing_views")
+        .select("viewed_at")
+        .in("listing_id", listingIds)
+        .order("viewed_at", { ascending: false })
+        .returns<ListingViewMetricRow[]>(),
+      adminSupabase
+        .from("reports")
+        .select("id", { count: "exact", head: true })
+        .eq("target_type", "listing")
+        .in("listing_id", listingIds)
+        .in("status", ["open", "reviewing"]),
+    ]);
+
+    listingViews = (viewsResult.data || []) as ListingViewMetricRow[];
+    openReports = reportsResult.count || 0;
+  }
 
   const metrics = buildSchoolDashboardMetrics({
     listings: safeListings,
     agreements: safeAgreements,
-    listingViews: (listingViews || []) as ListingViewMetricRow[],
-    openReports: openReports || 0,
+    listingViews,
+    openReports,
     membersCount: membersCount || 0,
     schoolAdminsCount: schoolAdminsCount || 0,
   });
