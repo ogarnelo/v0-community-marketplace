@@ -8,7 +8,7 @@ export const revalidate = 0
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const fallbackNow = new Date()
-  const seoRefresh = new Date("2026-09-18T00:00:00.000Z")
+  const seoRefresh = new Date("2026-09-20T00:00:00.000Z")
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified: seoRefresh, changeFrequency: "weekly", priority: 1 },
