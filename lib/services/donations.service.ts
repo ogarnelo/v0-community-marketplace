@@ -181,7 +181,7 @@ export async function respondToDonationFlow(params: {
         conversation_id: conversationId,
         actor_id: actorUserId,
         event_type: "approved",
-        note: "He aceptado tu solicitud de donación. Podemos cerrar por aquí la entrega en mano o el envío.",
+        note: "He aceptado tu solicitud de donación. Podemos acordar la entrega directamente por este chat.",
         status_snapshot: "approved",
       })
       .select("id")
@@ -199,7 +199,7 @@ export async function respondToDonationFlow(params: {
         requestId,
         eventType: "approved",
         status: "approved",
-        note: "He aceptado tu solicitud de donación. Podemos cerrar por aquí la entrega en mano o el envío.",
+        note: "He aceptado tu solicitud de donación. Podemos acordar la entrega directamente por este chat.",
       }),
     });
 
