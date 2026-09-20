@@ -43,20 +43,59 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes confirmar este envío." }, { status: 403 });
     }
 
+    if (shipment.status !== "in_transit") {
+      return NextResponse.json(
+        { error: "Solo puedes confirmar la entrega cuando el envío está en tránsito." },
+        { status: 409 }
+      );
+    }
+
+    const { data: payment, error: paymentError } = shipment.payment_intent_id
+      ? await adminSupabase
+          .from("payment_intents")
+          .select("id, status, metadata")
+          .eq("id", shipment.payment_intent_id)
+          .maybeSingle()
+      : { data: null, error: null };
+
+    if (paymentError) {
+      return NextResponse.json(
+        { error: paymentError.message || "No se pudo verificar el pago asociado." },
+        { status: 400 }
+      );
+    }
+
+    if (shipment.payment_intent_id && (!payment || payment.status !== "succeeded")) {
+      return NextResponse.json(
+        { error: "El pago asociado debe estar confirmado antes de cerrar el envío." },
+        { status: 409 }
+      );
+    }
+
     const now = new Date().toISOString();
-    const { error: updateError } = await adminSupabase
+    const { data: updatedShipment, error: updateError } = await adminSupabase
       .from("shipments")
       .update({
         status: "delivered",
         updated_at: now,
       })
-      .eq("id", shipmentId);
+      .eq("id", shipmentId)
+      .eq("status", "in_transit")
+      .select("id")
+      .maybeSingle();
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message || "No se pudo confirmar la entrega." }, { status: 400 });
     }
 
-    await adminSupabase.from("shipment_events").insert({
+    if (!updatedShipment) {
+      return NextResponse.json(
+        { error: "El estado del envío ha cambiado. Actualiza la conversación e inténtalo de nuevo." },
+        { status: 409 }
+      );
+    }
+
+    const { error: eventError } = await adminSupabase.from("shipment_events").insert({
       shipment_id: shipmentId,
       event_type: "delivered_confirmed",
       payload: {
@@ -65,16 +104,32 @@ export async function POST(request: Request) {
       created_at: now,
     });
 
-    if (shipment.payment_intent_id) {
-      await adminSupabase
+    if (eventError) {
+      console.error("No se pudo registrar el evento de entrega", {
+        shipmentId,
+        error: eventError,
+      });
+    }
+
+    if (payment) {
+      const { error: paymentUpdateError } = await adminSupabase
         .from("payment_intents")
         .update({
           metadata: {
+            ...(payment.metadata || {}),
             delivered_at: now,
           },
           updated_at: now,
         })
-        .eq("id", shipment.payment_intent_id);
+        .eq("id", payment.id)
+        .eq("status", "succeeded");
+
+      if (paymentUpdateError) {
+        console.error("No se pudo registrar delivered_at en el pago", {
+          paymentIntentId: payment.id,
+          error: paymentUpdateError,
+        });
+      }
     }
 
     return NextResponse.json({ ok: true });
