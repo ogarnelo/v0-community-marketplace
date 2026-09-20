@@ -45,3 +45,30 @@ test("demand dashboard is integrated into primary Super Admin shell", () => {
   assert.match(page, /Informe PDF/);
   assert.match(page, /Insights y demanda/);
 });
+
+
+test("Super Admin can subscribe to aggregate reports every 7, 15 or 30 days", () => {
+  const migration = read("supabase/migrations/20260920211000_super_admin_report_subscriptions.sql");
+  const route = read("app/api/admin/super/report-subscription/route.ts");
+  const cron = read("app/api/cron/super-admin-reports/route.ts");
+  const email = read("lib/emails/super-admin-report-email.ts");
+  const form = read("components/admin/super-admin-report-subscription-form.tsx");
+  const page = read("app/admin/super/sustainability/page.tsx");
+  const vercel = read("vercel.json");
+
+  assert.match(migration, /frequency_days in \(7, 15, 30\)/);
+  assert.match(migration, /report_format in \('pdf', 'csv', 'both'\)/);
+  assert.match(migration, /revoke all .* from anon, authenticated/);
+  assert.match(route, /ALLOWED_FREQUENCIES = new Set\(\[7, 15, 30\]\)/);
+  assert.match(route, /\.eq\("role", "super_admin"\)/);
+  assert.match(cron, /CRON_SECRET/);
+  assert.match(cron, /\.lte\("next_send_at", nowIso\)/);
+  assert.match(email, /attachments/);
+  assert.match(email, /renderSuperAdminPdf/);
+  assert.match(email, /renderSuperAdminCsv/);
+  assert.match(form, /Cada 7 días/);
+  assert.match(form, /Cada 15 días/);
+  assert.match(form, /Cada 30 días/);
+  assert.match(page, /Informe periódico por email/);
+  assert.match(vercel, /\/api\/cron\/super-admin-reports/);
+});
