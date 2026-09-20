@@ -60,9 +60,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       .maybeSingle(),
   ]);
 
-  if (!listing) {
+  if (!listing || listing.status !== "available") {
     return {
-      title: "Anuncio no encontrado",
+      title: "Anuncio no disponible | Wetudy",
+      description: "Este anuncio ya no está disponible públicamente.",
       robots: { index: false, follow: false },
     };
   }
@@ -131,6 +132,20 @@ export default async function ListingDetailPage({
   const isOwnListing = !!currentUserId && listing.seller_id === currentUserId;
   const isDonation = getListingTypeFromRow(listing as any) === "donation";
   const isAvailable = listing.status === "available";
+
+  if (!isAvailable && !isOwnListing) {
+    if (!currentUserId) notFound();
+
+    const { data: participantConversation } = await authSupabase
+      .from("conversations")
+      .select("id")
+      .eq("listing_id", listing.id)
+      .or(`buyer_id.eq.${currentUserId},seller_id.eq.${currentUserId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!participantConversation) notFound();
+  }
   const conditionText = getConditionLabel(listing.condition);
   const showIsbn = shouldShowIsbn(listing.category, listing.isbn);
 
