@@ -31,7 +31,10 @@ test("professional seller signup and publishing are disabled for MVP", () => {
   const newListing = read("app/marketplace/new/page.tsx");
 
   assert.doesNotMatch(auth, /<SelectItem value="business">/);
-  assert.match(auth, /Las cuentas de vendedor profesional no están disponibles en Wetudy\./);\n  assert.doesNotMatch(auth, /MVP|lanzamiento|más adelante|validado/i);
+  assert.match(auth, /Las cuentas de vendedor profesional no están disponibles en Wetudy\./);
+  assert.doesNotMatch(auth, /MVP|lanzamiento|más adelante|validado/i);
   assert.match(newListing, /typedProfile\?\.user_type === "business"/);
-  assert.match(newListing, /La publicación para cuentas profesionales no está disponible/);\n  assert.match(newListing, /Las cuentas profesionales no pueden publicar anuncios\./);\n  assert.doesNotMatch(newListing, /MVP|primera etapa|más adelante|validado/i);
+  assert.match(newListing, /La publicación para cuentas profesionales no está disponible/);
+  assert.match(newListing, /Las cuentas profesionales no pueden publicar anuncios\./);
+  assert.doesNotMatch(newListing, /MVP|primera etapa|más adelante|validado/i);
 });
