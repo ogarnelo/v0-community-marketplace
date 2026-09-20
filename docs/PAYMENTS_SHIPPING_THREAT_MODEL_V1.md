@@ -80,7 +80,7 @@ Controles:
 
 Bloqueo de activación:
 - Probar replays reales con Stripe CLI/sandbox.
-- Añadir idempotency key al crear Checkout Session para evitar sesiones duplicadas ante reintentos del cliente.
+- Checkout Session usa una idempotency key estable por oferta + modalidad de entrega para evitar sesiones duplicadas ante reintentos del cliente.
 
 ### Envíos antes de pago / saltos de estado
 
@@ -167,7 +167,7 @@ No activar pagos reales hasta definirlos y probarlos.
 - [x] Shipment único por pago y creación solo tras `succeeded`.
 - [x] Etiqueta solo tras pago confirmado.
 - [x] Entrega solo desde `in_transit`.
-- [ ] Idempotency key en creación de Stripe Checkout Session.
+- [x] Idempotency key en creación de Stripe Checkout Session.
 - [ ] Definir despacho manual vs. proveedor y callbacks de logística.
 - [ ] Validar tracking URL.
 - [ ] Definir Connect/merchant-of-record/payout.
