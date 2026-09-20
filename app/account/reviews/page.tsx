@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -48,9 +49,10 @@ export default async function ReviewsPage() {
     )
   );
 
+  const admin = createAdminClient();
   const [{ data: reviewersData }, { data: listingsData }] = await Promise.all([
     reviewerIds.length > 0
-      ? supabase.from("profiles").select("id, full_name").in("id", reviewerIds)
+      ? admin.from("profiles").select("id, full_name").in("id", reviewerIds)
       : Promise.resolve({ data: [] as ProfileRow[] }),
     listingIds.length > 0
       ? supabase.from("listings").select("id, title").in("id", listingIds)

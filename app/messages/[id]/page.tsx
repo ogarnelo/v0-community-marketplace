@@ -59,7 +59,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const conversationIds = safeConversations.map((c) => c.id);
 
   const { data: listings } = await supabase.from("listings").select("id, title, price, status, listing_type, type").in("id", listingIds);
-  const { data: profiles } = await supabase.from("profiles").select("id, full_name, user_type, business_name").in("id", otherUserIds);
+  const { data: profiles } = await adminSupabase.from("profiles").select("id, full_name, user_type, business_name").in("id", otherUserIds);
   const { data: latestMessages } = await supabase.from("messages").select("conversation_id, body, created_at, sender_id, attachment_name").in("conversation_id", conversationIds).order("created_at", { ascending: false });
   const { data: unreadMessages } = await supabase.from("messages").select("conversation_id").in("conversation_id", conversationIds).neq("sender_id", user.id).is("read_at", null);
   const { data: messagesDesc } = await supabase

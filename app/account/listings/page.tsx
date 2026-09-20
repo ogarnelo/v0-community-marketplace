@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
   CardContent,
@@ -41,6 +42,7 @@ export default async function MyListingsPage() {
 
   const listings = (listingsData || []) as ListingRow[];
   const listingIds = listings.map((listing) => listing.id);
+  const admin = createAdminClient();
 
   const firstPhotoMap = new Map<string, string>();
   let sellerOffers: SellerOfferItem[] = [];
@@ -71,7 +73,7 @@ export default async function MyListingsPage() {
     let profilesMap = new Map<string, ProfileRow>();
 
     if (buyerIds.length > 0) {
-      const { data: buyersData } = await supabase
+      const { data: buyersData } = await admin
         .from("profiles")
         .select("id, full_name")
         .in("id", buyerIds);

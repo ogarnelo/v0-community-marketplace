@@ -23,15 +23,6 @@ type SchoolSearchRow = {
   city: string | null;
 };
 
-type AccessCodeResult = {
-  school_id: string;
-  schools: {
-    id: string;
-    name: string;
-    city: string | null;
-  } | null;
-};
-
 export default function JoinSchoolPage() {
   const router = useRouter();
 
@@ -178,32 +169,26 @@ export default function JoinSchoolPage() {
   };
 
   const resolveSchoolFromCode = async (normalizedCode: string) => {
-    const supabase = createClient();
+    const response = await fetch("/api/schools/resolve-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: normalizedCode }),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      school?: SchoolSearchRow;
+      error?: string;
+    } | null;
 
-    const { data, error } = await supabase
-      .from("school_access_codes")
-      .select("school_id, schools(id, name, city)")
-      .eq("code", normalizedCode)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    const result = (data as AccessCodeResult | null) ?? null;
-
-    if (!result?.schools) {
+    if (!response.ok || !payload?.school) {
       throw new Error(
-        "No hemos encontrado ningún centro con ese código. Puedes revisarlo, buscar tu centro o continuar y añadirlo más tarde."
+        payload?.error ||
+          "No hemos encontrado ningún centro con ese código. Puedes revisarlo, buscar tu centro o continuar y añadirlo más tarde."
       );
     }
 
     return {
-      schoolId: result.school_id,
-      school: {
-        id: result.schools.id,
-        name: result.schools.name,
-        city: result.schools.city,
-      },
+      schoolId: payload.school.id,
+      school: payload.school,
     };
   };
 

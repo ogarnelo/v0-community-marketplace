@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,8 @@ export default async function MessagesPage() {
     .select("id, title")
     .in("id", listingIds);
 
-  const { data: profiles } = await supabase
+  const admin = createAdminClient();
+  const { data: profiles } = await admin
     .from("profiles")
     .select("id, full_name, user_type")
     .in("id", otherUserIds);
