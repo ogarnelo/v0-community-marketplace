@@ -65,6 +65,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ shipment });
   }
 
+  if (!["draft", "quoted", "label_pending"].includes(String(shipment.status))) {
+    return NextResponse.json(
+      { error: "Este envío ya no admite crear una etiqueta." },
+      { status: 409 }
+    );
+  }
+
   const [paymentResult, listingResult, buyerProfileResult] = await Promise.all([
     shipment.payment_intent_id
       ? adminSupabase.from("payment_intents").select("*").eq("id", shipment.payment_intent_id).maybeSingle()
@@ -87,6 +94,13 @@ export async function POST(request: Request) {
 
   if (!payment) {
     return NextResponse.json({ error: "No se encontró el pago asociado." }, { status: 404 });
+  }
+
+  if (payment.status !== "succeeded") {
+    return NextResponse.json(
+      { error: "El pago debe estar confirmado antes de crear la etiqueta." },
+      { status: 409 }
+    );
   }
 
   if (!hasCompleteShippingAddress(buyerProfile)) {
@@ -120,7 +134,7 @@ export async function POST(request: Request) {
       .update({
         provider: "sendcloud",
         provider_shipment_id: created.providerShipmentId,
-        status: created.labelUrl ? "label_created" : "ready_to_ship",
+        status: created.labelUrl ? "label_ready" : "label_pending",
         service_code: created.serviceName || null,
         tracking_code: created.trackingCode,
         tracking_url: created.trackingUrl,
@@ -146,7 +160,7 @@ export async function POST(request: Request) {
       .from("shipments")
       .update({
         provider: "manual",
-        status: "manual_pending",
+        status: "label_pending",
         payload: {
           mode: "manual_fallback",
           reason: "sendcloud_error",
