@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Operación no encontrada." }, { status: 404 });
     }
 
-    if (payment.status !== "paid") {
+    if (payment.status !== "succeeded") {
       return NextResponse.json({ error: "Solo puedes valorar operaciones pagadas." }, { status: 400 });
     }
 
