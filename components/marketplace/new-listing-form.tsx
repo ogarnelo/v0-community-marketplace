@@ -295,7 +295,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
     return `${description.trim()}\n\nDetalles del material:\n${details.map((detail) => `- ${detail}`).join("\n")}`;
   };
 
-  const uploadListingPhotos = async (listingId: string, files: PreviewFile[]) => {
+  const uploadListingPhotos = async (listingId: string, userId: string, files: PreviewFile[]) => {
     const supabase = createClient();
     const uploadedPhotoRows: ListingPhotoInsertPayload[] = [];
 
@@ -303,7 +303,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
       const file = files[index].file;
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const safeName = sanitizeFileName(file.name);
-      const filePath = `${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+      const filePath = `${userId}/${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
       const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { cacheControl: "3600", upsert: false });
       if (uploadError) throw uploadError;
 
@@ -341,7 +341,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
       const effectiveSchoolId = currentProfile?.school_id && currentProfile.school_id.trim().length > 0 ? currentProfile.school_id : initialSchoolId || null;
       const listingId = crypto.randomUUID();
-      const uploadedPhotoRows = await uploadListingPhotos(listingId, photos);
+      const uploadedPhotoRows = await uploadListingPhotos(listingId, user.id, photos);
       const photoUrls = uploadedPhotoRows.map((photo) => photo.url);
       if (photoUrls.length === 0) throw new Error("Debes añadir al menos una foto real del material.");
 
