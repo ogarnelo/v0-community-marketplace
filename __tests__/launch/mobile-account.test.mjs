@@ -9,6 +9,8 @@ test("account page exposes app-like mobile actions", () => {
   for (const label of ["Publicar", "Mis anuncios", "Mensajes", "Favoritos", "Mis acuerdos", "Soporte"]) {
     assert.match(accountPage, new RegExp(label));
   }
+  assert.match(accountPage, /Actividad reciente/);
+  assert.doesNotMatch(accountPage, /Actividad MVP/);
 
   assert.match(accountPage, /grid-cols-2/);
   assert.match(accountPage, /lg:grid-cols-6/);
