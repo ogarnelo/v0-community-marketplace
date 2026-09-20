@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SchoolManagementActions } from "@/components/admin/school-management-actions";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { ArrowLeft, School } from "lucide-react";
 
 
@@ -51,6 +54,7 @@ export default async function SuperAdminSchoolsPage() {
 
   if (superAdminRoleError || !superAdminRoles?.length) redirect("/");
 
+  const navbarData = await getNavbarData(supabase);
   const admin = createAdminClient();
   const [schoolsResult, profilesResult, listingsResult, requestsResult] = await Promise.all([
     admin.from("schools").select("id, name, city, region, school_type, is_active").order("name", { ascending: true }).returns<SchoolRow[]>(),
@@ -93,7 +97,9 @@ export default async function SuperAdminSchoolsPage() {
   const activeCount = schools.filter((school) => school.is_active !== false).length;
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="flex min-h-screen flex-col bg-muted/20">
+      <Navbar {...navbarData} />
+      <main className="flex-1">
       <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -169,6 +175,8 @@ export default async function SuperAdminSchoolsPage() {
           </div>
         )}
       </div>
+      </main>
+      <Footer />
     </div>
   );
 }
