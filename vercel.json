@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/school-impact-reports",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/super-admin-reports",
+      "schedule": "30 6 * * *"
     }
   ]
 }
