@@ -16,6 +16,8 @@ import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { SuperAdminReportSubscriptionForm } from "@/components/admin/super-admin-report-subscription-form";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import {
   loadSuperAdminReport,
@@ -55,10 +57,18 @@ export default async function SuperAdminSustainabilityPage({
 
   const query = await searchParams;
   const range = normalizeSuperAdminRange(query.range);
-  const [navbarData, report] = await Promise.all([
+  const admin = createAdminClient();
+  const [navbarData, report, subscriptionResult] = await Promise.all([
     getNavbarData(supabase),
     loadSuperAdminReport(range),
+    admin
+      .from("super_admin_report_subscriptions")
+      .select("email, enabled, frequency_days, report_range, report_format, last_sent_at, next_send_at")
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
+
+  const subscription = subscriptionResult.error ? null : subscriptionResult.data;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -191,6 +201,31 @@ export default async function SuperAdminSustainabilityPage({
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Informe periódico por email</CardTitle>
+              <CardDescription>
+                Elige cada 7, 15 o 30 días, el rango de datos y si quieres PDF, CSV o ambos.
+                {subscription?.last_sent_at
+                  ? ` Último envío: ${new Intl.DateTimeFormat("es-ES", {
+                      timeZone: "Europe/Madrid",
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(subscription.last_sent_at))}.`
+                  : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SuperAdminReportSubscriptionForm
+                initialEmail={subscription?.email || user.email || ""}
+                initialEnabled={subscription?.enabled === true}
+                initialFrequencyDays={subscription?.frequency_days || 30}
+                initialRange={subscription?.report_range || range}
+                initialFormat={subscription?.report_format || "both"}
+              />
+            </CardContent>
+          </Card>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
