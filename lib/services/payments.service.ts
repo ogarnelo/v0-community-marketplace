@@ -114,7 +114,7 @@ export async function createPaymentIntentDraft(params: {
   }
 
   const now = new Date().toISOString();
-  const paymentStatus = quote.deliveryMethod === "shipping" ? "requires_shipping_quote" : "requires_payment_method";
+  const paymentStatus = "requires_payment_method";
 
   const { data: paymentIntent, error } = await supabase
     .from("payment_intents")
