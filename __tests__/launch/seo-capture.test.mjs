@@ -23,5 +23,6 @@ test("SEO capture stays out of disallowed scope", () => {
 
 test("sitemap stays fresh and only includes available listings", () => {
   assert.match(sitemap, /export const revalidate = 0/);
+  assert.match(sitemap, /2026-09-20T00:00:00\.000Z/);
   assert.match(sitemap, /\.eq\("status", "available"\)/);
 });
