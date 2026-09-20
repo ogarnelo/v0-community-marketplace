@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle2, LockKeyhole } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 
 type HelpContactFormProps = {
   initialName?: string;
@@ -22,14 +21,31 @@ export function HelpContactForm({
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [name, setName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
   const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage("");
 
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
     const normalizedMessage = message.trim();
+
+    if (normalizedName.length < 2) {
+      setErrorMessage("Indica tu nombre.");
+      setLoading(false);
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setErrorMessage("Indica un email válido para poder responderte.");
+      setLoading(false);
+      return;
+    }
 
     if (normalizedMessage.length < 10) {
       setErrorMessage("Describe tu consulta con un poco más de detalle.");
@@ -41,7 +57,12 @@ export function HelpContactForm({
       const response = await fetch("/api/support/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: normalizedMessage }),
+        body: JSON.stringify({
+          name: normalizedName,
+          email: normalizedEmail,
+          message: normalizedMessage,
+          website,
+        }),
       });
 
       const payload = await response.json().catch(() => ({}));
@@ -57,25 +78,6 @@ export function HelpContactForm({
       setLoading(false);
     }
   };
-
-  if (!isLoggedIn) {
-    return (
-      <div className="rounded-xl border border-border bg-muted/30 p-5">
-        <div className="flex items-start gap-3">
-          <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <p className="font-medium text-foreground">Inicia sesión para contactar con soporte</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Así podemos asociar la consulta a una cuenta real y reducir el spam automatizado.
-            </p>
-            <Button asChild className="mt-4">
-              <Link href="/auth?next=/help">Iniciar sesión</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (submitted) {
     return (
@@ -95,14 +97,43 @@ export function HelpContactForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="name">Nombre</Label>
-          <Input id="name" value={initialName} readOnly className="bg-muted/40" />
+          <Label htmlFor="name">Nombre *</Label>
+          <Input
+            id="name"
+            value={name}
+            readOnly={isLoggedIn}
+            required
+            maxLength={120}
+            onChange={(event) => setName(event.target.value)}
+            className={isLoggedIn ? "bg-muted/40" : undefined}
+          />
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" value={initialEmail} readOnly className="bg-muted/40" />
+          <Label htmlFor="email">Email *</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            readOnly={isLoggedIn}
+            required
+            maxLength={254}
+            onChange={(event) => setEmail(event.target.value)}
+            className={isLoggedIn ? "bg-muted/40" : undefined}
+          />
         </div>
+      </div>
+
+      <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+        <Label htmlFor="website">Web</Label>
+        <Input
+          id="website"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(event) => setWebsite(event.target.value)}
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -117,7 +148,9 @@ export function HelpContactForm({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">Máximo 4000 caracteres.</p>
+        <p className="text-xs text-muted-foreground">
+          Puedes escribirnos aunque todavía no tengas una cuenta. Máximo 4000 caracteres.
+        </p>
       </div>
 
       {errorMessage ? (

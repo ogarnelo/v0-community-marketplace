@@ -37,8 +37,8 @@ export function HeroSection() {
             </Link>
           </div>
 
-          <div className="mx-auto mt-10 grid max-w-sm gap-5 text-sm text-muted-foreground sm:mt-12 sm:max-w-none sm:grid-cols-3 sm:gap-8">
-            <div className="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-left">
+          <div className="mx-auto mt-10 grid max-w-sm justify-items-center gap-5 text-sm text-muted-foreground sm:mt-12 sm:max-w-none sm:grid-cols-3 sm:justify-items-stretch sm:gap-8">
+            <div className="grid w-fit grid-cols-[2.5rem_1fr] items-center gap-3 text-left sm:w-auto">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                 <Users className="h-5 w-5 text-primary" />
               </div>
@@ -47,7 +47,7 @@ export function HeroSection() {
                 <p className="text-xs">familias y centros</p>
               </div>
             </div>
-            <div className="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-left">
+            <div className="grid w-fit grid-cols-[2.5rem_1fr] items-center gap-3 text-left sm:w-auto">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10">
                 <Leaf className="h-5 w-5 text-secondary" />
               </div>
@@ -56,7 +56,7 @@ export function HeroSection() {
                 <p className="text-xs">menos gasto y residuos</p>
               </div>
             </div>
-            <div className="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-left">
+            <div className="grid w-fit grid-cols-[2.5rem_1fr] items-center gap-3 text-left sm:w-auto">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                 <MapPin className="h-5 w-5 text-primary" />
               </div>
