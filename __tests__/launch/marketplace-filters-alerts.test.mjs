@@ -45,6 +45,7 @@ test("marketplace adds publication date checkboxes", () => {
 
 test("saved search UI stays MVP scoped", () => {
   assert.match(marketplace, /Avísame si aparece/);
-  assert.match(marketplace, /Búsqueda guardada\. Te avisaremos si aparece un anuncio compatible\./);\n  assert.doesNotMatch(marketplace, /activar las notificaciones|No enviaremos emails/);
+  assert.match(marketplace, /Búsqueda guardada\. Te avisaremos si aparece un anuncio compatible\./);
+  assert.doesNotMatch(marketplace, /activar las notificaciones|No enviaremos emails/);
   assert.doesNotMatch(marketplace, /checkout|Correos|Apple Pay|intercambio/i);
 });
