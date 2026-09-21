@@ -108,19 +108,18 @@ Cuando se retire, restrinja o suspenda contenido/cuenta por ilegalidad o incompa
 
 En el MVP no existe todavía una acción única de moderación que retire contenido y envíe automáticamente esa exposición de motivos. Hasta automatizarla, esta comunicación debe formar parte del procedimiento manual de moderación.
 
-## Menores — RIESGO A VALIDAR CON ASESORÍA
+## Menores — MEDIDA DE MVP ADOPTADA
 
-Wetudy admite perfiles de estudiante y no recopila actualmente fecha de nacimiento.
+Wetudy admite perfiles de estudiante, pero no recopila fecha de nacimiento.
 
-La normativa española permite determinadas actuaciones de menores según edad y madurez y establece reglas específicas cuando el consentimiento es la base del tratamiento de datos. Además, los contratos sobre bienes y servicios de la vida corriente pueden depender de edad, circunstancias y usos sociales.
+Para reducir el riesgo del MVP se fija una regla operativa clara:
 
-Medidas incluidas:
+- las cuentas de estudiante requieren confirmar 14 años o más;
+- menores de 14 años no deben crear cuenta propia y deben usar el servicio a través de su familia o representante cuando corresponda;
+- estudiantes menores de 18 años deben contar con supervisión o intervención familiar cuando sea necesaria por la naturaleza del acuerdo;
+- no se deben publicar datos o imágenes de otros menores que no sean necesarios.
 
-- lenguaje adaptado y supervisión/intervención familiar cuando resulte necesaria;
-- advertencia de no publicar datos o imágenes de otros menores;
-- aclaración sobre consentimiento para tratamientos concretos de menores de 14 años cuando esa sea la base jurídica.
-
-Antes de dirigir campañas específicamente a menores o ampliar operaciones de mayor importe/riesgo, debe validarse con asesoría si conviene fijar una edad mínima, exigir autorización parental verificable o limitar determinadas acciones a adultos.
+Esta medida cubre el umbral español de consentimiento de protección de datos, pero no sustituye la revisión externa de capacidad contractual de menores según cada operación. Antes de dirigir campañas específicamente a menores o ampliar operaciones de mayor importe/riesgo, debe revisarse de nuevo el modelo.
 
 ## Usuarios profesionales / consumo — DECISIÓN DE PRODUCTO PENDIENTE
 
