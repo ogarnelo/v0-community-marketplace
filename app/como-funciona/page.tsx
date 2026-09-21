@@ -5,6 +5,10 @@ import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 import { CheckCircle2, MessageCircle, Search, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { createClient } from "@/lib/supabase/server";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 
 export const metadata = buildPublicMetadata({
   title: "Cómo funciona Wetudy",
@@ -24,16 +28,19 @@ const sellerSteps = [
   "Cuando lo tengáis claro, confirmad el acuerdo y valorad la experiencia.",
 ];
 
-export default function HowItWorksPage() {
+export default async function HowItWorksPage() {
+  const supabase = await createClient();
+  const navbarData = await getNavbarData(supabase);
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: "Wetudy", path: "/" },
     { name: "Cómo funciona", path: "/como-funciona" },
   ]);
 
   return (
-    <>
+    <div className="flex min-h-screen flex-col bg-background">
       <JsonLd data={breadcrumbJsonLd} />
-      <main className="mx-auto max-w-5xl px-4 py-10 lg:px-8">
+      <Navbar {...navbarData} />
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 lg:px-8">
       <section className="text-center">
         <p className="text-sm font-semibold text-primary">Cómo funciona</p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">Reutilizar material escolar sin complicarlo</h1>
@@ -87,6 +94,7 @@ export default function HowItWorksPage() {
         <Button asChild size="lg" variant="outline"><Link href="/marketplace/new">Publicar anuncio</Link></Button>
       </div>
       </main>
-    </>
+      <Footer />
+    </div>
   );
 }
