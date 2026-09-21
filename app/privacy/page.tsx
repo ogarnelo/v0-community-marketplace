@@ -162,13 +162,12 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold">Menores de edad</h2>
             <p className="mt-2">
-              Wetudy puede ser utilizado por estudiantes. Los menores deben utilizar
-              el servicio de forma adecuada a su edad y con el conocimiento,
-              acompañamiento o autorización de sus progenitores o representantes
-              cuando resulte necesario. Si un tratamiento concreto se basa en el
-              consentimiento y la persona es menor de catorce años, dicho
-              consentimiento deberá proceder de quien ejerza la patria potestad o
-              tutela conforme a la normativa aplicable.
+              Wetudy permite cuentas de estudiante a partir de los 14 años. Las
+              personas menores de 14 años no deben crear una cuenta propia; el uso
+              del servicio debe realizarse a través de su familia o representante
+              cuando corresponda. Los estudiantes menores de 18 años deben utilizar
+              el servicio con supervisión o intervención familiar cuando resulte
+              necesaria según la naturaleza del acuerdo.
             </p>
             <p className="mt-2">
               No publiques datos personales de otros menores, fotografías que
