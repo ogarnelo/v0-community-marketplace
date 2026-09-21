@@ -88,8 +88,8 @@ La Política de privacidad se presenta como información, no como consentimiento
 Se incorpora un canal electrónico público en:
 
 - /legal/notificar-contenido
-- enlace permanente en footer;
-- enlace próximo al botón de reporte del anuncio.
+- enlace dentro de Términos de uso;
+- enlace contextual próximo al botón de reporte del anuncio.
 
 El flujo permite:
 
