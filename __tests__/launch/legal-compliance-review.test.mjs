@@ -33,6 +33,8 @@ test("signup accepts terms while privacy remains informational", () => {
   const auth = read("components/auth/auth-form.tsx");
 
   assert.match(auth, /acceptedTerms/);
+  assert.match(auth, /studentAgeConfirmed/);
+  assert.match(auth, /14 años o más/);
   assert.match(auth, /Acepto los/);
   assert.match(auth, /confirmo que he leído la/);
   assert.match(auth, /\/terms/);
