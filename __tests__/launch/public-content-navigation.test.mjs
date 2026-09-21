@@ -4,9 +4,9 @@ import test from "node:test";
 
 const footer = readFileSync("components/footer.tsx", "utf8");
 
-test("public SEO landings are discoverable from the site footer", () => {
+test("SEO landings stay out of global navigation while remaining public", () => {
   for (const href of ["/como-funciona", "/vende-tus-libros", "/blog"]) {
-    assert.ok(footer.includes(`href="${href}"`));
+    assert.ok(!footer.includes(`href="${href}"`));
   }
 });
 
