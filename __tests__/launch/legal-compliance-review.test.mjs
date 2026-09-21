@@ -57,8 +57,10 @@ test("illegal-content notices are public, noindex and server-gated", () => {
   assert.match(route, /kind: "illegal_content_notice"/);
   assert.match(migration, /identity_omitted/);
   assert.match(migration, /alter column name drop not null/);
-  assert.match(footer, /\/legal\/notificar-contenido/);
+  assert.doesNotMatch(footer, /\/legal\/notificar-contenido/);
   assert.match(listingReport, /notificación legal sin iniciar sesión/);
+  const terms = read("app/terms/page.tsx");
+  assert.match(terms, /\/legal\/notificar-contenido/);
 });
 
 test("legal audit keeps unresolved identity and moderation workflow explicit", () => {
