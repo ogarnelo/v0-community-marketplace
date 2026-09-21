@@ -107,6 +107,7 @@ export function AuthForm() {
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
 
@@ -273,6 +274,11 @@ export function AuthForm() {
 
     if (!/^[0-9]{5}$/.test(normalizedPostalCode)) {
       setError("Debes indicar un código postal válido de 5 dígitos.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("Debes aceptar los Términos de uso y confirmar que has leído la Política de privacidad.");
       return;
     }
 
@@ -653,6 +659,27 @@ export function AuthForm() {
               <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
                 Al crear tu cuenta, te enviaremos un email de confirmación. Tendrás que abrir el enlace para activar tu cuenta. Si no lo ves en unos minutos, revisa también la carpeta de Spam o Correo no deseado.
               </div>
+
+              <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  required
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  checked={acceptedTerms}
+                  onChange={(event) => setAcceptedTerms(event.target.checked)}
+                />
+                <span>
+                  Acepto los{" "}
+                  <a className="font-medium text-primary hover:underline" href="/terms" target="_blank" rel="noreferrer">
+                    Términos de uso
+                  </a>{" "}
+                  y confirmo que he leído la{" "}
+                  <a className="font-medium text-primary hover:underline" href="/privacy" target="_blank" rel="noreferrer">
+                    Política de privacidad
+                  </a>
+                  . Si soy menor, utilizaré Wetudy con la supervisión o intervención de mi familia o representante cuando resulte necesaria.
+                </span>
+              </label>
             </>
           )}
 
