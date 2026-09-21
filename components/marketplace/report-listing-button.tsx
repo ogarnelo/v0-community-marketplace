@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react"\nimport Link from "next/link";
+import { useState } from "react"
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
