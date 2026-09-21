@@ -77,7 +77,21 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">5. Publicaciones</h2>
+            <h2 className="text-lg font-semibold">5. Resumen para estudiantes menores</h2>
+            <p className="mt-2">
+              Si tienes entre 14 y 17 años, utiliza Wetudy con estas reglas básicas:
+              no compartas tu dirección, teléfono u otros datos personales
+              innecesarios; no quedes a solas con desconocidos para entregar o
+              recoger material; pide ayuda a tu familia o representante para
+              cualquier acuerdo que implique dinero, una entrega presencial o una
+              situación que te genere dudas; y utiliza las herramientas de reporte
+              si alguien te incomoda o intenta llevar la conversación fuera del
+              propósito de Wetudy.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold">6. Publicaciones</h2>
             <p className="mt-2">
               Quien publica debe describir el artículo de forma razonablemente fiel,
               utilizar imágenes que pueda legítimamente publicar e indicar de forma
@@ -92,7 +106,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">6. Acuerdos entre usuarios</h2>
+            <h2 className="text-lg font-semibold">7. Acuerdos entre usuarios</h2>
             <p className="mt-2 font-medium">
               La entrega y el pago se acuerdan directamente entre las partes.
             </p>
@@ -110,19 +124,36 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">7. Usuarios que actúan profesionalmente</h2>
+            <h2 className="text-lg font-semibold">8. Uso particular y comunitario</h2>
             <p className="mt-2">
-              Wetudy está orientado principalmente a la reutilización comunitaria de
-              material escolar. Si una persona utiliza el servicio en el marco de
-              una actividad empresarial o profesional, es responsable de
-              identificarse y de cumplir las obligaciones fiscales, de consumo,
-              información y demás normas que le resulten aplicables. Wetudy podrá
-              revisar o limitar usos profesionales incompatibles con el servicio.
+              En el lanzamiento actual Wetudy está destinado a particulares,
+              familias, estudiantes y comunidades educativas que reutilizan material
+              escolar de forma ocasional. No se permite utilizar el servicio como
+              canal habitual de venta en el marco de una actividad empresarial o
+              profesional. Wetudy podrá retirar publicaciones o limitar cuentas
+              cuando detecte un uso profesional o comercial incompatible con este
+              alcance.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">8. Centros educativos y comunidad</h2>
+            <h2 className="text-lg font-semibold">9. Ordenación y búsqueda de anuncios</h2>
+            <p className="mt-2">
+              Por defecto, el marketplace muestra primero los anuncios más recientes.
+              El usuario puede cambiar la ordenación utilizando criterios disponibles
+              en la interfaz, como distancia aproximada, precio o diferencia respecto
+              al precio original. Los filtros de búsqueda pueden limitar los
+              resultados por categoría, curso, tipo de anuncio, estado, ISBN, precio
+              u otros campos disponibles.
+            </p>
+            <p className="mt-2">
+              Wetudy no ofrece actualmente posiciones de pago, anuncios patrocinados
+              ni ventajas de clasificación compradas por quien publica.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold">10. Centros educativos y comunidad</h2>
             <p className="mt-2">
               La vinculación o alta de un centro sirve como referencia comunitaria y
               está sujeta a validación cuando corresponda. Ser administrador de un
@@ -132,7 +163,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">9. Moderación y reportes</h2>
+            <h2 className="text-lg font-semibold">11. Moderación y reportes</h2>
             <p className="mt-2">
               Los usuarios pueden reportar anuncios, conversaciones o incidencias.
               Wetudy podrá revisar contenido y, cuando sea necesario y
@@ -149,7 +180,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">10. Contenido presuntamente ilícito</h2>
+            <h2 className="text-lg font-semibold">12. Contenido presuntamente ilícito</h2>
             <p className="mt-2">
               Cualquier persona o entidad puede utilizar el{" "}
               <Link
@@ -172,7 +203,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">11. Propiedad intelectual</h2>
+            <h2 className="text-lg font-semibold">13. Propiedad intelectual</h2>
             <p className="mt-2">
               Conservas los derechos que te correspondan sobre los textos y
               fotografías que publiques. Al subirlos con el fin de utilizar Wetudy,
@@ -188,7 +219,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">12. Valoraciones y convivencia</h2>
+            <h2 className="text-lg font-semibold">14. Valoraciones y convivencia</h2>
             <p className="mt-2">
               Las valoraciones deben reflejar una experiencia real y expresarse de
               forma respetuosa. No está permitido manipular valoraciones, utilizar
@@ -198,7 +229,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">13. Suspensión y cierre de cuenta</h2>
+            <h2 className="text-lg font-semibold">15. Suspensión y cierre de cuenta</h2>
             <p className="mt-2">
               Wetudy podrá limitar o suspender el acceso cuando existan indicios
               razonables de fraude, abuso, riesgos de seguridad, incumplimientos
@@ -222,7 +253,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">14. Disponibilidad y cambios del servicio</h2>
+            <h2 className="text-lg font-semibold">16. Disponibilidad y cambios del servicio</h2>
             <p className="mt-2">
               Podemos corregir errores, mejorar funciones, modificar o retirar
               características y realizar tareas de mantenimiento. Intentaremos evitar
@@ -232,7 +263,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">15. Responsabilidad</h2>
+            <h2 className="text-lg font-semibold">17. Responsabilidad</h2>
             <p className="mt-2">
               Cada usuario responde de la información que publica, de su conducta y
               de los acuerdos que alcance con otras personas. Wetudy no puede
@@ -248,7 +279,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">16. Privacidad</h2>
+            <h2 className="text-lg font-semibold">18. Privacidad</h2>
             <p className="mt-2">
               El tratamiento de datos personales se explica en la{" "}
               <Link className="font-medium text-primary hover:underline" href="/privacy">
@@ -259,7 +290,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">17. Ley aplicable</h2>
+            <h2 className="text-lg font-semibold">19. Ley aplicable</h2>
             <p className="mt-2">
               Estos términos se rigen por la legislación española, sin privar a los
               consumidores de las protecciones imperativas que les correspondan. Las
@@ -270,7 +301,20 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold">18. Cambios y contacto</h2>
+            <h2 className="text-lg font-semibold">20. Punto de contacto y cambios</h2>
+            <p className="mt-2">
+              El punto de contacto electrónico de Wetudy para usuarios y para
+              comunicaciones relacionadas con el Reglamento de Servicios Digitales
+              es{" "}
+              <a
+                className="font-medium text-primary hover:underline"
+                href="mailto:hola@wetudy.com"
+              >
+                hola@wetudy.com
+              </a>
+              . Se atienden comunicaciones en español y, cuando sea necesario,
+              también en inglés.
+            </p>
             <p className="mt-2">
               Podemos actualizar estos términos para reflejar cambios legales,
               técnicos o del servicio. Los cambios relevantes se comunicarán de
