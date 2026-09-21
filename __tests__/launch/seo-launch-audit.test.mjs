@@ -68,9 +68,17 @@ test("blog content avoids unsupported promotional claims and has article SEO", (
 
   assert.doesNotMatch(data, /342 familias|156 articulos|15 kg de CO2|ahorrar hasta un 60%|450 kg de CO2/i);
   assert.match(data, /publishedAt/);
+  assert.match(data, /como-buscar-libros-texto-usados-isbn/);
+  assert.match(data, /como-vender-libros-texto-usados/);
+  assert.match(data, /uniformes-escolares-segunda-mano-guia/);
+  assert.match(data, /que-hacer-libros-texto-curso-anterior/);
+  assert.match(data, /material-escolar-segunda-mano-que-reutilizar/);
   assert.match(post, /generateMetadata/);
   assert.match(post, /Article/);
   assert.match(post, /canonical/);
+  assert.match(post, /También te puede interesar/);
+  assert.match(post, /formatBlogDate/);
+  assert.doesNotMatch(post, /Actualizado el 18 Sep 2026/);
   assert.doesNotMatch(blog, /Te has suscrito correctamente|handleSubscribe/);
 });
 
