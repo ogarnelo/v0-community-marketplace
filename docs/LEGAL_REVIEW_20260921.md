@@ -121,16 +121,13 @@ Para reducir el riesgo del MVP se fija una regla operativa clara:
 
 Esta medida cubre el umbral español de consentimiento de protección de datos, pero no sustituye la revisión externa de capacidad contractual de menores según cada operación. Antes de dirigir campañas específicamente a menores o ampliar operaciones de mayor importe/riesgo, debe revisarse de nuevo el modelo.
 
-## Usuarios profesionales / consumo — DECISIÓN DE PRODUCTO PENDIENTE
+## Usuarios profesionales / consumo — DECISIÓN ADOPTADA PARA EL MVP
 
 El MVP está orientado principalmente a reutilización comunitaria.
 
-Los términos obligan a quien actúe profesionalmente a cumplir sus deberes legales, pero la interfaz no clasifica todavía de forma visible a cada vendedor como particular/profesional.
+El MVP se limita a uso particular y comunitario y no permite utilizar Wetudy como canal habitual de venta empresarial o profesional. Esta decisión evita presentar el producto actual como un marketplace para vendedores profesionales sin la identificación e información precontractual específica que ese modelo exigiría.
 
-Antes de fomentar vendedores profesionales debe decidirse entre:
-
-1. limitar el MVP a particulares/entidades comunitarias; o
-2. implementar identificación de condición profesional y toda la información precontractual/consumerista que corresponda.
+Si más adelante Wetudy admite vendedores profesionales, deberá implementarse antes su identificación visible, la información precontractual aplicable y la revisión específica de consumo/marketplace.
 
 ## Cookies, analítica y seguridad
 
@@ -193,7 +190,9 @@ Antes de activar Stripe, buyer protection, wallet, retenciones o envíos integra
 - [x] Aceptación de términos en registro.
 - [x] Canal público de notificación de contenido presuntamente ilícito.
 - [x] Acuse electrónico de recepción cuando hay email.
+- [x] Punto de contacto electrónico DSA y resumen comprensible para estudiantes menores.
+- [x] Explicación pública de los criterios actuales de ordenación del marketplace.
 - [ ] Automatizar exposición de motivos cuando una acción de moderación retire/restrinja contenido.
-- [ ] Decidir política definitiva para vendedores profesionales.
+- [x] Limitar el MVP actual a uso particular/comunitario; revisar de nuevo antes de admitir vendedores profesionales.
 - [ ] Documentar internamente conservación, derechos RGPD y brechas.
 - [ ] Leaked Password Protection al migrar a Supabase Pro.
