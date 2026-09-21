@@ -15,6 +15,7 @@ import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { getAuthErrorMessage } from "@/lib/auth/error-messages";
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
 import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
+import { attributionFromSearchParams } from "@/lib/growth/attribution";
 
 const DEFAULT_TURNSTILE_SITE_KEY = "0x4AAAAAAE69ijg1KI5Aks-p";
 const TURNSTILE_SITE_KEY =
@@ -81,6 +82,14 @@ export function AuthForm() {
 
   const nextPath = useMemo(
     () => getSafeInternalPath(searchParams.get("next")),
+    [searchParams]
+  );
+
+  const signupAttribution = useMemo(
+    () =>
+      attributionFromSearchParams(searchParams, {
+        landingPath: "/auth",
+      }),
     [searchParams]
   );
 
@@ -315,6 +324,15 @@ export function AuthForm() {
             grade_level: gradeLevel,
             postal_code: normalizedPostalCode,
             wetudy_email_confirmation_required: true,
+            ...(signupAttribution
+              ? {
+                  wetudy_acquisition_source: signupAttribution.source,
+                  wetudy_acquisition_medium: signupAttribution.medium || null,
+                  wetudy_acquisition_campaign: signupAttribution.campaign || null,
+                  wetudy_acquisition_content: signupAttribution.content || null,
+                  wetudy_acquisition_landing_path: signupAttribution.landingPath || "/auth",
+                }
+              : {}),
           },
         },
       });
