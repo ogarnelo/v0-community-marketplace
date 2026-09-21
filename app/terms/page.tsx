@@ -63,11 +63,12 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold">4. Menores</h2>
             <p className="mt-2">
-              Los menores deben utilizar Wetudy de forma adecuada a su edad y con
-              conocimiento, supervisión o intervención de sus progenitores o
-              representantes cuando resulte necesario. Los acuerdos sobre bienes o
-              servicios deben ser compatibles con la capacidad que la ley reconozca
-              al menor en función de su edad y circunstancias.
+              Las cuentas de estudiante están destinadas a personas de 14 años o
+              más. Las personas menores de 14 años no deben crear una cuenta propia
+              y deberán utilizar el servicio a través de su familia o representante
+              cuando corresponda. Los estudiantes menores de 18 años deben contar
+              con supervisión o intervención familiar cuando resulte necesaria por
+              la naturaleza del acuerdo.
             </p>
             <p className="mt-2">
               No se debe publicar información personal, imágenes o datos sensibles
