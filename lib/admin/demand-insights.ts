@@ -51,3 +51,25 @@ export function buildDemandActionLabel(insight: DemandInsight) {
   if (insight.kind === "grade") return "Reforzar curso";
   return "Crear campaña";
 }
+
+
+export function buildSeoDemandOpportunities(signals: DemandSignal[]) {
+  return buildDemandInsights(signals)
+    .filter(
+      (insight) =>
+        insight.kind === "query" &&
+        insight.zeroResults > 0 &&
+        insight.searches >= 2
+    )
+    .sort((a, b) => {
+      if (b.zeroResults !== a.zeroResults) return b.zeroResults - a.zeroResults;
+      return b.searches - a.searches;
+    });
+}
+
+export function buildSeoDemandActionLabel(insight: DemandInsight) {
+  if (insight.searches >= 4 || insight.zeroResults >= 3) {
+    return "Prioridad SEO + oferta";
+  }
+  return "Validar guía / landing";
+}
