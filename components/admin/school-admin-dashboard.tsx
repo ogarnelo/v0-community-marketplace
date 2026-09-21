@@ -30,6 +30,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { appendGrowthUtm } from "@/lib/growth/attribution";
 
 type SchoolRow = {
   id: string;
@@ -351,11 +352,19 @@ export default function SchoolAdminDashboard({
     window.setTimeout(() => setCopiedCode(false), 1600);
   };
 
-  const getSchoolShareUrl = () => {
+  const getSchoolShareUrl = (medium = "share") => {
     if (!school?.id || typeof window === "undefined") return "";
     const url = new URL("/onboarding/join-school", window.location.origin);
     url.searchParams.set("school", school.id);
-    return url.toString();
+    return appendGrowthUtm(
+      url.toString(),
+      {
+        source: "school",
+        medium,
+        campaign: "school_invite",
+      },
+      window.location.origin
+    );
   };
 
   const copySchoolShareLink = async () => {
