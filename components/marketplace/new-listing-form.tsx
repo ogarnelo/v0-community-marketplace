@@ -6,6 +6,8 @@ import Link from "next/link";
 import {
   ArrowLeft,
   BookOpen,
+  CheckCircle2,
+  Circle,
   ImagePlus,
   Loader2,
   Package,
@@ -194,6 +196,27 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const showTechFields = isTechCategory(selectedCategory);
   const showBagFields = isBagCategory(selectedCategory);
   const courseRequired = isCourseRequired(selectedCategory);
+  const normalizedIsbnForQuality = isbn.replace(/[^0-9xX]/g, "");
+  const listingQualityChecks = [
+    { label: "Título descriptivo", done: title.trim().length >= 12 },
+    { label: "Descripción útil", done: description.trim().length >= 60 },
+    { label: "2 o más fotos reales", done: photos.length >= 2 },
+    ...(courseRequired
+      ? [{ label: "Curso o etapa", done: Boolean(selectedGradeLevel) }]
+      : []),
+    ...(showBookFields
+      ? [
+          {
+            label: "ISBN exacto",
+            done:
+              normalizedIsbnForQuality.length === 10 ||
+              normalizedIsbnForQuality.length === 13,
+          },
+          { label: "Editorial", done: publisher.trim().length >= 2 },
+        ]
+      : []),
+  ];
+  const listingQualityCompleted = listingQualityChecks.filter((item) => item.done).length;
 
   useEffect(() => {
     setSpecificType("");
@@ -531,6 +554,40 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
                 {!showBookFields && !showUniformFields && !showSupplyFields && !showTechFields && !showBagFields ? <p className="text-sm leading-relaxed text-muted-foreground">Usa la descripción para añadir los datos importantes. Evitamos pedir campos innecesarios para publicar más rápido.</p> : null}
               </div>
             ) : null}
+          </SectionCard>
+
+          <SectionCard
+            icon={<Sparkles className="h-5 w-5" />}
+            title="Calidad del anuncio"
+            description="Cuanta más información útil incluyas, más fácil será que otra familia encuentre y entienda tu anuncio."
+          >
+            <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {listingQualityCompleted} de {listingQualityChecks.length} recomendaciones completadas
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Son recomendaciones para mejorar búsquedas y claridad; no bloquean la publicación.
+                </p>
+              </div>
+              <span className="text-lg font-bold text-primary">
+                {Math.round((listingQualityCompleted / Math.max(1, listingQualityChecks.length)) * 100)}%
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {listingQualityChecks.map((item) => (
+                <div key={item.label} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
+                  {item.done ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  ) : (
+                    <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className={item.done ? "text-foreground" : "text-muted-foreground"}>
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </SectionCard>
 
           <SectionCard icon={<Tag className="h-5 w-5" />} title="Precio o donación" description="Elige si quieres vender el material o donarlo. El pago se acuerda directamente por chat.">
