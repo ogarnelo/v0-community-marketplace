@@ -38,6 +38,35 @@ export async function sendSupportTicketAdminEmail(params: {
   });
 }
 
+
+export async function sendIllegalContentNoticeReceiptEmail(params: {
+  to: string;
+  noticeId: string;
+  contentUrl: string;
+  idempotencyKey?: string | null;
+}) {
+  const safeUrl = params.contentUrl.trim();
+
+  return sendBrandedEmail({
+    to: params.to,
+    subject: "Hemos recibido tu notificación · Wetudy",
+    idempotencyKey: params.idempotencyKey,
+    text: `Hemos recibido tu notificación de contenido presuntamente ilícito.\n\nReferencia: ${params.noticeId}\nContenido: ${safeUrl}\n\nWetudy revisará la información facilitada y te comunicará la decisión cuando corresponda.`,
+    html: brandedEmailShell({
+      title: "Notificación recibida",
+      preview: "Wetudy ha registrado tu notificación de contenido presuntamente ilícito.",
+      footer: `Referencia ${params.noticeId} · Canal legal de Wetudy.`,
+      body: `
+        <h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${EMAIL_BRAND.text};">Notificación recibida</h1>
+        <p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${EMAIL_BRAND.text};">Hemos registrado tu notificación de contenido presuntamente ilícito.</p>
+        <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.muted};"><strong>Referencia:</strong> ${escapeEmailHtml(params.noticeId)}</p>
+        <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.muted};"><strong>Contenido:</strong> ${escapeEmailHtml(safeUrl)}</p>
+        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.text};">Wetudy revisará la información facilitada y te comunicará la decisión cuando corresponda.</p>
+      `,
+    }),
+  });
+}
+
 export async function sendSchoolRegistrationAdminEmail(params: {
   to: string;
   requestId: string;
