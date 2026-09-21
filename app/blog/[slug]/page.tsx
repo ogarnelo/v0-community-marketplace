@@ -13,6 +13,15 @@ import { SEO_ORGANIZATION_ID, SEO_SITE_URL, buildBreadcrumbJsonLd } from "@/lib/
 
 const SITE_URL = SEO_SITE_URL
 
+function formatBlogDate(date: string) {
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`))
+}
+
 export function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }))
 }
@@ -67,6 +76,13 @@ export default async function BlogPostPage({
 
   const colorClass = categoryColors[post.category] ?? "bg-primary text-primary-foreground"
   const canonical = `${SITE_URL}/blog/${post.slug}`
+  const sameCategoryPosts = posts.filter(
+    (candidate) => candidate.slug !== post.slug && candidate.category === post.category
+  )
+  const otherPosts = posts.filter(
+    (candidate) => candidate.slug !== post.slug && candidate.category !== post.category
+  )
+  const relatedPosts = [...sameCategoryPosts, ...otherPosts].slice(0, 3)
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -123,7 +139,7 @@ export default async function BlogPostPage({
               <Clock className="h-4 w-4" />
               {post.readingTime}
             </span>
-            {post.updatedAt ? <span>Actualizado el 18 Sep 2026</span> : null}
+            {post.updatedAt ? <span>Actualizado el {formatBlogDate(post.updatedAt)}</span> : null}
           </div>
 
           <div className="my-6 border-t border-border" />
@@ -135,6 +151,29 @@ export default async function BlogPostPage({
               </p>
             ))}
           </div>
+
+          <div className="my-10 border-t border-border" />
+
+          <section>
+            <h2 className="text-xl font-bold text-foreground">También te puede interesar</h2>
+            <div className="mt-4 grid gap-3">
+              {relatedPosts.map((relatedPost) => (
+                <Link
+                  key={relatedPost.slug}
+                  href={`/blog/${relatedPost.slug}`}
+                  className="rounded-xl border border-border px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
+                >
+                  <span className="text-xs font-medium text-primary">{relatedPost.category}</span>
+                  <span className="mt-1 block font-semibold text-foreground">
+                    {relatedPost.title}
+                  </span>
+                  <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
+                    {relatedPost.description}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
 
           <div className="my-10 border-t border-border" />
 
