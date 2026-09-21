@@ -107,6 +107,8 @@ export function AuthForm() {
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [studentAgeConfirmed, setStudentAgeConfirmed] = useState(false);
 
   const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
 
@@ -266,6 +268,11 @@ export function AuthForm() {
       return;
     }
 
+    if (userType === "student" && !studentAgeConfirmed) {
+      setError("Para crear una cuenta de estudiante debes confirmar que tienes 14 años o más.");
+      return;
+    }
+
     if (!gradeLevel) {
       setError("Debes seleccionar un curso o etapa.");
       return;
@@ -273,6 +280,11 @@ export function AuthForm() {
 
     if (!/^[0-9]{5}$/.test(normalizedPostalCode)) {
       setError("Debes indicar un código postal válido de 5 dígitos.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("Debes aceptar los Términos de uso y confirmar que has leído la Política de privacidad.");
       return;
     }
 
@@ -614,6 +626,23 @@ export function AuthForm() {
                 </p>
               </div>
 
+              {userType === "student" ? (
+                <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    required
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    checked={studentAgeConfirmed}
+                    onChange={(event) => setStudentAgeConfirmed(event.target.checked)}
+                  />
+                  <span>
+                    Confirmo que tengo 14 años o más. Si tengo menos de 18 años,
+                    utilizaré Wetudy con la supervisión o intervención de mi familia
+                    o representante cuando resulte necesaria.
+                  </span>
+                </label>
+              ) : null}
+
               <div className="flex flex-col gap-2">
                 <Label>Curso / Etapa *</Label>
                 <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
@@ -653,6 +682,27 @@ export function AuthForm() {
               <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
                 Al crear tu cuenta, te enviaremos un email de confirmación. Tendrás que abrir el enlace para activar tu cuenta. Si no lo ves en unos minutos, revisa también la carpeta de Spam o Correo no deseado.
               </div>
+
+              <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  required
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  checked={acceptedTerms}
+                  onChange={(event) => setAcceptedTerms(event.target.checked)}
+                />
+                <span>
+                  Acepto los{" "}
+                  <a className="font-medium text-primary hover:underline" href="/terms" target="_blank" rel="noreferrer">
+                    Términos de uso
+                  </a>{" "}
+                  y confirmo que he leído la{" "}
+                  <a className="font-medium text-primary hover:underline" href="/privacy" target="_blank" rel="noreferrer">
+                    Política de privacidad
+                  </a>
+                  .
+                </span>
+              </label>
             </>
           )}
 

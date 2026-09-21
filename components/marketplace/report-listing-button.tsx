@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState } from "react"
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -121,6 +122,16 @@ export function ReportListingButton({
           <DialogTitle>Reportar anuncio</DialogTitle>
           <DialogDescription>
             Registra un reporte para que el equipo de moderación pueda revisarlo.
+            Si consideras que el anuncio contiene información ilícita, también puedes{" "}
+            <Link
+              className="font-medium text-primary underline underline-offset-2"
+              href={`/legal/notificar-contenido?url=${encodeURIComponent(
+                `/marketplace/listing/${listingId}`
+              )}`}
+            >
+              enviar una notificación legal sin iniciar sesión
+            </Link>
+            .
           </DialogDescription>
         </DialogHeader>
 
