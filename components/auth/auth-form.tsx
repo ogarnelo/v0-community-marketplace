@@ -106,7 +106,8 @@ export function AuthForm() {
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [postalCode, setPostalCode] = useState("");\n  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [postalCode, setPostalCode] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
 
