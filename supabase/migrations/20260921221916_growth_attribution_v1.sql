@@ -70,5 +70,5 @@ create unique index if not exists growth_acquisition_events_first_touch_user_idx
   where event_type = 'attributed_user' and user_id is not null;
 
 create unique index if not exists growth_acquisition_events_conversion_entity_idx
-  on public.growth_acquisition_events (event_type, entity_id, user_id)
-  where entity_id is not null and user_id is not null;
+  on public.growth_acquisition_events (event_type, entity_id)
+  where entity_id is not null;
