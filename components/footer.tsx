@@ -23,9 +23,6 @@ export function Footer() {
             <ul className="flex flex-col gap-2">
               <li><Link href="/marketplace" className="text-sm text-muted-foreground transition-colors hover:text-primary">Buscar material</Link></li>
               <li><Link href="/marketplace/new" className="text-sm text-muted-foreground transition-colors hover:text-primary">Publicar anuncio</Link></li>
-              <li><Link href="/como-funciona" className="text-sm text-muted-foreground transition-colors hover:text-primary">Cómo funciona</Link></li>
-              <li><Link href="/vende-tus-libros" className="text-sm text-muted-foreground transition-colors hover:text-primary">Vender o donar libros</Link></li>
-              <li><Link href="/blog" className="text-sm text-muted-foreground transition-colors hover:text-primary">Guías y consejos</Link></li>
               <li><Link href="/auth?mode=signup" className="text-sm text-muted-foreground transition-colors hover:text-primary">Crear cuenta</Link></li>
             </ul>
           </div>
