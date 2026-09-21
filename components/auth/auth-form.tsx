@@ -107,7 +107,7 @@ export function AuthForm() {
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);\n  const [studentAgeConfirmed, setStudentAgeConfirmed] = useState(false);
 
   const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
 
@@ -264,6 +264,11 @@ export function AuthForm() {
 
     if (!userType) {
       setError("Debes seleccionar un tipo de usuario.");
+      return;
+    }
+
+    if (userType === "student" && !studentAgeConfirmed) {
+      setError("Para crear una cuenta de estudiante debes confirmar que tienes 14 años o más.");
       return;
     }
 
@@ -620,6 +625,23 @@ export function AuthForm() {
                 </p>
               </div>
 
+              {userType === "student" ? (
+                <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    required
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    checked={studentAgeConfirmed}
+                    onChange={(event) => setStudentAgeConfirmed(event.target.checked)}
+                  />
+                  <span>
+                    Confirmo que tengo 14 años o más. Si tengo menos de 18 años,
+                    utilizaré Wetudy con la supervisión o intervención de mi familia
+                    o representante cuando resulte necesaria.
+                  </span>
+                </label>
+              ) : null}
+
               <div className="flex flex-col gap-2">
                 <Label>Curso / Etapa *</Label>
                 <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
@@ -677,7 +699,7 @@ export function AuthForm() {
                   <a className="font-medium text-primary hover:underline" href="/privacy" target="_blank" rel="noreferrer">
                     Política de privacidad
                   </a>
-                  . Si soy menor, utilizaré Wetudy con la supervisión o intervención de mi familia o representante cuando resulte necesaria.
+                  .
                 </span>
               </label>
             </>
