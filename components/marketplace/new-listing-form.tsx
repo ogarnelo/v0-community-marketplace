@@ -379,7 +379,18 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 }).catch((matchError) => {
   console.error("No se pudieron procesar los avisos guardados", matchError);
 });
-      router.push(`/marketplace/listing/${listingId}`);
+
+      void fetch("/api/analytics/acquisition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType: "listing_published",
+          entityId: listingId,
+        }),
+        keepalive: true,
+      }).catch(() => undefined);
+
+      router.push(`/marketplace/listing/${listingId}?published=1`);
       router.refresh();
     } catch (error: any) {
       console.error("Error publicando anuncio:", error);
