@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
+  title: "Privacidad",
+  description: "Información de privacidad de Wetudy.",
   robots: { index: false, follow: true },
 }
 

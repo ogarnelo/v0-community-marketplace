@@ -43,6 +43,16 @@ test("SEO crawl controls expose only intended public surfaces", () => {
   assert.match(manifest, /wetudy-icon-512\.png/);
 });
 
+test("legal pages stay noindex and use page-specific metadata", () => {
+  const privacy = read("app/privacy/layout.tsx");
+  const terms = read("app/terms/layout.tsx");
+
+  assert.match(privacy, /title: "Privacidad"/);
+  assert.match(privacy, /index: false/);
+  assert.match(terms, /title: "Términos de uso"/);
+  assert.match(terms, /index: false/);
+});
+
 test("old fabricated impact/ranking surfaces redirect to About", () => {
   const ranking = read("app/ranking/page.tsx");
   const impact = read("app/impacto/page.tsx");
