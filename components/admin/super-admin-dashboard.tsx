@@ -59,9 +59,13 @@ import {
 type SupportTicketRow = {
   id: string;
   user_id: string | null;
-  name: string;
-  email: string;
+  name: string | null;
+  email: string | null;
   message: string;
+  kind: "support" | "illegal_content_notice";
+  content_url: string | null;
+  good_faith: boolean;
+  identity_omitted: boolean;
   status: "open" | "in_progress" | "resolved" | "closed";
   created_at: string;
 };
@@ -1501,12 +1505,30 @@ export default function SuperAdminDashboard({
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-foreground">{ticket.name}</p>
+                              <p className="font-semibold text-foreground">
+                                {ticket.name || "Identidad omitida"}
+                              </p>
                               <Badge variant={getStatusBadgeVariant(ticket.status)}>
                                 {ticket.status}
                               </Badge>
+                              {ticket.kind === "illegal_content_notice" ? (
+                                <Badge variant="outline">Notificación legal</Badge>
+                              ) : null}
                             </div>
-                            <p className="text-sm text-muted-foreground">{ticket.email}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {ticket.email || "Sin email por excepción legal"}
+                            </p>
+                            {ticket.content_url ? (
+                              <a
+                                href={ticket.content_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                              >
+                                Abrir contenido notificado
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            ) : null}
                             <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
                               {ticket.message}
                             </p>
