@@ -41,7 +41,7 @@ export function Footer() {
             <ul className="flex flex-col gap-2">
               <li><Link href="/about" className="text-sm text-muted-foreground transition-colors hover:text-primary">Sobre Wetudy</Link></li>
               <li><Link href="/privacy" className="text-sm text-muted-foreground transition-colors hover:text-primary">Privacidad</Link></li>
-              <li><Link href="/terms" className="text-sm text-muted-foreground transition-colors hover:text-primary">Términos de uso</Link></li>
+              <li><Link href="/terms" className="text-sm text-muted-foreground transition-colors hover:text-primary">Términos de uso</Link></li>\n              <li><Link href="/legal/notificar-contenido" className="text-sm text-muted-foreground transition-colors hover:text-primary">Notificar contenido ilegal</Link></li>
             </ul>
           </div>
         </div>
