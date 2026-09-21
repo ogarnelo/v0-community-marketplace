@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School } from "lucide-react";
+import { ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School, Users, Package, Handshake, MousePointerClick } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
-import { buildDemandActionLabel, buildDemandInsights } from "@/lib/admin/demand-insights";
+import { buildDemandActionLabel, buildDemandInsights, buildSeoDemandActionLabel, buildSeoDemandOpportunities } from "@/lib/admin/demand-insights";
+import { buildAcquisitionSummaries, type AcquisitionEvent } from "@/lib/admin/growth-insights";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,9 @@ export default async function DemandIntelligencePage() {
 
   if (!roleRows?.length) redirect("/");
 
-  const [navbarData, profileResult, eventResult, summaryResult] = await Promise.all([
+  const acquisitionSince = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [navbarData, profileResult, eventResult, summaryResult, acquisitionResult] = await Promise.all([
     getNavbarData(supabase),
     supabase.from("profiles").select("id, full_name").eq("id", user.id).maybeSingle(),
     supabase
@@ -82,6 +85,13 @@ export default async function DemandIntelligencePage() {
       .order("zero_result_searches", { ascending: false })
       .limit(20)
       .returns<SummaryRow[]>(),
+    supabase
+      .from("growth_acquisition_events")
+      .select("event_type, user_id, source, medium, campaign, created_at")
+      .gte("created_at", acquisitionSince)
+      .order("created_at", { ascending: false })
+      .limit(5000)
+      .returns<AcquisitionEvent[]>(),
   ]);
 
   const events = eventResult.data || [];
@@ -90,6 +100,15 @@ export default async function DemandIntelligencePage() {
   const actionableInsights = buildDemandInsights(events)
     .filter((insight) => insight.zeroResults > 0)
     .slice(0, 12);
+  const seoOpportunities = buildSeoDemandOpportunities(events).slice(0, 8);
+  const acquisitionEvents = acquisitionResult.data || [];
+  const acquisitionSummary = buildAcquisitionSummaries(acquisitionEvents).slice(0, 10);
+  const acquisitionTotals = {
+    landings: acquisitionEvents.filter((event) => event.event_type === "landing").length,
+    users: acquisitionEvents.filter((event) => event.event_type === "attributed_user").length,
+    listings: acquisitionEvents.filter((event) => event.event_type === "listing_published").length,
+    agreements: acquisitionEvents.filter((event) => event.event_type === "agreement_confirmed").length,
+  };
   const profile = (profileResult.data as ProfileRow | null) ?? null;
   const navbarUserName = profile?.full_name || user.email || "Super Admin";
 
@@ -160,6 +179,45 @@ export default async function DemandIntelligencePage() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MousePointerClick className="h-4 w-4" /> Adquisición y conversión · 90 días
+              </CardTitle>
+              <CardDescription>
+                Tráfico atribuible por UTM o referencia externa y conversiones posteriores. El tráfico directo sin señal de origen no se fuerza a ninguna campaña.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><MousePointerClick className="h-3.5 w-3.5" /> Visitas atribuibles</div><p className="mt-1 text-2xl font-bold">{acquisitionTotals.landings}</p></div>
+                <div className="rounded-xl border p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-3.5 w-3.5" /> Usuarios atribuidos</div><p className="mt-1 text-2xl font-bold">{acquisitionTotals.users}</p></div>
+                <div className="rounded-xl border p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Package className="h-3.5 w-3.5" /> Publicaciones</div><p className="mt-1 text-2xl font-bold">{acquisitionTotals.listings}</p></div>
+                <div className="rounded-xl border p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Handshake className="h-3.5 w-3.5" /> Acuerdos</div><p className="mt-1 text-2xl font-bold">{acquisitionTotals.agreements}</p></div>
+              </div>
+
+              <div className="space-y-3">
+                {acquisitionSummary.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todavía no hay tráfico con UTM o referencia externa suficiente para atribuir.</p>
+                ) : null}
+                {acquisitionSummary.map((row) => (
+                  <div key={`${row.source}-${row.medium}-${row.campaign}`} className="rounded-xl border p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">{row.source}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{row.medium} · {row.campaign}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Última señal {formatDate(row.lastSeenAt)}</p>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {row.landings} visitas · {row.users} usuarios · {row.listings} publicaciones · {row.agreements} acuerdos · {row.schoolJoins} vinculaciones a centro
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" /> Prioridades accionables</CardTitle>
               <CardDescription>Señales con búsquedas sin resultado, ordenadas para decidir captación y refuerzo de oferta.</CardDescription>
             </CardHeader>
@@ -177,6 +235,33 @@ export default async function DemandIntelligencePage() {
                       </p>
                     </div>
                     <Badge variant="outline">{buildDemandActionLabel(insight)}</Badge>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><Search className="h-4 w-4" /> Oportunidades SEO basadas en demanda real</CardTitle>
+              <CardDescription>
+                Solo aparecen consultas repetidas (2+ búsquedas) con al menos un resultado vacío. Sirven para decidir si reforzar oferta y, cuando haya contenido útil suficiente, crear o actualizar una guía; no generan páginas automáticas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              {seoOpportunities.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aún no hay una consulta repetida con suficiente señal para priorizar contenido SEO.</p>
+              ) : null}
+              {seoOpportunities.map((insight) => (
+                <div key={`seo-${insight.label}`} className="rounded-xl border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{insight.label}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {insight.searches} búsquedas · {insight.zeroResults} sin resultado · última {formatDate(insight.lastSeenAt)}
+                      </p>
+                    </div>
+                    <Badge variant="outline">{buildSeoDemandActionLabel(insight)}</Badge>
                   </div>
                 </div>
               ))}
