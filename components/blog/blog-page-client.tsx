@@ -22,7 +22,7 @@ const topics = [
   },
   {
     icon: Cpu,
-    title: "Tecnologia educativa",
+    title: "Tecnología educativa",
     description:
       "Criterios para elegir herramientas digitales de organización y estudio.",
     color: "bg-primary/10 text-primary",
@@ -44,7 +44,7 @@ export function BlogPageClient() {
           Blog
         </Badge>
         <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Noticias, consejos y recursos educativos
+          Guías y consejos sobre material escolar
         </h1>
         <p className="mx-auto mt-3 max-w-2xl leading-relaxed text-muted-foreground">
           Todo lo que necesitas saber sobre ahorro escolar, sostenibilidad y
@@ -73,7 +73,7 @@ export function BlogPageClient() {
           {topics.map((t) => (
             <Card
               key={t.title}
-              className="cursor-pointer border-border transition-shadow duration-200 hover:shadow-md"
+              className="border-border transition-shadow duration-200 hover:shadow-md"
             >
               <CardContent className="p-5">
                 <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${t.color}`}>
@@ -90,7 +90,7 @@ export function BlogPageClient() {
       </div>
 
       <div className="mt-12">
-        <h2 className="text-xl font-bold text-foreground">Ultimos articulos</h2>
+        <h2 className="text-xl font-bold text-foreground">Últimos artículos</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
             <Link key={post.id} href={`/blog/${post.slug}`}>
