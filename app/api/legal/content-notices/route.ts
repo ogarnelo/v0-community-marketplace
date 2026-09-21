@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {\n  sendIllegalContentNoticeReceiptEmail,\n  sendSupportTicketAdminEmail,\n} from "@/lib/emails/admin-alert-emails";
+import {
+  sendIllegalContentNoticeReceiptEmail,
+  sendSupportTicketAdminEmail,
+} from "@/lib/emails/admin-alert-emails";
 
 const MAX_EXPLANATION_LENGTH = 4000;
 const MAX_NAME_LENGTH = 120;
