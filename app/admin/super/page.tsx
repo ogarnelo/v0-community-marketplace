@@ -12,9 +12,13 @@ import { Globe, Leaf, Search, School, Users } from "lucide-react";
 type SupportTicketRow = {
   id: string;
   user_id: string | null;
-  name: string;
-  email: string;
+  name: string | null;
+  email: string | null;
   message: string;
+  kind: "support" | "illegal_content_notice";
+  content_url: string | null;
+  good_faith: boolean;
+  identity_omitted: boolean;
   status: "open" | "in_progress" | "resolved" | "closed";
   created_at: string;
 };
