@@ -39,11 +39,18 @@ export default function JoinSchoolPage() {
   const [authChoiceRequired, setAuthChoiceRequired] = useState(false);
   const [autoJoining, setAutoJoining] = useState(false);
   const autoJoinAttempted = useRef(false);
+  const [attributionQuery, setAttributionQuery] = useState("");
 
   useEffect(() => {
     const loadSharedSchool = async () => {
       const params = new URLSearchParams(window.location.search);
       const schoolId = params.get("school")?.trim();
+      const attributionParams = new URLSearchParams();
+      for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content"]) {
+        const value = params.get(key)?.trim();
+        if (value) attributionParams.set(key, value);
+      }
+      setAttributionQuery(attributionParams.toString());
 
       if (!schoolId) {
         setSharedSchoolLoading(false);
@@ -112,6 +119,21 @@ export default function JoinSchoolPage() {
   const skipSchoolLinking = () => {
     router.push("/marketplace");
     router.refresh();
+  };
+
+  const withAttribution = (href: string) =>
+    attributionQuery ? `${href}&${attributionQuery}` : href;
+
+  const recordSchoolJoin = async (schoolId: string) => {
+    await fetch("/api/analytics/acquisition", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "school_joined",
+        entityId: schoolId,
+      }),
+      keepalive: true,
+    }).catch(() => undefined);
   };
 
   const resolveSchoolFromId = async (schoolId: string) => {
@@ -213,7 +235,7 @@ export default function JoinSchoolPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign("/auth?mode=signup");
+        window.location.assign(withAttribution("/auth?mode=signup"));
         return;
       }
 
@@ -249,8 +271,9 @@ export default function JoinSchoolPage() {
         return;
       }
 
-      await linkCurrentUserToSchool(found);
-      router.push("/marketplace");
+      const activeSchool = await linkCurrentUserToSchool(found);
+      await recordSchoolJoin(activeSchool.id);
+      router.push("/marketplace?joined=1");
       router.refresh();
     } catch (error: any) {
       console.error("Error uniéndose al centro:", error);
@@ -295,8 +318,9 @@ export default function JoinSchoolPage() {
           return;
         }
 
-        await linkCurrentUserToSchool(found);
-        router.replace("/marketplace");
+        const activeSchool = await linkCurrentUserToSchool(found);
+        await recordSchoolJoin(activeSchool.id);
+        router.replace("/marketplace?joined=1");
         router.refresh();
       } catch (error: any) {
         console.error("Error completando vinculación pendiente:", error);
@@ -485,18 +509,18 @@ export default function JoinSchoolPage() {
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
                     <Button asChild className="w-full">
                       <Link
-                        href={`/auth?mode=login&next=${encodeURIComponent(
+                        href={withAttribution(`/auth?mode=login&next=${encodeURIComponent(
                           `/onboarding/join-school?school=${found.id}&join=1`
-                        )}`}
+                        )}`)}
                       >
                         Ya tengo cuenta
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="w-full">
                       <Link
-                        href={`/auth?mode=signup&next=${encodeURIComponent(
+                        href={withAttribution(`/auth?mode=signup&next=${encodeURIComponent(
                           `/onboarding/join-school?school=${found.id}&join=1`
-                        )}`}
+                        )}`)}
                       >
                         Crear cuenta
                       </Link>

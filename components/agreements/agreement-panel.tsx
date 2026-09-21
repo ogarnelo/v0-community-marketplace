@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Handshake, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { CommunityInviteCard } from "@/components/growth/community-invite-card";
 
 type Agreement = {
   id: string;
@@ -201,6 +202,12 @@ export default function AgreementPanel({
                 </Button>
               </div>
             )}
+          </div>
+        ) : null}
+
+        {agreement?.status === "confirmed" ? (
+          <div className="mt-4">
+            <CommunityInviteCard campaign="agreement_confirmed" />
           </div>
         ) : null}
 

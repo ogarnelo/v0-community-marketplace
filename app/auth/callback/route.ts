@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { cleanGrowthLabel, cleanGrowthPath } from "@/lib/growth/attribution";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -59,6 +61,30 @@ export async function GET(request: Request) {
         onConflict: "id",
       }
     );
+
+    const acquisitionSource = cleanGrowthLabel(
+      metadata.wetudy_acquisition_source,
+      120
+    );
+
+    if (acquisitionSource) {
+      const admin = createAdminClient();
+      const { error: attributionError } = await admin
+        .from("growth_acquisition_events")
+        .insert({
+          event_type: "attributed_user",
+          user_id: user.id,
+          source: acquisitionSource,
+          medium: cleanGrowthLabel(metadata.wetudy_acquisition_medium, 120),
+          campaign: cleanGrowthLabel(metadata.wetudy_acquisition_campaign, 160),
+          content: cleanGrowthLabel(metadata.wetudy_acquisition_content, 160),
+          landing_path: cleanGrowthPath(metadata.wetudy_acquisition_landing_path),
+        });
+
+      if (attributionError && attributionError.code !== "23505") {
+        console.error("No se pudo guardar la atribución del alta:", attributionError);
+      }
+    }
 
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
+import { appendGrowthUtm } from "@/lib/growth/attribution";
 
 export async function GET(request: Request) {
   try {
@@ -29,8 +30,19 @@ export async function GET(request: Request) {
     }
 
     const origin = new URL(request.url).origin;
-    const shareUrl = new URL("/onboarding/join-school", origin);
-    shareUrl.searchParams.set("school", schoolRole.school_id);
+    const baseShareUrl = new URL("/onboarding/join-school", origin);
+    baseShareUrl.searchParams.set("school", schoolRole.school_id);
+    const shareUrl = new URL(
+      appendGrowthUtm(
+        baseShareUrl.toString(),
+        {
+          source: "school",
+          medium: "qr",
+          campaign: "school_invite",
+        },
+        origin
+      )
+    );
 
     const format = new URL(request.url).searchParams.get("format");
     const download = new URL(request.url).searchParams.get("download") === "1";

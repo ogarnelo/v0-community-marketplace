@@ -12,7 +12,7 @@ export default function PrivacyPage() {
 
         <h1 className="text-3xl font-bold tracking-tight">Privacidad</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Última actualización: 21 de septiembre de 2026.
+          Última actualización: 22 de septiembre de 2026.
         </p>
 
         <div className="mt-8 space-y-8 text-sm leading-7 text-foreground/90">
@@ -44,9 +44,11 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-2">
               También tratamos datos técnicos y de uso necesarios para seguridad,
-              prevención de abuso, mantenimiento y medición agregada del servicio,
-              como información del navegador, páginas visitadas o señales técnicas
-              de protección frente a automatismos.
+              prevención de abuso, mantenimiento y medición del servicio, como
+              información del navegador, páginas visitadas, señales técnicas de
+              protección frente a automatismos y, cuando llegas mediante un enlace
+              etiquetado o una referencia externa, la fuente, medio o campaña de
+              adquisición y el host de referencia.
             </p>
           </section>
 
@@ -81,10 +83,12 @@ export default function PrivacyPage() {
                 aplicable de forma separada.
               </p>
               <p>
-                <strong>Mejora y analítica técnica.</strong> Utilizamos medición
-                agregada y sin cookies publicitarias para entender el funcionamiento
-                y uso general del sitio, sobre la base del interés legítimo en
-                mantener y mejorar Wetudy.
+                <strong>Mejora, analítica y atribución.</strong> Utilizamos medición
+                agregada y una atribución limitada de adquisición para entender qué
+                canales generan visitas, altas, publicaciones y acuerdos y mejorar
+                Wetudy, sobre la base del interés legítimo en medir y desarrollar el
+                servicio. Esta atribución no almacena la dirección IP ni un
+                identificador publicitario propio y no utiliza cookies publicitarias.
               </p>
             </div>
           </section>

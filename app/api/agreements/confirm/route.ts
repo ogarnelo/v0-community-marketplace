@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementConfirmedEmail } from "@/lib/emails/mvp-event-emails";
+import { recordAttributedConversion } from "@/lib/growth/server-attribution";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -104,6 +105,24 @@ export async function POST(request: Request) {
             }
           })
       );
+
+      try {
+        const sellerRecorded = await recordAttributedConversion(admin, {
+          userId: agreement.seller_id,
+          eventType: "agreement_confirmed",
+          entityId: agreement.id,
+        });
+
+        if (!sellerRecorded && agreement.buyer_id !== agreement.seller_id) {
+          await recordAttributedConversion(admin, {
+            userId: agreement.buyer_id,
+            eventType: "agreement_confirmed",
+            entityId: agreement.id,
+          });
+        }
+      } catch (attributionError) {
+        console.error("No se pudo atribuir el acuerdo confirmado", attributionError);
+      }
     }
 
     return NextResponse.json({ ok: true, agreement });

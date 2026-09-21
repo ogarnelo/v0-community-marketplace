@@ -3,6 +3,7 @@ import { Inter, DM_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import { SessionInactivityGuard } from "@/components/auth/session-inactivity-guard"
+import { AcquisitionLandingTracker } from "@/components/growth/acquisition-landing-tracker"
 import "./globals.css"
 
 const SITE_URL = "https://www.wetudy.com"
@@ -89,6 +90,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${dmSans.variable} font-sans antialiased`}>
         {children}
         <SessionInactivityGuard />
+        <AcquisitionLandingTracker />
         <Toaster position="top-right" />
         <Analytics />
       </body>
