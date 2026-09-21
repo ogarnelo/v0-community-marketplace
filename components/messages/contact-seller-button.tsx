@@ -27,7 +27,14 @@ export function ContactSellerButton({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign(`/auth?next=/marketplace/listing/${listingId}`);
+        const authUrl = new URL("/auth", window.location.origin);
+        authUrl.searchParams.set("next", `/marketplace/listing/${listingId}`);
+        const currentParams = new URLSearchParams(window.location.search);
+        for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content"]) {
+          const value = currentParams.get(key);
+          if (value) authUrl.searchParams.set(key, value);
+        }
+        window.location.assign(authUrl.toString());
         return;
       }
 
