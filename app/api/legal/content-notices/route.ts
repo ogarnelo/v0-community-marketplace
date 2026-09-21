@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendSupportTicketAdminEmail } from "@/lib/emails/admin-alert-emails";
+import {\n  sendIllegalContentNoticeReceiptEmail,\n  sendSupportTicketAdminEmail,\n} from "@/lib/emails/admin-alert-emails";
 
 const MAX_EXPLANATION_LENGTH = 4000;
 const MAX_NAME_LENGTH = 120;
@@ -159,6 +159,19 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
+
+    if (email) {
+      try {
+        await sendIllegalContentNoticeReceiptEmail({
+          to: email,
+          noticeId: ticket.id,
+          contentUrl,
+          idempotencyKey: `illegal-content-notice-receipt-${ticket.id}`,
+        });
+      } catch (receiptError) {
+        console.error("Error enviando acuse de notificación legal:", receiptError);
+      }
+    }
 
     try {
       const { data: superAdminRoles, error: rolesError } = await admin
