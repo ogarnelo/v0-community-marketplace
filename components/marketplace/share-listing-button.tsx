@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { appendGrowthUtm } from "@/lib/growth/attribution";
 
 type Props = {
   title: string;
@@ -12,20 +13,33 @@ type Props = {
 export default function ShareListingButton({ title, url }: Props) {
   const [copying, setCopying] = useState(false);
 
+  const buildShareUrl = (medium: string) =>
+    appendGrowthUtm(
+      url,
+      {
+        source: "member",
+        medium,
+        campaign: "listing_share",
+      },
+      typeof window !== "undefined" ? window.location.origin : undefined
+    );
+
   const handleShare = async () => {
     try {
+      const shareUrl = buildShareUrl("share");
+
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
         await navigator.share({
           title,
           text: `Mira este anuncio en Wetudy: ${title}`,
-          url,
+          url: shareUrl,
         });
         return;
       }
 
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         setCopying(true);
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(shareUrl);
         alert("Enlace copiado");
       }
     } catch {
@@ -37,7 +51,8 @@ export default function ShareListingButton({ title, url }: Props) {
 
   const shareWhatsApp = () => {
     if (typeof window === "undefined") return;
-    const text = encodeURIComponent(`Mira este anuncio en Wetudy: ${title} ${url}`);
+    const shareUrl = buildShareUrl("whatsapp");
+    const text = encodeURIComponent(`Mira este anuncio en Wetudy: ${title} ${shareUrl}`);
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   };
 
