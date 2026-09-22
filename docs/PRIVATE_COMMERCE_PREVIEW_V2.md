@@ -83,11 +83,35 @@ Los importes actuales de envío y fee son **provisionales de sandbox**. No deben
 
 La integración Sendcloud actual usa API v2 para creación de parcels/labels. Las tarifas live actuales de Sendcloud están disponibles mediante API v3; por tanto antes de activar logística pública hay que sustituir los importes fijos por cotización real o por una tabla comercial validada.
 
+## Stripe Connect test
+
+El preview incorpora onboarding de vendedor con Stripe Connect **Accounts v2** y configuración `recipient`.
+
+Wetudy conserva únicamente:
+
+- ID técnico de la cuenta conectada;
+- estado de onboarding;
+- si la capability de transferencias está activa;
+- nombres de requisitos pendientes y motivo de restricción.
+
+Los datos KYC y documentos se recogen y conservan en Stripe.
+
+La arquitectura del lab usa **separate charges and transfers**: el cobro del comprador permanece separado de la transferencia al vendedor.
+
+La liberación test es deliberadamente manual desde Commerce Lab y solo se habilita cuando:
+
+1. el pago interno está `succeeded`;
+2. la operación usa envío;
+3. el envío está `delivered`;
+4. Stripe confirma que la cuenta recipient puede recibir transferencias.
+
+La transferencia usa el cargo del Checkout Session como `source_transaction` y una clave de idempotencia estable por pago. No existe liberación automática ni payout live.
+
 ## No incluido todavía
 
-- Stripe Connect Accounts v2 / onboarding del vendedor.
-- Transferencias/payouts al vendedor.
-- Política de retención/liberación.
+- Activación pública del onboarding Connect.
+- Liberación automática al vendedor.
+- Política comercial definitiva de retención/liberación.
 - Refund total/parcial.
 - Disputas/chargebacks.
 - Reversión de transferencia.
@@ -116,11 +140,14 @@ SENDCLOUD_SECRET_KEY=...
 
 ## Criterio para avanzar a Connect
 
-El siguiente bloque técnico es:
+## Estado del bloque Connect
 
-1. persistencia segura de cuenta conectada por vendedor;
-2. onboarding test con Stripe Connect Accounts v2;
-3. estado de requisitos/capabilities;
-4. tabla de transferencias;
-5. liberación test idempotente tras entrega;
-6. refund/reversal test antes de cualquier activación pública.
+- [x] Persistencia mínima y segura de cuenta conectada por vendedor.
+- [x] Onboarding test con Stripe Connect Accounts v2 / recipient.
+- [x] Sincronización de requisitos y capability de transferencias.
+- [x] Tabla separada de transferencias.
+- [x] Liberación test manual e idempotente tras entrega.
+- [ ] Refund/reversal test.
+- [ ] Disputas/chargebacks.
+- [ ] Regla definitiva de liberación y soporte operativo.
+- [ ] Revisión jurídica/fiscal antes de activación pública.
