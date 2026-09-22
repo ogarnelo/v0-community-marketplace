@@ -148,6 +148,20 @@ function parsePrice(value: string) {
   return Number(normalized);
 }
 
+function draftSignature(payload: ListingDraftPayload, photos: PreviewFile[] | ListingDraftPhoto[]) {
+  return JSON.stringify({
+    payload,
+    photos: photos.map((photo: any) => {
+      if (typeof photo?.path === "string") return photo.path;
+      if (typeof photo?.storagePath === "string") return photo.storagePath;
+      if (photo?.file) {
+        return `${photo.file.name}:${photo.file.size}:${photo.file.lastModified}`;
+      }
+      return photo?.previewUrl || photo?.url || "";
+    }),
+  });
+}
+
 function SectionCard({
   icon,
   title,
@@ -210,6 +224,9 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const [draftExists, setDraftExists] = useState(false);
   const [draftMessage, setDraftMessage] = useState("");
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const [savedDraftSignature, setSavedDraftSignature] = useState(() =>
+    draftSignature(EMPTY_LISTING_DRAFT_PAYLOAD, [])
+  );
 
   const showBookFields = isBookCategory(selectedCategory);
   const showTextbookFields = isTextbookCategory(selectedCategory);
@@ -268,6 +285,11 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
     Object.entries(draftPayload).some(([key, value]) =>
       key === "isDonation" ? value === true : typeof value === "string" && value.trim().length > 0
     );
+  const currentDraftSignature = useMemo(
+    () => draftSignature(draftPayload, photos),
+    [draftPayload, photos]
+  );
+  const hasUnsavedChanges = currentDraftSignature !== savedDraftSignature;
   const normalizedIsbnForQuality = isbn.replace(/[^0-9xX]/g, "");
   const listingQualityChecks = [
     { label: "Título descriptivo", done: title.trim().length >= 12 },
@@ -373,6 +395,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
             }))
         );
         setDraftExists(true);
+        setSavedDraftSignature(draftSignature(payload, draftPhotos));
         setDraftMessage("Borrador recuperado. Puedes continuar donde lo dejaste.");
       } catch (error) {
         console.error("No se pudo recuperar el borrador", error);
@@ -389,14 +412,14 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!hasDraftContent) return;
+      if (!hasUnsavedChanges) return;
       event.preventDefault();
       event.returnValue = "";
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasDraftContent]);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -525,6 +548,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
       setPhotos(nextPreviewFiles);
       setDraftExists(true);
+      setSavedDraftSignature(draftSignature(draftPayload, draftPhotos));
       setDraftMessage("Borrador guardado. Podrás recuperarlo desde Mis anuncios.");
       return true;
     } catch (error: any) {
@@ -537,21 +561,26 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
   const discardDraftAndLeave = async () => {
     setDraftSaving(true);
+    setSubmitError("");
     try {
-      await fetch("/api/marketplace/listing-draft", {
+      const response = await fetch("/api/marketplace/listing-draft", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preservePhotoPaths: [] }),
       });
-    } finally {
-      setDraftSaving(false);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "No se pudo descartar el borrador.");
       setExitDialogOpen(false);
       router.push("/marketplace");
+    } catch (error: any) {
+      setSubmitError(error?.message || "No se pudo descartar el borrador.");
+    } finally {
+      setDraftSaving(false);
     }
   };
 
   const handleLeaveRequest = () => {
-    if (!hasDraftContent && !draftExists) {
+    if (!hasUnsavedChanges) {
       router.push("/marketplace");
       return;
     }
