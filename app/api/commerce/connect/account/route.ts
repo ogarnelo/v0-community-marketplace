@@ -50,9 +50,8 @@ export async function GET() {
       ok: true,
       account: {
         id: account.id,
-        type: account.type,
-        country: account.country,
-        defaultCurrency: account.default_currency,
+        country: account.country || null,
+        defaultCurrency: account.default_currency || null,
         ...status,
       },
     });
@@ -99,7 +98,12 @@ export async function POST(request: Request) {
       request.url
     );
 
-    const accountLink = await stripe.accountLinks.create({
+    const accountLinks = (stripe as any).accountLinks;
+    if (!accountLinks?.create) {
+      throw new Error("La versión instalada de Stripe no expone Account Links.");
+    }
+
+    const accountLink = await accountLinks.create({
       account: account.id,
       refresh_url: refreshUrl.toString(),
       return_url: returnUrl.toString(),
