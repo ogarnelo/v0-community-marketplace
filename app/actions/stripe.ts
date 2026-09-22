@@ -113,6 +113,52 @@ export async function startCheckoutSession(params: {
     shipmentTier,
   ].join(":")
 
+  const expectedTotalCents = Math.round(pricing.totalBuyerAmount * 100)
+  const { data: existingPayment, error: existingPaymentError } = await adminSupabase
+    .from('payment_intents')
+    .select('id, status, shipment_tier, metadata')
+    .eq('offer_id', offerId)
+    .maybeSingle()
+
+  if (existingPaymentError) {
+    throw new Error(`No se pudo comprobar un checkout previo: ${existingPaymentError.message}`)
+  }
+
+  const previousSessionId =
+    typeof existingPayment?.metadata?.stripe_checkout_session_id === 'string'
+      ? existingPayment.metadata.stripe_checkout_session_id
+      : null
+
+  if (previousSessionId) {
+    let previousSession
+    try {
+      previousSession = await stripe.checkout.sessions.retrieve(previousSessionId)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido'
+      throw new Error(`No se pudo reconciliar la sesión Stripe previa: ${message}`)
+    }
+
+    if (previousSession.payment_status === 'paid') {
+      throw new Error('Ya existe un pago completado en Stripe para esta oferta. Sincroniza el estado antes de crear otro checkout.')
+    }
+
+    if (previousSession.status === 'open') {
+      const sameConfiguration =
+        existingPayment?.metadata?.delivery_method === pricing.deliveryMethod &&
+        existingPayment?.shipment_tier === pricing.shipmentTier &&
+        previousSession.amount_total === expectedTotalCents
+
+      if (sameConfiguration && previousSession.client_secret) {
+        return {
+          clientSecret: previousSession.client_secret,
+          sessionId: previousSession.id,
+        }
+      }
+
+      await stripe.checkout.sessions.expire(previousSession.id)
+    }
+  }
+
   let session
   try {
     session = await stripe.checkout.sessions.create({
@@ -181,7 +227,7 @@ export async function startCheckoutSession(params: {
 
   const now = new Date().toISOString()
 
-  await adminSupabase
+  const { error: paymentWriteError } = await adminSupabase
     .from('payment_intents')
     .upsert(
       {
@@ -210,11 +256,19 @@ export async function startCheckoutSession(params: {
       { onConflict: 'offer_id' }
     )
 
-  await adminSupabase
+  if (paymentWriteError) {
+    throw new Error(`Stripe creó la sesión, pero no se pudo registrar el pago: ${paymentWriteError.message}`)
+  }
+
+  const { error: listingReserveError } = await adminSupabase
     .from('listings')
     .update({ status: 'reserved' })
     .eq('id', typedOffer.listing_id)
     .eq('status', 'available')
+
+  if (listingReserveError) {
+    throw new Error(`El pago quedó registrado, pero no se pudo reservar el anuncio: ${listingReserveError.message}`)
+  }
 
   if (!session.client_secret) {
     throw new Error('Stripe no devolvió client_secret.')

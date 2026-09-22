@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const { data: payment, error: paymentError } = await admin
       .from("payment_intents")
       .select(
-        "id, buyer_id, seller_id, status, seller_net_amount, currency, provider_payment_intent_id, metadata"
+        "id, buyer_id, seller_id, status, amount, buyer_fee_amount, shipping_amount, seller_net_amount, platform_fee_amount, currency, provider_payment_intent_id, metadata"
       )
       .eq("id", paymentIntentId)
       .maybeSingle();
@@ -65,6 +65,19 @@ export async function POST(request: Request) {
     if (payment.status !== "succeeded") {
       return NextResponse.json(
         { error: "Solo se puede liberar un pago confirmado." },
+        { status: 409 }
+      );
+    }
+
+    const { data: existingRefund } = await admin
+      .from("commerce_refunds")
+      .select("id, status, provider_refund_id")
+      .eq("payment_intent_id", payment.id)
+      .maybeSingle();
+
+    if (existingRefund) {
+      return NextResponse.json(
+        { error: "Existe un refund registrado para este pago; no se pueden liberar fondos." },
         { status: 409 }
       );
     }
@@ -139,20 +152,153 @@ export async function POST(request: Request) {
         ? payment.metadata.stripe_checkout_session_id
         : null;
 
-    const { chargeId, providerPaymentIntentId } =
+    const { chargeId, providerPaymentIntentId, paymentIntent } =
       await resolveStripePaymentIntentAndCharge({
         providerPaymentIntentId: payment.provider_payment_intent_id,
         checkoutSessionId,
       });
 
+    const itemAmount = Number(payment.amount || 0);
+    const buyerFeeAmount = Number(payment.buyer_fee_amount || 0);
+    const shippingAmount = Number(payment.shipping_amount || 0);
+    const expectedTotalAmount = itemAmount + buyerFeeAmount + shippingAmount;
+    const expectedTotalCents = Math.round(expectedTotalAmount * 100);
     const amountCents = Math.round(sellerNetAmount * 100);
+    const expectedCurrency = String(payment.currency || "EUR").toLowerCase();
+
+    if (
+      !Number.isFinite(expectedTotalAmount) ||
+      expectedTotalAmount <= 0 ||
+      expectedTotalCents <= 0
+    ) {
+      return NextResponse.json(
+        { error: "El total esperado del pago no es válido." },
+        { status: 409 }
+      );
+    }
+
+    if (
+      paymentIntent.status !== "succeeded" ||
+      paymentIntent.amount_received !== expectedTotalCents ||
+      paymentIntent.currency !== expectedCurrency
+    ) {
+      return NextResponse.json(
+        { error: "Stripe y Supabase no coinciden en estado, importe o moneda del pago." },
+        { status: 409 }
+      );
+    }
+
+    if (amountCents <= 0 || amountCents > expectedTotalCents) {
+      return NextResponse.json(
+        { error: "El neto del vendedor no es compatible con el total cobrado." },
+        { status: 409 }
+      );
+    }
+
+    const transferGroup =
+      paymentIntent.transfer_group || `wetudy_${payment.id}`;
+
+    // Reconcile Stripe before creating anything. This closes the case where
+    // Stripe succeeded but the following Supabase write failed, including a
+    // retry after Stripe's idempotency-key retention window.
+    const priorTransfers = await stripe.transfers.list({
+      transfer_group: transferGroup,
+      destination: connectRow.stripe_account_id,
+      limit: 100,
+    });
+    const stripeExistingTransfer = priorTransfers.data.find(
+      (candidate) =>
+        candidate.metadata?.wetudy_payment_intent_id === payment.id
+    );
+
+    if (stripeExistingTransfer) {
+      const existingSourceTransaction =
+        typeof stripeExistingTransfer.source_transaction === "string"
+          ? stripeExistingTransfer.source_transaction
+          : stripeExistingTransfer.source_transaction?.id || null;
+
+      if (
+        stripeExistingTransfer.amount_reversed > 0 &&
+        !stripeExistingTransfer.reversed
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Stripe contiene una reversión parcial de esta transferencia; se requiere reconciliación manual.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (
+        stripeExistingTransfer.amount !== amountCents ||
+        stripeExistingTransfer.currency !== expectedCurrency ||
+        existingSourceTransaction !== chargeId
+      ) {
+        return NextResponse.json(
+          { error: "Stripe ya contiene una transferencia incompatible para este pago." },
+          { status: 409 }
+        );
+      }
+
+      const reconciledAt = new Date().toISOString();
+      const { data: reconciledTransfer, error: reconcileError } = await admin
+        .from("commerce_transfers")
+        .upsert(
+          {
+            payment_intent_id: payment.id,
+            seller_id: payment.seller_id,
+            stripe_account_id: connectRow.stripe_account_id,
+            provider_transfer_id: stripeExistingTransfer.id,
+            amount: sellerNetAmount,
+            currency: payment.currency || "EUR",
+            status: stripeExistingTransfer.reversed ? "reversed" : "released",
+            error_code: null,
+            metadata: {
+              source_charge_id: chargeId,
+              provider_payment_intent_id: providerPaymentIntentId,
+              transfer_group: transferGroup,
+              reconciled_from_stripe: true,
+              sandbox_only: true,
+            },
+            released_at: reconciledAt,
+            reversed_at: stripeExistingTransfer.reversed ? reconciledAt : null,
+            updated_at: reconciledAt,
+          },
+          { onConflict: "payment_intent_id" }
+        )
+        .select("*")
+        .single();
+
+      if (reconcileError) throw reconcileError;
+
+      if (stripeExistingTransfer.reversed) {
+        return NextResponse.json(
+          {
+            error:
+              "La transferencia ya está completamente revertida en Stripe y no puede liberarse de nuevo.",
+            transfer: reconciledTransfer,
+            reconciled: true,
+          },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json({
+        ok: true,
+        transfer: reconciledTransfer,
+        existing: true,
+        reconciled: true,
+      });
+    }
+
     const transfer = await stripe.transfers.create(
       {
         amount: amountCents,
-        currency: String(payment.currency || "EUR").toLowerCase(),
+        currency: expectedCurrency,
         destination: connectRow.stripe_account_id,
         source_transaction: chargeId,
-        transfer_group: `wetudy_${payment.id}`,
+        transfer_group: transferGroup,
         metadata: {
           wetudy_payment_intent_id: payment.id,
           wetudy_seller_id: payment.seller_id,
@@ -180,7 +326,7 @@ export async function POST(request: Request) {
           metadata: {
             source_charge_id: chargeId,
             provider_payment_intent_id: providerPaymentIntentId,
-            transfer_group: transfer.transfer_group || null,
+            transfer_group: transfer.transfer_group || transferGroup,
             sandbox_only: true,
           },
           released_at: now,

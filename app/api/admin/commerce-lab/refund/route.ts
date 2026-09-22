@@ -92,51 +92,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, refund: existingRefund, existing: true });
     }
 
-    const { data: transfer } = await admin
-      .from("commerce_transfers")
-      .select("*")
-      .eq("payment_intent_id", payment.id)
-      .maybeSingle();
-
-    let providerReversalId =
-      typeof transfer?.provider_reversal_id === "string"
-        ? transfer.provider_reversal_id
-        : null;
-
-    if (transfer?.status === "released" && transfer.provider_transfer_id) {
-      const reversal = await stripe.transfers.createReversal(
-        transfer.provider_transfer_id,
-        {},
-        {
-          idempotencyKey: `wetudy-transfer-reversal-v1:${payment.id}`,
-        }
-      );
-
-      providerReversalId = reversal.id;
-
-      const { error: transferUpdateError } = await admin
-        .from("commerce_transfers")
-        .update({
-          status: "reversed",
-          provider_reversal_id: reversal.id,
-          reversed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", transfer.id);
-
-      if (transferUpdateError) throw transferUpdateError;
-    }
-
-    const checkoutSessionId =
-      typeof payment.metadata?.stripe_checkout_session_id === "string"
-        ? payment.metadata.stripe_checkout_session_id
-        : null;
-
-    const { providerPaymentIntentId } = await resolveStripePaymentIntentAndCharge({
-      providerPaymentIntentId: payment.provider_payment_intent_id,
-      checkoutSessionId,
-    });
-
     const totalAmount =
       Number(payment.amount || 0) +
       Number(payment.buyer_fee_amount || 0) +
@@ -149,20 +104,166 @@ export async function POST(request: Request) {
       );
     }
 
-    const refund = await stripe.refunds.create(
-      {
-        payment_intent: providerPaymentIntentId,
-        metadata: {
-          wetudy_payment_intent_id: payment.id,
-          wetudy_private_preview: "true",
-        },
-      },
-      {
-        idempotencyKey: `wetudy-refund-v1:${payment.id}`,
+    const expectedAmountCents = Math.round(totalAmount * 100);
+    const expectedCurrency = String(payment.currency || "EUR").toLowerCase();
+    const checkoutSessionId =
+      typeof payment.metadata?.stripe_checkout_session_id === "string"
+        ? payment.metadata.stripe_checkout_session_id
+        : null;
+
+    const { providerPaymentIntentId, chargeId, paymentIntent } =
+      await resolveStripePaymentIntentAndCharge({
+        providerPaymentIntentId: payment.provider_payment_intent_id,
+        checkoutSessionId,
+      });
+
+    if (
+      paymentIntent.status !== "succeeded" ||
+      paymentIntent.amount_received !== expectedAmountCents ||
+      paymentIntent.currency !== expectedCurrency
+    ) {
+      return NextResponse.json(
+        { error: "Stripe y Supabase no coinciden en estado, importe o moneda del pago." },
+        { status: 409 }
+      );
+    }
+
+    const charge = await stripe.charges.retrieve(chargeId);
+    if (
+      charge.amount !== expectedAmountCents ||
+      charge.currency !== expectedCurrency
+    ) {
+      return NextResponse.json(
+        { error: "El cargo Stripe no coincide con el pago registrado." },
+        { status: 409 }
+      );
+    }
+
+    const { data: transfer } = await admin
+      .from("commerce_transfers")
+      .select("*")
+      .eq("payment_intent_id", payment.id)
+      .maybeSingle();
+
+    let providerReversalId =
+      typeof transfer?.provider_reversal_id === "string"
+        ? transfer.provider_reversal_id
+        : null;
+
+    const ensureTransferReversed = async () => {
+      if (!transfer?.provider_transfer_id) return;
+
+      const providerTransfer = await stripe.transfers.retrieve(
+        transfer.provider_transfer_id
+      );
+
+      if (
+        providerTransfer.amount_reversed > 0 &&
+        providerTransfer.amount_reversed < providerTransfer.amount
+      ) {
+        throw new Error(
+          "La transferencia tiene una reversión parcial en Stripe y requiere reconciliación manual."
+        );
       }
+
+      if (
+        providerTransfer.reversed ||
+        providerTransfer.amount_reversed >= providerTransfer.amount
+      ) {
+        providerReversalId =
+          providerReversalId || providerTransfer.reversals?.data?.[0]?.id || null;
+      } else {
+        const reversal = await stripe.transfers.createReversal(
+          transfer.provider_transfer_id,
+          {},
+          {
+            idempotencyKey: "wetudy-transfer-reversal-v1:" + payment.id,
+          }
+        );
+        providerReversalId = reversal.id;
+      }
+
+      const reversalNow = new Date().toISOString();
+      const { error: transferUpdateError } = await admin
+        .from("commerce_transfers")
+        .update({
+          status: "reversed",
+          provider_reversal_id: providerReversalId,
+          reversed_at: reversalNow,
+          updated_at: reversalNow,
+        })
+        .eq("id", transfer.id);
+
+      if (transferUpdateError) throw transferUpdateError;
+    };
+
+    // Reconcile Stripe first. This prevents a second refund if Stripe succeeded
+    // but the Supabase write failed, even after an idempotency key expires.
+    const providerRefunds = await stripe.refunds.list({
+      payment_intent: providerPaymentIntentId,
+      limit: 100,
+    });
+    const stripeExistingRefund = providerRefunds.data.find(
+      (candidate) =>
+        candidate.metadata?.wetudy_payment_intent_id === payment.id
     );
 
+    let refund = stripeExistingRefund || null;
+    let reconciled = Boolean(stripeExistingRefund);
+
+    if (refund) {
+      if (
+        refund.amount !== expectedAmountCents ||
+        refund.currency !== expectedCurrency
+      ) {
+        return NextResponse.json(
+          { error: "Stripe ya contiene un refund incompatible para este pago." },
+          { status: 409 }
+        );
+      }
+
+      if (transfer?.provider_transfer_id) {
+        await ensureTransferReversed();
+      }
+    } else {
+      if (charge.amount_refunded !== 0) {
+        return NextResponse.json(
+          {
+            error:
+              "El cargo ya tiene un refund ajeno o parcial; se requiere reconciliación manual antes de continuar.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (transfer?.provider_transfer_id) {
+        await ensureTransferReversed();
+      }
+
+      refund = await stripe.refunds.create(
+        {
+          payment_intent: providerPaymentIntentId,
+          amount: expectedAmountCents,
+          metadata: {
+            wetudy_payment_intent_id: payment.id,
+            wetudy_private_preview: "true",
+          },
+        },
+        {
+          idempotencyKey: "wetudy-refund-v1:" + payment.id,
+        }
+      );
+
+      if (
+        refund.amount !== expectedAmountCents ||
+        refund.currency !== expectedCurrency
+      ) {
+        throw new Error("Stripe devolvió un refund con importe o moneda inesperados.");
+      }
+    }
+
     const refundSucceeded = refund.status === "succeeded";
+    const refundFailed = refund.status === "failed" || refund.status === "canceled";
     const now = new Date().toISOString();
 
     const { data: savedRefund, error: refundSaveError } = await admin
@@ -172,14 +273,20 @@ export async function POST(request: Request) {
           payment_intent_id: payment.id,
           buyer_id: payment.buyer_id,
           provider_refund_id: refund.id,
-          amount: totalAmount,
-          currency: payment.currency || "EUR",
-          status: refundSucceeded ? "succeeded" : "pending",
+          amount: refund.amount / 100,
+          currency: refund.currency.toUpperCase(),
+          status: refundSucceeded
+            ? "succeeded"
+            : refundFailed
+              ? "failed"
+              : "pending",
           transfer_reversal_id: providerReversalId,
-          error_code: null,
+          error_code: refund.failure_reason || null,
           metadata: {
             provider_payment_intent_id: providerPaymentIntentId,
             stripe_refund_status: refund.status,
+            expected_total_amount: totalAmount,
+            reconciled_from_stripe: reconciled,
             sandbox_only: true,
           },
           updated_at: now,
@@ -200,27 +307,39 @@ export async function POST(request: Request) {
 
       if (paymentUpdateError) throw paymentUpdateError;
 
-      await admin
+      const { error: shipmentUpdateError } = await admin
         .from("shipments")
         .update({ status: "cancelled", updated_at: now })
         .eq("payment_intent_id", payment.id)
         .in("status", ["draft", "quoted", "label_pending", "label_ready"]);
+
+      if (shipmentUpdateError) throw shipmentUpdateError;
     }
 
-    await admin.from("payment_events").insert({
+    const { error: eventError } = await admin.from("payment_events").insert({
       payment_intent_id: payment.id,
-      event_type: "sandbox_refund_created",
+      event_type: reconciled
+        ? "sandbox_refund_reconciled"
+        : "sandbox_refund_created",
       provider_event_id: null,
       payload: {
         actor_id: auth.user.id,
         provider_refund_id: refund.id,
         provider_reversal_id: providerReversalId,
         refund_status: refund.status,
+        reconciled,
         sandbox_only: true,
       },
     });
 
-    return NextResponse.json({ ok: true, refund: savedRefund });
+    if (eventError) throw eventError;
+
+    return NextResponse.json({
+      ok: true,
+      refund: savedRefund,
+      existing: reconciled,
+      reconciled,
+    });
   } catch (error: any) {
     console.error("No se pudo reembolsar la operación test", error);
     return NextResponse.json(

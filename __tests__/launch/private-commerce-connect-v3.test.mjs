@@ -14,15 +14,18 @@ const release = read("app/api/admin/commerce-lab/release-transfer/route.ts");
 const refund = read("app/api/admin/commerce-lab/refund/route.ts");
 const lab = read("app/admin/super/commerce-lab/page.tsx");
 const stripeCheckout = read("app/actions/stripe.ts");
+const stripeWebhook = read("app/api/stripe/webhook/route.ts");
 
 test("Connect preview stays behind private commerce and Stripe test mode", () => {
   assert.match(access, /ENABLE_PRIVATE_COMMERCE_PREVIEW/);
   assert.match(access, /sk_test_/);
-  assert.match(connectRoute, /canUserUseCommerce/);
+  assert.match(connectRoute, /canUserAccessPrivateCommercePreview/);
   assert.match(connectRoute, /assertStripeTestMode/);
-  assert.match(connectRefresh, /canUserUseCommerce/);
-  assert.match(connectPage, /canUserUseCommerce/);
-  assert.doesNotMatch(connectPage, /ENABLE_LEGACY_COMMERCE=true/);
+  assert.match(connectRefresh, /canUserAccessPrivateCommercePreview/);
+  assert.match(connectPage, /canUserAccessPrivateCommercePreview/);
+  assert.doesNotMatch(connectRoute, /canUserUseCommerce/);
+  assert.doesNotMatch(connectRefresh, /canUserUseCommerce/);
+  assert.doesNotMatch(connectPage, /canUserUseCommerce/);
 });
 
 test("seller connected account creation is explicit and idempotent", () => {
@@ -56,6 +59,10 @@ test("test transfer release requires paid state, delivery and ready Connect sell
   assert.match(release, /connectStatus\.transfersActive/);
   assert.match(release, /connectStatus\.payoutsEnabled/);
   assert.match(release, /source_transaction: chargeId/);
+  assert.match(release, /paymentIntent\.amount_received/);
+  assert.match(release, /stripe\.transfers\.list/);
+  assert.match(release, /amount_reversed > 0/);
+  assert.match(release, /reconciled_from_stripe/);
   assert.match(release, /wetudy-transfer-v1/);
   assert.match(release, /sandbox_transfer_released/);
 });
@@ -66,6 +73,10 @@ test("test refund reverses released transfer before refunding Stripe payment", (
   assert.ok(reversalIndex >= 0);
   assert.ok(refundIndex > reversalIndex);
   assert.match(refund, /wetudy-transfer-reversal-v1/);
+  assert.match(refund, /stripe\.refunds\.list/);
+  assert.match(refund, /amount: expectedAmountCents/);
+  assert.match(refund, /amount_reversed > 0/);
+  assert.match(refund, /reconciled_from_stripe/);
   assert.match(refund, /wetudy-refund-v1/);
   assert.match(refund, /status: "refunded"/);
   assert.match(refund, /sandbox_refund_created/);
@@ -86,4 +97,9 @@ test("private Checkout keeps settlement deterministic", () => {
   assert.match(stripeCheckout, /payment_intent_data/);
   assert.match(stripeCheckout, /transfer_group: \`wetudy_\$\{offerId\}\`/);
   assert.match(stripeCheckout, /wetudy_private_preview: 'true'/);
+  assert.match(stripeCheckout, /paymentWriteError/);
+  assert.match(stripeCheckout, /listingReserveError/);
+  assert.match(stripeCheckout, /checkout\.sessions\.expire/);
+  assert.match(stripeWebhook, /registeredSessionId/);
+  assert.match(stripeWebhook, /registeredSessionId !== session\.id/);
 });
