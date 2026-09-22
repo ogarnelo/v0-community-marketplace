@@ -115,13 +115,12 @@ test("new Wetudy signups fail closed if email confirmation is bypassed", () => {
 });
 
 
-test("production auth callbacks use the canonical Wetudy origin", () => {
+test("browser auth callbacks preserve the current Wetudy origin", () => {
   const authForm = read("components/auth/auth-form.tsx");
   const publicOrigin = read("lib/auth/public-origin.ts");
 
+  assert.match(publicOrigin, /return window\.location\.origin/);
   assert.match(publicOrigin, /https:\/\/www\.wetudy\.com/);
-  assert.match(publicOrigin, /hostname === "wetudy\.com"/);
-  assert.match(publicOrigin, /hostname === "www\.wetudy\.com"/);
   assert.match(authForm, /new URL\("\/auth\/callback", getAuthPublicOrigin\(\)\)/);
 });
 
