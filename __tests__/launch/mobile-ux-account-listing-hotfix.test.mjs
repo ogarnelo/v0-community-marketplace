@@ -19,7 +19,8 @@ test("signup password can be shown and hidden", () => {
 });
 
 test("new listing form stays usable with long condition labels and Android numeric keyboard", () => {
-  assert.match(newListing, /\[&>span\]:truncate/);
+  assert.match(newListing, /selectedConditionOption\?\.label \|\| "Seleccionar estado"/);
+  assert.match(newListing, /selectedConditionOption\.description/);
   assert.match(newListing, /window\.visualViewport/);
   assert.match(newListing, /keyboardOffset/);
   assert.match(newListing, /enterKeyHint="done"/);
