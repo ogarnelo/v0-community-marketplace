@@ -40,10 +40,6 @@ export async function GET(request: Request) {
         request.url
       ).toString(),
       type: "account_onboarding",
-      collection_options: {
-        fields: "eventually_due",
-        future_requirements: "include",
-      },
     });
 
     return NextResponse.redirect(accountLink.url);
