@@ -26,11 +26,21 @@ export default async function PrivateCommerceAccountPage({
 
   const query = await searchParams;
   const admin = createAdminClient();
-  const { data: connectedAccount } = await admin
+  const connectedAccountResult = await admin
     .from("commerce_connected_accounts")
     .select("provider_account_id, onboarding_status, transfers_enabled, requirements_due, disabled_reason, updated_at")
     .eq("user_id", user.id)
     .maybeSingle();
+  const connectedAccount = connectedAccountResult.data as
+    | {
+        provider_account_id: string;
+        onboarding_status: string;
+        transfers_enabled: boolean;
+        requirements_due: string[];
+        disabled_reason: string | null;
+        updated_at: string;
+      }
+    | null;
 
   return (
     <main className="min-h-screen bg-muted/20 px-4 py-6">
