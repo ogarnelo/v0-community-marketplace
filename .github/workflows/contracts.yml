@@ -1,4 +1,4 @@
-name: Contracts
+name: Private commerce contracts
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  contracts:
+  private-commerce-contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -19,5 +19,5 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install --ignore-scripts
-      - name: Contract tests
-        run: npm run test:contracts
+      - name: Private commerce contract tests
+        run: npm run test:commerce-contracts
