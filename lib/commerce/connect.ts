@@ -1,6 +1,6 @@
 import "server-only";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { stripe } from "@/lib/stripe";
 
 export async function ensureSellerConnectAccount() {
-  return { diagnostic: typeof createAdminClient === "function" };
+  return { diagnostic: typeof stripe === "object" };
 }
