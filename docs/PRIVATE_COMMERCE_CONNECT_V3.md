@@ -95,6 +95,74 @@ Por defecto se mantiene apagado y el lab permite simular etiquetas sin coste.
 
 La liberación de fondos de operaciones con envío exige estado `delivered`.
 
+## Runbook E2E Stripe test
+
+Antes de iniciar una prueba extremo a extremo, Commerce Lab debe mostrar:
+
+- comercio público desactivado;
+- preview privado activado;
+- Stripe en modo test;
+- secreto de webhook configurado;
+- creación real de etiquetas Sendcloud desactivada.
+
+No se deben usar claves live ni habilitar `ENABLE_LEGACY_COMMERCE`. Para logística, la prueba usa etiqueta simulada y no genera costes reales.
+
+### Preparación
+
+1. Usar dos cuentas privadas autorizadas: comprador tester y vendedor tester.
+2. El vendedor abre `/account/commerce-preview`, inicia el onboarding alojado por Stripe y completa los datos de prueba.
+3. Al volver a Wetudy, actualizar el estado Connect hasta que la cuenta esté preparada para transferencias test.
+4. Crear o reutilizar una oferta privada aceptada entre comprador y vendedor.
+5. Verificar que el endpoint Stripe usado por esta beta pertenece al entorno test/sandbox y que los eventos recibidos tienen `livemode=false`.
+
+La integración actual sincroniza el estado del vendedor directamente contra Stripe al cargar la página y antes de liberar fondos. El webhook Connect `account.updated` sigue pendiente y debe añadirse antes de considerar esta integración lista para producción pública.
+
+### Flujo A — pago, envío y transferencia
+
+1. comprador inicia Checkout privado desde una oferta aceptada;
+2. paga con un método de prueba de Stripe;
+3. el webhook firmado actualiza el pago hasta `succeeded`;
+4. si la entrega es con envío, se usa exclusivamente la simulación de etiqueta;
+5. el shipment progresa hasta `delivered`;
+6. Super Admin abre `/admin/super/commerce-lab`;
+7. libera manualmente el neto del vendedor;
+8. verificar que Stripe creó una única transferencia test y que Supabase refleja el mismo importe, moneda y estado.
+
+### Flujo B — refund antes de transferir
+
+Con una operación nueva:
+
+1. completar pago test;
+2. no liberar fondos al vendedor;
+3. ejecutar `Refund test` desde Commerce Lab;
+4. verificar refund completo en Stripe test;
+5. verificar `commerce_refunds` y `payment_intents.status=refunded`;
+6. si el shipment todavía no se despachó, verificar que queda cancelado.
+
+### Flujo C — transferencia, reversal y refund
+
+Con otra operación nueva:
+
+1. completar pago test;
+2. completar entrega si aplica;
+3. liberar manualmente la transferencia;
+4. ejecutar `Refund test`;
+5. verificar que Stripe hace primero una reversión completa de la transferencia y después el refund completo;
+6. verificar que Supabase refleja transferencia `reversed`, refund `succeeded` y pago `refunded`.
+
+Si Stripe contiene un refund ajeno/parcial o una reversión parcial, el backend bloquea la operación automática y exige reconciliación manual.
+
+### Validaciones posteriores
+
+Después de cada recorrido comprobar:
+
+- no existe más de una transferencia por `payment_intent_id`;
+- no existe más de un refund Wetudy por `payment_intent_id`;
+- Stripe y Supabase coinciden en estado, moneda e importe;
+- el Commerce Lab no muestra acciones incompatibles con el estado actual;
+- `ENABLE_PRIVATE_COMMERCE_SENDCLOUD_LABELS` continúa en `false`;
+- el flujo público y su copy permanecen sin cambios.
+
 ## Qué sigue bloqueado
 
 - comercio público;
