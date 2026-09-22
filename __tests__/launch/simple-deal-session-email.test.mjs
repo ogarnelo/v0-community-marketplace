@@ -11,6 +11,10 @@ const eventEmails = read("lib/emails/mvp-event-emails.ts");
 const transactionalEmails = read("lib/emails/transactional.ts");
 const guard = read("components/auth/session-inactivity-guard.tsx");
 const origin = read("lib/auth/public-origin.ts");
+const authForm = read("components/auth/auth-form.tsx");
+const bell = read("components/notifications/navbar-notifications-bell.tsx");
+const contact = read("components/messages/contact-seller-button.tsx");
+const navbarData = read("lib/navbar/get-navbar-data.ts");
 const messages = read("app/messages/page.tsx");
 const account = read("app/account/page.tsx");
 const listings = read("app/account/listings/page.tsx");
@@ -52,8 +56,10 @@ test("valid page loads refresh activity instead of signing out from stale local 
   assert.doesNotMatch(guard, /const stored = window\.localStorage\.getItem\(activityKey\)/);
 });
 
-test("browser auth callbacks remain on the current host", () => {
+test("browser auth callbacks remain on the current host and recover an existing login", () => {
   assert.match(origin, /return window\.location\.origin/);
+  assert.match(authForm, /continueExistingSession/);
+  assert.match(authForm, /router\.replace\(nextPath \|\| "\/account"\)/);
 });
 
 test("protected destinations survive a required login", () => {
@@ -63,4 +69,18 @@ test("protected destinations survive a required login", () => {
   assert.match(listings, /\/auth\?next=\/account\/listings/);
   assert.match(activity, /\/auth\?next=\/account\/activity/);
   assert.match(favorites, /\/auth\?next=\/favorites/);
+});
+
+
+test("common client navigation avoids full document reloads", () => {
+  assert.match(bell, /router\.push\(getNotificationDestination\(notification\)\)/);
+  assert.doesNotMatch(bell, /window\.location\.assign\(getNotificationDestination/);
+  assert.match(contact, /router\.push\(\`\/messages\/\$\{existingConversation\.id\}\`\)/);
+  assert.match(contact, /router\.push\(\`\/messages\/\$\{newConversation\.id\}\`\)/);
+});
+
+test("navbar no longer blocks navigation on notification list queries", () => {
+  assert.match(navbarData, /const typedNotifications: AppNotificationRow\[\] = \[\]/);
+  assert.match(navbarData, /unreadNotificationsCount: 0/);
+  assert.doesNotMatch(navbarData, /\.from\("notifications"\)/);
 });
