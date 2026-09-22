@@ -240,51 +240,56 @@ export function ConversationsSidebar({
             return (
               <div
                 key={conversation.id}
-                className={`border-b px-4 py-4 transition ${isSelected ? "bg-emerald-50" : "bg-white"}`}
+                className={`border-b px-3 py-3 transition sm:px-4 sm:py-4 ${isSelected ? "bg-emerald-50" : "bg-white"}`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
                   <Link
                     href={`/messages/${conversation.id}`}
                     className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50"
                   >
                     <div className="flex items-start gap-3 rounded-xl p-1">
-                      <Avatar className="h-10 w-10 shrink-0">
+                      <Avatar className="h-11 w-11 shrink-0">
                         <AvatarFallback>{getInitials(conversation.otherName)}</AvatarFallback>
                       </Avatar>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{conversation.otherName}</p>
-                            <p className="truncate text-sm text-muted-foreground">{conversation.listingTitle}</p>
-                          </div>
-
-                          <div className="flex shrink-0 flex-col items-end gap-2">
-                            {conversation.latestMessageCreatedAt ? (
-                              <span className="text-xs text-muted-foreground">
-                                {formatSidebarDate(conversation.latestMessageCreatedAt)}
-                              </span>
-                            ) : null}
-
-                            {conversation.unreadCount > 0 ? (
-                              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
-                                {conversation.unreadCount}
-                              </span>
-                            ) : null}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <p className="min-w-0 flex-1 truncate font-semibold text-slate-950">
+                            {conversation.otherName}
+                          </p>
+                          {conversation.unreadCount > 0 ? (
+                            <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold text-white">
+                              {conversation.unreadCount}
+                            </span>
+                          ) : null}
                         </div>
 
+                        <p className="mt-0.5 truncate text-sm font-medium text-slate-600">
+                          {conversation.listingTitle}
+                        </p>
+
                         <p
-                          className={`mt-2 truncate text-sm ${conversation.unreadCount > 0 ? "font-medium text-slate-900" : "text-muted-foreground"
-                            }`}
+                          className={`mt-1 line-clamp-2 text-sm leading-5 ${conversation.unreadCount > 0 ? "font-medium text-slate-900" : "text-muted-foreground"}`}
                         >
                           {conversation.latestMessageBody || "Sin mensajes todavía"}
                         </p>
+
+                        {conversation.latestMessageCreatedAt ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatSidebarDate(conversation.latestMessageCreatedAt)}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </Link>
 
-                  <HideConversationButton conversationId={conversation.id} size="sm" variant="ghost" />
+                  <HideConversationButton
+                    conversationId={conversation.id}
+                    iconOnly
+                    size="icon"
+                    variant="ghost"
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-red-600"
+                  />
                 </div>
               </div>
             );
