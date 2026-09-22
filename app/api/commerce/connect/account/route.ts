@@ -10,6 +10,7 @@ import {
   syncSellerConnectAccount,
 } from "@/lib/commerce/connect";
 import { stripe } from "@/lib/stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,21 @@ export async function GET() {
   if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
   try {
-    const { account, status } = await ensureSellerConnectAccount({
+    const admin = createAdminClient();
+    const { data: existing, error: lookupError } = await admin
+      .from("seller_connect_accounts")
+      .select("stripe_account_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (lookupError) throw lookupError;
+    if (!existing?.stripe_account_id) {
+      return NextResponse.json({ ok: true, account: null });
+    }
+
+    const { account, status } = await syncSellerConnectAccount({
       userId: user.id,
-      email: user.email,
+      stripeAccountId: existing.stripe_account_id,
     });
 
     return NextResponse.json({
