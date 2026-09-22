@@ -1,10 +1,36 @@
 import "server-only";
 
-import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export function connectStatusFromAccount(account: Stripe.Account) {
+type StripeConnectAccount = {
+  id: string;
+  type?: string | null;
+  country?: string | null;
+  default_currency?: string | null;
+  business_type?: string | null;
+  details_submitted?: boolean | null;
+  payouts_enabled?: boolean | null;
+  charges_enabled?: boolean | null;
+  capabilities?: { transfers?: string | null } | null;
+  requirements?: {
+    currently_due?: string[] | null;
+    eventually_due?: string[] | null;
+  } | null;
+};
+
+function getAccountsApi() {
+  const accounts = (stripe as any).accounts;
+  if (!accounts?.create || !accounts?.retrieve) {
+    throw new Error("La versión instalada de Stripe no expone Connected Accounts.");
+  }
+  return accounts as {
+    create: (params: Record<string, unknown>, options?: Record<string, unknown>) => Promise<StripeConnectAccount>;
+    retrieve: (id: string) => Promise<StripeConnectAccount>;
+  };
+}
+
+export function connectStatusFromAccount(account: StripeConnectAccount) {
   const currentlyDue = account.requirements?.currently_due || [];
   const eventuallyDue = account.requirements?.eventually_due || [];
   const transfersActive = account.capabilities?.transfers === "active";
@@ -33,7 +59,7 @@ export async function syncSellerConnectAccount(params: {
   userId: string;
   stripeAccountId: string;
 }) {
-  const account = await stripe.accounts.retrieve(params.stripeAccountId);
+  const account = await getAccountsApi().retrieve(params.stripeAccountId);
   const status = connectStatusFromAccount(account);
   const admin = createAdminClient();
 
@@ -83,7 +109,7 @@ export async function ensureSellerConnectAccount(params: {
     });
   }
 
-  const account = await stripe.accounts.create(
+  const account = await getAccountsApi().create(
     {
       type: "express",
       country: "ES",
