@@ -115,7 +115,7 @@ No se deben usar claves live ni habilitar `ENABLE_LEGACY_COMMERCE`. Para logíst
 4. Crear o reutilizar una oferta privada aceptada entre comprador y vendedor.
 5. Verificar que el endpoint Stripe usado por esta beta pertenece al entorno test/sandbox y que los eventos recibidos tienen `livemode=false`.
 
-La integración actual sincroniza el estado del vendedor directamente contra Stripe al cargar la página y antes de liberar fondos. El webhook Connect `account.updated` sigue pendiente y debe añadirse antes de considerar esta integración lista para producción pública.
+La integración sincroniza el estado del vendedor directamente contra Stripe al cargar la página y antes de liberar fondos. Además, el webhook procesa `account.updated` únicamente para cuentas ya registradas en la beta privada, con `livemode=false`, y actualiza capabilities/requisitos sin persistir KYC ni datos bancarios. El endpoint Stripe de test debe estar suscrito a ese evento para recibir actualizaciones proactivas.
 
 ### Flujo A — pago, envío y transferencia
 
