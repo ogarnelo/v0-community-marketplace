@@ -284,7 +284,7 @@ export default function AgreementPanel({
             <p className="mt-1 text-sm leading-6 text-slate-600">
               {isDonation
                 ? "Ambas partes deben confirmar la donación. Wetudy conserva el historial del acuerdo."
-                : "Podéis aceptar el precio o proponer otro. El pago y la entrega se acuerdan directamente entre las partes."}
+                : "Podéis aceptar el precio o proponer otro. La entrega y el pago se acuerdan directamente entre las partes."}
             </p>
           </div>
         </div>
