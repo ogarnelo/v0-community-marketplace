@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   assertStripeTestMode,
-  canUserUseCommerce,
-  isPublicCommerceEnabled,
+  canUserAccessPrivateCommercePreview,
 } from "@/lib/commerce/private-access";
 import {
   ensureSellerConnectAccount,
@@ -23,10 +22,10 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   }
-  if (!(await canUserUseCommerce(user))) {
+  if (!(await canUserAccessPrivateCommercePreview(user))) {
     return NextResponse.json({ error: "No disponible." }, { status: 404 });
   }
-  if (!isPublicCommerceEnabled()) assertStripeTestMode();
+  assertStripeTestMode();
 
   try {
     const admin = createAdminClient();
@@ -73,10 +72,10 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   }
-  if (!(await canUserUseCommerce(user))) {
+  if (!(await canUserAccessPrivateCommercePreview(user))) {
     return NextResponse.json({ error: "No disponible." }, { status: 404 });
   }
-  if (!isPublicCommerceEnabled()) assertStripeTestMode();
+  assertStripeTestMode();
 
   try {
     const { account } = await ensureSellerConnectAccount({
