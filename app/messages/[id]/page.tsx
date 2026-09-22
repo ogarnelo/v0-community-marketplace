@@ -139,7 +139,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
           {latestShipment ? (
             <div className="border-b bg-muted/20 px-5 py-4">
-              <ShipmentStatusCard shipment={latestShipment} canCreateLabel={canCreateLabel} />
+              <ShipmentStatusCard shipment={latestShipment} canCreateLabel={canCreateLabel} currentUserId={user.id} />
             </div>
           ) : null}
 
