@@ -33,17 +33,25 @@ function getStatusLabel(status: string | null | undefined) {
 export function ShipmentStatusCard({
   shipment,
   canCreateLabel,
+  currentUserId,
+  compact = false,
 }: {
   shipment: ShipmentRow;
   canCreateLabel?: boolean;
+  currentUserId?: string;
+  compact?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localShipment, setLocalShipment] = useState(shipment);
+  const isSeller = Boolean(currentUserId && localShipment.seller_id === currentUserId);
+  const isBuyer = Boolean(currentUserId && localShipment.buyer_id === currentUserId);
   const canRequestLabel =
-    Boolean(canCreateLabel) &&
+    Boolean(canCreateLabel ?? isSeller) &&
     !localShipment.label_url &&
     ["draft", "quoted", "label_pending"].includes(String(localShipment.status));
+  const canMarkDispatched = isSeller && localShipment.status === "label_ready";
+  const canConfirmDelivered = isBuyer && localShipment.status === "in_transit";
 
   async function handleCreateLabel() {
     setLoading(true);
@@ -73,8 +81,36 @@ export function ShipmentStatusCard({
     }
   }
 
+  async function runStateAction(endpoint: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shipmentId: localShipment.id,
+          ...(endpoint.includes("mark-dispatched")
+            ? { trackingCode: localShipment.tracking_code || undefined }
+            : {}),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "No se pudo actualizar el envío.");
+
+      setLocalShipment((prev) => ({
+        ...prev,
+        status: endpoint.includes("mark-delivered") ? "delivered" : "in_transit",
+      }));
+    } catch (err: any) {
+      setError(err?.message || "No se pudo actualizar el envío.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Card className="rounded-2xl border">
+    <Card className={`rounded-2xl border ${compact ? "shadow-none" : ""}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base">Estado del envío</CardTitle>
@@ -102,6 +138,24 @@ export function ShipmentStatusCard({
           {canRequestLabel ? (
             <Button size="sm" onClick={handleCreateLabel} disabled={loading}>
               {loading ? "Creando..." : "Crear etiqueta"}
+            </Button>
+          ) : null}
+          {canMarkDispatched ? (
+            <Button
+              size="sm"
+              onClick={() => runStateAction("/api/shipments/mark-dispatched")}
+              disabled={loading}
+            >
+              {loading ? "Actualizando..." : "Marcar como enviado"}
+            </Button>
+          ) : null}
+          {canConfirmDelivered ? (
+            <Button
+              size="sm"
+              onClick={() => runStateAction("/api/shipments/mark-delivered")}
+              disabled={loading}
+            >
+              {loading ? "Actualizando..." : "Confirmar entrega"}
             </Button>
           ) : null}
         </div>
