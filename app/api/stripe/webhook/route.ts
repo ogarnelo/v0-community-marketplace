@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertStripeTestMode, isPrivateCommercePreviewEnabled, isPublicCommerceEnabled } from "@/lib/commerce/private-access";
+import { syncSellerConnectAccountSnapshot } from "@/lib/commerce/connect";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,38 @@ function isCheckoutEventType(value: string): value is CheckoutEventType {
     value === "checkout.session.async_payment_succeeded" ||
     value === "checkout.session.async_payment_failed"
   );
+}
+
+async function processConnectAccountUpdated(event: Stripe.Event) {
+  if (!isPrivateCommercePreviewEnabled() || event.livemode) {
+    return { ignored: true, reason: "connect_private_test_only" as const };
+  }
+
+  const account = event.data.object as Stripe.Account;
+  const admin = createAdminClient();
+  const { data: existing, error: lookupError } = await admin
+    .from("seller_connect_accounts")
+    .select("user_id")
+    .eq("stripe_account_id", account.id)
+    .maybeSingle();
+
+  if (lookupError) throw lookupError;
+  if (!existing?.user_id) {
+    return { ignored: true, reason: "connect_account_not_registered" as const };
+  }
+
+  const { status } = await syncSellerConnectAccountSnapshot({
+    userId: existing.user_id,
+    account: account as any,
+  });
+
+  return {
+    ignored: false,
+    stripeAccountId: account.id,
+    onboardingStatus: status.onboardingStatus,
+    transfersActive: status.transfersActive,
+    payoutsEnabled: status.payoutsEnabled,
+  };
 }
 
 function getProviderPaymentIntentId(session: Stripe.Checkout.Session) {
@@ -240,6 +273,11 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (event.type === "account.updated") {
+      const result = await processConnectAccountUpdated(event);
+      return NextResponse.json({ ok: true, received: true, ...result });
+    }
+
     if (isCheckoutEventType(event.type)) {
       const session = event.data.object as Stripe.Checkout.Session;
       const result = await processCheckoutSessionEvent(event, event.type, session);

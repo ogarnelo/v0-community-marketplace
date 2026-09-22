@@ -60,6 +60,7 @@ export default async function CommerceLabPage() {
     { data: connectAccounts },
     { data: transfers },
     { data: refunds },
+    { data: events },
   ] = await Promise.all([
     admin
       .from("payment_intents")
@@ -78,14 +79,19 @@ export default async function CommerceLabPage() {
       .limit(20),
     admin
       .from("commerce_transfers")
-      .select("id, payment_intent_id, provider_transfer_id, amount, currency, status, released_at, reversed_at")
+      .select("id, payment_intent_id, provider_transfer_id, amount, currency, status, error_code, released_at, reversed_at")
       .order("created_at", { ascending: false })
       .limit(20),
     admin
       .from("commerce_refunds")
-      .select("id, payment_intent_id, provider_refund_id, amount, currency, status, transfer_reversal_id, created_at")
+      .select("id, payment_intent_id, provider_refund_id, amount, currency, status, error_code, transfer_reversal_id, created_at")
       .order("created_at", { ascending: false })
       .limit(20),
+    admin
+      .from("payment_events")
+      .select("id, payment_intent_id, event_type, provider_event_id, payload, created_at")
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
 
   const shipmentByPaymentId = new Map(
@@ -99,6 +105,24 @@ export default async function CommerceLabPage() {
   const refundByPaymentId = new Map(
     (refunds || []).map((refund: any) => [refund.payment_intent_id, refund])
   );
+  const commerceErrors = [
+    ...(transfers || [])
+      .filter((transfer: any) => transfer.error_code)
+      .map((transfer: any) => ({
+        key: `transfer-${transfer.id}`,
+        kind: "transfer",
+        code: transfer.error_code,
+        paymentIntentId: transfer.payment_intent_id,
+      })),
+    ...(refunds || [])
+      .filter((refund: any) => refund.error_code)
+      .map((refund: any) => ({
+        key: `refund-${refund.id}`,
+        kind: "refund",
+        code: refund.error_code,
+        paymentIntentId: refund.payment_intent_id,
+      })),
+  ];
 
   const previewEnabled = isPrivateCommercePreviewEnabled();
   const publicEnabled = isPublicCommerceEnabled();
@@ -326,6 +350,72 @@ export default async function CommerceLabPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CircleAlert className="h-4 w-4" />
+              Eventos y errores
+            </CardTitle>
+            <CardDescription>
+              Últimos eventos de pagos y errores persistidos de settlement/refunds. No muestra secretos ni payloads completos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Eventos recientes</p>
+              {(events || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todavía no hay eventos de pago.</p>
+              ) : (
+                (events || []).map((event: any) => (
+                  <div key={event.id} className="rounded-xl border p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">{event.event_type}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(event.created_at).toLocaleString("es-ES")}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
+                      pago {event.payment_intent_id}
+                    </p>
+                    {event.provider_event_id ? (
+                      <p className="mt-1 break-all text-xs text-muted-foreground">
+                        Stripe {event.provider_event_id}
+                      </p>
+                    ) : null}
+                    {event.payload?.payment_status || event.payload?.refund_status ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        estado {event.payload?.payment_status || event.payload?.refund_status}
+                        {event.payload?.reconciled ? " · reconciliado" : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Errores persistidos</p>
+              {commerceErrors.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay errores persistidos de transferencias o refunds.</p>
+              ) : (
+                commerceErrors.map((error: any) => (
+                  <div key={error.key} className="rounded-xl border border-amber-200 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{error.kind}</span>
+                      <Badge variant="outline">requiere revisión</Badge>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
+                      {error.code}
+                    </p>
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
+                      pago {error.paymentIntentId}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
