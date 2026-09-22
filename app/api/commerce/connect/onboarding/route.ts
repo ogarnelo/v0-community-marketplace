@@ -8,7 +8,7 @@ import {
 import {
   createStripeRecipientAccount,
   createStripeRecipientOnboardingLink,
-} from "@/lib/commerce/stripe-connect";
+} from "@/lib/commerce/stripe-connect-v2";
 
 type ConnectedAccountRow = {
   provider_account_id: string;
