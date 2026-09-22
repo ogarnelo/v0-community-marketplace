@@ -20,11 +20,12 @@ export async function GET(request: Request) {
   try {
     assertStripeTestMode();
     const admin = createAdminClient();
-    const { data: account } = await admin
+    const accountResult = await admin
       .from("commerce_connected_accounts")
       .select("provider_account_id")
       .eq("user_id", user.id)
       .maybeSingle();
+    const account = accountResult.data as { provider_account_id: string } | null;
 
     if (!account?.provider_account_id) {
       return NextResponse.redirect(new URL("/account/commerce", request.url));
