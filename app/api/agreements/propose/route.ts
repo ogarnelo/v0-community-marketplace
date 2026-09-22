@@ -92,6 +92,7 @@ export async function POST(request: Request) {
     const recipientEmail = recipientAuth.data.user?.email;
 
     const actorName = user.user_metadata?.full_name || "La otra persona";
+    const actorRole = user.id === agreement.buyer_id ? "buyer" : "seller";
     const formattedAmount = Number(agreement.amount || 0).toLocaleString("es-ES", {
       style: "currency",
       currency: "EUR",
@@ -107,8 +108,12 @@ export async function POST(request: Request) {
             : "Nueva oferta",
         body:
           agreement.agreement_type === "donation"
-            ? `${actorName} quiere quedarse con ${listing?.title || "tu artículo"}.`
-            : `${actorName} te ofrece ${formattedAmount} por ${listing?.title || "tu artículo"}.`,
+            ? actorRole === "buyer"
+              ? `${actorName} quiere quedarse con ${listing?.title || "este artículo"}.`
+              : `${actorName} quiere darte ${listing?.title || "este artículo"}.`
+            : actorRole === "buyer"
+              ? `${actorName} te ofrece ${formattedAmount} por ${listing?.title || "este artículo"}.`
+              : `${actorName} te propone ${formattedAmount} por ${listing?.title || "este artículo"}.`,
         href: `/messages/${agreement.conversation_id}#agreement-panel`,
         metadata: {
           agreement_id: agreement.id,
@@ -129,6 +134,7 @@ export async function POST(request: Request) {
           agreementType: agreement.agreement_type,
           amount: agreement.amount == null ? null : Number(agreement.amount),
           actorName,
+          actorRole,
           idempotencyKey: `agreement-proposed/${agreement.id}`,
         });
       } catch (emailError) {

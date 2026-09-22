@@ -18,6 +18,7 @@ type EventEmailParams = {
   agreementType?: "sale" | "donation" | string | null;
   amount?: number | null;
   actorName?: string | null;
+  actorRole?: "buyer" | "seller" | null;
 };
 
 function getBaseUrl() {
@@ -99,9 +100,13 @@ export async function sendAgreementProposedEmail(params: EventEmailParams) {
       ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(params.amount)
       : null;
   const action = isDonation
-    ? `${actorName} quiere quedarse con este artículo.`
+    ? params.actorRole === "seller"
+      ? `${actorName} quiere darte este artículo.`
+      : `${actorName} quiere quedarse con este artículo.`
     : amount
-      ? `${actorName} te propone ${amount}.`
+      ? params.actorRole === "buyer"
+        ? `${actorName} te ofrece ${amount}.`
+        : `${actorName} te propone ${amount}.`
       : `${actorName} te ha enviado una oferta.`;
 
   return sendEmail({
