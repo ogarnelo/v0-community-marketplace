@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from '@/lib/payments/pricing'
 import { getAcceptedOfferAmount } from '@/lib/payments/offer-amount'
-import { isLegacyCommerceEnabled } from '@/lib/launch/feature-gates'
+import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode } from '@/lib/commerce/private-access'
 
 type OfferWithListing = {
   id: string
@@ -30,10 +30,6 @@ export async function startCheckoutSession(params: {
   deliveryMethod: DeliveryMethod
   shipmentTier: ShipmentTier
 }) {
-  if (!isLegacyCommerceEnabled()) {
-    throw new Error('Esta función no está activa durante el lanzamiento inicial de Wetudy.')
-  }
-
   const { offerId, deliveryMethod, shipmentTier } = params
 
   const supabase = await createClient()
@@ -42,6 +38,11 @@ export async function startCheckoutSession(params: {
   if (!user) {
     throw new Error('Debes iniciar sesión para continuar.')
   }
+
+  if (!(await canUserUseCommerce(user))) {
+    throw new Error('El checkout privado no está habilitado para esta cuenta.')
+  }
+  if (!isPublicCommerceEnabled()) assertStripeTestMode()
 
   const adminSupabase = createAdminClient()
 
@@ -224,10 +225,6 @@ export async function startCheckoutSession(params: {
 export async function confirmPaymentComplete(params: {
   offerId: string
 }) {
-  if (!isLegacyCommerceEnabled()) {
-    throw new Error('Esta función no está activa durante el lanzamiento inicial de Wetudy.')
-  }
-
   const { offerId } = params
 
   const supabase = await createClient()
@@ -236,6 +233,11 @@ export async function confirmPaymentComplete(params: {
   if (!user) {
     throw new Error('Debes iniciar sesión.')
   }
+
+  if (!(await canUserUseCommerce(user))) {
+    throw new Error('El checkout privado no está habilitado para esta cuenta.')
+  }
+  if (!isPublicCommerceEnabled()) assertStripeTestMode()
 
   const adminSupabase = createAdminClient()
 
@@ -326,10 +328,6 @@ export async function confirmPaymentComplete(params: {
  * Verifica el estado de una sesión de Stripe Checkout.
  */
 export async function checkSessionStatus(sessionId: string) {
-  if (!isLegacyCommerceEnabled()) {
-    return { paymentStatus: 'unavailable', status: 'disabled' }
-  }
-
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
