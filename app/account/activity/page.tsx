@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -83,8 +84,8 @@ function resolveOfferAmount(offer: ListingOfferRow) {
 export default async function AccountActivityPage() {
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
+  const user = await getCurrentUser();
+  if (!user) redirect("/auth?next=/account/activity");
 
   const [sentOffersResult, receivedOffersResult, myListingsResult, sentDonationsResult, conversationsResult, agreementsResult, notificationsResult] = await Promise.all([
     adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, status, counter_price, created_at, responded_at").eq("buyer_id", user.id).order("created_at", { ascending: false }),
