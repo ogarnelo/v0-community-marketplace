@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowLeft,
   BookOpen,
@@ -11,6 +10,7 @@ import {
   ImagePlus,
   Loader2,
   Package,
+  Save,
   School,
   Sparkles,
   Tag,
@@ -23,6 +23,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  EMPTY_LISTING_DRAFT_PAYLOAD,
+  type ListingDraftPayload,
+  type ListingDraftPhoto,
+} from "@/lib/marketplace/listing-draft";
 
 const STORAGE_BUCKET = "listing-photos";
 const MAX_FILES = 8;
@@ -45,8 +58,9 @@ type NewListingFormProps = {
 };
 
 type PreviewFile = {
-  file: File;
+  file: File | null;
   previewUrl: string;
+  storagePath?: string;
 };
 
 type ListingInsertPayload = {
@@ -164,6 +178,8 @@ function SectionCard({
 export default function NewListingForm({ initialSchoolId, initialSchoolName, initialSchoolCity }: NewListingFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const suppressCategoryResetRef = useRef(false);
+  const categoryEffectReadyRef = useRef(false);
 
   const [loading, setLoading] = useState(false);
   const [isDonation, setIsDonation] = useState(false);
@@ -189,6 +205,11 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const [photoError, setPhotoError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const [draftLoading, setDraftLoading] = useState(true);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftExists, setDraftExists] = useState(false);
+  const [draftMessage, setDraftMessage] = useState("");
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
 
   const showBookFields = isBookCategory(selectedCategory);
   const showTextbookFields = isTextbookCategory(selectedCategory);
@@ -197,6 +218,56 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const showTechFields = isTechCategory(selectedCategory);
   const showBagFields = isBagCategory(selectedCategory);
   const courseRequired = isCourseRequired(selectedCategory);
+  const selectedConditionOption = conditions.find((condition) => condition.value === selectedCondition) || null;
+  const draftPayload = useMemo<ListingDraftPayload>(
+    () => ({
+      title,
+      description,
+      selectedCategory,
+      selectedGradeLevel,
+      selectedCondition,
+      price,
+      originalPrice,
+      isbn,
+      author,
+      publisher,
+      format,
+      language,
+      subject,
+      specificType,
+      sizeLabel,
+      brand,
+      model,
+      season,
+      isDonation,
+    }),
+    [
+      title,
+      description,
+      selectedCategory,
+      selectedGradeLevel,
+      selectedCondition,
+      price,
+      originalPrice,
+      isbn,
+      author,
+      publisher,
+      format,
+      language,
+      subject,
+      specificType,
+      sizeLabel,
+      brand,
+      model,
+      season,
+      isDonation,
+    ]
+  );
+  const hasDraftContent =
+    photos.length > 0 ||
+    Object.entries(draftPayload).some(([key, value]) =>
+      key === "isDonation" ? value === true : typeof value === "string" && value.trim().length > 0
+    );
   const normalizedIsbnForQuality = isbn.replace(/[^0-9xX]/g, "");
   const listingQualityChecks = [
     { label: "Título descriptivo", done: title.trim().length >= 12 },
@@ -220,6 +291,16 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const listingQualityCompleted = listingQualityChecks.filter((item) => item.done).length;
 
   useEffect(() => {
+    if (!categoryEffectReadyRef.current) {
+      categoryEffectReadyRef.current = true;
+      return;
+    }
+
+    if (suppressCategoryResetRef.current) {
+      suppressCategoryResetRef.current = false;
+      return;
+    }
+
     setSpecificType("");
     setSizeLabel("");
     setBrand("");
@@ -243,6 +324,79 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
 
   const normalizedGradeLevels = useMemo(() => Array.from(new Set(gradeLevels)).filter(Boolean), []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDraft = async () => {
+      try {
+        const response = await fetch("/api/marketplace/listing-draft", { cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json();
+        const draft = result?.draft;
+        if (!draft || cancelled) return;
+
+        const payload = {
+          ...EMPTY_LISTING_DRAFT_PAYLOAD,
+          ...(draft.payload || {}),
+        } as ListingDraftPayload;
+        const draftPhotos = Array.isArray(draft.photos) ? (draft.photos as ListingDraftPhoto[]) : [];
+
+        suppressCategoryResetRef.current = Boolean(payload.selectedCategory);
+        setTitle(payload.title);
+        setDescription(payload.description);
+        setSelectedCategory(payload.selectedCategory);
+        setSelectedGradeLevel(payload.selectedGradeLevel);
+        setSelectedCondition(payload.selectedCondition);
+        setPrice(payload.price);
+        setOriginalPrice(payload.originalPrice);
+        setIsbn(payload.isbn);
+        setAuthor(payload.author);
+        setPublisher(payload.publisher);
+        setFormat(payload.format);
+        setLanguage(payload.language);
+        setSubject(payload.subject);
+        setSpecificType(payload.specificType);
+        setSizeLabel(payload.sizeLabel);
+        setBrand(payload.brand);
+        setModel(payload.model);
+        setSeason(payload.season);
+        setIsDonation(Boolean(payload.isDonation));
+        setPhotos(
+          draftPhotos
+            .filter((photo) => photo?.url && photo?.path)
+            .slice(0, MAX_FILES)
+            .map((photo) => ({
+              file: null,
+              previewUrl: photo.url,
+              storagePath: photo.path,
+            }))
+        );
+        setDraftExists(true);
+        setDraftMessage("Borrador recuperado. Puedes continuar donde lo dejaste.");
+      } catch (error) {
+        console.error("No se pudo recuperar el borrador", error);
+      } finally {
+        if (!cancelled) setDraftLoading(false);
+      }
+    };
+
+    void loadDraft();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasDraftContent) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasDraftContent]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -289,7 +443,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
         setPhotoError("Cada imagen debe pesar menos de 10 MB.");
         continue;
       }
-      accepted.push({ file, previewUrl: URL.createObjectURL(file) });
+      accepted.push({ file, previewUrl: URL.createObjectURL(file), storagePath: undefined });
     }
 
     if (accepted.length > 0) setPhotos((prev) => [...prev, ...accepted]);
@@ -299,9 +453,117 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const handleRemovePhoto = (index: number) => {
     setPhotos((prev) => {
       const target = prev[index];
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      if (target?.file && target.previewUrl) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((_, i) => i !== index);
     });
+  };
+
+  const persistDraftPhotos = async (userId: string) => {
+    const supabase = createClient();
+    const nextPreviewFiles: PreviewFile[] = [];
+    const draftPhotos: ListingDraftPhoto[] = [];
+
+    for (let index = 0; index < photos.length; index += 1) {
+      const photo = photos[index];
+
+      if (photo.storagePath && !photo.file) {
+        nextPreviewFiles.push(photo);
+        draftPhotos.push({ url: photo.previewUrl, path: photo.storagePath });
+        continue;
+      }
+
+      if (!photo.file) continue;
+
+      const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const safeName = sanitizeFileName(photo.file.name);
+      const filePath = `${userId}/drafts/current/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+      const publicUrl = publicUrlData?.publicUrl;
+      if (!publicUrl) throw new Error("No se pudo guardar una foto del borrador.");
+
+      URL.revokeObjectURL(photo.previewUrl);
+      nextPreviewFiles.push({ file: null, previewUrl: publicUrl, storagePath: filePath });
+      draftPhotos.push({ url: publicUrl, path: filePath });
+    }
+
+    return { nextPreviewFiles, draftPhotos };
+  };
+
+  const saveDraft = async () => {
+    if (draftSaving) return false;
+    if (!hasDraftContent) {
+      setDraftMessage("Añade algún dato antes de guardar el borrador.");
+      return false;
+    }
+
+    setDraftSaving(true);
+    setDraftMessage("");
+    setSubmitError("");
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.assign("/auth?next=/marketplace/new");
+        return false;
+      }
+
+      const { nextPreviewFiles, draftPhotos } = await persistDraftPhotos(user.id);
+      const response = await fetch("/api/marketplace/listing-draft", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: draftPayload, photos: draftPhotos }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "No se pudo guardar el borrador.");
+
+      setPhotos(nextPreviewFiles);
+      setDraftExists(true);
+      setDraftMessage("Borrador guardado. Podrás recuperarlo desde Mis anuncios.");
+      return true;
+    } catch (error: any) {
+      setSubmitError(error?.message || "No se pudo guardar el borrador.");
+      return false;
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
+  const discardDraftAndLeave = async () => {
+    setDraftSaving(true);
+    try {
+      await fetch("/api/marketplace/listing-draft", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preservePhotoPaths: [] }),
+      });
+    } finally {
+      setDraftSaving(false);
+      setExitDialogOpen(false);
+      router.push("/marketplace");
+    }
+  };
+
+  const handleLeaveRequest = () => {
+    if (!hasDraftContent && !draftExists) {
+      router.push("/marketplace");
+      return;
+    }
+    setExitDialogOpen(true);
+  };
+
+  const saveDraftAndLeave = async () => {
+    const saved = await saveDraft();
+    if (!saved) return;
+    setExitDialogOpen(false);
+    router.push("/marketplace");
   };
 
   const validateForm = () => {
@@ -344,11 +606,19 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
     const uploadedPhotoRows: ListingPhotoInsertPayload[] = [];
 
     for (let index = 0; index < files.length; index += 1) {
-      const file = files[index].file;
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(file.name);
+      const photo = files[index];
+
+      if (photo.storagePath && !photo.file) {
+        uploadedPhotoRows.push({ listing_id: listingId, url: photo.previewUrl, sort_order: index });
+        continue;
+      }
+
+      if (!photo.file) continue;
+
+      const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const safeName = sanitizeFileName(photo.file.name);
       const filePath = `${userId}/${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { cacheControl: "3600", upsert: false });
+      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
       if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
@@ -416,6 +686,18 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
       const { error: listingPhotosError } = await supabase.from("listing_photos").insert(uploadedPhotoRows);
       if (listingPhotosError) throw listingPhotosError;
 
+      void fetch("/api/marketplace/listing-draft", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preservePhotoPaths: photos
+            .map((photo) => photo.storagePath)
+            .filter((path): path is string => Boolean(path)),
+        }),
+      }).catch((draftCleanupError) => {
+        console.error("No se pudo limpiar el borrador publicado", draftCleanupError);
+      });
+
       await fetch("/api/marketplace/listings/match-saved-searches", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -447,9 +729,13 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   return (
     <div className="min-h-screen bg-muted/20">
       <div className="mx-auto max-w-3xl px-3 pb-28 pt-4 sm:px-6 sm:pb-10 sm:pt-6 lg:px-8">
-        <Link href="/marketplace" className="mb-4 inline-flex min-h-10 items-center gap-1.5 rounded-full px-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
+        <button
+          type="button"
+          onClick={handleLeaveRequest}
+          className="mb-4 inline-flex min-h-10 items-center gap-1.5 rounded-full px-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" /> Volver al marketplace
-        </Link>
+        </button>
 
         <div className="mb-5 sm:mb-7">
           <p className="text-sm font-medium text-primary">Nuevo anuncio</p>
@@ -458,6 +744,16 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
             Completa lo imprescindible y Wetudy adaptará los detalles según la categoría. La entrega y el pago se acuerdan directamente entre las partes.
           </p>
         </div>
+
+        {draftLoading ? (
+          <div className="mb-5 rounded-2xl border bg-background px-4 py-3 text-sm text-muted-foreground">
+            Buscando borradores guardados...
+          </div>
+        ) : draftMessage ? (
+          <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground">
+            {draftMessage}
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif" multiple className="hidden" onChange={handleFilesSelected} />
@@ -496,6 +792,12 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
               <div className="flex flex-col gap-2">
                 <Label htmlFor="description">Descripción *</Label>
                 <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe el estado, editorial, edición, marcas de uso..." rows={5} />
+                <div className="flex items-start justify-between gap-3 text-xs text-muted-foreground">
+                  <p className="max-w-xl">“Descripción útil” se completa al llegar a 60 caracteres. Cuenta el estado real, marcas de uso y cualquier detalle que ayude a decidir.</p>
+                  <span className={description.trim().length >= 60 ? "shrink-0 font-medium text-emerald-600" : "shrink-0"}>
+                    {Math.min(description.trim().length, 60)} / 60
+                  </span>
+                </div>
               </div>
             </div>
           </SectionCard>
@@ -520,7 +822,11 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
               <div className="flex flex-col gap-2">
                 <Label>Estado *</Label>
                 <Select value={selectedCondition} onValueChange={setSelectedCondition}>
-                  <SelectTrigger className="h-11 w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+                  <SelectTrigger className="h-11 w-full min-w-0">
+                    <span className="min-w-0 flex-1 truncate text-left">
+                      {selectedConditionOption?.label || "Seleccionar estado"}
+                    </span>
+                  </SelectTrigger>
                   <SelectContent className="w-[min(360px,calc(100vw-2rem))]">
                     {conditions.map((condition) => (
                       <SelectItem key={condition.value} value={condition.value} textValue={condition.label}>
@@ -529,6 +835,11 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedConditionOption ? (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {selectedConditionOption.description}
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -636,14 +947,48 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
           {submitError && <div className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>}
 
           <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none" style={keyboardOffset > 0 ? { bottom: `${keyboardOffset}px` } : undefined}>
-            <div className="mx-auto flex max-w-3xl gap-3">
-              <Button type="submit" disabled={loading} className="min-h-12 flex-1 text-base sm:flex-none sm:px-8">
+            <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2 sm:flex sm:gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={draftSaving || loading || !hasDraftContent}
+                className="min-h-12 gap-2"
+                onClick={() => void saveDraft()}
+              >
+                {draftSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Guardar borrador
+              </Button>
+              <Button type="submit" disabled={loading || draftSaving} className="min-h-12 text-base sm:px-8">
                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Publicando...</> : "Publicar anuncio"}
               </Button>
-              <Link href="/marketplace" className="hidden sm:block"><Button type="button" variant="outline" className="min-h-12">Cancelar</Button></Link>
+              <Button type="button" variant="ghost" className="hidden min-h-12 sm:inline-flex" onClick={handleLeaveRequest}>
+                Salir
+              </Button>
             </div>
           </div>
         </form>
+
+        <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Qué hacemos con este anuncio?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Puedes guardarlo como borrador para continuar más tarde o descartar los datos y las fotos que todavía no has publicado.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2 sm:flex-row">
+              <Button type="button" variant="ghost" onClick={() => setExitDialogOpen(false)} disabled={draftSaving}>
+                Seguir editando
+              </Button>
+              <Button type="button" variant="outline" onClick={() => void saveDraftAndLeave()} disabled={draftSaving}>
+                {draftSaving ? "Guardando..." : "Guardar borrador y salir"}
+              </Button>
+              <Button type="button" variant="destructive" onClick={() => void discardDraftAndLeave()} disabled={draftSaving}>
+                Descartar y salir
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
