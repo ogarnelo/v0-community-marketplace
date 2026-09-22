@@ -335,6 +335,11 @@ export async function checkSessionStatus(sessionId: string) {
     throw new Error('Debes iniciar sesión.')
   }
 
+  if (!(await canUserUseCommerce(user))) {
+    throw new Error('El checkout privado no está habilitado para esta cuenta.')
+  }
+  if (!isPublicCommerceEnabled()) assertStripeTestMode()
+
   const adminSupabase = createAdminClient()
   const { data: ownedPayment, error: paymentLookupError } = await adminSupabase
     .from('payment_intents')
