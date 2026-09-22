@@ -45,7 +45,7 @@ No almacenamos datos KYC bancarios o de identidad: los recoge Stripe.
 
 Se mantiene la arquitectura de **separate charges and transfers**:
 
-1. comprador paga a la cuenta plataforma en Stripe test;
+1. comprador paga a la cuenta plataforma en Stripe test; durante esta beta Checkout se limita a tarjeta para evitar liberar fondos sobre métodos asíncronos aún no validados;
 2. Wetudy registra el pago;
 3. para envío, se completa el flujo logístico;
 4. el comprador confirma entrega;
@@ -53,7 +53,7 @@ Se mantiene la arquitectura de **separate charges and transfers**:
 6. la transferencia usa el cargo Stripe como `source_transaction`;
 7. no existe liberación automática.
 
-La transferencia es idempotente por `payment_intent_id` y por idempotency key de Stripe.
+La sesión crea el PaymentIntent con un `transfer_group` estable por oferta. La transferencia es idempotente por `payment_intent_id` y por idempotency key de Stripe.
 
 ## Refund / reversal
 
