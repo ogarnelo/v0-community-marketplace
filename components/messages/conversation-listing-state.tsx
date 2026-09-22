@@ -23,6 +23,7 @@ type ConversationListingStateProps = {
   children?: React.ReactNode;
   lockChildrenWhenUnavailable?: boolean;
   allowConversationMessagingWhenUnavailable?: boolean;
+  hideStatusBanner?: boolean;
   className?: string;
 };
 
@@ -36,6 +37,7 @@ export default function ConversationListingState({
   children,
   lockChildrenWhenUnavailable = true,
   allowConversationMessagingWhenUnavailable = false,
+  hideStatusBanner = false,
   className,
 }: ConversationListingStateProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -109,7 +111,9 @@ export default function ConversationListingState({
 
   return (
     <div className={className}>
-      <ListingStatusBanner status={status} title={title} titleHref={listingHref} price={price} />
+      {!hideStatusBanner ? (
+        <ListingStatusBanner status={status} title={title} titleHref={listingHref} price={price} />
+      ) : null}
 
       {children ? (
         <div className="mt-3">
