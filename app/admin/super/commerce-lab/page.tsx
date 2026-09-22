@@ -12,6 +12,7 @@ import {
   isPublicCommerceEnabled,
 } from "@/lib/commerce/private-access";
 import { isSendcloudConfigured } from "@/lib/logistics/sendcloud";
+import { SimulateLabelButton } from "@/components/admin/commerce-lab-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +187,9 @@ export default async function CommerceLabPage() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       {shipment.tracking_code || "Sin tracking"} · {shipment.id}
                     </p>
+                    {["draft", "quoted", "label_pending"].includes(String(shipment.status)) ? (
+                      <SimulateLabelButton shipmentId={shipment.id} />
+                    ) : null}
                   </div>
                 ))
               )}
