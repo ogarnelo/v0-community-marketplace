@@ -5,7 +5,7 @@ import {
   assertStripeTestMode,
   canUserAccessPrivateCommercePreview,
 } from "@/lib/commerce/private-access";
-import { createStripeRecipientOnboardingLink } from "@/lib/commerce/stripe-connect";
+import { createStripeRecipientOnboardingLink } from "@/lib/commerce/stripe-connect-v2";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
