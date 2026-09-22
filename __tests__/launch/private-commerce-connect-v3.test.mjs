@@ -29,7 +29,7 @@ test("Connect preview stays behind private commerce and Stripe test mode", () =>
 });
 
 test("seller connected account creation is explicit and idempotent", () => {
-  assert.match(connect, /stripe\.accounts\.create/);
+  assert.match(connect, /getAccountsApi\(\)\.create/);
   assert.match(connect, /type: "express"/);
   assert.match(connect, /transfers: \{ requested: true \}/);
   assert.match(connect, /wetudy-connect-account-v1/);
@@ -86,11 +86,24 @@ test("Commerce Lab exposes manual-only test settlement controls", () => {
   assert.match(lab, /Vendedores Connect test/);
   assert.match(lab, /Transferencias test/);
   assert.match(lab, /Refunds test/);
+  assert.match(lab, /Eventos y errores/);
+  assert.match(lab, /payment_events/);
+  assert.match(lab, /error_code/);
   assert.match(lab, /ReleaseTransferButton/);
   assert.match(lab, /RefundPaymentButton/);
   assert.match(lab, /no existe payout automático ni activación pública/);
 });
 
+
+
+test("Connect account.updated stays private, test-only and synchronizes capabilities", () => {
+  assert.match(stripeWebhook, /event\.type === "account\.updated"/);
+  assert.match(stripeWebhook, /isPrivateCommercePreviewEnabled\(\)/);
+  assert.match(stripeWebhook, /event\.livemode/);
+  assert.match(stripeWebhook, /syncSellerConnectAccountSnapshot/);
+  assert.match(connect, /disabled_reason/);
+  assert.match(connect, /onboardingStatus: disabledReason/);
+});
 
 test("private Checkout keeps settlement deterministic", () => {
   assert.match(stripeCheckout, /payment_method_types: \['card'\]/);
