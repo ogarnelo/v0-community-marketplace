@@ -1,21 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ListingRow, ReviewRow } from "@/lib/types/marketplace";
+import type { ListingRow } from "@/lib/types/marketplace";
 import { deriveBadges } from "@/lib/users/badges";
+import { getUserReviews } from "@/lib/users/get-user-reviews";
 
 export async function getUserProfileStats(supabase: SupabaseClient, userId: string) {
-  const [{ data: reviewsData }, { data: listingsData }] = await Promise.all([
-    supabase
-      .from("reviews")
-      .select("rating, comment, created_at, reviewer_id, reviewed_user_id, listing_id")
-      .eq("reviewed_user_id", userId)
-      .order("created_at", { ascending: false }),
+  const [reviews, { data: listingsData }] = await Promise.all([
+    getUserReviews(supabase, userId),
     supabase
       .from("listings")
       .select("id, listing_type, status")
       .eq("seller_id", userId),
   ]);
 
-  const reviews = (reviewsData || []) as ReviewRow[];
   const listings = (listingsData || []) as Pick<ListingRow, "id" | "status" | "listing_type">[];
 
   const reviewCount = reviews.length;
