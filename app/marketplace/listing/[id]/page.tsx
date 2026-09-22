@@ -353,7 +353,7 @@ export default async function ListingDetailPage({
                   </div>
                 ) : isAvailable && listing.seller_id ? (
                   <>
-                    <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} />
+                    <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} currentUserId={currentUserId} />
                     <p className="rounded-2xl border bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
                       Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan directamente entre las partes.
                       {isProfessionalSeller ? " En perfiles profesionales el precio es fijo; usa el chat para resolver dudas." : " Si el vendedor acepta negociar, cerradlo por chat antes de confirmar el acuerdo."}
@@ -364,7 +364,7 @@ export default async function ListingDetailPage({
                 )}
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {currentUserId && !isOwnListing ? <FavoriteButton listingId={listing.id} initialIsFavorite={!!favorite} className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" showLabel /> : null}
+                  {currentUserId && !isOwnListing ? <FavoriteButton listingId={listing.id} currentUserId={currentUserId} initialIsFavorite={!!favorite} className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" showLabel /> : null}
                   <ShareListingButton title={displayTitle} url={shareUrl} />
                 </div>
               </div>
@@ -408,6 +408,7 @@ export default async function ListingDetailPage({
         isAvailable={isAvailable}
         isOwnListing={isOwnListing}
         sellerId={listing.seller_id}
+        currentUserId={currentUserId}
       />
     </div>
   );
