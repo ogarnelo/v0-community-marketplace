@@ -92,8 +92,11 @@ export default async function CommerceLabPage() {
       .filter((shipment: any) => shipment.status === "delivered" && shipment.payment_intent_id)
       .map((shipment: any) => shipment.payment_intent_id)
   );
-  const transferByPaymentId = new Map(
-    (transfers || []).map((transfer: any) => [transfer.payment_intent_id, transfer])
+  const transferByPaymentId = new Map<string, any>(
+    (transfers || []).map(
+      (transfer: any) =>
+        [String(transfer.payment_intent_id), transfer] as [string, any]
+    )
   );
   const connectReadyCount = (connectedAccounts || []).filter(
     (account: any) => account.transfers_enabled
