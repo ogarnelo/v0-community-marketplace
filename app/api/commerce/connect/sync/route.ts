@@ -5,7 +5,7 @@ import {
   assertStripeTestMode,
   canUserAccessPrivateCommercePreview,
 } from "@/lib/commerce/private-access";
-import { getConnectedAccountSnapshot } from "@/lib/commerce/stripe-connect";
+import { getConnectedAccountSnapshot } from "@/lib/commerce/stripe-connect-v2";
 
 export async function POST() {
   const supabase = await createClient();
