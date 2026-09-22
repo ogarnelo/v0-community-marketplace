@@ -181,7 +181,7 @@ export async function startCheckoutSession(params: {
 
   const now = new Date().toISOString()
 
-  await adminSupabase
+  const { error: paymentWriteError } = await adminSupabase
     .from('payment_intents')
     .upsert(
       {
@@ -210,11 +210,19 @@ export async function startCheckoutSession(params: {
       { onConflict: 'offer_id' }
     )
 
-  await adminSupabase
+  if (paymentWriteError) {
+    throw new Error(`Stripe creó la sesión, pero no se pudo registrar el pago: ${paymentWriteError.message}`)
+  }
+
+  const { error: listingReserveError } = await adminSupabase
     .from('listings')
     .update({ status: 'reserved' })
     .eq('id', typedOffer.listing_id)
     .eq('status', 'available')
+
+  if (listingReserveError) {
+    throw new Error(`El pago quedó registrado, pero no se pudo reservar el anuncio: ${listingReserveError.message}`)
+  }
 
   if (!session.client_secret) {
     throw new Error('Stripe no devolvió client_secret.')
