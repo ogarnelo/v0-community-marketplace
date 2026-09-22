@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
-import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
+import { createClient } from "@/lib/supabase/server";
+import { canUserUseCommerce } from "@/lib/commerce/private-access";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-export default function CheckoutSuccessPage() {
-  if (!isLegacyCommerceEnabled()) redirect("/messages");
+export default async function CheckoutSuccessPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || !(await canUserUseCommerce(user))) redirect("/messages");
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-8">
