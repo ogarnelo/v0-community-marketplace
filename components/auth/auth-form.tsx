@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +64,8 @@ async function triggerWelcomeEmail() {
 
 export function AuthForm() {
   const searchParams = useSearchParams();
-  const supabase = createClient();
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
   const initialMode = useMemo<AuthMode>(() => {
     const requestedMode = searchParams.get("mode");
@@ -121,6 +122,28 @@ export function AuthForm() {
   const [studentAgeConfirmed, setStudentAgeConfirmed] = useState(false);
 
   const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
+
+  useEffect(() => {
+    if (initialMode !== "login") return;
+
+    let cancelled = false;
+
+    const continueExistingSession = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!cancelled && user) {
+        router.replace(nextPath || "/account");
+      }
+    };
+
+    void continueExistingSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialMode, nextPath, router, supabase]);
 
   const requireCaptchaToken = () => {
     if (captchaIsRequired && !captchaToken) {
