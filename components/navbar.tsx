@@ -270,7 +270,7 @@ export function Navbar({
                 <Icon className="h-4 w-4" />
                 {label}
                 {href === "/messages" && showMessagesBadge ? (
-                  <span className="ml-auto">
+                  <span className="relative ml-auto inline-flex h-5 min-w-5">
                     <NavbarMessagesBadge
                       currentUserId={currentUserId as string}
                       initialCount={unreadMessagesCount}
