@@ -32,7 +32,9 @@ test("mobile Contactar creates or opens the actual conversation", () => {
   assert.match(mobileActions, /sellerId=\{sellerId\}/);
   assert.doesNotMatch(mobileActions, /\/messages\?listing=/);
   assert.match(contactButton, /from\("conversations"\)/);
-  assert.match(contactButton, /window\.location\.assign\(\`\/messages\/\$\{newConversation\.id\}\`\)/);
+  assert.match(contactButton, /router\.push\(\`\/messages\/\$\{existingConversation\.id\}\`\)/);
+  assert.match(contactButton, /router\.push\(\`\/messages\/\$\{newConversation\.id\}\`\)/);
+  assert.doesNotMatch(contactButton, /window\.location\.assign\(\`\/messages\//);
 });
 
 test("listing owners can delete from the listing detail", () => {
