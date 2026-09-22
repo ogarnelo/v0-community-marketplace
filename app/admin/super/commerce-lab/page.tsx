@@ -13,6 +13,7 @@ import {
 } from "@/lib/commerce/private-access";
 import { isSendcloudConfigured } from "@/lib/logistics/sendcloud";
 import { SimulateLabelButton } from "@/components/admin/commerce-lab-actions";
+import { ReleaseTransferButton } from "@/components/admin/commerce-transfer-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -54,17 +55,27 @@ export default async function CommerceLabPage() {
   if (!roles?.length) redirect("/");
 
   const admin = createAdminClient();
-  const [{ data: payments }, { data: shipments }] = await Promise.all([
+  const [{ data: payments }, { data: shipments }, { data: transfers }, { data: connectedAccounts }] = await Promise.all([
     admin
       .from("payment_intents")
-      .select("id, status, amount, currency, provider, created_at")
+      .select("id, status, amount, currency, provider, seller_id, seller_net_amount, metadata, created_at")
       .order("created_at", { ascending: false })
       .limit(8),
     admin
       .from("shipments")
-      .select("id, status, provider, tracking_code, created_at")
+      .select("id, payment_intent_id, status, provider, tracking_code, created_at")
       .order("created_at", { ascending: false })
       .limit(8),
+    admin
+      .from("commerce_transfers")
+      .select("id, payment_intent_id, status, provider_transfer_id, amount, currency, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    admin
+      .from("commerce_connected_accounts")
+      .select("user_id, onboarding_status, transfers_enabled")
+      .order("updated_at", { ascending: false })
+      .limit(50),
   ]);
 
   const previewEnabled = isPrivateCommercePreviewEnabled();
@@ -76,6 +87,17 @@ export default async function CommerceLabPage() {
   const webhookReady = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
   const sendcloudReady = isSendcloudConfigured();
   const labelCreationEnabled = isPrivateShippingLabelCreationEnabled();
+  const deliveredPaymentIds = new Set(
+    (shipments || [])
+      .filter((shipment: any) => shipment.status === "delivered" && shipment.payment_intent_id)
+      .map((shipment: any) => shipment.payment_intent_id)
+  );
+  const transferByPaymentId = new Map(
+    (transfers || []).map((transfer: any) => [transfer.payment_intent_id, transfer])
+  );
+  const connectReadyCount = (connectedAccounts || []).filter(
+    (account: any) => account.transfers_enabled
+  ).length;
 
   return (
     <main className="min-h-screen bg-muted/20">
@@ -97,6 +119,11 @@ export default async function CommerceLabPage() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
             Entorno privado para preparar pagos y logística. No activa checkout público y bloquea Stripe live mientras el comercio público siga deshabilitado.
           </p>
+          <div className="mt-3">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/account/commerce">Configurar mi cuenta Connect test</Link>
+            </Button>
+          </div>
         </div>
 
         <Card className="border-amber-200 bg-amber-50/60">
@@ -126,6 +153,11 @@ export default async function CommerceLabPage() {
               label="Webhook Stripe"
               ok={webhookReady}
               detail="Debe usar un endpoint de test y secreto de webhook de test."
+            />
+            <StatusRow
+              label="Stripe Connect"
+              ok={connectReadyCount > 0}
+              detail={connectReadyCount > 0 ? `${connectReadyCount} cuenta(s) test pueden recibir transferencias.` : "Ninguna cuenta test tiene transferencias habilitadas todavía."}
             />
             <StatusRow
               label="Sendcloud configurado"
@@ -160,6 +192,22 @@ export default async function CommerceLabPage() {
                       <Badge variant="outline">{payment.status}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{payment.provider || "stripe"} · {payment.id}</p>
+                    {payment.status === "succeeded" ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Neto vendedor: {Number(payment.seller_net_amount || payment.amount || 0).toFixed(2)} {payment.currency || "EUR"}
+                      </p>
+                    ) : null}
+                    {transferByPaymentId.get(payment.id) ? (
+                      <p className="mt-2 text-xs font-medium text-muted-foreground">
+                        Transferencia: {(transferByPaymentId.get(payment.id) as any).status}
+                        {(transferByPaymentId.get(payment.id) as any).provider_transfer_id
+                          ? ` · ${(transferByPaymentId.get(payment.id) as any).provider_transfer_id}`
+                          : ""}
+                      </p>
+                    ) : null}
+                    {payment.status === "succeeded" && deliveredPaymentIds.has(payment.id) ? (
+                      <ReleaseTransferButton paymentId={payment.id} />
+                    ) : null}
                   </div>
                 ))
               )}
@@ -204,7 +252,7 @@ export default async function CommerceLabPage() {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Pago Stripe test con importe calculado server-side e idempotencia.</p>
             <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Webhook firmado y estado interno <code>succeeded</code>.</p>
-            <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 text-amber-600" /> Connect/payout al vendedor aún no se activa: requiere decidir modelo marketplace y onboarding/KYC.</p>
+            <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Connect recipient y liberación manual están preparados en modo test; el payout público/automático sigue bloqueado.</p>
             <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 text-amber-600" /> Etiquetas Sendcloud reales permanecen bloqueadas hasta prueba controlada.</p>
           </CardContent>
         </Card>
