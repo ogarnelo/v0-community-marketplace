@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { MessageCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 
 function formatMobilePrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
@@ -19,15 +17,17 @@ export default function MobileListingActions({
   isDonation,
   isAvailable,
   isOwnListing,
+  sellerId,
 }: {
   listingId: string;
   price?: number | null;
   isDonation: boolean;
   isAvailable: boolean;
   isOwnListing: boolean;
+  sellerId?: string | null;
   isProfessionalSeller?: boolean;
 }) {
-  if (isOwnListing || !isAvailable) return null;
+  if (isOwnListing || !isAvailable || !sellerId) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.1)] backdrop-blur md:hidden">
@@ -41,12 +41,12 @@ export default function MobileListingActions({
           </p>
         </div>
 
-        <Button asChild size="lg" className="min-h-11 min-w-[9rem] shrink-0 gap-2 px-5">
-          <Link href={`/messages?listing=${listingId}`}>
-            <MessageCircle className="h-4 w-4" />
-            Contactar
-          </Link>
-        </Button>
+        <ContactSellerButton
+          listingId={listingId}
+          sellerId={sellerId}
+          showIcon
+          className="min-h-11 min-w-[9rem] shrink-0 gap-2 px-5"
+        />
       </div>
     </div>
   );

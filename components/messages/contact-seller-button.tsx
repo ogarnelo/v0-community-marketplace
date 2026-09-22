@@ -2,16 +2,21 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ContactSellerButtonProps {
   listingId: string;
   sellerId: string;
+  className?: string;
+  showIcon?: boolean;
 }
 
 export function ContactSellerButton({
   listingId,
   sellerId,
+  className = "mt-6 hidden w-full md:inline-flex",
+  showIcon = false,
 }: ContactSellerButtonProps) {
   const [loading, setLoading] = useState(false);
 
@@ -126,11 +131,12 @@ export function ContactSellerButton({
   return (
     <Button
       size="lg"
-      className="mt-6 hidden w-full md:inline-flex"
+      className={className}
       onClick={handleContact}
       disabled={loading}
       type="button"
     >
+      {showIcon ? <MessageCircle className="h-4 w-4" /> : null}
       {loading ? "Abriendo chat..." : "Contactar"}
     </Button>
   );

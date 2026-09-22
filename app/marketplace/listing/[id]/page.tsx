@@ -9,6 +9,7 @@ import PostPublishShareCard from "@/components/marketplace/post-publish-share-ca
 import RelatedListingsSection from "@/components/marketplace/related-listings-section";
 import { ContactSellerButton } from "@/components/messages/contact-seller-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import { DeleteListingButton } from "@/components/account/delete-listing-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { buildPhotosMap, type ListingPhotoRow, type MarketplaceListing } from "@/lib/types/marketplace";
@@ -341,7 +342,15 @@ export default async function ListingDetailPage({
 
               <div className="mt-5 flex flex-col gap-3">
                 {isOwnListing ? (
-                  <Link href={`/marketplace/edit/${listing.id}`}><Button className="w-full" variant="outline">Editar anuncio</Button></Link>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Link href={`/marketplace/edit/${listing.id}`}><Button className="w-full" variant="outline">Editar anuncio</Button></Link>
+                    <DeleteListingButton
+                      listingId={listing.id}
+                      title={listing.title}
+                      redirectTo="/account/listings"
+                      className="w-full justify-center"
+                    />
+                  </div>
                 ) : isAvailable && listing.seller_id ? (
                   <>
                     <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} />
@@ -398,6 +407,7 @@ export default async function ListingDetailPage({
         isDonation={isDonation}
         isAvailable={isAvailable}
         isOwnListing={isOwnListing}
+        sellerId={listing.seller_id}
       />
     </div>
   );
