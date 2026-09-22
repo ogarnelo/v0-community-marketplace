@@ -46,6 +46,10 @@ test("agreement emails deep-link to the exact chat", () => {
   assert.match(eventEmails, /button\("Volver al chat", url\)/);
   assert.match(eventEmails, /Solicitud de donación/);
   assert.match(eventEmails, /Nueva oferta/);
+  assert.match(eventEmails, /params\.actorRole === "seller"/);
+  assert.match(eventEmails, /quiere darte este artículo/);
+  assert.match(eventEmails, /params\.actorRole === "buyer"/);
+  assert.match(eventEmails, /te ofrece/);
   assert.doesNotMatch(eventEmails, /http:\/\/localhost:3000/);
   assert.doesNotMatch(transactionalEmails, /http:\/\/localhost:3000/);
 });
