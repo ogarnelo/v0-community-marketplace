@@ -24,10 +24,12 @@ import { Flag, Loader2 } from "lucide-react";
 
 type ReportConversationButtonProps = {
   conversationId: string;
+  iconOnly?: boolean;
 };
 
 export function ReportConversationButton({
   conversationId,
+  iconOnly = false,
 }: ReportConversationButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -99,9 +101,16 @@ export function ReportConversationButton({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size={iconOnly ? "icon" : "sm"}
+          className={iconOnly ? "h-9 w-9" : "gap-2"}
+          aria-label="Reportar chat"
+          title="Reportar chat"
+        >
           <Flag className="h-4 w-4" />
-          Reportar chat
+          {!iconOnly ? "Reportar chat" : null}
         </Button>
       </DialogTrigger>
 

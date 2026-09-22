@@ -28,7 +28,7 @@ describe("UX hotfix 26", () => {
     const combined = [agreementPanel, proposeRoute, landingBenefits].join("\n");
     assert.doesNotMatch(combined, /fuera de Wetudy/i);
     assert.doesNotMatch(combined, /fuera de la plataforma/i);
-    assert.match(agreementPanel, /Confirmar acuerdo entre partes/);
+    assert.match(agreementPanel, /Negociar y cerrar la venta/);
     assert.match(agreementPanel, /La entrega y el pago se acuerdan directamente entre las partes/);
   });
 

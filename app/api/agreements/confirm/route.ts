@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementConfirmedEmail } from "@/lib/emails/mvp-event-emails";
 import { recordAttributedConversion } from "@/lib/growth/server-attribution";
+import { createNotification } from "@/lib/notifications";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -59,6 +60,33 @@ export async function POST(request: Request) {
     }
 
     const isConfirmed = agreement.status === "confirmed";
+    const recipientId =
+      user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
+
+    try {
+      const { data: notificationListing } = await admin
+        .from("listings")
+        .select("title")
+        .eq("id", agreement.listing_id)
+        .maybeSingle();
+
+      await createNotification(admin, {
+        user_id: recipientId,
+        kind: isConfirmed ? "agreement_confirmed" : "agreement_part_confirmed",
+        title: isConfirmed ? "Acuerdo confirmado" : "Han confirmado su parte",
+        body: isConfirmed
+          ? `El acuerdo sobre ${notificationListing?.title || "el anuncio"} ya está confirmado por ambas partes.`
+          : `${user.user_metadata?.full_name || "La otra persona"} ha confirmado su parte del acuerdo.`,
+        href: `/messages/${agreement.conversation_id}`,
+        metadata: {
+          agreement_id: agreement.id,
+          conversation_id: agreement.conversation_id,
+          listing_id: agreement.listing_id,
+        },
+      });
+    } catch (notificationError) {
+      console.error("No se pudo crear la notificación de confirmación", notificationError);
+    }
 
     if (isConfirmed) {
       const [

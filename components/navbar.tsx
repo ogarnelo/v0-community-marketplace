@@ -270,7 +270,7 @@ export function Navbar({
                 <Icon className="h-4 w-4" />
                 {label}
                 {href === "/messages" && showMessagesBadge ? (
-                  <span className="ml-auto">
+                  <span className="relative ml-auto inline-flex h-5 min-w-5">
                     <NavbarMessagesBadge
                       currentUserId={currentUserId as string}
                       initialCount={unreadMessagesCount}
@@ -395,7 +395,7 @@ export function Navbar({
               ))}
             </nav>
 
-            <div className={schoolAdminNavigation ? "hidden items-center gap-2 min-[1180px]:flex" : "hidden items-center gap-2 md:flex"}>
+            <div className="flex items-center gap-1">
               {currentUserId ? (
                 <NavbarNotificationsBell
                   currentUserId={currentUserId}
@@ -404,69 +404,71 @@ export function Navbar({
                 />
               ) : null}
 
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2 px-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-                        {avatarLetter}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="max-w-[180px] truncate text-sm font-medium">{displayName}</span>
-                  </Button>
-                </DropdownMenuTrigger>
+              <div className={schoolAdminNavigation ? "hidden min-[1180px]:block" : "hidden md:block"}>
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2 px-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+                          {avatarLetter}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="max-w-[180px] truncate text-sm font-medium">{displayName}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" sideOffset={8} collisionPadding={12} className="w-56">
-                  <DropdownMenuItem asChild>
-                    <Link href="/account" className="gap-2">
-                      <User className="h-4 w-4" />
-                      Mi cuenta
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/account/activity" className="gap-2">
-                      <Activity className="h-4 w-4" />
-                      Actividad
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/account/listings" className="gap-2">
-                      <Package className="h-4 w-4" />
-                      Mis anuncios
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/favorites" className="gap-2">
-                      <Heart className="h-4 w-4" />
-                      Favoritos
-                    </Link>
-                  </DropdownMenuItem>
-                  {effectiveAdminHref ? (
+                  <DropdownMenuContent align="end" sideOffset={8} collisionPadding={12} className="w-56">
                     <DropdownMenuItem asChild>
-                      <Link href={effectiveAdminHref} className="gap-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        Panel admin
+                      <Link href="/account" className="gap-2">
+                        <User className="h-4 w-4" />
+                        Mi cuenta
                       </Link>
                     </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuSeparator />
-                  <LogoutButton />
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/activity" className="gap-2">
+                        <Activity className="h-4 w-4" />
+                        Actividad
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/account/listings" className="gap-2">
+                        <Package className="h-4 w-4" />
+                        Mis anuncios
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/favorites" className="gap-2">
+                        <Heart className="h-4 w-4" />
+                        Favoritos
+                      </Link>
+                    </DropdownMenuItem>
+                    {effectiveAdminHref ? (
+                      <DropdownMenuItem asChild>
+                        <Link href={effectiveAdminHref} className="gap-2">
+                          <ShieldCheck className="h-4 w-4" />
+                          Panel admin
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuSeparator />
+                    <LogoutButton />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={schoolAdminNavigation ? "shrink-0 min-[1180px]:hidden" : "shrink-0 md:hidden"}
-              aria-expanded={open}
-              aria-controls="mobile-navigation"
-              onClick={() => setOpen((value) => !value)}
-            >
-              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              <span className="sr-only">{open ? "Cerrar menú" : "Abrir menú"}</span>
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={`${schoolAdminNavigation ? "shrink-0 min-[1180px]:hidden" : "shrink-0 md:hidden"} ${open ? "invisible pointer-events-none" : ""}`}
+                aria-expanded={open}
+                aria-controls="mobile-navigation"
+                onClick={() => setOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Abrir menú</span>
+              </Button>
+            </div>
           </>
         ) : (
           <>
@@ -492,13 +494,13 @@ export function Navbar({
               type="button"
               variant="ghost"
               size="icon"
-              className="shrink-0 md:hidden"
+              className={`shrink-0 md:hidden ${open ? "invisible pointer-events-none" : ""}`}
               aria-expanded={open}
               aria-controls="mobile-navigation"
-              onClick={() => setOpen((value) => !value)}
+              onClick={() => setOpen(true)}
             >
-              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              <span className="sr-only">{open ? "Cerrar menú" : "Abrir menú"}</span>
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Abrir menú</span>
             </Button>
           </>
         )}

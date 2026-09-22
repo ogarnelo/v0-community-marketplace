@@ -224,6 +224,12 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const [draftExists, setDraftExists] = useState(false);
   const [draftMessage, setDraftMessage] = useState("");
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [pendingNavigationHref, setPendingNavigationHref] = useState<string | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<{
+    payload: ListingDraftPayload;
+    photos: ListingDraftPhoto[];
+  } | null>(null);
   const [savedDraftSignature, setSavedDraftSignature] = useState(() =>
     draftSignature(EMPTY_LISTING_DRAFT_PAYLOAD, [])
   );
@@ -293,7 +299,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const normalizedIsbnForQuality = isbn.replace(/[^0-9xX]/g, "");
   const listingQualityChecks = [
     { label: "Título descriptivo", done: title.trim().length >= 12 },
-    { label: "Descripción útil", done: description.trim().length >= 60 },
+    { label: "Descripción útil", done: description.trim().length >= 40 },
     { label: "2 o más fotos reales", done: photos.length >= 2 },
     ...(courseRequired
       ? [{ label: "Curso o etapa", done: Boolean(selectedGradeLevel) }]
@@ -364,39 +370,14 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
         } as ListingDraftPayload;
         const draftPhotos = Array.isArray(draft.photos) ? (draft.photos as ListingDraftPhoto[]) : [];
 
-        suppressCategoryResetRef.current = Boolean(payload.selectedCategory);
-        setTitle(payload.title);
-        setDescription(payload.description);
-        setSelectedCategory(payload.selectedCategory);
-        setSelectedGradeLevel(payload.selectedGradeLevel);
-        setSelectedCondition(payload.selectedCondition);
-        setPrice(payload.price);
-        setOriginalPrice(payload.originalPrice);
-        setIsbn(payload.isbn);
-        setAuthor(payload.author);
-        setPublisher(payload.publisher);
-        setFormat(payload.format);
-        setLanguage(payload.language);
-        setSubject(payload.subject);
-        setSpecificType(payload.specificType);
-        setSizeLabel(payload.sizeLabel);
-        setBrand(payload.brand);
-        setModel(payload.model);
-        setSeason(payload.season);
-        setIsDonation(Boolean(payload.isDonation));
-        setPhotos(
-          draftPhotos
+        setPendingDraft({
+          payload,
+          photos: draftPhotos
             .filter((photo) => photo?.url && photo?.path)
-            .slice(0, MAX_FILES)
-            .map((photo) => ({
-              file: null,
-              previewUrl: photo.url,
-              storagePath: photo.path,
-            }))
-        );
+            .slice(0, MAX_FILES),
+        });
         setDraftExists(true);
-        setSavedDraftSignature(draftSignature(payload, draftPhotos));
-        setDraftMessage("Borrador recuperado. Puedes continuar donde lo dejaste.");
+        setRestoreDialogOpen(true);
       } catch (error) {
         console.error("No se pudo recuperar el borrador", error);
       } finally {
@@ -419,6 +400,49 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    const handleInternalNavigation = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+
+      const nextUrl = new URL(anchor.href, window.location.href);
+      if (nextUrl.origin !== window.location.origin) return;
+
+      const currentUrl = new URL(window.location.href);
+      if (
+        nextUrl.pathname === currentUrl.pathname &&
+        nextUrl.search === currentUrl.search &&
+        nextUrl.hash === currentUrl.hash
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingNavigationHref(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      setExitDialogOpen(true);
+    };
+
+    document.addEventListener("click", handleInternalNavigation, true);
+    return () => document.removeEventListener("click", handleInternalNavigation, true);
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
@@ -559,6 +583,70 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
     }
   };
 
+  const restoreDraft = () => {
+    if (!pendingDraft) {
+      setRestoreDialogOpen(false);
+      return;
+    }
+
+    const { payload, photos: draftPhotos } = pendingDraft;
+    suppressCategoryResetRef.current = Boolean(payload.selectedCategory);
+    setTitle(payload.title);
+    setDescription(payload.description);
+    setSelectedCategory(payload.selectedCategory);
+    setSelectedGradeLevel(payload.selectedGradeLevel);
+    setSelectedCondition(payload.selectedCondition);
+    setPrice(payload.price);
+    setOriginalPrice(payload.originalPrice);
+    setIsbn(payload.isbn);
+    setAuthor(payload.author);
+    setPublisher(payload.publisher);
+    setFormat(payload.format);
+    setLanguage(payload.language);
+    setSubject(payload.subject);
+    setSpecificType(payload.specificType);
+    setSizeLabel(payload.sizeLabel);
+    setBrand(payload.brand);
+    setModel(payload.model);
+    setSeason(payload.season);
+    setIsDonation(Boolean(payload.isDonation));
+    setPhotos(
+      draftPhotos.map((photo) => ({
+        file: null,
+        previewUrl: photo.url,
+        storagePath: photo.path,
+      }))
+    );
+    setSavedDraftSignature(draftSignature(payload, draftPhotos));
+    setDraftMessage("Borrador recuperado. Puedes continuar donde lo dejaste.");
+    setPendingDraft(null);
+    setRestoreDialogOpen(false);
+  };
+
+  const discardStoredDraft = async () => {
+    if (draftSaving) return;
+    setDraftSaving(true);
+    setSubmitError("");
+    try {
+      const response = await fetch("/api/marketplace/listing-draft", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preservePhotoPaths: [] }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "No se pudo descartar el borrador.");
+
+      setPendingDraft(null);
+      setDraftExists(false);
+      setRestoreDialogOpen(false);
+      setDraftMessage("Borrador descartado. Puedes empezar un anuncio nuevo.");
+    } catch (error: any) {
+      setSubmitError(error?.message || "No se pudo descartar el borrador.");
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
   const discardDraftAndLeave = async () => {
     setDraftSaving(true);
     setSubmitError("");
@@ -570,8 +658,10 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || "No se pudo descartar el borrador.");
+      const destination = pendingNavigationHref || "/marketplace";
       setExitDialogOpen(false);
-      router.push("/marketplace");
+      setPendingNavigationHref(null);
+      router.push(destination);
     } catch (error: any) {
       setSubmitError(error?.message || "No se pudo descartar el borrador.");
     } finally {
@@ -579,19 +669,22 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
     }
   };
 
-  const handleLeaveRequest = () => {
+  const handleLeaveRequest = (destination = "/marketplace") => {
     if (!hasUnsavedChanges) {
-      router.push("/marketplace");
+      router.push(destination);
       return;
     }
+    setPendingNavigationHref(destination);
     setExitDialogOpen(true);
   };
 
   const saveDraftAndLeave = async () => {
     const saved = await saveDraft();
     if (!saved) return;
+    const destination = pendingNavigationHref || "/marketplace";
     setExitDialogOpen(false);
-    router.push("/marketplace");
+    setPendingNavigationHref(null);
+    router.push(destination);
   };
 
   const validateForm = () => {
@@ -821,9 +914,9 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
                 <Label htmlFor="description">Descripción *</Label>
                 <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe el estado, editorial, edición, marcas de uso..." rows={5} />
                 <div className="flex items-start justify-between gap-3 text-xs text-muted-foreground">
-                  <p className="max-w-xl">“Descripción útil” se completa al llegar a 60 caracteres. Cuenta el estado real, marcas de uso y cualquier detalle que ayude a decidir.</p>
-                  <span className={description.trim().length >= 60 ? "shrink-0 font-medium text-emerald-600" : "shrink-0"}>
-                    {Math.min(description.trim().length, 60)} / 60
+                  <p className="max-w-xl">“Descripción útil” se completa al llegar a 40 caracteres. Cuenta el estado real, marcas de uso y cualquier detalle que ayude a decidir.</p>
+                  <span className={description.trim().length >= 40 ? "shrink-0 font-medium text-emerald-600" : "shrink-0"}>
+                    {Math.min(description.trim().length, 40)} / 40
                   </span>
                 </div>
               </div>
@@ -1005,14 +1098,46 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-2 sm:flex-row">
-              <Button type="button" variant="ghost" onClick={() => setExitDialogOpen(false)} disabled={draftSaving}>
-                Seguir editando
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setExitDialogOpen(false);
+                  setPendingNavigationHref(null);
+                }}
+                disabled={draftSaving}
+              >
+                Cancelar
               </Button>
               <Button type="button" variant="outline" onClick={() => void saveDraftAndLeave()} disabled={draftSaving}>
                 {draftSaving ? "Guardando..." : "Guardar borrador y salir"}
               </Button>
               <Button type="button" variant="destructive" onClick={() => void discardDraftAndLeave()} disabled={draftSaving}>
                 Descartar y salir
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={restoreDialogOpen} onOpenChange={() => undefined}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tienes un borrador guardado</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Quieres recuperar el anuncio donde lo dejaste o descartar ese borrador y empezar de nuevo?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void discardStoredDraft()}
+                disabled={draftSaving}
+              >
+                {draftSaving ? "Descartando..." : "Descartar borrador"}
+              </Button>
+              <Button type="button" onClick={restoreDraft} disabled={draftSaving}>
+                Recuperar borrador
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

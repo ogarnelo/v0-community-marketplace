@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { Euro, ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
 import { canSendNewMessageToListing, isValidListingStatus, type ListingStatus } from "@/lib/marketplace/listing-status";
 import { canUserUseCommerce } from "@/lib/commerce/private-access";
@@ -130,10 +130,52 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         </div>
 
         <Card className="flex min-h-[calc(100vh-7rem)] flex-col overflow-hidden rounded-2xl border bg-white lg:min-h-[70vh]">
-          <div className="border-b px-5 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <Link href={`/profile/${otherUserId}`} className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"><div className="flex items-center gap-3 rounded-xl p-2"><Avatar className="h-11 w-11"><AvatarFallback>{getInitials(otherName)}</AvatarFallback></Avatar><div className="min-w-0"><p className="truncate text-lg font-semibold">{otherName}</p><p className="truncate text-sm text-muted-foreground">{otherRole}</p><p className="truncate text-sm text-muted-foreground">{listing?.title || "Anuncio"}</p></div></div></Link>
-              <div className="flex items-center gap-2"><ReportConversationButton conversationId={typedConversation.id} /><HideConversationButton conversationId={typedConversation.id} variant="outline" size="sm" /><Link href={`/profile/${otherUserId}`}><Button variant="outline" size="sm" className="gap-2">Ver perfil<ExternalLink className="h-4 w-4" /></Button></Link></div>
+          <div className="border-b px-3 py-3 sm:px-5 sm:py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Link
+                href={`/profile/${otherUserId}`}
+                className="min-w-0 flex-1 rounded-xl transition hover:bg-muted/40"
+              >
+                <div className="flex items-center gap-3 rounded-xl p-1 sm:p-2">
+                  <Avatar className="h-10 w-10 shrink-0 sm:h-11 sm:w-11">
+                    <AvatarFallback>{getInitials(otherName)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold sm:text-lg">{otherName}</p>
+                    <p className="truncate text-xs text-muted-foreground sm:text-sm">{otherRole}</p>
+                    <p className="truncate text-xs font-medium text-slate-600 sm:text-sm">
+                      {listing?.title || "Anuncio"}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {(listing?.listing_type || listing?.type) !== "donation" &&
+                typeof listing?.price === "number" &&
+                listing.price > 0 ? (
+                  <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <a href="#agreement-panel">
+                      <Euro className="h-4 w-4" />
+                      <span>Hacer oferta</span>
+                    </a>
+                  </Button>
+                ) : null}
+
+                <ReportConversationButton conversationId={typedConversation.id} iconOnly />
+                <HideConversationButton
+                  conversationId={typedConversation.id}
+                  iconOnly
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                />
+                <Button asChild variant="outline" size="icon" className="h-9 w-9">
+                  <Link href={`/profile/${otherUserId}`} aria-label="Ver perfil" title="Ver perfil">
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -143,19 +185,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             </div>
           ) : null}
 
-          <AgreementPanel
-            conversationId={typedConversation.id}
-            currentUserId={user.id}
-            buyerId={typedConversation.buyer_id}
-            sellerId={typedConversation.seller_id}
-            listingStatus={listingStatus}
-            listingPrice={typeof listing?.price === "number" ? listing.price : null}
-            listingType={listing?.listing_type || listing?.type || null}
-            initialAgreement={latestAgreement}
-            initialReviews={(agreementReviews || []) as any[]}
-          />
-
-          <div className="flex-1 px-5 py-5">
+          <div className="flex-1 px-3 py-4 sm:px-5 sm:py-5">
             <RealtimeChatMessages
               conversationId={typedConversation.id}
               currentUserId={user.id}
@@ -172,7 +202,19 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             />
           </div>
 
-          <div className="border-t px-5 py-4">
+          <AgreementPanel
+            conversationId={typedConversation.id}
+            currentUserId={user.id}
+            buyerId={typedConversation.buyer_id}
+            sellerId={typedConversation.seller_id}
+            listingStatus={listingStatus}
+            listingPrice={typeof listing?.price === "number" ? listing.price : null}
+            listingType={listing?.listing_type || listing?.type || null}
+            initialAgreement={latestAgreement}
+            initialReviews={(agreementReviews || []) as any[]}
+          />
+
+          <div className="border-t px-3 py-3 sm:px-5 sm:py-4">
             <ConversationListingState listingId={typedConversation.listing_id} conversationId={typedConversation.id} listingHref={`/marketplace/listing/${typedConversation.listing_id}`} initialStatus={listingStatus} title={listing?.title || "Anuncio"} price={typeof listing?.price === "number" ? listing.price : null} allowConversationMessagingWhenUnavailable={allowConversationMessaging}>
               <SendMessageForm conversationId={typedConversation.id} disabled={!allowConversationMessaging} allowUnavailableConversationMessaging={allowConversationMessaging} />
             </ConversationListingState>
