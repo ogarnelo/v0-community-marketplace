@@ -119,6 +119,14 @@ export async function startCheckoutSession(params: {
       ui_mode: 'embedded_page',
       redirect_on_completion: 'never',
       mode: 'payment',
+      payment_method_types: ['card'],
+      payment_intent_data: {
+        transfer_group: `wetudy_${offerId}`,
+        metadata: {
+          wetudy_offer_id: offerId,
+          wetudy_private_preview: 'true',
+        },
+      },
       line_items: [
         {
           price_data: {
