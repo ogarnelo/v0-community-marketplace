@@ -21,10 +21,10 @@ test("connected accounts store only minimal recipient state behind RLS", () => {
 });
 
 test("Stripe Connect uses Accounts v2 recipient onboarding in test mode", () => {
-  assert.match(connect, /stripe\.v2\.core\.accounts\.create/);
-  assert.match(connect, /recipient/);
+  assert.match(connect, /STRIPE_V2_BASE/);
+  assert.match(connect, /recipient/);\n  assert.match(connect, /2026-07-29\.preview/);
   assert.match(connect, /stripe_transfers/);
-  assert.match(connect, /stripe\.v2\.core\.accountLinks\.create/);
+  assert.match(connect, /account_links/);
   assert.match(connect, /assertStripeTestMode/);
   assert.match(onboarding, /canUserAccessPrivateCommercePreview/);
   assert.match(sync, /getConnectedAccountSnapshot/);
