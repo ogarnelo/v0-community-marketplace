@@ -6,7 +6,7 @@ Fecha: 20/09/2026
 
 Esta fase está en preparación y **no está activada para usuarios**. El flujo visible de Wetudy sigue detrás de `ENABLE_LEGACY_COMMERCE`.
 
-Este documento define los controles mínimos que deben mantenerse y los bloqueos que deben resolverse antes de habilitar pagos o envíos reales.
+Este documento define los controles mínimos que deben mantenerse y los bloqueos que deben resolverse antes de habilitar pagos o envíos reales. Desde el 22/09/2026 existe además un preview privado descrito en `docs/PRIVATE_COMMERCE_PREVIEW_V2.md`, limitado a Super Admin/testers y Stripe test.
 
 ## Activos a proteger
 
@@ -168,8 +168,8 @@ No activar pagos reales hasta definirlos y probarlos.
 - [x] Etiqueta solo tras pago confirmado.
 - [x] Entrega solo desde `in_transit`.
 - [x] Idempotency key en creación de Stripe Checkout Session.
-- [ ] Definir despacho manual vs. proveedor y callbacks de logística.
-- [ ] Validar tracking URL.
+- [x] La transición manual a `in_transit` solo se permite desde `label_ready`; callbacks de proveedor siguen pendientes.
+- [x] Las URLs manuales de tracking se validan como HTTPS; el proveedor automático debe seguir usando la URL devuelta por proveedor.
 - [ ] Definir Connect/merchant-of-record/payout.
 - [ ] Definir refunds/disputes/chargebacks.
 - [ ] CSP compatible con Stripe, Turnstile y proveedor logístico.
