@@ -1,5 +1,6 @@
 import { getAdminFlags, type AdminRoleRow } from "@/lib/admin/roles";
 import type { AppNotificationRow } from "@/lib/notifications";
+import { getCurrentUser } from "@/lib/auth/server-user";
 
 interface SupabaseLike {
   auth: {
@@ -21,9 +22,7 @@ export type NavbarData = {
 };
 
 export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return {
@@ -39,17 +38,10 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     };
   }
 
-  const [{ data: profile }, { data: roles }, { data: conversations }, { data: notifications }, { count: unreadNotificationsCount }] = await Promise.all([
+  const [{ data: profile }, { data: roles }, { data: conversations }] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<AdminRoleRow[]>(),
     supabase.from("conversations").select("id").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`),
-    supabase
-      .from("notifications")
-      .select("id, user_id, kind, title, body, href, metadata, read_at, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20),
-    supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null),
   ]);
 
   const conversationIds = Array.isArray(conversations) ? conversations.map((conversation: { id: string }) => conversation.id) : [];
@@ -66,7 +58,7 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     unreadMessagesCount = unreadMessages?.length || 0;
   }
 
-  const typedNotifications = (notifications || []) as AppNotificationRow[];
+  const typedNotifications: AppNotificationRow[] = [];
   const adminFlags = getAdminFlags({ email: user.email, roles: (roles || []) as AdminRoleRow[] });
 
   return {
@@ -76,7 +68,7 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     isSuperAdmin: adminFlags.isSuperAdmin,
     adminHref: adminFlags.isSuperAdmin ? "/admin/super" : adminFlags.canAccessAdmin ? "/admin/school" : undefined,
     unreadMessagesCount,
-    unreadNotificationsCount: unreadNotificationsCount || 0,
+    unreadNotificationsCount: 0,
     notifications: typedNotifications,
     currentUserId: user.id as string,
   };
