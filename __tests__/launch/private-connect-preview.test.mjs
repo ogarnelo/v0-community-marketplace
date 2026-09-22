@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync("supabase/migrations/20260922090000_private_connect_preview.sql", "utf8");
-const connect = readFileSync("lib/commerce/stripe-connect.ts", "utf8");
+const connect = readFileSync("lib/commerce/stripe-connect-v2.ts", "utf8");\nconst transfers = readFileSync("lib/commerce/stripe-transfers.ts", "utf8");
 const onboarding = readFileSync("app/api/commerce/connect/onboarding/route.ts", "utf8");
 const sync = readFileSync("app/api/commerce/connect/sync/route.ts", "utf8");
 const release = readFileSync("app/api/admin/commerce-lab/release-transfer/route.ts", "utf8");
@@ -33,8 +33,8 @@ test("Stripe Connect uses Accounts v2 recipient onboarding in test mode", () => 
 test("seller transfer is separate, delayed and idempotent", () => {
   assert.match(migration, /commerce_transfers/);
   assert.match(migration, /payment_intent_id uuid not null unique/);
-  assert.match(connect, /stripe\.transfers\.create/);
-  assert.match(connect, /source_transaction/);
+  assert.match(transfers, /stripe\.transfers\.create/);
+  assert.match(transfers, /source_transaction/);
   assert.match(connect, /idempotencyKey: `wetudy-transfer-v1:/);
   assert.match(release, /payment\.status !== "succeeded"/);
   assert.match(release, /shipment\.status !== "delivered"/);
