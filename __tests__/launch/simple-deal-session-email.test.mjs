@@ -20,6 +20,16 @@ const account = read("app/account/page.tsx");
 const listings = read("app/account/listings/page.tsx");
 const activity = read("app/account/activity/page.tsx");
 const favorites = read("app/favorites/page.tsx");
+const favoriteButton = read("components/favorites/favorite-button.tsx");
+const sendMessage = read("components/messages/send-message-form.tsx");
+const hideConversation = read("components/messages/hide-conversation-button.tsx");
+const newListingForm = read("components/marketplace/new-listing-form.tsx");
+const listingDetail = read("app/marketplace/listing/[id]/page.tsx");
+const mobileListingActions = read("components/marketplace/mobile-listing-actions.tsx");
+const realtimeMessages = read("components/messages/realtime-chat-messages.tsx");
+const savedSearchEmail = read("lib/emails/saved-search-match-email.ts");
+const adminAlertEmails = read("lib/emails/admin-alert-emails.ts");
+const schoolAdminEmails = read("lib/emails/school-admin-invite-email.ts");
 
 test("agreement UX reads like a simple marketplace proposal", () => {
   assert.match(panel, /Has pedido esta donación/);
@@ -87,4 +97,37 @@ test("navbar no longer blocks navigation on notification list queries", () => {
   assert.match(navbarData, /const typedNotifications: AppNotificationRow\[\] = \[\]/);
   assert.match(navbarData, /unreadNotificationsCount: 0/);
   assert.doesNotMatch(navbarData, /\.from\("notifications"\)/);
+});
+
+
+test("core signed-in actions reuse the server-validated user instead of rechecking Safari auth", () => {
+  assert.match(contact, /currentUserId/);
+  assert.doesNotMatch(contact, /supabase\.auth\.getUser\(\)/);
+  assert.match(favoriteButton, /currentUserId/);
+  assert.doesNotMatch(favoriteButton, /supabase\.auth\.getUser\(\)/);
+  assert.match(sendMessage, /currentUserId: string/);
+  assert.doesNotMatch(sendMessage, /supabase\.auth\.getUser\(\)/);
+  assert.match(hideConversation, /currentUserId/);
+  assert.doesNotMatch(hideConversation, /supabase\.auth\.getUser\(\)/);
+  assert.match(newListingForm, /currentUserId: string/);
+  assert.doesNotMatch(newListingForm, /supabase\.auth\.getUser\(\)/);
+  assert.match(listingDetail, /currentUserId=\{currentUserId\}/);
+  assert.match(mobileListingActions, /currentUserId=\{currentUserId\}/);
+});
+
+test("legacy cold agreement messages render with friendly marketplace copy", () => {
+  assert.match(realtimeMessages, /Me interesa esta donación\. ¿Te parece bien que me la quede\?/);
+  assert.match(realtimeMessages, /Te he enviado una oferta\. ¿Te parece bien\?/);
+  assert.match(realtimeMessages, /Perfecto, por mi parte está bien\./);
+  assert.match(realtimeMessages, /¡Hecho! Ya podemos concretar la entrega por aquí\./);
+});
+
+test("actionable email templates deep-link to the exact destination", () => {
+  assert.match(eventEmails, /\/messages\/\$\{encodeURIComponent\(params\.conversationId\)\}#agreement-panel/);
+  assert.match(eventEmails, /\/messages\/\$\{params\.conversationId \|\| ""\}/);
+  assert.match(savedSearchEmail, /\/marketplace\/listing\/\$\{params\.listingId\}/);
+  assert.match(adminAlertEmails, /support-ticket-\$\{encodeURIComponent\(params\.ticketId\)\}/);
+  assert.match(adminAlertEmails, /school-request-\$\{encodeURIComponent\(params\.requestId\)\}/);
+  assert.match(schoolAdminEmails, /\/auth\?next=\/admin\/school/);
+  assert.match(transactionalEmails, /\/messages\/\$\{encodeURIComponent\(params\.conversationId\)\}/);
 });
