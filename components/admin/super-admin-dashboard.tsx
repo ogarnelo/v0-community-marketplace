@@ -820,12 +820,16 @@ export default function SuperAdminDashboard({
     setLoadingReportId(reportId);
 
     try {
-      const { error } = await supabase
-        .from("reports")
-        .update({ status: nextStatus })
-        .eq("id", reportId);
+      const response = await fetch("/api/admin/reports/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId, status: nextStatus }),
+      });
+      const payload = await response.json().catch(() => null);
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo actualizar el reporte.");
+      }
 
       setReports((prev) =>
         prev.map((report) =>
@@ -1618,19 +1622,14 @@ export default function SuperAdminDashboard({
                               </div>
                             ) : report.target_type === "agreement" ? (
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                <span>Acuerdo: {report.agreement_id}</span>
-                                {report.listing_title ? (
-                                  <span>• {report.listing_title}</span>
-                                ) : null}
-                                {report.conversation_id ? (
-                                  <Link
-                                    href={`/messages/${report.conversation_id}`}
-                                    className="inline-flex items-center gap-1 text-primary hover:underline"
-                                  >
-                                    Ver conversación
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </Link>
-                                ) : null}
+                                <span>{report.listing_title || "Acuerdo"}</span>
+                                <Link
+                                  href={`/admin/super/reports/${report.id}`}
+                                  className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                                >
+                                  Ver detalle e historial
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </Link>
                               </div>
                             ) : (
                               <p className="mt-1 text-sm text-muted-foreground">
