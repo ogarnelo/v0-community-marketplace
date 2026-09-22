@@ -12,9 +12,9 @@ export function BuyerProtectionCard({ compact = false }: BuyerProtectionCardProp
           <ShieldCheck className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-emerald-950">Compra protegida en Wetudy</p>
+          <p className="font-semibold text-emerald-950">Pago dentro de Wetudy · preview</p>
           <p className="mt-1 text-sm leading-6 text-emerald-900/80">
-            Paga dentro de la plataforma para dejar trazabilidad de la operación y mantener el soporte de Wetudy si surge una incidencia.
+            Este flujo de prueba registra el pago, el anuncio y la operación. No implica todavía una garantía comercial ni un sistema público de protección al comprador.
           </p>
         </div>
       </div>
