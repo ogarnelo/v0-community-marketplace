@@ -6,7 +6,7 @@ const read = (path) => fs.readFileSync(path, "utf8");
 const exists = (path) => fs.existsSync(path);
 
 test("agreement API routes exist", () => {
-  for (const route of ["propose", "confirm", "cancel", "dispute", "review"]) {
+  for (const route of ["propose", "counter", "confirm", "cancel", "dispute", "review"]) {
     assert.ok(exists(`app/api/agreements/${route}/route.ts`), `${route} agreement API route should exist`);
   }
 });
@@ -27,7 +27,9 @@ test("chat includes agreement panel", () => {
 
 test("agreement mutations use atomic service-role RPCs", () => {
   const migration = read("supabase/migrations/20260918202500_harden_agreement_integrity.sql");
+  const negotiationMigration = read("supabase/migrations/20260922213000_chat_agreement_realtime_negotiation.sql");
   const propose = read("app/api/agreements/propose/route.ts");
+  const counter = read("app/api/agreements/counter/route.ts");
   const confirm = read("app/api/agreements/confirm/route.ts");
   const cancel = read("app/api/agreements/cancel/route.ts");
   const dispute = read("app/api/agreements/dispute/route.ts");
@@ -40,6 +42,8 @@ test("agreement mutations use atomic service-role RPCs", () => {
   assert.match(migration, /revoke insert, update, delete[\s\S]*public\.agreements/);
 
   assert.match(propose, /admin\.rpc\("server_propose_agreement"/);
+  assert.match(negotiationMigration, /server_counter_agreement/);
+  assert.match(counter, /admin\.rpc\("server_counter_agreement"/);
   assert.match(confirm, /admin\.rpc\("server_confirm_agreement"/);
   assert.match(cancel, /admin\.rpc\("server_cancel_agreement"/);
   assert.match(dispute, /admin\.rpc\("server_dispute_agreement"/);
