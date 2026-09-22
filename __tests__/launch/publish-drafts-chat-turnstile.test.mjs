@@ -11,6 +11,7 @@ const statusActions = read("components/account/listing-status-actions.tsx");
 const draftApi = read("app/api/marketplace/listing-draft/route.ts");
 const draftMigration = read("supabase/migrations/20260922201000_listing_drafts_v1.sql");
 const chatMigration = read("supabase/migrations/20260922200000_fix_conversation_listing_rls_recursion.sql");
+const privateChatMigration = read("supabase/migrations/20260922200500_hide_listing_participant_helper.sql");
 
 test("Turnstile stays hidden unless Cloudflare requires interaction", () => {
   assert.match(turnstile, /appearance: "interaction-only"/);
@@ -46,9 +47,11 @@ test("listing drafts are persisted privately in the database", () => {
 test("listing/conversation RLS no longer recursively queries conversations through listing policy", () => {
   assert.match(chatMigration, /security definer/);
   assert.match(chatMigration, /is_current_user_listing_participant/);
-  assert.match(chatMigration, /revoke all on function/);
-  assert.match(chatMigration, /grant execute on function[\s\S]*to authenticated/);
-  assert.match(chatMigration, /or public\.is_current_user_listing_participant\(id\)/);
+  assert.match(privateChatMigration, /private\.is_current_user_listing_participant/);
+  assert.match(privateChatMigration, /revoke all on function[\s\S]*from anon/);
+  assert.match(privateChatMigration, /grant execute on function[\s\S]*to authenticated, service_role/);
+  assert.match(privateChatMigration, /or private\.is_current_user_listing_participant\(id\)/);
+  assert.match(privateChatMigration, /drop function if exists public\.is_current_user_listing_participant/);
 });
 
 test("seller listing actions have a clean visual hierarchy", () => {
