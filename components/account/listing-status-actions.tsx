@@ -72,28 +72,35 @@ export function ListingStatusActions({
   };
 
   return (
-    <div className="mt-4 flex items-center gap-2">
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-        disabled={loading || isPending}
-      >
-        {STATUS_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+    <div className="rounded-xl border bg-muted/20 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Estado del anuncio
+      </p>
+      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="h-10 min-w-0 w-full rounded-md border border-input bg-background px-3 text-sm"
+          disabled={loading || isPending}
+          aria-label="Estado del anuncio"
+        >
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleSave}
-        disabled={loading || isPending || !hasChanges}
-      >
-        {loading || isPending ? "Guardando..." : "Guardar"}
-      </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleSave}
+          disabled={loading || isPending || !hasChanges}
+          className="min-w-[5.5rem]"
+        >
+          {loading || isPending ? "Guardando..." : "Guardar"}
+        </Button>
+      </div>
     </div>
   );
 }
