@@ -1,0 +1,80 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const read = (path) => readFileSync(path, "utf8");
+
+const migration = read("supabase/migrations/20260922094000_private_commerce_connect_v3.sql");
+const access = read("lib/commerce/private-access.ts");
+const connect = read("lib/commerce/connect.ts");
+const connectRoute = read("app/api/commerce/connect/account/route.ts");
+const connectRefresh = read("app/api/commerce/connect/onboarding/route.ts");
+const connectPage = read("app/account/commerce-preview/page.tsx");
+const release = read("app/api/admin/commerce-lab/release-transfer/route.ts");
+const refund = read("app/api/admin/commerce-lab/refund/route.ts");
+const lab = read("app/admin/super/commerce-lab/page.tsx");
+
+test("Connect preview stays behind private commerce and Stripe test mode", () => {
+  assert.match(access, /ENABLE_PRIVATE_COMMERCE_PREVIEW/);
+  assert.match(access, /sk_test_/);
+  assert.match(connectRoute, /canUserUseCommerce/);
+  assert.match(connectRoute, /assertStripeTestMode/);
+  assert.match(connectRefresh, /canUserUseCommerce/);
+  assert.match(connectPage, /canUserUseCommerce/);
+  assert.doesNotMatch(connectPage, /ENABLE_LEGACY_COMMERCE=true/);
+});
+
+test("seller connected account creation is explicit and idempotent", () => {
+  assert.match(connect, /stripe\.accounts\.create/);
+  assert.match(connect, /type: "express"/);
+  assert.match(connect, /transfers: \{ requested: true \}/);
+  assert.match(connect, /wetudy-connect-account-v1/);
+  assert.match(connectRoute, /if \(!existing\?\.stripe_account_id\)/);
+  assert.match(connectRoute, /account: null/);
+  assert.match(connectRoute, /stripe\.accountLinks\.create/);
+});
+
+test("Connect and settlement tables use RLS and server-only writes", () => {
+  for (const table of [
+    "seller_connect_accounts",
+    "commerce_transfers",
+    "commerce_refunds",
+  ]) {
+    assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`));
+    assert.match(migration, new RegExp(`revoke all on table public\\.${table} from anon`));
+    assert.match(migration, new RegExp(`grant all on table public\\.${table} to service_role`));
+  }
+  assert.match(migration, /user_id = \(select auth\.uid\(\)\)/);
+  assert.match(migration, /seller_id = \(select auth\.uid\(\)\)/);
+  assert.match(migration, /buyer_id = \(select auth\.uid\(\)\)/);
+});
+
+test("test transfer release requires paid state, delivery and ready Connect seller", () => {
+  assert.match(release, /payment\.status !== "succeeded"/);
+  assert.match(release, /shipment\.status !== "delivered"/);
+  assert.match(release, /connectStatus\.transfersActive/);
+  assert.match(release, /connectStatus\.payoutsEnabled/);
+  assert.match(release, /source_transaction: chargeId/);
+  assert.match(release, /wetudy-transfer-v1/);
+  assert.match(release, /sandbox_transfer_released/);
+});
+
+test("test refund reverses released transfer before refunding Stripe payment", () => {
+  const reversalIndex = refund.indexOf("stripe.transfers.createReversal");
+  const refundIndex = refund.indexOf("stripe.refunds.create");
+  assert.ok(reversalIndex >= 0);
+  assert.ok(refundIndex > reversalIndex);
+  assert.match(refund, /wetudy-transfer-reversal-v1/);
+  assert.match(refund, /wetudy-refund-v1/);
+  assert.match(refund, /status: "refunded"/);
+  assert.match(refund, /sandbox_refund_created/);
+});
+
+test("Commerce Lab exposes manual-only test settlement controls", () => {
+  assert.match(lab, /Vendedores Connect test/);
+  assert.match(lab, /Transferencias test/);
+  assert.match(lab, /Refunds test/);
+  assert.match(lab, /ReleaseTransferButton/);
+  assert.match(lab, /RefundPaymentButton/);
+  assert.match(lab, /no existe payout automático ni activación pública/);
+});
