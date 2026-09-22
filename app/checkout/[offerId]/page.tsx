@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CheckoutSummary } from "@/components/payments/checkout-summary";
 import { formatPrice } from "@/lib/marketplace/formatters";
 import { getAcceptedOfferAmount } from "@/lib/payments/offer-amount";
-import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
+import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode } from "@/lib/commerce/private-access";
 
 type OfferPageRow = {
   id: string;
@@ -66,8 +66,6 @@ export default async function CheckoutOfferPage({
 }: {
   params: Promise<{ offerId: string }>;
 }) {
-  if (!isLegacyCommerceEnabled()) redirect("/messages");
-
   const { offerId } = await params;
   const supabase = await createClient();
 
@@ -78,6 +76,9 @@ export default async function CheckoutOfferPage({
   if (!user) {
     redirect("/auth");
   }
+
+  if (!(await canUserUseCommerce(user))) redirect("/messages");
+  if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
   const adminSupabase = createAdminClient();
 
