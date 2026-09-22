@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import { SendMessageForm } from "@/components/messages/send-message-form";
 import { canSendNewMessageToListing, isValidListingStatus, type ListingStatus } from "@/lib/marketplace/listing-status";
-import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
+import { canUserUseCommerce } from "@/lib/commerce/private-access";
 import type { ConversationSummary, DonationRequestRow, ListingOfferRow, PaymentIntentRow, ProfileRow, ShipmentRow } from "@/lib/types/marketplace";
 import { getOfferChatPreview } from "@/lib/offers/chat-message";
 import { getDonationChatPreview } from "@/lib/donations/chat-message";
@@ -35,9 +35,9 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
-  const legacyCommerceEnabled = isLegacyCommerceEnabled();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
+  const legacyCommerceEnabled = await canUserUseCommerce(user);
 
   const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
     supabase.from("conversations").select("*").or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`).order("updated_at", { ascending: false }),
