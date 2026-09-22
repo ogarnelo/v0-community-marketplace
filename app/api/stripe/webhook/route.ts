@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
+import { assertStripeTestMode, isPrivateCommercePreviewEnabled, isPublicCommerceEnabled } from "@/lib/commerce/private-access";
 
 export const dynamic = "force-dynamic";
 
@@ -183,9 +183,10 @@ async function processCheckoutSessionEvent(
 }
 
 export async function POST(request: Request) {
-  if (!isLegacyCommerceEnabled()) {
+  if (!isPublicCommerceEnabled() && !isPrivateCommercePreviewEnabled()) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
+  if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
   const stripe = getStripe();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -225,6 +226,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!isPublicCommerceEnabled() && event.livemode) {
+    return NextResponse.json({ ok: false, error: "Live Stripe events are blocked in private preview." }, { status: 400 });
+  }
+
   try {
     if (isCheckoutEventType(event.type)) {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -248,16 +253,18 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  if (!isLegacyCommerceEnabled()) {
+  if (!isPublicCommerceEnabled() && !isPrivateCommercePreviewEnabled()) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
+  if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
   return NextResponse.json(
     {
       ok: true,
       route: "/api/stripe/webhook",
       configured: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET),
-      commerce_enabled: true,
+      commerce_enabled: isPublicCommerceEnabled(),
+      private_preview_enabled: isPrivateCommercePreviewEnabled(),
     },
     { status: 200 }
   );
