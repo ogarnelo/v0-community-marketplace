@@ -25,10 +25,10 @@ test("condition selector only renders the short label in the closed field", () =
   assert.doesNotMatch(form, /\[&>span\]:truncate/);
 });
 
-test("description quality explains its 60 character threshold", () => {
-  assert.match(form, /description\.trim\(\)\.length >= 60/);
-  assert.match(form, /“Descripción útil” se completa al llegar a 60 caracteres/);
-  assert.match(form, /Math\.min\(description\.trim\(\)\.length, 60\)/);
+test("description quality explains its 40 character threshold", () => {
+  assert.match(form, /description\.trim\(\)\.length >= 40/);
+  assert.match(form, /“Descripción útil” se completa al llegar a 40 caracteres/);
+  assert.match(form, /Math\.min\(description\.trim\(\)\.length, 40\)/);
 });
 
 test("listing drafts are persisted privately in the database", () => {
@@ -40,6 +40,11 @@ test("listing drafts are persisted privately in the database", () => {
   assert.match(draftMigration, /listing_drafts_delete_own/);
   assert.match(draftApi, /admin\.storage\.from\(STORAGE_BUCKET\)\.remove/);
   assert.match(form, /Guardar borrador y salir/);
+  assert.match(form, /Descartar y salir/);
+  assert.match(form, /Tienes un borrador guardado/);
+  assert.match(form, /Recuperar borrador/);
+  assert.match(form, /document\.addEventListener\("click", handleInternalNavigation, true\)/);
+  assert.match(form, /pendingNavigationHref/);
   assert.match(form, /preservePhotoPaths/);
   assert.match(accountListings, /Continuar borrador/);
 });
