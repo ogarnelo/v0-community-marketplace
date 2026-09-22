@@ -10,7 +10,8 @@
     "test:contracts": "node scripts/test-contracts.mjs",
     "mvp:ready": "node scripts/mvp-readiness.mjs https://www.wetudy.com",
     "mvp:ready:local": "node scripts/mvp-readiness.mjs http://localhost:3000",
-    "prebuild": "npm run test:contracts"
+    "prebuild": "npm run test:commerce-contracts",
+    "test:commerce-contracts": "node --test __tests__/launch/private-commerce-connect-v3.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
