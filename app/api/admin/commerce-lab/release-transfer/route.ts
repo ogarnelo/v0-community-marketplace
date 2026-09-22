@@ -272,6 +272,18 @@ export async function POST(request: Request) {
 
       if (reconcileError) throw reconcileError;
 
+      if (stripeExistingTransfer.reversed) {
+        return NextResponse.json(
+          {
+            error:
+              "La transferencia ya está completamente revertida en Stripe y no puede liberarse de nuevo.",
+            transfer: reconciledTransfer,
+            reconciled: true,
+          },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json({
         ok: true,
         transfer: reconciledTransfer,
