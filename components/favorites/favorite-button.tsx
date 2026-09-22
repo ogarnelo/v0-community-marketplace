@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 interface FavoriteButtonProps {
   listingId: string;
+  currentUserId?: string | null;
   initialIsFavorite?: boolean;
   className?: string;
   iconClassName?: string;
@@ -15,6 +16,7 @@ interface FavoriteButtonProps {
 
 export function FavoriteButton({
   listingId,
+  currentUserId,
   initialIsFavorite = false,
   className = "",
   iconClassName = "h-4 w-4",
@@ -38,12 +40,8 @@ export function FavoriteButton({
     setLoading(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.assign("/auth");
+      if (!currentUserId) {
+        router.push(`/auth?next=/marketplace/listing/${listingId}`);
         return;
       }
 
@@ -51,7 +49,7 @@ export function FavoriteButton({
         const { error } = await supabase
           .from("favorites")
           .delete()
-          .eq("user_id", user.id)
+          .eq("user_id", currentUserId)
           .eq("listing_id", listingId);
 
         if (error) throw error;
@@ -62,7 +60,7 @@ export function FavoriteButton({
           .from("favorites")
           .upsert(
             {
-              user_id: user.id,
+              user_id: currentUserId,
               listing_id: listingId,
             },
             {
