@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementProposedEmail } from "@/lib/emails/mvp-event-emails";
+import { createNotification } from "@/lib/notifications";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -23,6 +24,14 @@ export async function POST(request: Request) {
       typeof body?.conversationId === "string" ? body.conversationId.trim() : "";
     const note =
       typeof body?.note === "string" ? body.note.trim().slice(0, 500) : null;
+    const amount =
+      body?.amount == null || body?.amount === ""
+        ? null
+        : Number(body.amount);
+
+    if (amount != null && (!Number.isFinite(amount) || amount <= 0)) {
+      return NextResponse.json({ error: "El precio propuesto no es válido." }, { status: 400 });
+    }
 
     if (!conversationId) {
       return NextResponse.json({ error: "Falta la conversación." }, { status: 400 });
@@ -33,6 +42,7 @@ export async function POST(request: Request) {
       p_actor_id: user.id,
       p_conversation_id: conversationId,
       p_note: note,
+      p_amount: amount,
     });
 
     if (error) {
@@ -77,7 +87,32 @@ export async function POST(request: Request) {
         ),
       ]);
 
+    const recipientId =
+      user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
     const recipientEmail = recipientAuth.data.user?.email;
+
+    try {
+      await createNotification(admin, {
+        user_id: recipientId,
+        kind: "agreement_proposed",
+        title:
+          agreement.agreement_type === "donation"
+            ? "Nueva propuesta de donación"
+            : "Nueva propuesta de acuerdo",
+        body:
+          agreement.agreement_type === "donation"
+            ? `${user.user_metadata?.full_name || "La otra persona"} ha propuesto confirmar la donación.`
+            : `${user.user_metadata?.full_name || "La otra persona"} propone cerrar el acuerdo por ${Number(agreement.amount || 0).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}.`,
+        href: `/messages/${agreement.conversation_id}`,
+        metadata: {
+          agreement_id: agreement.id,
+          conversation_id: agreement.conversation_id,
+          listing_id: agreement.listing_id,
+        },
+      });
+    } catch (notificationError) {
+      console.error("No se pudo crear la notificación de acuerdo", notificationError);
+    }
     if (recipientEmail) {
       try {
         await sendAgreementProposedEmail({
