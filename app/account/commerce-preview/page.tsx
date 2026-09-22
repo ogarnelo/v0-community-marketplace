@@ -4,8 +4,7 @@ import { ArrowLeft, FlaskConical } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import {
   assertStripeTestMode,
-  canUserUseCommerce,
-  isPublicCommerceEnabled,
+  canUserAccessPrivateCommercePreview,
 } from "@/lib/commerce/private-access";
 import { SellerConnectPreviewCard } from "@/components/commerce/seller-connect-preview-card";
 import { Button } from "@/components/ui/button";
@@ -19,8 +18,8 @@ export default async function PrivateCommerceAccountPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth?next=/account/commerce-preview");
-  if (!(await canUserUseCommerce(user))) redirect("/account");
-  if (!isPublicCommerceEnabled()) assertStripeTestMode();
+  if (!(await canUserAccessPrivateCommercePreview(user))) redirect("/account");
+  assertStripeTestMode();
 
   return (
     <main className="min-h-screen bg-muted/20">
