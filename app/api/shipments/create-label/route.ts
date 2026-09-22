@@ -29,6 +29,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
+  if (!(await canUserUseCommerce(user))) {
+    return NextResponse.json({ error: "No disponible." }, { status: 404 });
+  }
+  if (!isPublicCommerceEnabled()) assertStripeTestMode();
+
   if (!isPublicCommerceEnabled() && !isPrivateShippingLabelCreationEnabled()) {
     return NextResponse.json(
       { error: "La creación real de etiquetas está bloqueada en el preview privado." },
