@@ -218,6 +218,19 @@ export async function POST(request: Request) {
           : stripeExistingTransfer.source_transaction?.id || null;
 
       if (
+        stripeExistingTransfer.amount_reversed > 0 &&
+        !stripeExistingTransfer.reversed
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Stripe contiene una reversión parcial de esta transferencia; se requiere reconciliación manual.",
+          },
+          { status: 409 }
+        );
+      }
+
+      if (
         stripeExistingTransfer.amount !== amountCents ||
         stripeExistingTransfer.currency !== expectedCurrency ||
         existingSourceTransaction !== chargeId
