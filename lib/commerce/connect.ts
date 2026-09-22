@@ -16,6 +16,7 @@ type StripeConnectAccount = {
   requirements?: {
     currently_due?: string[] | null;
     eventually_due?: string[] | null;
+    disabled_reason?: string | null;
   } | null;
 };
 
@@ -34,6 +35,7 @@ export function connectStatusFromAccount(account: StripeConnectAccount) {
   const currentlyDue = account.requirements?.currently_due || [];
   const eventuallyDue = account.requirements?.eventually_due || [];
   const transfersActive = account.capabilities?.transfers === "active";
+  const disabledReason = account.requirements?.disabled_reason || null;
   const ready =
     Boolean(account.details_submitted) &&
     Boolean(account.payouts_enabled) &&
@@ -41,25 +43,28 @@ export function connectStatusFromAccount(account: StripeConnectAccount) {
     currentlyDue.length === 0;
 
   return {
-    onboardingStatus: ready
-      ? "ready"
-      : account.details_submitted
-        ? "restricted"
-        : "pending",
+    onboardingStatus: disabledReason
+      ? "disabled"
+      : ready
+        ? "ready"
+        : account.details_submitted
+          ? "restricted"
+          : "pending",
     detailsSubmitted: Boolean(account.details_submitted),
     payoutsEnabled: Boolean(account.payouts_enabled),
     chargesEnabled: Boolean(account.charges_enabled),
     transfersActive,
     currentlyDue,
     eventuallyDue,
+    disabledReason,
   };
 }
 
-export async function syncSellerConnectAccount(params: {
+export async function syncSellerConnectAccountSnapshot(params: {
   userId: string;
-  stripeAccountId: string;
+  account: StripeConnectAccount;
 }) {
-  const account = await getAccountsApi().retrieve(params.stripeAccountId);
+  const { account } = params;
   const status = connectStatusFromAccount(account);
   const admin = createAdminClient();
 
@@ -79,6 +84,7 @@ export async function syncSellerConnectAccount(params: {
         country: account.country || null,
         default_currency: account.default_currency || null,
         business_type: account.business_type || null,
+        disabled_reason: status.disabledReason,
       },
       updated_at: new Date().toISOString(),
     },
@@ -87,6 +93,17 @@ export async function syncSellerConnectAccount(params: {
 
   if (error) throw error;
   return { account, status };
+}
+
+export async function syncSellerConnectAccount(params: {
+  userId: string;
+  stripeAccountId: string;
+}) {
+  const account = await getAccountsApi().retrieve(params.stripeAccountId);
+  return syncSellerConnectAccountSnapshot({
+    userId: params.userId,
+    account,
+  });
 }
 
 export async function ensureSellerConnectAccount(params: {
@@ -149,6 +166,7 @@ export async function ensureSellerConnectAccount(params: {
         country: account.country || null,
         default_currency: account.default_currency || null,
         business_type: account.business_type || null,
+        disabled_reason: status.disabledReason,
       },
     });
 
