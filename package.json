@@ -10,8 +10,10 @@
     "test:contracts": "node scripts/test-contracts.mjs",
     "mvp:ready": "node scripts/mvp-readiness.mjs https://www.wetudy.com",
     "mvp:ready:local": "node scripts/mvp-readiness.mjs http://localhost:3000",
-    "prebuild": "npm run test:commerce-contracts",
-    "test:commerce-contracts": "node --test __tests__/launch/private-commerce-connect-v3.test.mjs"
+    "prebuild": "npm run test:critical-contracts",
+    "test:commerce-contracts": "node --test __tests__/launch/private-commerce-connect-v3.test.mjs",
+    "test:ux-hotfix": "node --test __tests__/launch/mobile-ux-account-listing-hotfix.test.mjs",
+    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
