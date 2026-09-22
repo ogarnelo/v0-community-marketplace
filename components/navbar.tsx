@@ -404,7 +404,7 @@ export function Navbar({
                 />
               ) : null}
 
-              <div className={${schoolAdminNavigation ? "hidden min-[1180px]:block" : "hidden md:block"}}>
+              <div className={schoolAdminNavigation ? "hidden min-[1180px]:block" : "hidden md:block"}>
                 <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="gap-2 px-2">
@@ -494,13 +494,13 @@ export function Navbar({
               type="button"
               variant="ghost"
               size="icon"
-              className="shrink-0 md:hidden"
+              className={`shrink-0 md:hidden ${open ? "invisible pointer-events-none" : ""}`}
               aria-expanded={open}
               aria-controls="mobile-navigation"
-              onClick={() => setOpen((value) => !value)}
+              onClick={() => setOpen(true)}
             >
-              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              <span className="sr-only">{open ? "Cerrar menú" : "Abrir menú"}</span>
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Abrir menú</span>
             </Button>
           </>
         )}
