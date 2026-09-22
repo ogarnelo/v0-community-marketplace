@@ -6,6 +6,7 @@ import { ReportConversationButton } from "@/components/messages/report-conversat
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -35,8 +36,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
+  const user = await getCurrentUser();
+  if (!user) redirect(`/auth?next=/messages/${encodeURIComponent(id)}`);
   const legacyCommerceEnabled = await canUserUseCommerce(user);
 
   const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
