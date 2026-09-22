@@ -4,6 +4,9 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { assertStripeTestMode } from "@/lib/commerce/private-access";
 
+const STRIPE_V2_VERSION = "2026-07-29.preview";
+const STRIPE_V2_BASE = "https://api.stripe.com/v2/core";
+
 export type ConnectedAccountSnapshot = {
   providerAccountId: string;
   onboardingStatus: "created" | "onboarding" | "ready" | "restricted";
@@ -12,41 +15,71 @@ export type ConnectedAccountSnapshot = {
   disabledReason: string | null;
 };
 
+async function stripeV2Fetch<T>(path: string, init?: RequestInit): Promise<T> {
+  assertStripeTestMode();
+  const secret = process.env.STRIPE_SECRET_KEY;
+
+  if (!secret) {
+    throw new Error("Stripe test no está configurado.");
+  }
+
+  const response = await fetch(`${STRIPE_V2_BASE}${path}`, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Stripe-Version": STRIPE_V2_VERSION,
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      payload?.error?.message ||
+      payload?.message ||
+      `Stripe v2 respondió ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
 export async function createStripeRecipientAccount(params: {
   email: string;
   displayName?: string | null;
 }) {
-  assertStripeTestMode();
-
-  const account = await stripe.v2.core.accounts.create({
-    display_name: params.displayName?.trim() || params.email,
-    contact_email: params.email,
-    dashboard: "express",
-    defaults: {
-      responsibilities: {
-        fees_collector: "application",
-        losses_collector: "application",
+  return stripeV2Fetch<{ id: string }>("/accounts", {
+    method: "POST",
+    body: JSON.stringify({
+      display_name: params.displayName?.trim() || params.email,
+      contact_email: params.email,
+      dashboard: "express",
+      defaults: {
+        responsibilities: {
+          fees_collector: "application",
+          losses_collector: "application",
+        },
       },
-    },
-    identity: {
-      country: "ES",
-      entity_type: "individual",
-    },
-    configuration: {
-      recipient: {
-        capabilities: {
-          stripe_balance: {
-            stripe_transfers: {
-              requested: true,
+      identity: {
+        country: "ES",
+      },
+      configuration: {
+        recipient: {
+          capabilities: {
+            stripe_balance: {
+              stripe_transfers: {
+                requested: true,
+              },
             },
           },
         },
       },
-    },
-    include: ["configuration.recipient", "requirements"],
+      include: ["configuration.recipient", "identity", "requirements"],
+    }),
   });
-
-  return account;
 }
 
 export async function createStripeRecipientOnboardingLink(params: {
@@ -54,44 +87,76 @@ export async function createStripeRecipientOnboardingLink(params: {
   refreshUrl: string;
   returnUrl: string;
 }) {
-  assertStripeTestMode();
-
-  return stripe.v2.core.accountLinks.create({
-    account: params.accountId,
-    use_case: {
-      type: "account_onboarding",
-      account_onboarding: {
-        configurations: ["recipient"],
-        refresh_url: params.refreshUrl,
-        return_url: params.returnUrl,
+  return stripeV2Fetch<{ url: string }>("/account_links", {
+    method: "POST",
+    body: JSON.stringify({
+      account: params.accountId,
+      use_case: {
+        type: "account_onboarding",
+        account_onboarding: {
+          configurations: ["recipient"],
+          collection_options: {
+            fields: "eventually_due",
+          },
+          refresh_url: params.refreshUrl,
+          return_url: params.returnUrl,
+        },
       },
-    },
+    }),
   });
+}
+
+function readRequirementLabels(requirements: any): string[] {
+  const entries = Array.isArray(requirements)
+    ? requirements
+    : Array.isArray(requirements?.data)
+      ? requirements.data
+      : Array.isArray(requirements?.entries)
+        ? requirements.entries
+        : [];
+
+  return Array.from(
+    new Set(
+      entries
+        .map((entry: any) =>
+          [
+            entry?.reference,
+            entry?.field,
+            entry?.type,
+            entry?.requested_reasons?.[0]?.code,
+          ].find((value) => typeof value === "string" && value.trim())
+        )
+        .filter(Boolean)
+    )
+  ) as string[];
 }
 
 export async function getConnectedAccountSnapshot(
   accountId: string
 ): Promise<ConnectedAccountSnapshot> {
-  assertStripeTestMode();
+  const query = new URLSearchParams();
+  query.append("include[0]", "configuration.recipient");
+  query.append("include[1]", "requirements");
 
-  // Accounts v2 IDs are compatible with the v1 retrieve endpoint. The v1
-  // shape exposes the legacy "transfers" capability, which maps to the v2
-  // recipient stripe_balance.stripe_transfers capability.
-  const account = await stripe.accounts.retrieve(accountId);
-  const requirements = "requirements" in account ? account.requirements : null;
-  const transfersCapability =
-    "capabilities" in account ? account.capabilities?.transfers : undefined;
-  const transfersEnabled = transfersCapability === "active";
-  const disabledReason = requirements?.disabled_reason || null;
-  const requirementsDue = Array.from(
-    new Set([
-      ...(requirements?.currently_due || []),
-      ...(requirements?.past_due || []),
-    ])
+  const account = await stripeV2Fetch<any>(
+    `/accounts/${encodeURIComponent(accountId)}?${query.toString()}`
   );
 
+  const capability =
+    account?.configuration?.recipient?.capabilities?.stripe_balance
+      ?.stripe_transfers || null;
+  const transfersEnabled = capability?.status === "active";
+  const statusDetails = Array.isArray(capability?.status_details)
+    ? capability.status_details
+    : [];
+  const disabledReason =
+    statusDetails
+      .map((detail: any) => detail?.code)
+      .find((value: unknown) => typeof value === "string") || null;
+  const requirementsDue = readRequirementLabels(account?.requirements);
+
   return {
-    providerAccountId: account.id,
+    providerAccountId: accountId,
     onboardingStatus: transfersEnabled
       ? "ready"
       : disabledReason
