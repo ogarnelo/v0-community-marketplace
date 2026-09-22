@@ -106,13 +106,11 @@ export function SessionInactivityGuard() {
         timeoutMs = ADMIN_TIMEOUT_MS;
       }
 
-      const stored = window.localStorage.getItem(activityKey);
-      if (!stored) {
-        window.localStorage.setItem(activityKey, String(Date.now()));
-      } else {
-        await checkInactivity();
-        if (disposed || signingOut) return;
-      }
+      // Reaching a page with a valid Supabase user is itself activity.
+      // Do not let a stale timestamp from an older tab/session sign out a
+      // freshly refreshed session during navigation.
+      lastWriteAt = Date.now();
+      window.localStorage.setItem(activityKey, String(lastWriteAt));
 
       const activityEvents: Array<keyof WindowEventMap> = [
         "pointerdown",
