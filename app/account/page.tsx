@@ -58,6 +58,7 @@ const quickActions = [
   { href: "/favorites", label: "Favoritos", helper: "Guarda material", icon: Heart },
   { href: "/account/saved-searches", label: "Mis búsquedas", helper: "Reabre avisos", icon: Search },
   { href: "/account/activity", label: "Mis acuerdos", helper: "Actividad reciente", icon: Bell },
+  { href: "/account/reviews", label: "Opiniones", helper: "Tu reputación", icon: Star },
   { href: "/account/security", label: "Seguridad", helper: "Cambia tu contraseña", icon: KeyRound },
   { href: "/help", label: "Soporte", helper: "Centro de ayuda", icon: LifeBuoy },
 ];
@@ -74,6 +75,8 @@ export default async function AccountPage() {
     { data: schoolsData, error: schoolsError },
     { data: roles, error: rolesError },
     stats,
+    { count: buyerAgreementsCount },
+    { count: sellerAgreementsCount },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -83,6 +86,16 @@ export default async function AccountPage() {
     supabase.from("schools").select("id, name, city, postal_code").eq("is_active", true).order("name", { ascending: true }),
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<UserRoleRow[]>(),
     getUserProfileStats(supabase, user.id),
+    supabase
+      .from("agreements")
+      .select("id", { count: "exact", head: true })
+      .eq("buyer_id", user.id)
+      .in("status", ["confirmed", "disputed"]),
+    supabase
+      .from("agreements")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_id", user.id)
+      .in("status", ["confirmed", "disputed"]),
   ]);
 
   if (profileError) console.error("Error cargando profile:", profileError);
@@ -183,8 +196,8 @@ export default async function AccountPage() {
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
           <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm"><Star className="h-4 w-4" />Valoración media</div><p className="text-2xl font-bold sm:text-3xl">{averageRatingLabel}</p></CardContent></Card>
           <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Opiniones</div><p className="text-2xl font-bold sm:text-3xl">{stats.reviewCount}</p></CardContent></Card>
-          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Acuerdos vendedor</div><p className="text-2xl font-bold sm:text-3xl">{stats.soldListingsCount}</p></CardContent></Card>
-          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Acuerdos comprador</div><p className="text-2xl font-bold sm:text-3xl">{stats.purchasesCount}</p></CardContent></Card>
+          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Acuerdos vendedor</div><p className="text-2xl font-bold sm:text-3xl">{sellerAgreementsCount || 0}</p></CardContent></Card>
+          <Card className="gap-0 py-0"><CardContent className="p-4 sm:p-5"><div className="mb-1.5 text-xs font-medium text-muted-foreground sm:mb-2 sm:text-sm">Acuerdos comprador</div><p className="text-2xl font-bold sm:text-3xl">{buyerAgreementsCount || 0}</p></CardContent></Card>
         </div>
 
         <div className="mt-5 sm:mt-6">
