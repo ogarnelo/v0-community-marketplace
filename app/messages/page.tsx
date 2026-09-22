@@ -79,7 +79,7 @@ export default async function MessagesPage() {
         <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
           <ConversationsSidebar conversations={[]} currentUserId={user.id} />
 
-          <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8 lg:min-h-[calc(100vh-10rem)]">
+          <div className="hidden min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8 lg:flex lg:min-h-[calc(100vh-10rem)]">
             <div className="max-w-md text-center">
               <h2 className="text-2xl font-semibold">Aún no tienes mensajes</h2>
               <p className="mt-2 text-sm text-muted-foreground">
