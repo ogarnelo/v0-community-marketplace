@@ -170,8 +170,8 @@ No activar pagos reales hasta definirlos y probarlos.
 - [x] Idempotency key en creación de Stripe Checkout Session.
 - [x] La transición manual a `in_transit` solo se permite desde `label_ready`; callbacks de proveedor siguen pendientes.
 - [x] Las URLs manuales de tracking se validan como HTTPS; el proveedor automático debe seguir usando la URL devuelta por proveedor.
-- [ ] Definir Connect/merchant-of-record/payout.
-- [ ] Definir refunds/disputes/chargebacks.
+- [ ] Definir merchant-of-record/fiscalidad y política pública de payout. El preview ya prueba Connect recipient + transferencia separada en test.
+- [ ] Definir y probar refunds/disputes/chargebacks y reversión de transferencias.
 - [ ] CSP compatible con Stripe, Turnstile y proveedor logístico.
 - [ ] E2E sandbox: éxito, fallo, retry, replay, async payment, actor incorrecto, importe manipulado y transiciones inválidas.
 - [ ] Revisión legal/privacidad del flujo de dinero y datos logísticos.
