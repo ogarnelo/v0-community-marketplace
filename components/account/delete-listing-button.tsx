@@ -19,9 +19,11 @@ import {
 interface DeleteListingButtonProps {
   listingId: string;
   title?: string | null;
+  redirectTo?: string;
+  className?: string;
 }
 
-export function DeleteListingButton({ listingId, title }: DeleteListingButtonProps) {
+export function DeleteListingButton({ listingId, title, redirectTo, className = "" }: DeleteListingButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -53,6 +55,7 @@ export function DeleteListingButton({ listingId, title }: DeleteListingButtonPro
 
       alert(message);
       startTransition(() => {
+        if (redirectTo) router.push(redirectTo);
         router.refresh();
       });
     } catch (error: any) {
@@ -65,7 +68,7 @@ export function DeleteListingButton({ listingId, title }: DeleteListingButtonPro
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-2 text-red-600 hover:text-red-700">
+        <Button type="button" variant="outline" size="sm" className={`gap-2 text-red-600 hover:text-red-700 ${className}`}>
           <Trash2 className="h-4 w-4" />
           Eliminar
         </Button>
