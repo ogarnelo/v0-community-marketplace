@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   assertStripeTestMode,
-  canUserUseCommerce,
-  isPublicCommerceEnabled,
+  canUserAccessPrivateCommercePreview,
 } from "@/lib/commerce/private-access";
 import { ensureSellerConnectAccount } from "@/lib/commerce/connect";
 import { stripe } from "@/lib/stripe";
@@ -20,11 +19,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/auth", request.url));
   }
 
-  if (!(await canUserUseCommerce(user))) {
+  if (!(await canUserAccessPrivateCommercePreview(user))) {
     return NextResponse.redirect(new URL("/account", request.url));
   }
 
-  if (!isPublicCommerceEnabled()) assertStripeTestMode();
+  assertStripeTestMode();
 
   try {
     const { account } = await ensureSellerConnectAccount({
