@@ -12,7 +12,7 @@ function getOfferAmount(offer?: ListingOfferRow | null) {
 }
 
 function getStatusLabel(payment?: PaymentIntentRow | null, offer?: ListingOfferRow | null) {
-  if (payment?.status === "paid") return "Pago confirmado";
+  if (payment?.status === "succeeded") return "Pago confirmado";
   if (payment?.status === "processing") return "Pago en proceso";
   if (payment?.status === "requires_payment_method") return "Pendiente de pago";
   if (payment?.status === "failed") return "Pago fallido";
@@ -23,7 +23,7 @@ function getStatusLabel(payment?: PaymentIntentRow | null, offer?: ListingOfferR
 
 function getStatusClass(status?: string | null) {
   switch (status) {
-    case "paid":
+    case "succeeded":
       return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "processing":
       return "border-sky-200 bg-sky-50 text-sky-700";
@@ -78,7 +78,7 @@ export function ConversationTransactionStatus({
             </Badge>
           </div>
 
-          {payment?.status === "paid" ? (
+          {payment?.status === "succeeded" ? (
             <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
               {shippingSelected
                 ? "Pago confirmado. El siguiente paso es preparar el envío y compartir el seguimiento cuando esté disponible."
@@ -101,7 +101,7 @@ export function ConversationTransactionStatus({
         </CardContent>
       </Card>
 
-      {shippingSelected && payment?.status === "paid" && shipment ? (
+      {shippingSelected && payment?.status === "succeeded" && shipment ? (
         <ShipmentStatusCard shipment={shipment} currentUserId={currentUserId} compact />
       ) : null}
     </div>

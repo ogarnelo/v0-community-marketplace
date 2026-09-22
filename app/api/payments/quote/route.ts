@@ -2,16 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPaymentQuote } from "@/lib/services/payments.service";
-import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
+import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
 
 export async function POST(request: Request) {
-  if (!isLegacyCommerceEnabled()) {
-    return NextResponse.json(
-      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
-      { status: 404 }
-    );
-  }
-
   try {
     const supabase = await createClient();
     const {
@@ -21,6 +14,11 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "No autenticado." }, { status: 401 });
     }
+
+    if (!(await canUserUseCommerce(user))) {
+      return NextResponse.json({ error: "No disponible." }, { status: 404 });
+    }
+    if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
     const body = await request.json();
     const offerId = typeof body?.offerId === "string" ? body.offerId.trim() : "";

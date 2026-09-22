@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
+import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
 
 export async function POST(request: Request) {
-  if (!isLegacyCommerceEnabled()) {
-    return NextResponse.json(
-      { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
-      { status: 404 }
-    );
-  }
-
   try {
     const supabase = await createClient();
     const {
@@ -21,10 +14,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado." }, { status: 401 });
     }
 
+    if (!(await canUserUseCommerce(user))) {
+      return NextResponse.json({ error: "No disponible." }, { status: 404 });
+    }
+    if (!isPublicCommerceEnabled()) assertStripeTestMode();
+
     const body = await request.json();
     const shipmentId = typeof body?.shipmentId === "string" ? body.shipmentId.trim() : "";
-    const trackingCode = typeof body?.trackingCode === "string" ? body.trackingCode.trim() : null;
-    const trackingUrl = typeof body?.trackingUrl === "string" ? body.trackingUrl.trim() : null;
+    const trackingCode =
+      typeof body?.trackingCode === "string"
+        ? body.trackingCode.trim().slice(0, 120) || null
+        : null;
+    const trackingUrl =
+      typeof body?.trackingUrl === "string"
+        ? body.trackingUrl.trim().slice(0, 500) || null
+        : null;
+
+    if (trackingUrl) {
+      try {
+        const parsedTrackingUrl = new URL(trackingUrl);
+        if (parsedTrackingUrl.protocol !== "https:") {
+          return NextResponse.json({ error: "La URL de seguimiento debe usar HTTPS." }, { status: 400 });
+        }
+      } catch {
+        return NextResponse.json({ error: "La URL de seguimiento no es válida." }, { status: 400 });
+      }
+    }
 
     if (!shipmentId) {
       return NextResponse.json({ error: "Falta el envío." }, { status: 400 });
@@ -45,8 +60,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes actualizar este envío." }, { status: 403 });
     }
 
+    if (shipment.status !== "label_ready") {
+      return NextResponse.json(
+        { error: "Solo puedes marcar el envío cuando la etiqueta está lista." },
+        { status: 409 }
+      );
+    }
+
     const now = new Date().toISOString();
-    const { error: updateError } = await adminSupabase
+    const { data: updatedShipment, error: updateError } = await adminSupabase
       .from("shipments")
       .update({
         status: "in_transit",
@@ -58,10 +80,20 @@ export async function POST(request: Request) {
         },
         updated_at: now,
       })
-      .eq("id", shipmentId);
+      .eq("id", shipmentId)
+      .eq("status", "label_ready")
+      .select("id")
+      .maybeSingle();
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message || "No se pudo actualizar el envío." }, { status: 400 });
+    }
+
+    if (!updatedShipment) {
+      return NextResponse.json(
+        { error: "El estado del envío ha cambiado. Actualiza la conversación e inténtalo de nuevo." },
+        { status: 409 }
+      );
     }
 
     await adminSupabase.from("shipment_events").insert({
