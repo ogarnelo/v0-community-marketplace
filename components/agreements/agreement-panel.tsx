@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Handshake, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CommunityInviteCard } from "@/components/growth/community-invite-card";
 import { createClient } from "@/lib/supabase/client";
 
 type Agreement = {
@@ -38,28 +36,13 @@ type AgreementPanelProps = {
   currentUserId: string;
   buyerId: string;
   sellerId: string;
+  otherName?: string | null;
   listingStatus?: string | null;
   listingPrice?: number | null;
   listingType?: string | null;
   initialAgreement?: Agreement | null;
   initialReviews?: Review[];
 };
-
-function statusCopy(status?: string | null) {
-  switch (status) {
-    case "buyer_confirmed":
-    case "seller_confirmed":
-      return "Esperando a la otra parte";
-    case "confirmed":
-      return "Acuerdo cerrado";
-    case "cancelled":
-      return "Cancelado";
-    case "disputed":
-      return "Incidencia abierta";
-    default:
-      return "Pendiente";
-  }
-}
 
 function formatPrice(value?: number | null) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
@@ -80,6 +63,7 @@ export default function AgreementPanel({
   currentUserId,
   buyerId,
   sellerId,
+  otherName,
   listingStatus,
   listingPrice,
   listingType,
@@ -91,9 +75,10 @@ export default function AgreementPanel({
   const [agreement, setAgreement] = useState<Agreement | null>(initialAgreement);
   const [reviews, setReviews] = useState<Review[]>(initialReviews);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
-  const [note, setNote] = useState("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+  const [showCounter, setShowCounter] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const [amountInput, setAmountInput] = useState(
     typeof initialAgreement?.amount === "number"
       ? String(initialAgreement.amount)
@@ -101,7 +86,6 @@ export default function AgreementPanel({
         ? String(listingPrice)
         : ""
   );
-  const [showCounter, setShowCounter] = useState(false);
 
   useEffect(() => {
     setAgreement(initialAgreement);
@@ -150,7 +134,8 @@ export default function AgreementPanel({
   const isSeller = currentUserId === sellerId;
   const isDonation = listingType === "donation" || agreement?.agreement_type === "donation";
   const hasReviewed = reviews.some((review) => review.reviewer_id === currentUserId);
-  const activeAgreement = agreement && !["confirmed", "cancelled", "disputed"].includes(agreement.status);
+  const activeAgreement =
+    agreement && !["confirmed", "cancelled", "disputed"].includes(agreement.status);
   const canPropose =
     (!agreement || agreement.status === "cancelled") &&
     ["available", "reserved", null, undefined].includes(listingStatus || undefined);
@@ -164,14 +149,9 @@ export default function AgreementPanel({
       ? Boolean(agreement.seller_confirmed_at)
       : Boolean(agreement.buyer_confirmed_at)
     : false;
-
-  const title = useMemo(() => {
-    if (agreement?.status === "confirmed") return isDonation ? "Donación confirmada" : "Venta acordada";
-    if (agreement?.status === "disputed") return "Incidencia abierta";
-    if (agreement?.status === "cancelled") return "Acuerdo cancelado";
-    if (activeAgreement) return isDonation ? "Propuesta de donación" : "Propuesta de venta";
-    return isDonation ? "Confirmar donación" : "Negociar y cerrar la venta";
-  }, [activeAgreement, agreement?.status, isDonation]);
+  const iMadeCurrentProposal = Boolean(activeAgreement && myConfirmed && !otherConfirmed);
+  const iNeedToRespond = Boolean(activeAgreement && !myConfirmed && otherConfirmed);
+  const friendlyOtherName = otherName?.trim() || "La otra persona";
 
   async function runAction(
     endpoint: string,
@@ -180,6 +160,7 @@ export default function AgreementPanel({
   ) {
     if (loadingAction) return false;
     setLoadingAction(actionName);
+
     try {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -196,15 +177,14 @@ export default function AgreementPanel({
         }
       }
 
-      if (payload?.review) setReviews((prev) => [...prev, payload.review]);
-
-      if (actionName === "review") {
+      if (payload?.review) {
+        setReviews((prev) => [...prev, payload.review]);
         setComment("");
         setRating(5);
+        setShowReview(false);
       }
 
       if (["propose", "counter"].includes(actionName)) {
-        setNote("");
         setShowCounter(false);
       }
 
@@ -220,18 +200,15 @@ export default function AgreementPanel({
 
   const propose = () => {
     const amount = isDonation ? null : parseAmount(amountInput);
+
     if (!isDonation && amount == null) {
-      alert("Introduce un precio válido para la propuesta.");
+      alert("Introduce un precio válido.");
       return;
     }
 
     void runAction(
       "/api/agreements/propose",
-      {
-        conversationId,
-        note,
-        amount,
-      },
+      { conversationId, amount },
       "propose"
     );
   };
@@ -239,250 +216,73 @@ export default function AgreementPanel({
   const counter = () => {
     if (!agreement) return;
     const amount = parseAmount(amountInput);
+
     if (amount == null) {
-      alert("Introduce un precio válido para la nueva propuesta.");
+      alert("Introduce un precio válido.");
       return;
     }
 
     void runAction(
       "/api/agreements/counter",
-      {
-        agreementId: agreement.id,
-        amount,
-        note,
-      },
+      { agreementId: agreement.id, amount },
       "counter"
     );
   };
 
-  return (
-    <section id="agreement-panel" className="scroll-mt-24 border-t bg-sky-50/60 px-3 py-3 sm:px-5 sm:py-4">
-      <div className="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="rounded-2xl bg-sky-100 p-2 text-sky-800">
-            {agreement?.status === "disputed" ? (
-              <AlertTriangle className="h-5 w-5" />
-            ) : (
-              <Handshake className="h-5 w-5" />
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-semibold text-slate-950">{title}</h2>
-              <Badge variant={agreement?.status === "confirmed" ? "default" : "secondary"}>
-                {statusCopy(agreement?.status)}
-              </Badge>
-            </div>
-
-            {activeAgreement && !isDonation && formatPrice(agreement?.amount) ? (
-              <p className="mt-2 text-xl font-bold text-slate-950">
-                {formatPrice(agreement?.amount)}
-              </p>
-            ) : null}
-
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              {isDonation
-                ? "Ambas partes deben confirmar la donación. Wetudy conserva el historial del acuerdo."
-                : "Podéis aceptar el precio o proponer otro. La entrega y el pago se acuerdan directamente entre las partes."}
+  if (agreement?.status === "disputed") {
+    return (
+      <section id="agreement-panel" className="scroll-mt-24 border-t px-3 py-3 sm:px-5">
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+          <div>
+            <p className="font-semibold text-amber-950">Hay una incidencia abierta</p>
+            <p className="mt-1 text-sm text-amber-900">
+              Podéis seguir hablando por el chat mientras se revisa.
             </p>
           </div>
         </div>
+      </section>
+    );
+  }
 
-        {agreement?.status === "cancelled" ? (
-          <div className="mt-4 rounded-xl border bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            El acuerdo anterior se canceló. Puedes iniciar una nueva propuesta.
-          </div>
-        ) : null}
-
-        {canPropose ? (
-          <div className="mt-4 space-y-3">
-            {!isDonation ? (
-              <div>
-                <label htmlFor="agreement-amount" className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Precio propuesto (€)
-                </label>
-                <Input
-                  id="agreement-amount"
-                  type="text"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  value={amountInput}
-                  onChange={(event) => setAmountInput(event.target.value)}
-                  placeholder={typeof listingPrice === "number" ? String(listingPrice) : "Ej: 45"}
-                />
-              </div>
-            ) : null}
-
-            <Textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Nota opcional: lugar, hora o condiciones acordadas"
-            />
-
-            <Button
-              onClick={propose}
-              disabled={!!loadingAction}
-              className="w-full sm:w-auto"
-            >
-              {loadingAction === "propose"
-                ? "Enviando..."
-                : isDonation
-                  ? "Proponer donación"
-                  : "Enviar propuesta"}
-            </Button>
-          </div>
-        ) : null}
-
-        {activeAgreement ? (
-          <>
-            <div className="mt-4 grid gap-2 rounded-2xl bg-slate-50 p-3 text-sm sm:grid-cols-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2
-                  className={agreement.buyer_confirmed_at ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-slate-300"}
-                />
-                {isBuyer ? "Tú" : "Comprador"} {agreement.buyer_confirmed_at ? "ha confirmado" : "pendiente"}
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2
-                  className={agreement.seller_confirmed_at ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-slate-300"}
-                />
-                {isSeller ? "Tú" : "Vendedor"} {agreement.seller_confirmed_at ? "ha confirmado" : "pendiente"}
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {!myConfirmed ? (
-                <Button
-                  onClick={() =>
-                    void runAction(
-                      "/api/agreements/confirm",
-                      { agreementId: agreement.id },
-                      "confirm"
-                    )
-                  }
-                  disabled={!!loadingAction}
-                >
-                  {loadingAction === "confirm"
-                    ? "Confirmando..."
-                    : isDonation
-                      ? "Aceptar donación"
-                      : `Aceptar ${formatPrice(agreement.amount) || "propuesta"}`}
-                </Button>
-              ) : (
-                <div className="rounded-xl border bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
-                  {otherConfirmed
-                    ? "Ambas partes han confirmado."
-                    : "Tu parte está confirmada. Esperando a la otra persona."}
-                </div>
-              )}
-
-              {!isDonation ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowCounter((value) => !value)}
-                  disabled={!!loadingAction}
-                >
-                  {showCounter ? "Cerrar nueva propuesta" : myConfirmed ? "Cambiar mi propuesta" : "Proponer otro precio"}
-                </Button>
+  if (agreement?.status === "confirmed") {
+    return (
+      <section id="agreement-panel" className="scroll-mt-24 border-t px-3 py-3 sm:px-5">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-emerald-950">
+                {isDonation ? "Donación acordada" : "¡Hecho! Venta acordada"}
+              </p>
+              {!isDonation && formatPrice(agreement.amount) ? (
+                <p className="mt-0.5 text-lg font-bold text-emerald-950">
+                  {formatPrice(agreement.amount)}
+                </p>
               ) : null}
+              <p className="mt-1 text-sm text-emerald-900">
+                Seguid hablando por aquí para concretar la entrega.
+              </p>
+            </div>
+          </div>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!hasReviewed ? (
               <Button
+                type="button"
                 variant="outline"
-                className="text-rose-700 hover:text-rose-800"
-                onClick={() =>
-                  void runAction(
-                    "/api/agreements/cancel",
-                    { agreementId: agreement.id },
-                    "cancel"
-                  )
-                }
-                disabled={!!loadingAction}
+                size="sm"
+                onClick={() => setShowReview((value) => !value)}
               >
-                {loadingAction === "cancel" ? "Cancelando..." : "Cancelar acuerdo"}
+                <Star className="mr-1.5 h-4 w-4" />
+                Valorar experiencia
               </Button>
-            </div>
-
-            {showCounter && !isDonation ? (
-              <div className="mt-3 rounded-2xl border bg-amber-50/60 p-3">
-                <label htmlFor="counter-amount" className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Nuevo precio propuesto (€)
-                </label>
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <Input
-                    id="counter-amount"
-                    type="text"
-                    inputMode="decimal"
-                    enterKeyHint="done"
-                    value={amountInput}
-                    onChange={(event) => setAmountInput(event.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    onClick={counter}
-                    disabled={!!loadingAction}
-                  >
-                    {loadingAction === "counter" ? "Enviando..." : "Enviar nuevo precio"}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        {agreement?.status === "confirmed" ? (
-          <div className="mt-4 rounded-2xl border bg-white p-3">
-            <div className="flex items-center gap-2 font-medium">
-              <Star className="h-4 w-4 text-yellow-500" /> Valorar este acuerdo
-            </div>
-            {hasReviewed ? (
-              <p className="mt-2 text-sm text-muted-foreground">Ya has enviado tu valoración.</p>
             ) : (
-              <div className="mt-3 space-y-3">
-                <select
-                  className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
-                  value={rating}
-                  onChange={(event) => setRating(Number(event.target.value))}
-                >
-                  <option value={5}>5 estrellas</option>
-                  <option value={4}>4 estrellas</option>
-                  <option value={3}>3 estrellas</option>
-                  <option value={2}>2 estrellas</option>
-                  <option value={1}>1 estrella</option>
-                </select>
-                <Textarea
-                  value={comment}
-                  onChange={(event) => setComment(event.target.value)}
-                  placeholder="Comentario opcional"
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    void runAction(
-                      "/api/agreements/review",
-                      { agreementId: agreement.id, rating, comment },
-                      "review"
-                    )
-                  }
-                  disabled={!!loadingAction}
-                >
-                  {loadingAction === "review" ? "Guardando..." : "Enviar valoración"}
-                </Button>
-              </div>
+              <span className="text-sm text-emerald-900">Valoración enviada</span>
             )}
-          </div>
-        ) : null}
 
-        {agreement?.status === "confirmed" ? (
-          <div className="mt-4">
-            <CommunityInviteCard campaign="agreement_confirmed" />
-          </div>
-        ) : null}
-
-        {agreement?.status === "confirmed" ? (
-          <div className="mt-3">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="text-rose-700 hover:text-rose-800"
@@ -498,8 +298,226 @@ export default function AgreementPanel({
               }
               disabled={!!loadingAction}
             >
-              Reportar incidencia del acuerdo confirmado
+              Reportar problema
             </Button>
+          </div>
+
+          {showReview && !hasReviewed ? (
+            <div className="mt-3 space-y-2 rounded-xl bg-white p-3">
+              <select
+                className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                value={rating}
+                onChange={(event) => setRating(Number(event.target.value))}
+              >
+                <option value={5}>5 estrellas</option>
+                <option value={4}>4 estrellas</option>
+                <option value={3}>3 estrellas</option>
+                <option value={2}>2 estrellas</option>
+                <option value={1}>1 estrella</option>
+              </select>
+              <Textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                placeholder="Comentario opcional"
+              />
+              <Button
+                size="sm"
+                onClick={() =>
+                  void runAction(
+                    "/api/agreements/review",
+                    { agreementId: agreement.id, rating, comment },
+                    "review"
+                  )
+                }
+                disabled={!!loadingAction}
+              >
+                {loadingAction === "review" ? "Guardando..." : "Enviar valoración"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section id="agreement-panel" className="scroll-mt-24 border-t px-3 py-3 sm:px-5">
+      <div className="rounded-2xl border bg-white p-3 shadow-sm">
+        {activeAgreement ? (
+          <>
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-sky-50 p-2 text-sky-700">
+                <Handshake className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                {isDonation ? (
+                  <>
+                    <p className="font-semibold text-slate-950">
+                      {iMadeCurrentProposal
+                        ? isBuyer
+                          ? "Has pedido esta donación"
+                          : "Has ofrecido esta donación"
+                        : isSeller
+                          ? `${friendlyOtherName} quiere quedarse con este artículo`
+                          : `${friendlyOtherName} quiere darte este artículo`}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {iMadeCurrentProposal
+                        ? `Esperando respuesta de ${friendlyOtherName}.`
+                        : "Responde cuando lo tengas claro. Podéis seguir hablando por el chat."}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      {iMadeCurrentProposal ? "Tu oferta" : `Oferta de ${friendlyOtherName}`}
+                    </p>
+                    <p className="text-2xl font-bold tracking-tight text-slate-950">
+                      {formatPrice(agreement.amount) || "—"}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {iMadeCurrentProposal
+                        ? `Esperando respuesta de ${friendlyOtherName}.`
+                        : "Puedes aceptarla o proponer otro precio."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {iNeedToRespond ? (
+                <Button
+                  type="button"
+                  onClick={() =>
+                    void runAction(
+                      "/api/agreements/confirm",
+                      { agreementId: agreement.id },
+                      "confirm"
+                    )
+                  }
+                  disabled={!!loadingAction}
+                >
+                  {loadingAction === "confirm"
+                    ? "Aceptando..."
+                    : isDonation
+                      ? "Aceptar donación"
+                      : "Aceptar oferta"}
+                </Button>
+              ) : null}
+
+              {!isDonation ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCounter((value) => !value)}
+                  disabled={!!loadingAction}
+                >
+                  {showCounter
+                    ? "Cerrar"
+                    : iMadeCurrentProposal
+                      ? "Cambiar oferta"
+                      : "Proponer otro precio"}
+                </Button>
+              ) : null}
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-rose-700 hover:text-rose-800"
+                onClick={() =>
+                  void runAction(
+                    "/api/agreements/cancel",
+                    { agreementId: agreement.id },
+                    "cancel"
+                  )
+                }
+                disabled={!!loadingAction}
+              >
+                {loadingAction === "cancel"
+                  ? "Cerrando..."
+                  : iMadeCurrentProposal
+                    ? isDonation
+                      ? "Retirar solicitud"
+                      : "Retirar oferta"
+                    : "Rechazar"}
+              </Button>
+            </div>
+
+            {showCounter && !isDonation ? (
+              <div className="mt-3 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  enterKeyHint="done"
+                  value={amountInput}
+                  onChange={(event) => setAmountInput(event.target.value)}
+                  aria-label="Nuevo precio"
+                  placeholder="Nuevo precio"
+                />
+                <Button
+                  type="button"
+                  onClick={counter}
+                  disabled={!!loadingAction}
+                >
+                  {loadingAction === "counter" ? "Enviando..." : "Enviar"}
+                </Button>
+              </div>
+            ) : null}
+          </>
+        ) : canPropose ? (
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="font-semibold text-slate-950">
+                {isDonation
+                  ? isBuyer
+                    ? "¿Te interesa esta donación?"
+                    : "¿Quieres reservarla para esta persona?"
+                  : isBuyer
+                    ? "¿Quieres hacer una oferta?"
+                    : "¿Quieres proponer un precio?"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isDonation
+                  ? "La otra persona podrá aceptarla desde este mismo chat."
+                  : "La otra persona podrá aceptar o proponerte otro precio."}
+              </p>
+            </div>
+
+            {!isDonation ? (
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,180px)_auto]">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  enterKeyHint="done"
+                  value={amountInput}
+                  onChange={(event) => setAmountInput(event.target.value)}
+                  aria-label="Precio de la oferta"
+                  placeholder={typeof listingPrice === "number" ? String(listingPrice) : "Precio"}
+                />
+                <Button type="button" onClick={propose} disabled={!!loadingAction}>
+                  {loadingAction === "propose"
+                    ? "Enviando..."
+                    : isBuyer
+                      ? "Hacer oferta"
+                      : "Proponer precio"}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                onClick={propose}
+                disabled={!!loadingAction}
+                className="w-full sm:w-auto"
+              >
+                {loadingAction === "propose"
+                  ? "Enviando..."
+                  : isBuyer
+                    ? "Pedir esta donación"
+                    : "Proponer donación"}
+              </Button>
+            )}
           </div>
         ) : null}
       </div>

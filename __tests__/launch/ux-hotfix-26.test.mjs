@@ -28,8 +28,9 @@ describe("UX hotfix 26", () => {
     const combined = [agreementPanel, proposeRoute, landingBenefits].join("\n");
     assert.doesNotMatch(combined, /fuera de Wetudy/i);
     assert.doesNotMatch(combined, /fuera de la plataforma/i);
-    assert.match(agreementPanel, /Negociar y cerrar la venta/);
-    assert.match(agreementPanel, /La entrega y el pago se acuerdan directamente entre las partes/);
+    assert.match(agreementPanel, /¿Quieres hacer una oferta\?/);
+    assert.match(agreementPanel, /Aceptar oferta/);
+    assert.doesNotMatch(agreementPanel, /Confirmar mi parte/);
   });
 
   it("aligns activity and footer with MVP no-checkout positioning", () => {

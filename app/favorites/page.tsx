@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { ListingCard } from "@/components/listing-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,10 @@ import {
 export default async function FavoritesPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/auth");
+    redirect("/auth?next=/favorites");
   }
 
   const [{ data: favorites }, { data: currentProfile }] = await Promise.all([

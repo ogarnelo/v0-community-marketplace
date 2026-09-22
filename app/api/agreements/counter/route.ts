@@ -64,9 +64,9 @@ export async function POST(request: Request) {
       await createNotification(admin, {
         user_id: recipientId,
         kind: "agreement_countered",
-        title: "Nueva propuesta de precio",
-        body: `${user.user_metadata?.full_name || "La otra persona"} propone ${Number(agreement.amount).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}.`,
-        href: `/messages/${agreement.conversation_id}`,
+        title: "Nueva oferta",
+        body: `${user.user_metadata?.full_name || "La otra persona"} te propone ${Number(agreement.amount).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}.`,
+        href: `/messages/${agreement.conversation_id}#agreement-panel`,
         metadata: {
           agreement_id: agreement.id,
           conversation_id: agreement.conversation_id,

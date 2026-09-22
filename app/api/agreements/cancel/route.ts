@@ -66,13 +66,20 @@ export async function POST(request: Request) {
     if (agreement) {
       const recipientId =
         user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
+      const actorHadProposed =
+        user.id === agreement.buyer_id
+          ? Boolean(agreement.buyer_confirmed_at)
+          : Boolean(agreement.seller_confirmed_at);
+
       try {
         await createNotification(admin, {
           user_id: recipientId,
           kind: "agreement_cancelled",
-          title: "Acuerdo cancelado",
-          body: `${user.user_metadata?.full_name || "La otra persona"} ha cancelado el acuerdo. Podéis volver a proponer uno nuevo.`,
-          href: `/messages/${agreement.conversation_id}`,
+          title: actorHadProposed ? "Propuesta retirada" : "Propuesta rechazada",
+          body: actorHadProposed
+            ? `${user.user_metadata?.full_name || "La otra persona"} ha retirado su propuesta.`
+            : `${user.user_metadata?.full_name || "La otra persona"} ha rechazado la propuesta.`,
+          href: `/messages/${agreement.conversation_id}#agreement-panel`,
           metadata: {
             agreement_id: agreement.id,
             conversation_id: agreement.conversation_id,

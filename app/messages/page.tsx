@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ConversationsSidebar } from "@/components/messages/conversations-sidebar";
 import { Card } from "@/components/ui/card";
@@ -33,12 +34,10 @@ export const dynamic = "force-dynamic";
 export default async function MessagesPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/auth");
+    redirect("/auth?next=/messages");
   }
 
   const [{ data: conversations, error }, { data: hiddenRows }] = await Promise.all([
@@ -195,7 +194,7 @@ export default async function MessagesPage() {
           currentUserId={user.id}
         />
 
-        <div className="flex min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8 lg:min-h-[calc(100vh-10rem)]">
+        <div className="hidden min-h-[70vh] items-center justify-center rounded-2xl border bg-white p-8 lg:flex lg:min-h-[calc(100vh-10rem)]">
           <div className="max-w-md text-center">
             <h2 className="text-2xl font-semibold">Selecciona una conversación</h2>
             <p className="mt-2 text-sm text-muted-foreground">

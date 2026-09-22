@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ export function ContactSellerButton({
   className = "mt-6 hidden w-full md:inline-flex",
   showIcon = false,
 }: ContactSellerButtonProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleContact = async () => {
@@ -75,7 +77,7 @@ export function ContactSellerButton({
       }
 
       if (existingConversation?.id) {
-        window.location.assign(`/messages/${existingConversation.id}`);
+        router.push(`/messages/${existingConversation.id}`);
         return;
       }
 
@@ -112,7 +114,7 @@ export function ContactSellerButton({
         throw updateConversationError;
       }
 
-      window.location.assign(`/messages/${newConversation.id}`);
+      router.push(`/messages/${newConversation.id}`);
     } catch (error: any) {
       console.error("Error creando conversación:", error);
 

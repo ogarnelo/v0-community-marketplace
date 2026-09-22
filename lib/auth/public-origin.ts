@@ -5,11 +5,5 @@ export function getAuthPublicOrigin() {
     return PRODUCTION_AUTH_ORIGIN;
   }
 
-  const hostname = window.location.hostname.toLowerCase();
-
-  if (hostname === "wetudy.com" || hostname === "www.wetudy.com") {
-    return PRODUCTION_AUTH_ORIGIN;
-  }
-
   return window.location.origin;
 }

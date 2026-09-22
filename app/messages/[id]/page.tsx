@@ -6,6 +6,7 @@ import { ReportConversationButton } from "@/components/messages/report-conversat
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -35,8 +36,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
+  const user = await getCurrentUser();
+  if (!user) redirect(`/auth?next=/messages/${encodeURIComponent(id)}`);
   const legacyCommerceEnabled = await canUserUseCommerce(user);
 
   const [{ data: conversations }, { data: hiddenRows }] = await Promise.all([
@@ -119,7 +120,11 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const latestShipment = typedShipments[0] || null;
   const hasAcceptedOffer = typedOffers.some((offer) => offer.status === "accepted");
   const hasApprovedDonation = typedDonationRequests.some((request) => request.status === "approved");
-  const allowConversationMessaging = canSendNewMessageToListing(listingStatus) || hasAcceptedOffer || hasApprovedDonation;
+  const allowConversationMessaging =
+    canSendNewMessageToListing(listingStatus) ||
+    Boolean(latestAgreement) ||
+    hasAcceptedOffer ||
+    hasApprovedDonation;
   const canCreateLabel = latestShipment?.seller_id === user.id;
 
   return (
@@ -207,6 +212,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             currentUserId={user.id}
             buyerId={typedConversation.buyer_id}
             sellerId={typedConversation.seller_id}
+            otherName={otherName}
             listingStatus={listingStatus}
             listingPrice={typeof listing?.price === "number" ? listing.price : null}
             listingType={listing?.listing_type || listing?.type || null}
@@ -215,7 +221,16 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           />
 
           <div className="border-t px-3 py-3 sm:px-5 sm:py-4">
-            <ConversationListingState listingId={typedConversation.listing_id} conversationId={typedConversation.id} listingHref={`/marketplace/listing/${typedConversation.listing_id}`} initialStatus={listingStatus} title={listing?.title || "Anuncio"} price={typeof listing?.price === "number" ? listing.price : null} allowConversationMessagingWhenUnavailable={allowConversationMessaging}>
+            <ConversationListingState
+              listingId={typedConversation.listing_id}
+              conversationId={typedConversation.id}
+              listingHref={`/marketplace/listing/${typedConversation.listing_id}`}
+              initialStatus={listingStatus}
+              title={listing?.title || "Anuncio"}
+              price={typeof listing?.price === "number" ? listing.price : null}
+              allowConversationMessagingWhenUnavailable={allowConversationMessaging}
+              hideStatusBanner={Boolean(latestAgreement)}
+            >
               <SendMessageForm conversationId={typedConversation.id} disabled={!allowConversationMessaging} allowUnavailableConversationMessaging={allowConversationMessaging} />
             </ConversationListingState>
           </div>

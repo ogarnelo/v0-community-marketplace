@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { gradeLevels } from "@/lib/mock-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,8 +64,8 @@ const quickActions = [
 
 export default async function AccountPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
+  const user = await getCurrentUser();
+  if (!user) redirect("/auth?next=/account");
 
   const metadata = (user.user_metadata || {}) as SafeUserMetadata;
 

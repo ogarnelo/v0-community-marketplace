@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -73,6 +74,7 @@ export function NavbarNotificationsBell({
   initialNotifications = [],
   initialUnreadCount = 0,
 }: NavbarNotificationsBellProps) {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [notifications, setNotifications] = useState<AppNotificationRow[]>(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
@@ -154,7 +156,7 @@ export function NavbarNotificationsBell({
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
 
-    window.location.assign(getNotificationDestination(notification));
+    router.push(getNotificationDestination(notification));
   };
 
   return (

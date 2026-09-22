@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/server-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
@@ -28,12 +29,10 @@ import { draftDisplayTitle, type ListingDraftPayload } from "@/lib/marketplace/l
 export default async function MyListingsPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/auth");
+    redirect("/auth?next=/account/listings");
   }
 
   const [{ data: listingsData }, { data: draftData }] = await Promise.all([

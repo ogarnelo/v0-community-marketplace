@@ -15,6 +15,8 @@ const counterRoute = read("app/api/agreements/counter/route.ts");
 const confirmRoute = read("app/api/agreements/confirm/route.ts");
 const cancelRoute = read("app/api/agreements/cancel/route.ts");
 const migration = read("supabase/migrations/20260922213000_chat_agreement_realtime_negotiation.sql");
+const simpleCopyMigration = read("supabase/migrations/20260922220000_simplify_public_agreement_chat_copy.sql");
+const listingState = read("components/messages/conversation-listing-state.tsx");
 const publishForm = read("components/marketplace/new-listing-form.tsx");
 
 test("mobile navbar exposes a realtime notification bell and only one close control", () => {
@@ -52,7 +54,15 @@ test("direct agreement negotiation supports price proposals, counteroffers and r
   assert.match(agreementPanel, /Aceptar donación/);
   assert.match(agreementPanel, /Proponer otro precio/);
   assert.match(agreementPanel, /agreement\.status === "cancelled"/);
-  assert.match(agreementPanel, /La entrega y el pago se acuerdan directamente entre las partes/);
+  assert.match(agreementPanel, /Has pedido esta donación/);
+  assert.match(agreementPanel, /Aceptar oferta/);
+  assert.match(agreementPanel, /Rechazar/);
+  assert.doesNotMatch(agreementPanel, /Comprador confirmado/);
+  assert.doesNotMatch(agreementPanel, /Vendedor pendiente/);
+  assert.doesNotMatch(agreementPanel, /Confirmar mi parte/);
+  assert.match(simpleCopyMigration, /Me interesa esta donación\. ¿Te parece bien que me la quede\?/);
+  assert.match(simpleCopyMigration, /Te ofrezco/);
+  assert.doesNotMatch(simpleCopyMigration, /Falta la confirmación de la otra parte/);
 });
 
 test("agreement lifecycle creates in-app notifications for the other participant", () => {
@@ -71,4 +81,11 @@ test("draft navigation and recovery are explicit and description quality uses 40
   assert.match(publishForm, /Recuperar borrador/);
   assert.match(publishForm, /description\.trim\(\)\.length >= 40/);
   assert.match(publishForm, /40 caracteres/);
+});
+
+
+test("an active agreement never disables its own chat", () => {
+  assert.match(messagesDetail, /Boolean\(latestAgreement\)/);
+  assert.match(messagesDetail, /hideStatusBanner=\{Boolean\(latestAgreement\)\}/);
+  assert.match(listingState, /hideStatusBanner/);
 });

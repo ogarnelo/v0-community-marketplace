@@ -15,10 +15,13 @@ type EventEmailParams = {
   listingTitle: string;
   conversationId?: string | null;
   idempotencyKey?: string | null;
+  agreementType?: "sale" | "donation" | string | null;
+  amount?: number | null;
+  actorName?: string | null;
 };
 
 function getBaseUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return process.env.NEXT_PUBLIC_APP_URL || "https://www.wetudy.com";
 }
 
 function getFromEmail() {
@@ -85,33 +88,52 @@ export async function sendFirstMessageEmail(params: EventEmailParams) {
 }
 
 export async function sendAgreementProposedEmail(params: EventEmailParams) {
-  const url = `${getBaseUrl()}/account/activity`;
+  const url = params.conversationId
+    ? `${getBaseUrl()}/messages/${encodeURIComponent(params.conversationId)}#agreement-panel`
+    : `${getBaseUrl()}/messages`;
   const name = greeting(params);
+  const actorName = params.actorName?.trim() || "La otra persona";
+  const isDonation = params.agreementType === "donation";
+  const amount =
+    typeof params.amount === "number" && Number.isFinite(params.amount)
+      ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(params.amount)
+      : null;
+  const action = isDonation
+    ? `${actorName} quiere quedarse con este artículo.`
+    : amount
+      ? `${actorName} te propone ${amount}.`
+      : `${actorName} te ha enviado una oferta.`;
+
   return sendEmail({
     to: params.to,
     idempotencyKey: params.idempotencyKey,
-    subject: `Propuesta de acuerdo · ${params.listingTitle}`,
-    text: `${name}, tienes una propuesta de acuerdo sobre "${params.listingTitle}". Revísala en Wetudy: ${url}`,
+    subject: isDonation
+      ? `Solicitud de donación · ${params.listingTitle}`
+      : `Nueva oferta · ${params.listingTitle}`,
+    text: `${name}, ${action} Abre el chat para responder sobre "${params.listingTitle}": ${url}`,
     html: shell({
-      title: "Propuesta de acuerdo",
-      preview: `Tienes una propuesta de acuerdo sobre ${params.listingTitle}.`,
-      body: `<h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${BRAND.text};">Propuesta de acuerdo</h1><p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:${BRAND.text};">${escapeHtml(name)}, tienes una propuesta de acuerdo sobre <strong>${escapeHtml(params.listingTitle)}</strong>.</p><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${BRAND.text};">Revísala en Wetudy y usa el chat para acordar los detalles.</p>${button("Ver actividad", url)}`,
+      title: isDonation ? "Nueva solicitud de donación" : "Nueva oferta",
+      preview: `${action} ${params.listingTitle}`,
+      body: `<h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${BRAND.text};">${isDonation ? "Nueva solicitud de donación" : "Nueva oferta"}</h1><p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:${BRAND.text};">${escapeHtml(name)}, ${escapeHtml(action)}</p><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${BRAND.text};">Sobre <strong>${escapeHtml(params.listingTitle)}</strong>. Puedes responder directamente desde el chat.</p>${button("Abrir chat", url)}`,
     }),
   });
 }
 
 export async function sendAgreementConfirmedEmail(params: EventEmailParams) {
-  const url = `${getBaseUrl()}/account/activity`;
+  const url = params.conversationId
+    ? `${getBaseUrl()}/messages/${encodeURIComponent(params.conversationId)}#agreement-panel`
+    : `${getBaseUrl()}/messages`;
   const name = greeting(params);
+
   return sendEmail({
     to: params.to,
     idempotencyKey: params.idempotencyKey,
-    subject: `Acuerdo confirmado · ${params.listingTitle}`,
-    text: `${name}, el acuerdo sobre "${params.listingTitle}" se ha confirmado. La entrega y el pago se acuerdan directamente entre las partes. Actividad: ${url}`,
+    subject: `Acuerdo cerrado · ${params.listingTitle}`,
+    text: `${name}, el acuerdo sobre "${params.listingTitle}" está cerrado. Seguid hablando por el chat para concretar la entrega: ${url}`,
     html: shell({
-      title: "Acuerdo confirmado",
-      preview: `El acuerdo sobre ${params.listingTitle} se ha confirmado.`,
-      body: `<h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${BRAND.text};">Acuerdo confirmado</h1><p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:${BRAND.text};">${escapeHtml(name)}, el acuerdo sobre <strong>${escapeHtml(params.listingTitle)}</strong> se ha confirmado.</p><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${BRAND.text};">La entrega y el pago se acuerdan directamente entre las partes.</p>${button("Ver actividad", url)}`,
+      title: "Acuerdo cerrado",
+      preview: `El acuerdo sobre ${params.listingTitle} está cerrado.`,
+      body: `<h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${BRAND.text};">¡Hecho!</h1><p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:${BRAND.text};">${escapeHtml(name)}, el acuerdo sobre <strong>${escapeHtml(params.listingTitle)}</strong> está cerrado.</p><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${BRAND.text};">Seguid hablando por el chat para concretar la entrega.</p>${button("Volver al chat", url)}`,
     }),
   });
 }

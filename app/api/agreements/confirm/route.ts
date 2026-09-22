@@ -73,11 +73,11 @@ export async function POST(request: Request) {
       await createNotification(admin, {
         user_id: recipientId,
         kind: isConfirmed ? "agreement_confirmed" : "agreement_part_confirmed",
-        title: isConfirmed ? "Acuerdo confirmado" : "Han confirmado su parte",
+        title: isConfirmed ? "¡Hecho!" : "Propuesta aceptada",
         body: isConfirmed
-          ? `El acuerdo sobre ${notificationListing?.title || "el anuncio"} ya está confirmado por ambas partes.`
-          : `${user.user_metadata?.full_name || "La otra persona"} ha confirmado su parte del acuerdo.`,
-        href: `/messages/${agreement.conversation_id}`,
+          ? `Ya habéis llegado a un acuerdo sobre ${notificationListing?.title || "el anuncio"}. Concretad la entrega por el chat.`
+          : `${user.user_metadata?.full_name || "La otra persona"} ha aceptado tu propuesta.`,
+        href: `/messages/${agreement.conversation_id}#agreement-panel`,
         metadata: {
           agreement_id: agreement.id,
           conversation_id: agreement.conversation_id,
