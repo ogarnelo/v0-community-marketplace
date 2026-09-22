@@ -59,6 +59,42 @@ function isImageAttachment(type?: string | null) {
   return !!type && type.startsWith("image/");
 }
 
+function getFriendlyAgreementMessage(
+  body: string | null,
+  senderId: string,
+  buyerId: string,
+  sellerId: string
+) {
+  const value = body?.trim();
+  if (!value) return body;
+
+  if (value === "He propuesto confirmar esta donación. Falta la confirmación de la otra parte.") {
+    return senderId === buyerId
+      ? "Me interesa esta donación. ¿Te parece bien que me la quede?"
+      : "Me gustaría darte este artículo. ¿Te parece bien?";
+  }
+
+  if (value === "He propuesto confirmar este acuerdo. Falta la confirmación de la otra parte.") {
+    return senderId === buyerId
+      ? "Te he enviado una oferta. ¿Te parece bien?"
+      : "Te he propuesto un precio. ¿Te parece bien?";
+  }
+
+  if (value === "He confirmado mi parte del acuerdo. Falta la confirmación de la otra persona.") {
+    return "Perfecto, por mi parte está bien.";
+  }
+
+  if (value === "Acuerdo confirmado por ambas partes. Ya podéis valorar la experiencia.") {
+    return "¡Hecho! Ya podemos concretar la entrega por aquí.";
+  }
+
+  if (value === "El acuerdo se ha cancelado. El anuncio puede volver a estar disponible.") {
+    return "He retirado la propuesta.";
+  }
+
+  return body;
+}
+
 function buildOfferSnapshot(params: {
   parsed: NonNullable<ReturnType<typeof parseOfferChatBody>>;
   relatedOffer?: ListingOfferRow | null;
@@ -408,7 +444,14 @@ export default function RealtimeChatMessages({
                   canRespond={isActionableDonationCard}
                 />
               ) : message.body ? (
-                <p className="text-sm">{message.body}</p>
+                <p className="text-sm">
+                  {getFriendlyAgreementMessage(
+                    message.body,
+                    message.sender_id,
+                    conversationBuyerId,
+                    conversationSellerId
+                  )}
+                </p>
               ) : null}
 
               <div
