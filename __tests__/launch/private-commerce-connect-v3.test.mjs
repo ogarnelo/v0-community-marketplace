@@ -13,6 +13,7 @@ const connectPage = read("app/account/commerce-preview/page.tsx");
 const release = read("app/api/admin/commerce-lab/release-transfer/route.ts");
 const refund = read("app/api/admin/commerce-lab/refund/route.ts");
 const lab = read("app/admin/super/commerce-lab/page.tsx");
+const stripeCheckout = read("app/actions/stripe.ts");
 
 test("Connect preview stays behind private commerce and Stripe test mode", () => {
   assert.match(access, /ENABLE_PRIVATE_COMMERCE_PREVIEW/);
@@ -77,4 +78,12 @@ test("Commerce Lab exposes manual-only test settlement controls", () => {
   assert.match(lab, /ReleaseTransferButton/);
   assert.match(lab, /RefundPaymentButton/);
   assert.match(lab, /no existe payout automático ni activación pública/);
+});
+
+
+test("private Checkout keeps settlement deterministic", () => {
+  assert.match(stripeCheckout, /payment_method_types: \['card'\]/);
+  assert.match(stripeCheckout, /payment_intent_data/);
+  assert.match(stripeCheckout, /transfer_group: \`wetudy_\$\{offerId\}\`/);
+  assert.match(stripeCheckout, /wetudy_private_preview: 'true'/);
 });
