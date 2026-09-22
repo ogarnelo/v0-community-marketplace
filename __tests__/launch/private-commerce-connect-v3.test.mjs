@@ -101,6 +101,7 @@ test("Connect account.updated stays private, test-only and synchronizes capabili
   assert.match(stripeWebhook, /isPrivateCommercePreviewEnabled\(\)/);
   assert.match(stripeWebhook, /event\.livemode/);
   assert.match(stripeWebhook, /syncSellerConnectAccountSnapshot/);
+  assert.doesNotMatch(stripeWebhook, /export async function GET\(/);
   assert.match(connect, /disabled_reason/);
   assert.match(connect, /onboardingStatus: disabledReason/);
 });
