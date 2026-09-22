@@ -486,7 +486,6 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
       const publicUrl = publicUrlData?.publicUrl;
       if (!publicUrl) throw new Error("No se pudo guardar una foto del borrador.");
 
-      URL.revokeObjectURL(photo.previewUrl);
       nextPreviewFiles.push({ file: null, previewUrl: publicUrl, storagePath: filePath });
       draftPhotos.push({ url: publicUrl, path: filePath });
     }
