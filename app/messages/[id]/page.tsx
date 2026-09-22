@@ -157,7 +157,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
                   <Button asChild variant="outline" size="sm" className="gap-1.5">
                     <a href="#agreement-panel">
                       <Euro className="h-4 w-4" />
-                      <span>Oferta</span>
+                      <span>Hacer oferta</span>
                     </a>
                   </Button>
                 ) : null}
