@@ -58,6 +58,14 @@ function parseAmount(value: string) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+const INCIDENT_REASONS = [
+  { value: "delivery_missing", label: "No se ha realizado la entrega" },
+  { value: "item_not_as_agreed", label: "El artículo no coincide con lo acordado" },
+  { value: "payment_problem", label: "Problema con el pago acordado" },
+  { value: "inappropriate_behavior", label: "Trato inapropiado" },
+  { value: "other", label: "Otro problema" },
+] as const;
+
 export default function AgreementPanel({
   conversationId,
   currentUserId,
@@ -79,6 +87,9 @@ export default function AgreementPanel({
   const [comment, setComment] = useState("");
   const [showCounter, setShowCounter] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [showDispute, setShowDispute] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeDetails, setDisputeDetails] = useState("");
   const [amountInput, setAmountInput] = useState(
     typeof initialAgreement?.amount === "number"
       ? String(initialAgreement.amount)
@@ -188,6 +199,12 @@ export default function AgreementPanel({
         setShowCounter(false);
       }
 
+      if (actionName === "dispute") {
+        setShowDispute(false);
+        setDisputeReason("");
+        setDisputeDetails("");
+      }
+
       router.refresh();
       return true;
     } catch (error: any) {
@@ -286,21 +303,73 @@ export default function AgreementPanel({
               variant="ghost"
               size="sm"
               className="text-rose-700 hover:text-rose-800"
-              onClick={() =>
-                void runAction(
-                  "/api/agreements/dispute",
-                  {
-                    agreementId: agreement.id,
-                    note: "Incidencia reportada desde el chat",
-                  },
-                  "dispute"
-                )
-              }
+              onClick={() => setShowDispute((value) => !value)}
               disabled={!!loadingAction}
             >
-              Reportar problema
+              {showDispute ? "Cancelar reporte" : "Reportar problema"}
             </Button>
           </div>
+
+          {showDispute ? (
+            <div className="mt-3 space-y-3 rounded-xl border border-rose-200 bg-white p-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Cuéntanos qué ha ocurrido</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Esta información la verá el equipo de Wetudy para poder revisar el acuerdo y el chat.
+                </p>
+              </div>
+
+              <select
+                className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                value={disputeReason}
+                onChange={(event) => setDisputeReason(event.target.value)}
+                aria-label="Motivo de la incidencia"
+              >
+                <option value="">Selecciona un motivo</option>
+                {INCIDENT_REASONS.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+
+              <Textarea
+                value={disputeDetails}
+                onChange={(event) => setDisputeDetails(event.target.value.slice(0, 1000))}
+                placeholder="Explica brevemente qué ha pasado y qué necesitas que revisemos."
+                rows={4}
+              />
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {disputeDetails.trim().length}/1000
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() =>
+                    void runAction(
+                      "/api/agreements/dispute",
+                      {
+                        agreementId: agreement.id,
+                        reason: disputeReason,
+                        details: disputeDetails,
+                      },
+                      "dispute"
+                    )
+                  }
+                  disabled={
+                    !!loadingAction ||
+                    !disputeReason ||
+                    disputeDetails.trim().length < 10
+                  }
+                >
+                  {loadingAction === "dispute" ? "Enviando..." : "Enviar incidencia"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           {showReview && !hasReviewed ? (
             <div className="mt-3 space-y-2 rounded-xl bg-white p-3">
