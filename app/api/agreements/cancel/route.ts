@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -61,6 +62,28 @@ export async function POST(request: Request) {
     }
 
     const agreement = normalizeRpcRow<any>(data);
+
+    if (agreement) {
+      const recipientId =
+        user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
+      try {
+        await createNotification(admin, {
+          user_id: recipientId,
+          kind: "agreement_cancelled",
+          title: "Acuerdo cancelado",
+          body: `${user.user_metadata?.full_name || "La otra persona"} ha cancelado el acuerdo. Podéis volver a proponer uno nuevo.`,
+          href: `/messages/${agreement.conversation_id}`,
+          metadata: {
+            agreement_id: agreement.id,
+            conversation_id: agreement.conversation_id,
+            listing_id: agreement.listing_id,
+          },
+        });
+      } catch (notificationError) {
+        console.error("No se pudo crear la notificación de cancelación", notificationError);
+      }
+    }
+
     return NextResponse.json({ ok: true, agreement });
   } catch (error: any) {
     return NextResponse.json(
