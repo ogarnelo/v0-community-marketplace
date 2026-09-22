@@ -14,6 +14,7 @@ const release = read("app/api/admin/commerce-lab/release-transfer/route.ts");
 const refund = read("app/api/admin/commerce-lab/refund/route.ts");
 const lab = read("app/admin/super/commerce-lab/page.tsx");
 const stripeCheckout = read("app/actions/stripe.ts");
+const stripeWebhook = read("app/api/stripe/webhook/route.ts");
 
 test("Connect preview stays behind private commerce and Stripe test mode", () => {
   assert.match(access, /ENABLE_PRIVATE_COMMERCE_PREVIEW/);
@@ -60,6 +61,7 @@ test("test transfer release requires paid state, delivery and ready Connect sell
   assert.match(release, /source_transaction: chargeId/);
   assert.match(release, /paymentIntent\.amount_received/);
   assert.match(release, /stripe\.transfers\.list/);
+  assert.match(release, /amount_reversed > 0/);
   assert.match(release, /reconciled_from_stripe/);
   assert.match(release, /wetudy-transfer-v1/);
   assert.match(release, /sandbox_transfer_released/);
@@ -97,4 +99,7 @@ test("private Checkout keeps settlement deterministic", () => {
   assert.match(stripeCheckout, /wetudy_private_preview: 'true'/);
   assert.match(stripeCheckout, /paymentWriteError/);
   assert.match(stripeCheckout, /listingReserveError/);
+  assert.match(stripeCheckout, /checkout\.sessions\.expire/);
+  assert.match(stripeWebhook, /registeredSessionId/);
+  assert.match(stripeWebhook, /registeredSessionId !== session\.id/);
 });
