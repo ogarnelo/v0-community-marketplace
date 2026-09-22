@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { buildPhotosMap, type ListingPhotoRow, type MarketplaceListing } from "@/lib/types/marketplace";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 import { getConditionLabel } from "@/lib/marketplace/formatters";
+import { getUserReviews } from "@/lib/users/get-user-reviews";
 import JsonLd from "@/components/seo/json-ld";
 import ListingViewTracker from "@/components/analytics/listing-view-tracker";
 import MobileListingActions from "@/components/marketplace/mobile-listing-actions";
@@ -150,16 +151,16 @@ export default async function ListingDetailPage({
   const conditionText = getConditionLabel(listing.condition);
   const showIsbn = shouldShowIsbn(listing.category, listing.isbn);
 
-  const [{ data: seller }, { data: viewerProfile }, { data: reviews }, { data: activeListings }, { data: favorite }] = await Promise.all([
+  const [{ data: seller }, { data: viewerProfile }, reviews, { data: activeListings }, { data: favorite }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, business_name, user_type, is_business_verified").eq("id", listing.seller_id).maybeSingle(),
     currentUserId ? supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle() : Promise.resolve({ data: null }),
-    listing.seller_id ? supabase.from("transaction_reviews").select("rating").eq("reviewed_user_id", listing.seller_id) : Promise.resolve({ data: [] }),
+    listing.seller_id ? getUserReviews(authSupabase, listing.seller_id) : Promise.resolve([]),
     listing.seller_id ? supabase.from("listings").select("id").eq("seller_id", listing.seller_id).eq("status", "available") : Promise.resolve({ data: [] }),
     currentUserId ? supabase.from("favorites").select("listing_id").eq("user_id", currentUserId).eq("listing_id", listing.id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
-  const reviewCount = reviews?.length || 0;
-  const averageRating = reviewCount > 0 ? (reviews || []).reduce((sum: number, row: any) => sum + Number(row.rating || 0), 0) / reviewCount : null;
+  const reviewCount = reviews.length;
+  const averageRating = reviewCount > 0 ? reviews.reduce((sum, row) => sum + row.rating, 0) / reviewCount : null;
   const sellerActiveListings = activeListings?.length || 0;
   const isProfessionalSeller = seller?.user_type === "business" || Boolean(seller?.is_business_verified);
 
