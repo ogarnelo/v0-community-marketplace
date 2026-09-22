@@ -35,7 +35,7 @@ test("seller connected account creation is explicit and idempotent", () => {
   assert.match(connect, /wetudy-connect-account-v1/);
   assert.match(connectRoute, /if \(!existing\?\.stripe_account_id\)/);
   assert.match(connectRoute, /account: null/);
-  assert.match(connectRoute, /stripe\.accountLinks\.create/);
+  assert.match(connectRoute, /accountLinks\.create/);
 });
 
 test("Connect and settlement tables use RLS and server-only writes", () => {

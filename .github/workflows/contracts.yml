@@ -1,0 +1,23 @@
+name: Private commerce contracts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  private-commerce-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --ignore-scripts
+      - name: Private commerce contract tests
+        run: npm run test:commerce-contracts
