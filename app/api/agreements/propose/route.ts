@@ -91,19 +91,25 @@ export async function POST(request: Request) {
       user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
     const recipientEmail = recipientAuth.data.user?.email;
 
+    const actorName = user.user_metadata?.full_name || "La otra persona";
+    const formattedAmount = Number(agreement.amount || 0).toLocaleString("es-ES", {
+      style: "currency",
+      currency: "EUR",
+    });
+
     try {
       await createNotification(admin, {
         user_id: recipientId,
         kind: "agreement_proposed",
         title:
           agreement.agreement_type === "donation"
-            ? "Nueva propuesta de donación"
-            : "Nueva propuesta de acuerdo",
+            ? "Solicitud de donación"
+            : "Nueva oferta",
         body:
           agreement.agreement_type === "donation"
-            ? `${user.user_metadata?.full_name || "La otra persona"} ha propuesto confirmar la donación.`
-            : `${user.user_metadata?.full_name || "La otra persona"} propone cerrar el acuerdo por ${Number(agreement.amount || 0).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}.`,
-        href: `/messages/${agreement.conversation_id}`,
+            ? `${actorName} quiere quedarse con ${listing?.title || "tu artículo"}.`
+            : `${actorName} te ofrece ${formattedAmount} por ${listing?.title || "tu artículo"}.`,
+        href: `/messages/${agreement.conversation_id}#agreement-panel`,
         metadata: {
           agreement_id: agreement.id,
           conversation_id: agreement.conversation_id,
@@ -120,6 +126,9 @@ export async function POST(request: Request) {
           recipientName: recipientProfile?.full_name,
           listingTitle: listing?.title || "el anuncio",
           conversationId: agreement.conversation_id,
+          agreementType: agreement.agreement_type,
+          amount: agreement.amount == null ? null : Number(agreement.amount),
+          actorName,
           idempotencyKey: `agreement-proposed/${agreement.id}`,
         });
       } catch (emailError) {
