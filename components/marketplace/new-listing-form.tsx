@@ -188,6 +188,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   const [photos, setPhotos] = useState<PreviewFile[]>([]);
   const [photoError, setPhotoError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
 
   const showBookFields = isBookCategory(selectedCategory);
   const showTextbookFields = isTextbookCategory(selectedCategory);
@@ -242,6 +243,26 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
   }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
 
   const normalizedGradeLevels = useMemo(() => Array.from(new Set(gradeLevels)).filter(Boolean), []);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const updateKeyboardOffset = () => {
+      const keyboardVisible = viewport.height < window.innerHeight * 0.8;
+      const overlap = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setKeyboardOffset(keyboardVisible ? overlap : 0);
+    };
+
+    updateKeyboardOffset();
+    viewport.addEventListener("resize", updateKeyboardOffset);
+    viewport.addEventListener("scroll", updateKeyboardOffset);
+
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardOffset);
+      viewport.removeEventListener("scroll", updateKeyboardOffset);
+    };
+  }, []);
 
   const handlePickPhoto = () => fileInputRef.current?.click();
 
@@ -499,7 +520,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
               <div className="flex flex-col gap-2">
                 <Label>Estado *</Label>
                 <Select value={selectedCondition} onValueChange={setSelectedCondition}>
-                  <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+                  <SelectTrigger className="h-11 w-full min-w-0 [&>span]:min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
                   <SelectContent className="w-[min(360px,calc(100vw-2rem))]">
                     {conditions.map((condition) => (
                       <SelectItem key={condition.value} value={condition.value} textValue={condition.label}>
@@ -598,8 +619,8 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
             {!isDonation ? (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2"><Label htmlFor="price">Precio de venta *</Label><div className="relative"><Input id="price" type="text" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Ej: 12" className="h-11 pr-9" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span></div></div>
-                <div className="flex flex-col gap-2"><Label htmlFor="original-price">Precio original</Label><div className="relative"><Input id="original-price" type="text" inputMode="decimal" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="Opcional" className="h-11 pr-9" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span></div></div>
+                <div className="flex flex-col gap-2"><Label htmlFor="price">Precio de venta *</Label><div className="relative"><Input id="price" type="text" inputMode="decimal" enterKeyHint="done" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }} placeholder="Ej: 12" className="h-11 pr-9" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span></div></div>
+                <div className="flex flex-col gap-2"><Label htmlFor="original-price">Precio original</Label><div className="relative"><Input id="original-price" type="text" inputMode="decimal" enterKeyHint="done" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }} placeholder="Opcional" className="h-11 pr-9" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span></div></div>
               </div>
             ) : (
               <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm leading-relaxed text-muted-foreground">Este anuncio aparecerá como donación. Wetudy facilita el contacto y conserva el historial del acuerdo.</div>
@@ -614,7 +635,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
           {submitError && <div className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>}
 
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none" style={keyboardOffset > 0 ? { bottom: `${keyboardOffset}px` } : undefined}>
             <div className="mx-auto flex max-w-3xl gap-3">
               <Button type="submit" disabled={loading} className="min-h-12 flex-1 text-base sm:flex-none sm:px-8">
                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Publicando...</> : "Publicar anuncio"}
