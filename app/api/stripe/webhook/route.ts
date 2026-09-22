@@ -72,6 +72,15 @@ async function processCheckoutSessionEvent(
     return { ignored: true, reason: "payment_intent_not_found" as const };
   }
 
+  const registeredSessionId =
+    typeof paymentIntent.metadata?.stripe_checkout_session_id === "string"
+      ? paymentIntent.metadata.stripe_checkout_session_id
+      : null;
+
+  if (registeredSessionId && registeredSessionId !== session.id) {
+    throw new Error("Stripe checkout session does not match the registered session.");
+  }
+
   if (
     session.metadata?.listing_id &&
     session.metadata.listing_id !== paymentIntent.listing_id
