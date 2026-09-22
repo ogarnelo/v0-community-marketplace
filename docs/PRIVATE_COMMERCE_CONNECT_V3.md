@@ -19,9 +19,9 @@ El acceso al checkout privado y al onboarding Connect exige:
 
 ## Stripe Connect
 
-Para esta fase se usa la API estable de Connected Accounts con cuentas Express y Account Links alojados por Stripe.
+Para esta fase privada se mantiene la implementación existente de Connected Accounts v1 con cuentas Express y Account Links alojados por Stripe.
 
-No se hace depender la beta de Accounts v2 porque su disponibilidad puede depender del acceso/preview habilitado en la cuenta Stripe. La persistencia de Wetudy queda desacoplada del tipo de API para poder migrar más adelante.
+La documentación actual de Stripe marca los tipos de cuenta legacy de Accounts v1, incluido Express, como deprecados para plataformas Connect nuevas. Por eso esta elección se considera **transitoria para el laboratorio privado**, no una decisión de producción. Antes de activar comercio real hay que decidir y validar la migración a Accounts v2/configuraciones actuales o justificar explícitamente la continuidad de la integración existente. La persistencia de Wetudy permanece desacoplada para facilitar esa revisión.
 
 Cada vendedor tester puede crear una cuenta Connect test desde:
 
@@ -53,7 +53,24 @@ Se mantiene la arquitectura de **separate charges and transfers**:
 6. la transferencia usa el cargo Stripe como `source_transaction`;
 7. no existe liberación automática.
 
-La sesión crea el PaymentIntent con un `transfer_group` estable por oferta. La transferencia es idempotente por `payment_intent_id` y por idempotency key de Stripe.
+La sesión crea el PaymentIntent con un `transfer_group` estable por oferta. La transferencia reutiliza el `transfer_group` del PaymentIntent, es única por `payment_intent_id` en Supabase y usa idempotency key de Stripe. Antes de crear una transferencia, el backend reconcilia las transferencias ya existentes en Stripe; así también se cubre el caso "Stripe tuvo éxito pero falló el write en Supabase" y los reintentos posteriores a la ventana de retención de una idempotency key.
+
+## Modelo económico técnico del sandbox
+
+Los importes de esta beta son provisionales y **no son precios finales**.
+
+El modelo distingue actualmente:
+
+- importe del artículo: `payment_intents.amount`;
+- buyer fee: `payment_intents.buyer_fee_amount`;
+- importe de envío cobrado al comprador: `payment_intents.shipping_amount`;
+- total pagado por el comprador: `payment_intents.metadata.total_buyer_amount`;
+- neto previsto del vendedor: `payment_intents.seller_net_amount`;
+- platform fee: `payment_intents.platform_fee_amount` (en el sandbox actual coincide con el buyer fee);
+- transferencia al vendedor: `commerce_transfers.amount`;
+- refund al comprador: `commerce_refunds.amount`, guardando el importe real devuelto por Stripe.
+
+Queda **sin modelar como campo económico independiente** el coste logístico real del transportista. `shipping_amount` es lo que se cobra al comprador, no el coste real de Sendcloud/carrier. También queda pendiente separar explícitamente las comisiones de procesamiento Stripe de la comisión de plataforma. Ambos puntos deben resolverse antes de fijar precios/márgenes reales.
 
 ## Refund / reversal
 
@@ -66,7 +83,7 @@ Si el dinero ya fue transferido al vendedor:
 3. se actualizan estados internos;
 4. envíos aún no despachados se cancelan.
 
-No se implementan refunds parciales todavía.
+No se implementan refunds parciales todavía. El backend exige que Stripe, Supabase y el cargo coincidan en importe/moneda, rechaza estados con refunds parciales ajenos, reconcilia refunds ya creados en Stripe antes de crear otro y detecta reversals parciales como estado que requiere revisión manual.
 
 ## Logística
 
