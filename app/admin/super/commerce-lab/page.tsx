@@ -12,7 +12,7 @@ import {
   isPublicCommerceEnabled,
 } from "@/lib/commerce/private-access";
 import { isSendcloudConfigured } from "@/lib/logistics/sendcloud";
-import { SimulateLabelButton } from "@/components/admin/commerce-lab-actions";
+import { RefundPaymentButton, ReleaseTransferButton, SimulateLabelButton } from "@/components/admin/commerce-lab-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -54,18 +54,51 @@ export default async function CommerceLabPage() {
   if (!roles?.length) redirect("/");
 
   const admin = createAdminClient();
-  const [{ data: payments }, { data: shipments }] = await Promise.all([
+  const [
+    { data: payments },
+    { data: shipments },
+    { data: connectAccounts },
+    { data: transfers },
+    { data: refunds },
+  ] = await Promise.all([
     admin
       .from("payment_intents")
-      .select("id, status, amount, currency, provider, created_at")
+      .select("id, status, amount, currency, provider, created_at, seller_net_amount, seller_id, buyer_id, metadata")
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(12),
     admin
       .from("shipments")
-      .select("id, status, provider, tracking_code, created_at")
+      .select("id, payment_intent_id, status, provider, tracking_code, created_at")
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(12),
+    admin
+      .from("seller_connect_accounts")
+      .select("user_id, stripe_account_id, onboarding_status, transfers_active, payouts_enabled, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(20),
+    admin
+      .from("commerce_transfers")
+      .select("id, payment_intent_id, provider_transfer_id, amount, currency, status, released_at, reversed_at")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    admin
+      .from("commerce_refunds")
+      .select("id, payment_intent_id, provider_refund_id, amount, currency, status, transfer_reversal_id, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
+
+  const shipmentByPaymentId = new Map(
+    (shipments || [])
+      .filter((shipment: any) => shipment.payment_intent_id)
+      .map((shipment: any) => [shipment.payment_intent_id, shipment])
+  );
+  const transferByPaymentId = new Map(
+    (transfers || []).map((transfer: any) => [transfer.payment_intent_id, transfer])
+  );
+  const refundByPaymentId = new Map(
+    (refunds || []).map((refund: any) => [refund.payment_intent_id, refund])
+  );
 
   const previewEnabled = isPrivateCommercePreviewEnabled();
   const publicEnabled = isPublicCommerceEnabled();
@@ -153,15 +186,38 @@ export default async function CommerceLabPage() {
               {(payments || []).length === 0 ? (
                 <p className="text-sm text-muted-foreground">Todavía no hay pagos registrados.</p>
               ) : (
-                (payments || []).map((payment: any) => (
-                  <div key={payment.id} className="rounded-xl border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium">{Number(payment.amount || 0).toFixed(2)} {payment.currency || "EUR"}</span>
-                      <Badge variant="outline">{payment.status}</Badge>
+                (payments || []).map((payment: any) => {
+                  const shipment = shipmentByPaymentId.get(payment.id) as any;
+                  const transfer = transferByPaymentId.get(payment.id) as any;
+                  const refund = refundByPaymentId.get(payment.id) as any;
+                  const deliveryMethod = payment.metadata?.delivery_method || "sin dato";
+                  const canRelease =
+                    payment.status === "succeeded" &&
+                    !refund &&
+                    !transfer?.provider_transfer_id &&
+                    (deliveryMethod !== "shipping" || shipment?.status === "delivered");
+                  const canRefund = payment.status === "succeeded" && !refund;
+
+                  return (
+                    <div key={payment.id} className="rounded-xl border p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium">{Number(payment.amount || 0).toFixed(2)} {payment.currency || "EUR"}</span>
+                        <Badge variant="outline">{payment.status}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{payment.provider || "stripe"} · {payment.id}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Entrega: {deliveryMethod}
+                        {shipment ? ` · envío ${shipment.status}` : ""}
+                        {transfer ? ` · transferencia ${transfer.status}` : ""}
+                        {refund ? ` · refund ${refund.status}` : ""}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {canRelease ? <ReleaseTransferButton paymentIntentId={payment.id} /> : null}
+                        {canRefund ? <RefundPaymentButton paymentIntentId={payment.id} /> : null}
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{payment.provider || "stripe"} · {payment.id}</p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </CardContent>
           </Card>
@@ -197,6 +253,80 @@ export default async function CommerceLabPage() {
           </Card>
         </div>
 
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Vendedores Connect test</CardTitle>
+              <CardDescription>Estado del onboarding y capacidad de recibir transferencias.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(connectAccounts || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Ningún tester ha iniciado Connect todavía.</p>
+              ) : (
+                (connectAccounts || []).map((account: any) => (
+                  <div key={account.user_id} className="rounded-xl border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-xs">{account.stripe_account_id}</span>
+                      <Badge variant="outline">{account.onboarding_status}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      transfers {account.transfers_active ? "active" : "pending"} · payouts {account.payouts_enabled ? "active" : "pending"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Transferencias test</CardTitle>
+              <CardDescription>Fondos liberados o revertidos hacia vendedores Connect.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(transfers || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todavía no hay transferencias.</p>
+              ) : (
+                (transfers || []).map((transfer: any) => (
+                  <div key={transfer.id} className="rounded-xl border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium">{Number(transfer.amount || 0).toFixed(2)} {transfer.currency || "EUR"}</span>
+                      <Badge variant="outline">{transfer.status}</Badge>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
+                      {transfer.provider_transfer_id || "Pendiente de Stripe"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Refunds test</CardTitle>
+              <CardDescription>Reembolsos completos y reversión asociada si existía transferencia.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(refunds || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todavía no hay refunds.</p>
+              ) : (
+                (refunds || []).map((refund: any) => (
+                  <div key={refund.id} className="rounded-xl border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium">{Number(refund.amount || 0).toFixed(2)} {refund.currency || "EUR"}</span>
+                      <Badge variant="outline">{refund.status}</Badge>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
+                      {refund.provider_refund_id || "Pendiente de Stripe"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Siguiente validación del lab</CardTitle>
@@ -204,7 +334,10 @@ export default async function CommerceLabPage() {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Pago Stripe test con importe calculado server-side e idempotencia.</p>
             <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Webhook firmado y estado interno <code>succeeded</code>.</p>
-            <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 text-amber-600" /> Connect/payout al vendedor aún no se activa: requiere decidir modelo marketplace y onboarding/KYC.</p>
+            <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Connect test: onboarding del vendedor, capabilities y cuenta persistida.</p>
+            <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Transferencia test manual tras entrega, con source_transaction e idempotencia.</p>
+            <p className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> Refund test completo con reversión previa de transferencia cuando corresponde.</p>
+            <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 text-amber-600" /> La liberación sigue siendo manual y exclusiva del lab; no existe payout automático ni activación pública.</p>
             <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 text-amber-600" /> Etiquetas Sendcloud reales permanecen bloqueadas hasta prueba controlada.</p>
           </CardContent>
         </Card>
