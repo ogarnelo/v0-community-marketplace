@@ -17,6 +17,7 @@ type PaymentEmailParams = {
   listingTitle: string;
   amount: number;
   paymentId?: string | null;
+  conversationId?: string | null;
 };
 
 type WelcomeEmailParams = {
@@ -25,7 +26,7 @@ type WelcomeEmailParams = {
 };
 
 function getBaseUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return process.env.NEXT_PUBLIC_APP_URL || "https://www.wetudy.com";
 }
 
 function getFromEmail() {
@@ -198,7 +199,9 @@ export async function sendWelcomeEmail(params: WelcomeEmailParams) {
 export async function sendPaymentSucceededEmail(params: PaymentEmailParams) {
   const amount = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(params.amount || 0);
   const firstName = params.recipientName?.trim() || "Hola";
-  const activityUrl = `${getBaseUrl()}/account/activity`;
+  const activityUrl = params.conversationId
+    ? `${getBaseUrl()}/messages/${encodeURIComponent(params.conversationId)}`
+    : `${getBaseUrl()}/account/activity`;
 
   return sendEmail({
     to: params.to,
@@ -220,7 +223,9 @@ export async function sendPaymentSucceededEmail(params: PaymentEmailParams) {
 export async function sendPaymentFailedEmail(params: PaymentEmailParams) {
   const amount = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(params.amount || 0);
   const firstName = params.recipientName?.trim() || "Hola";
-  const activityUrl = `${getBaseUrl()}/account/activity`;
+  const activityUrl = params.conversationId
+    ? `${getBaseUrl()}/messages/${encodeURIComponent(params.conversationId)}`
+    : `${getBaseUrl()}/account/activity`;
 
   return sendEmail({
     to: params.to,
