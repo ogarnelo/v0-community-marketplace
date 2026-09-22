@@ -104,10 +104,6 @@ export async function POST(request: Request) {
       refresh_url: refreshUrl.toString(),
       return_url: returnUrl.toString(),
       type: "account_onboarding",
-      collection_options: {
-        fields: "eventually_due",
-        future_requirements: "include",
-      },
     });
 
     return NextResponse.json({ ok: true, url: accountLink.url });
