@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test:contracts": "node scripts/test-contracts.mjs",
     "mvp:ready": "node scripts/mvp-readiness.mjs https://www.wetudy.com",
-    "mvp:ready:local": "node scripts/mvp-readiness.mjs http://localhost:3000"
+    "mvp:ready:local": "node scripts/mvp-readiness.mjs http://localhost:3000",
+    "prebuild": "npm run test:contracts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
