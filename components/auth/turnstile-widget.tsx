@@ -6,6 +6,9 @@ type TurnstileRenderOptions = {
   sitekey: string;
   action?: string;
   theme?: "auto" | "light" | "dark";
+  appearance?: "always" | "execute" | "interaction-only";
+  size?: "normal" | "compact" | "flexible";
+  language?: string;
   callback?: (token: string) => void;
   "expired-callback"?: () => void;
   "error-callback"?: () => void;
@@ -59,6 +62,9 @@ export function TurnstileWidget({
         sitekey: siteKey,
         action: "auth",
         theme: "auto",
+        appearance: "interaction-only",
+        size: "flexible",
+        language: "es",
         callback: (token) => onTokenChange(token),
         "expired-callback": () => onTokenChange(null),
         "error-callback": () => onTokenChange(null),
@@ -89,8 +95,8 @@ export function TurnstileWidget({
   if (!siteKey) return null;
 
   return (
-    <div className="flex min-h-[65px] w-full items-center justify-center overflow-hidden">
-      <div ref={containerRef} aria-label="Verificación de seguridad" />
+    <div className="flex w-full items-center justify-center overflow-hidden">
+      <div ref={containerRef} className="w-full" aria-label="Verificación de seguridad" />
     </div>
   );
 }

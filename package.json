@@ -13,7 +13,8 @@
     "prebuild": "npm run test:critical-contracts",
     "test:commerce-contracts": "node --test __tests__/launch/private-commerce-connect-v3.test.mjs",
     "test:ux-hotfix": "node --test __tests__/launch/mobile-ux-account-listing-hotfix.test.mjs",
-    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix"
+    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix && npm run test:publish-contracts",
+    "test:publish-contracts": "node --test __tests__/launch/publish-drafts-chat-turnstile.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
