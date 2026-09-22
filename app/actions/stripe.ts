@@ -135,8 +135,8 @@ export async function startCheckoutSession(params: {
           price_data: {
             currency: 'eur',
             product_data: {
-              name: 'Protección al comprador',
-              description: 'Comisión de protección y gestión de la transacción',
+              name: 'Tarifa de servicio · preview',
+              description: 'Tarifa provisional para probar el flujo de checkout',
             },
             unit_amount: Math.round(pricing.buyerFeeAmount * 100),
           },
