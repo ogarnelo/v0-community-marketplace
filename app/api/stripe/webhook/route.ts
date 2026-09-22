@@ -299,20 +299,3 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
-  if (!isPublicCommerceEnabled() && !isPrivateCommercePreviewEnabled()) {
-    return NextResponse.json({ ok: false }, { status: 404 });
-  }
-  if (!isPublicCommerceEnabled()) assertStripeTestMode();
-
-  return NextResponse.json(
-    {
-      ok: true,
-      route: "/api/stripe/webhook",
-      configured: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET),
-      commerce_enabled: isPublicCommerceEnabled(),
-      private_preview_enabled: isPrivateCommercePreviewEnabled(),
-    },
-    { status: 200 }
-  );
-}
