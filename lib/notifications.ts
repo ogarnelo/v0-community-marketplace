@@ -87,7 +87,7 @@ export function getNotificationDestination(
   ) {
     const reportId = metadataString(notification, "report_id");
     return reportId
-      ? `/admin/super?tab=reports#report-${encodeURIComponent(reportId)}`
+      ? `/admin/super/reports/${encodeURIComponent(reportId)}`
       : "/admin/super?tab=reports";
   }
 

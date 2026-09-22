@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Star, MessageSquare, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getInitials } from "@/lib/marketplace/formatters";
-import type { ListingRow, ProfileRow, ReviewRow } from "@/lib/types/marketplace";
+import type { ListingRow, ProfileRow } from "@/lib/types/marketplace";
+import { getUserReviews } from "@/lib/users/get-user-reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +23,7 @@ export default async function ReviewsPage() {
     redirect("/auth?next=/account/reviews");
   }
 
-  const { data: reviewsData } = await supabase
-    .from("reviews")
-    .select("rating, comment, created_at, reviewer_id, reviewed_user_id, listing_id")
-    .eq("reviewed_user_id", user.id)
-    .order("created_at", { ascending: false });
-
-  const reviews = (reviewsData || []) as ReviewRow[];
+  const reviews = await getUserReviews(supabase, user.id);
   const avgRating =
     reviews.length > 0
       ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)
