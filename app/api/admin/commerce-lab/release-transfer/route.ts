@@ -5,7 +5,7 @@ import {
   assertStripeTestMode,
   isPrivateCommercePreviewEnabled,
 } from "@/lib/commerce/private-access";
-import { createDelayedSellerTransfer } from "@/lib/commerce/stripe-connect";
+import { createDelayedSellerTransfer } from "@/lib/commerce/stripe-transfers";
 
 function toCents(value: unknown) {
   const amount = Number(value);
