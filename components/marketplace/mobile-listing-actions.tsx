@@ -18,6 +18,7 @@ export default function MobileListingActions({
   isAvailable,
   isOwnListing,
   sellerId,
+  currentUserId,
 }: {
   listingId: string;
   price?: number | null;
@@ -25,6 +26,7 @@ export default function MobileListingActions({
   isAvailable: boolean;
   isOwnListing: boolean;
   sellerId?: string | null;
+  currentUserId?: string | null;
   isProfessionalSeller?: boolean;
 }) {
   if (isOwnListing || !isAvailable || !sellerId) return null;
@@ -44,6 +46,7 @@ export default function MobileListingActions({
         <ContactSellerButton
           listingId={listingId}
           sellerId={sellerId}
+          currentUserId={currentUserId}
           showIcon
           className="min-h-11 min-w-[9rem] shrink-0 gap-2 px-5"
         />

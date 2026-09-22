@@ -19,6 +19,7 @@ import { Trash2 } from "lucide-react";
 
 type HideConversationButtonProps = {
   conversationId: string;
+  currentUserId?: string | null;
   onHidden?: (conversationId: string) => void;
   iconOnly?: boolean;
   variant?: "ghost" | "outline";
@@ -28,6 +29,7 @@ type HideConversationButtonProps = {
 
 export function HideConversationButton({
   conversationId,
+  currentUserId,
   onHidden,
   iconOnly = false,
   variant = "ghost",
@@ -46,12 +48,8 @@ export function HideConversationButton({
     try {
       const supabase = createClient();
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.assign("/auth?next=/messages");
+      if (!currentUserId) {
+        router.push("/auth?next=/messages");
         return;
       }
 
@@ -67,7 +65,7 @@ export function HideConversationButton({
 
       if (
         !conversation ||
-        (conversation.buyer_id !== user.id && conversation.seller_id !== user.id)
+        (conversation.buyer_id !== currentUserId && conversation.seller_id !== currentUserId)
       ) {
         throw new Error("No tienes permisos sobre esta conversación.");
       }
@@ -76,7 +74,7 @@ export function HideConversationButton({
         .from("hidden_conversations")
         .upsert(
           {
-            user_id: user.id,
+            user_id: currentUserId,
             conversation_id: conversationId,
           },
           { onConflict: "user_id,conversation_id" }

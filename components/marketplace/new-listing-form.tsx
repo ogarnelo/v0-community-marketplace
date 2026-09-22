@@ -52,6 +52,7 @@ const COURSE_REQUIRED_CATEGORIES = ["Libros de texto", "Lectura y literatura"];
 const FALLBACK_GRADE_LEVEL = "Varios cursos";
 
 type NewListingFormProps = {
+  currentUserId: string;
   initialSchoolId: string;
   initialSchoolName: string;
   initialSchoolCity: string;
@@ -189,7 +190,7 @@ function SectionCard({
   );
 }
 
-export default function NewListingForm({ initialSchoolId, initialSchoolName, initialSchoolCity }: NewListingFormProps) {
+export default function NewListingForm({ currentUserId, initialSchoolId, initialSchoolName, initialSchoolCity }: NewListingFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const suppressCategoryResetRef = useRef(false);
@@ -553,15 +554,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
 
     try {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        window.location.assign("/auth?next=/marketplace/new");
-        return false;
-      }
-
-      const { nextPreviewFiles, draftPhotos } = await persistDraftPhotos(user.id);
+      const { nextPreviewFiles, draftPhotos } = await persistDraftPhotos(currentUserId);
       const response = await fetch("/api/marketplace/listing-draft", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -765,18 +758,13 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
       }
 
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        window.location.assign("/auth?next=/marketplace/new");
-        return;
-      }
 
-      const { data: currentProfile, error: profileError } = await supabase.from("profiles").select("school_id").eq("id", user.id).maybeSingle();
+      const { data: currentProfile, error: profileError } = await supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle();
       if (profileError) throw profileError;
 
       const effectiveSchoolId = currentProfile?.school_id && currentProfile.school_id.trim().length > 0 ? currentProfile.school_id : initialSchoolId || null;
       const listingId = crypto.randomUUID();
-      const uploadedPhotoRows = await uploadListingPhotos(listingId, user.id, photos);
+      const uploadedPhotoRows = await uploadListingPhotos(listingId, currentUserId, photos);
       const photoUrls = uploadedPhotoRows.map((photo) => photo.url);
       if (photoUrls.length === 0) throw new Error("Debes añadir al menos una foto real del material.");
 
@@ -796,7 +784,7 @@ export default function NewListingForm({ initialSchoolId, initialSchoolName, ini
         language: showBookFields && language ? language : null,
         price: isDonation ? null : parsePrice(price),
         original_price: isDonation || !originalPrice.trim() ? null : parsePrice(originalPrice),
-        seller_id: user.id,
+        seller_id: currentUserId,
         school_id: effectiveSchoolId,
         status: "available",
         photos: photoUrls,

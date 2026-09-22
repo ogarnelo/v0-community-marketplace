@@ -71,6 +71,7 @@ export default async function NewListingPage() {
 
   return (
     <NewListingForm
+      currentUserId={user.id}
       initialSchoolId={selectedSchool?.id || ""}
       initialSchoolName={selectedSchool?.name || "Centro no asignado"}
       initialSchoolCity={selectedSchool?.city || ""}

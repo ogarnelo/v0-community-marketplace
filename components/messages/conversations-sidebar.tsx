@@ -285,6 +285,7 @@ export function ConversationsSidebar({
 
                   <HideConversationButton
                     conversationId={conversation.id}
+                    currentUserId={currentUserId}
                     iconOnly
                     size="icon"
                     variant="ghost"

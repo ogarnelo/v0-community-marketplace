@@ -170,6 +170,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
                 <ReportConversationButton conversationId={typedConversation.id} iconOnly />
                 <HideConversationButton
                   conversationId={typedConversation.id}
+                  currentUserId={user.id}
                   iconOnly
                   variant="outline"
                   size="icon"
@@ -231,7 +232,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
               allowConversationMessagingWhenUnavailable={allowConversationMessaging}
               hideStatusBanner={Boolean(latestAgreement)}
             >
-              <SendMessageForm conversationId={typedConversation.id} disabled={!allowConversationMessaging} allowUnavailableConversationMessaging={allowConversationMessaging} />
+              <SendMessageForm conversationId={typedConversation.id} currentUserId={user.id} disabled={!allowConversationMessaging} allowUnavailableConversationMessaging={allowConversationMessaging} />
             </ConversationListingState>
           </div>
         </Card>

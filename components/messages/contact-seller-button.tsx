@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 interface ContactSellerButtonProps {
   listingId: string;
   sellerId: string;
+  currentUserId?: string | null;
   className?: string;
   showIcon?: boolean;
 }
@@ -16,6 +17,7 @@ interface ContactSellerButtonProps {
 export function ContactSellerButton({
   listingId,
   sellerId,
+  currentUserId,
   className = "mt-6 hidden w-full md:inline-flex",
   showIcon = false,
 }: ContactSellerButtonProps) {
@@ -29,11 +31,7 @@ export function ContactSellerButton({
 
     try {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
+      if (!currentUserId) {
         const authUrl = new URL("/auth", window.location.origin);
         authUrl.searchParams.set("next", `/marketplace/listing/${listingId}`);
         const currentParams = new URLSearchParams(window.location.search);
@@ -41,11 +39,11 @@ export function ContactSellerButton({
           const value = currentParams.get(key);
           if (value) authUrl.searchParams.set(key, value);
         }
-        window.location.assign(authUrl.toString());
+        router.push(`${authUrl.pathname}${authUrl.search}`);
         return;
       }
 
-      if (user.id === sellerId) {
+      if (currentUserId === sellerId) {
         alert("No puedes iniciar una conversación contigo mismo.");
         return;
       }
@@ -68,7 +66,7 @@ export function ContactSellerButton({
         .from("conversations")
         .select("id")
         .eq("listing_id", listingId)
-        .eq("buyer_id", user.id)
+        .eq("buyer_id", currentUserId)
         .eq("seller_id", sellerId)
         .maybeSingle();
 
@@ -91,7 +89,7 @@ export function ContactSellerButton({
         .from("conversations")
         .insert({
           listing_id: listingId,
-          buyer_id: user.id,
+          buyer_id: currentUserId,
           seller_id: sellerId,
         })
         .select("id")
