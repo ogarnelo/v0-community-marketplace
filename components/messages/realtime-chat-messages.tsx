@@ -224,7 +224,7 @@ export default function RealtimeChatMessages({
     const frame = window.requestAnimationFrame(() => {
       bottomRef.current?.scrollIntoView({
         behavior: "auto",
-        block: "nearest",
+        block: "end",
         inline: "nearest",
       });
     });
