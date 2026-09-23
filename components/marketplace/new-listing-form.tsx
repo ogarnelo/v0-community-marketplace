@@ -78,6 +78,12 @@ type ListingInsertPayload = {
   publisher: string | null;
   format: string | null;
   language: string | null;
+  subject: string | null;
+  specific_type: string | null;
+  size_label: string | null;
+  brand: string | null;
+  model: string | null;
+  season: string | null;
   price: number | null;
   original_price: number | null;
   seller_id: string;
@@ -702,19 +708,6 @@ export default function NewListingForm({ currentUserId, initialSchoolId, initial
     return null;
   };
 
-  const buildDescription = () => {
-    const details: string[] = [];
-    if (showTextbookFields && subject.trim()) details.push(`Asignatura: ${subject.trim()}`);
-    if ((showUniformFields || showSupplyFields || showTechFields || showBagFields) && specificType.trim()) details.push(`Tipo: ${specificType.trim()}`);
-    if (showUniformFields && sizeLabel.trim()) details.push(`Talla: ${sizeLabel.trim()}`);
-    if (showUniformFields && season.trim()) details.push(`Temporada: ${season.trim()}`);
-    if ((showTechFields || showBagFields) && brand.trim()) details.push(`Marca: ${brand.trim()}`);
-    if (showTechFields && model.trim()) details.push(`Modelo: ${model.trim()}`);
-
-    if (details.length === 0) return description.trim();
-    return `${description.trim()}\n\nDetalles del material:\n${details.map((detail) => `- ${detail}`).join("\n")}`;
-  };
-
   const uploadListingPhotos = async (listingId: string, userId: string, files: PreviewFile[]) => {
     const supabase = createClient();
     const uploadedPhotoRows: ListingPhotoInsertPayload[] = [];
@@ -771,7 +764,7 @@ export default function NewListingForm({ currentUserId, initialSchoolId, initial
       const payload: ListingInsertPayload = {
         id: listingId,
         title: title.trim(),
-        description: buildDescription(),
+        description: description.trim(),
         category: selectedCategory,
         grade_level: selectedGradeLevel || FALLBACK_GRADE_LEVEL,
         condition: selectedCondition,
@@ -782,6 +775,15 @@ export default function NewListingForm({ currentUserId, initialSchoolId, initial
         publisher: showBookFields && publisher.trim() ? publisher.trim() : null,
         format: showBookFields && format ? format : null,
         language: showBookFields && language ? language : null,
+        subject: showTextbookFields && subject.trim() ? subject.trim() : null,
+        specific_type:
+          (showUniformFields || showSupplyFields || showTechFields || showBagFields) && specificType.trim()
+            ? specificType.trim()
+            : null,
+        size_label: showUniformFields && sizeLabel.trim() ? sizeLabel.trim() : null,
+        brand: (showTechFields || showBagFields) && brand.trim() ? brand.trim() : null,
+        model: showTechFields && model.trim() ? model.trim() : null,
+        season: showUniformFields && season.trim() ? season.trim() : null,
         price: isDonation ? null : parsePrice(price),
         original_price: isDonation || !originalPrice.trim() ? null : parsePrice(originalPrice),
         seller_id: currentUserId,

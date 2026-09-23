@@ -117,7 +117,7 @@ export default async function ListingDetailPage({
   const [{ data: listing, error: listingError }, { data: photosData }, { data: authData }] = await Promise.all([
     supabase
       .from("listings")
-      .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, seller_id, school_id, status, created_at")
+      .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, seller_id, school_id, status, created_at")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -150,6 +150,18 @@ export default async function ListingDetailPage({
   }
   const conditionText = getConditionLabel(listing.condition);
   const showIsbn = shouldShowIsbn(listing.category, listing.isbn);
+  const structuredDetails = [
+    { label: "Asignatura", value: listing.subject },
+    { label: "Autor", value: listing.author },
+    { label: "Editorial", value: listing.publisher },
+    { label: "Formato", value: listing.format },
+    { label: "Idioma", value: listing.language },
+    { label: "Tipo", value: listing.specific_type },
+    { label: "Talla", value: listing.size_label },
+    { label: "Temporada", value: listing.season },
+    { label: "Marca", value: listing.brand },
+    { label: "Modelo", value: listing.model },
+  ].filter((detail) => typeof detail.value === "string" && detail.value.trim().length > 0);
 
   const [{ data: seller }, { data: viewerProfile }, reviews, { data: activeListings }, { data: favorite }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, business_name, user_type, is_business_verified").eq("id", listing.seller_id).maybeSingle(),
@@ -311,6 +323,12 @@ export default async function ListingDetailPage({
                     <p className="mt-1 text-sm font-medium text-slate-950">{listing.isbn}</p>
                   </div>
                 ) : null}
+                {structuredDetails.map((detail) => (
+                  <div key={detail.label} className="rounded-2xl border bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{detail.label}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-950">{detail.value}</p>
+                  </div>
+                ))}
               </div>
             </section>
 
