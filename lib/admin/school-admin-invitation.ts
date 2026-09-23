@@ -6,14 +6,15 @@ import {
 } from "@/lib/emails/school-admin-invite-email";
 
 function buildActivationUrl(origin: string, hashedToken: string, type: "invite" | "magiclink") {
-  const next = "/auth/complete-invite?next=/admin/school";
   const params = new URLSearchParams({
     token_hash: hashedToken,
     type,
-    next,
   });
 
-  return `${origin}/auth/confirm?${params.toString()}`;
+  // Do not consume one-time Supabase tokens on the first GET. Email security
+  // scanners frequently pre-open links before the recipient taps them.
+  // The landing page waits for an explicit user action before verifyOtp runs.
+  return `${origin}/auth/school-invite?${params.toString()}`;
 }
 
 export async function provisionSchoolAdminAccess(params: {

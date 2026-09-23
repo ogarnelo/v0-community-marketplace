@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { provisionSchoolAdminAccess } from "@/lib/admin/school-admin-invitation";
+import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 
 type ApprovedSchoolRequest = {
   id: string;
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
       email: schoolRequest.contact_email,
       schoolId: schoolRequest.approved_school_id,
       schoolName: schoolRequest.school_name,
-      origin: new URL(request.url).origin,
+      origin: getAuthPublicOrigin(),
       idempotencyKeyPrefix: `school-admin-resend-${schoolRequest.id}-${Date.now()}`,
     });
 

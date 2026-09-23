@@ -20,6 +20,7 @@ export const metadata = buildPublicMetadata({
 
 export default async function MarketplacePage() {
   const supabase = await createClient();
+  const admin = createAdminClient();
 
   const {
     data: { user },
@@ -70,23 +71,58 @@ export default async function MarketplacePage() {
         .filter((value): value is string => typeof value === "string" && value.length > 0)
     )
   );
-  const sellerSchoolMap = new Map<string, string | null>();
+  const sellerProfileMap = new Map<
+    string,
+    { schoolId: string | null; postalCode: string | null }
+  >();
+  const schoolPostalMap = new Map<string, string | null>();
   let photosMap = new Map<string, string[]>();
 
   if (sellerIds.length > 0) {
-    const admin = createAdminClient();
     const { data: sellerProfiles, error: sellerProfilesError } = await admin
       .from("profiles")
-      .select("id, school_id")
+      .select("id, school_id, postal_code")
       .in("id", sellerIds);
 
     if (sellerProfilesError) {
-      console.error("Error cargando el centro actual de los vendedores:", sellerProfilesError);
+      console.error("Error cargando la ubicación actual de los vendedores:", sellerProfilesError);
     } else {
       for (const profile of sellerProfiles || []) {
-        sellerSchoolMap.set(profile.id, profile.school_id || null);
+        sellerProfileMap.set(profile.id, {
+          schoolId: profile.school_id || null,
+          postalCode: profile.postal_code || null,
+        });
       }
     }
+  }
+
+  const relevantSchoolIds = Array.from(
+    new Set(
+      [
+        viewerSchoolId,
+        ...Array.from(sellerProfileMap.values()).map((profile) => profile.schoolId || ""),
+        ...listingRows.map((item) => item.school_id || ""),
+      ].filter(Boolean)
+    )
+  );
+
+  if (relevantSchoolIds.length > 0) {
+    const { data: schools, error: schoolsError } = await admin
+      .from("schools")
+      .select("id, postal_code")
+      .in("id", relevantSchoolIds);
+
+    if (schoolsError) {
+      console.error("Error cargando la ubicación de los centros:", schoolsError);
+    } else {
+      for (const school of schools || []) {
+        schoolPostalMap.set(school.id, school.postal_code || null);
+      }
+    }
+  }
+
+  if (viewerSchoolId) {
+    viewerPostalCode = schoolPostalMap.get(viewerSchoolId) || viewerPostalCode;
   }
 
   if (listingIds.length > 0) {
@@ -105,10 +141,13 @@ export default async function MarketplacePage() {
 
   const initialListings: MarketplaceListing[] = listingRows.map((item) => {
     const sellerId = item.seller_id || item.user_id || null;
-    const currentSellerSchoolId =
-      sellerId && sellerSchoolMap.has(sellerId)
-        ? sellerSchoolMap.get(sellerId) || null
-        : item.school_id || null;
+    const sellerProfile = sellerId ? sellerProfileMap.get(sellerId) || null : null;
+    const currentSellerSchoolId = sellerProfile?.schoolId || item.school_id || null;
+    const currentSellerPostalCode =
+      (currentSellerSchoolId ? schoolPostalMap.get(currentSellerSchoolId) || null : null) ||
+      sellerProfile?.postalCode ||
+      item.postal_code ||
+      null;
 
     return {
     id: item.id,
@@ -134,7 +173,7 @@ export default async function MarketplacePage() {
     photos: photosMap.get(item.id) || [],
     sellerId,
     schoolId: currentSellerSchoolId,
-    postalCode: item.postal_code || null,
+    postalCode: currentSellerPostalCode,
     status: item.status,
     createdAt: item.created_at || null,
     distance: undefined,
