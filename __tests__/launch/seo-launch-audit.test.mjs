@@ -35,6 +35,8 @@ test("SEO crawl controls expose only intended public surfaces", () => {
 
   assert.match(sitemap, /\/marketplace/);
   assert.match(sitemap, /\/como-funciona/);
+  assert.match(sitemap, /\/seguridad/);
+  assert.match(robots, /\/seguridad/);
   assert.match(sitemap, /status", "available"/);
   assert.doesNotMatch(sitemap, /\/checkout/);
   assert.doesNotMatch(sitemap, /\/account/);
@@ -126,6 +128,7 @@ test("public SEO pages publish their own canonical social metadata and breadcrum
   const pages = [
     "app/about/page.tsx",
     "app/help/page.tsx",
+    "app/seguridad/page.tsx",
     "app/como-funciona/page.tsx",
     "app/vende-tus-libros/page.tsx",
     "app/blog/page.tsx",
