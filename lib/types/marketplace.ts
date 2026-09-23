@@ -12,6 +12,16 @@ export type ListingRow = {
   type: string | null;
   listing_type?: string | null;
   isbn?: string | null;
+  author?: string | null;
+  publisher?: string | null;
+  format?: string | null;
+  language?: string | null;
+  subject?: string | null;
+  specific_type?: string | null;
+  size_label?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  season?: string | null;
   price: number | null;
   original_price?: number | null;
   estimated_retail_price?: number | null;
