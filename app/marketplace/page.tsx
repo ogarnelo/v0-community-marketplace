@@ -50,7 +50,7 @@ export default async function MarketplacePage() {
   const { data: listingsData, error: listingsError } = await supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, user_id, school_id, postal_code, status, created_at"
+      "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, postal_code, status, created_at"
     )
     .eq("status", "available")
     .order("created_at", { ascending: false })
@@ -87,6 +87,16 @@ export default async function MarketplacePage() {
     condition: item.condition,
     type: item.type || item.listing_type,
     isbn: item.isbn || null,
+    author: item.author || null,
+    publisher: item.publisher || null,
+    format: item.format || null,
+    language: item.language || null,
+    subject: item.subject || null,
+    specificType: item.specific_type || null,
+    sizeLabel: item.size_label || null,
+    brand: item.brand || null,
+    model: item.model || null,
+    season: item.season || null,
     price: item.price ?? undefined,
     originalPrice: item.original_price ?? item.estimated_retail_price ?? undefined,
     photos: photosMap.get(item.id) || [],
