@@ -18,7 +18,8 @@ const migration = read("supabase/migrations/20260923223000_report_resolution_fee
 
 test("marketplace derives community badges from the seller current profile", () => {
   assert.match(marketplacePage, /createAdminClient/);
-  assert.match(marketplacePage, /sellerSchoolMap/);
+  assert.match(marketplacePage, /sellerProfileMap/);
+  assert.match(marketplacePage, /schoolPostalMap/);
   assert.match(marketplacePage, /currentSellerSchoolId/);
   assert.match(marketplacePage, /schoolId: currentSellerSchoolId/);
 });
