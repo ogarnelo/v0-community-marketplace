@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, School, Mail, User2, Search, Check, KeyRound, BriefcaseBusiness, Globe, FileText, MapPin, Phone, Copy, Share2 } from "lucide-react";
+import { Loader2, Save, School, Mail, User2, Search, Check, KeyRound, BriefcaseBusiness, Globe, FileText, MapPin, Phone, Copy, Share2, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getUserTypeLabel } from "@/lib/marketplace/formatters";
@@ -421,41 +421,65 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
               <>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Centro educativo</Label>
-                  <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="w-full min-w-0 justify-between">
-                        <span className="truncate">{selectedSchool ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}` : "Selecciona un centro"}</span>
-                        <School className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    <Popover open={schoolPopoverOpen} onOpenChange={setSchoolPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" className="min-w-0 flex-1 justify-between">
+                          <span className="truncate">{selectedSchool ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}` : "Selecciona un centro"}</span>
+                          <School className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[min(320px,calc(100vw-2rem))] p-3" align="start">
+                        <div className="space-y-3">
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                            <Input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="pl-9" placeholder="Busca por nombre, ciudad o CP" />
+                          </div>
+                          <div className="max-h-60 space-y-1 overflow-y-auto">
+                            {filteredSchools.map((school) => (
+                              <button
+                                key={school.id}
+                                type="button"
+                                className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted"
+                                onClick={() => {
+                                  setSelectedSchoolId(school.id);
+                                  setSchoolPopoverOpen(false);
+                                }}
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium">{school.name}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{[school.city, school.postal_code].filter(Boolean).join(" · ")}</p>
+                                </div>
+                                {selectedSchoolId === school.id ? <Check className="h-4 w-4 shrink-0 text-[#7EBA28]" /> : null}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {selectedSchoolId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        aria-label="Quitar centro educativo"
+                        title="Quitar centro educativo"
+                        onClick={() => {
+                          setSelectedSchoolId("");
+                          setSchoolSearch("");
+                          setSchoolAccessCode("");
+                          setSuccessMessage("Centro eliminado del formulario. Guarda los cambios para desvincularlo.");
+                        }}
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[min(320px,calc(100vw-2rem))] p-3" align="start">
-                      <div className="space-y-3">
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                          <Input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} className="pl-9" placeholder="Busca por nombre, ciudad o CP" />
-                        </div>
-                        <div className="max-h-60 space-y-1 overflow-y-auto">
-                          {filteredSchools.map((school) => (
-                            <button
-                              key={school.id}
-                              type="button"
-                              className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted"
-                              onClick={() => {
-                                setSelectedSchoolId(school.id);
-                                setSchoolPopoverOpen(false);
-                              }}
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate font-medium">{school.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{[school.city, school.postal_code].filter(Boolean).join(" · ")}</p>
-                              </div>
-                              {selectedSchoolId === school.id ? <Check className="h-4 w-4 shrink-0 text-[#7EBA28]" /> : null}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Puedes dejar este campo vacío y guardar para no pertenecer a ningún centro.
+                  </p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
