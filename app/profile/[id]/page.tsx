@@ -77,6 +77,42 @@ export default async function PublicProfilePage({
   }
 
   const stats = await getUserProfileStats(supabase, id);
+  const reviewerIds = Array.from(
+    new Set(
+      stats.reviews
+        .map((review) => review.reviewer_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+  const reviewListingIds = Array.from(
+    new Set(
+      stats.reviews
+        .map((review) => review.listing_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+
+  const [{ data: reviewProfiles }, { data: reviewListings }] = await Promise.all([
+    reviewerIds.length > 0
+      ? admin.from("profiles").select("id, full_name, business_name").in("id", reviewerIds)
+      : Promise.resolve({ data: [] as Pick<ProfileRow, "id" | "full_name" | "business_name">[] }),
+    reviewListingIds.length > 0
+      ? admin.from("listings").select("id, title").in("id", reviewListingIds)
+      : Promise.resolve({ data: [] as Pick<ListingRow, "id" | "title">[] }),
+  ]);
+
+  const reviewProfileMap = new Map(
+    ((reviewProfiles || []) as Pick<ProfileRow, "id" | "full_name" | "business_name">[]).map((profile) => [
+      profile.id,
+      profile.business_name?.trim() || profile.full_name?.trim() || "Usuario de Wetudy",
+    ])
+  );
+  const reviewListingMap = new Map(
+    ((reviewListings || []) as Pick<ListingRow, "id" | "title">[]).map((listing) => [
+      listing.id,
+      listing.title || "Anuncio",
+    ])
+  );
 
   const { data: activeListingsData } = await supabase
     .from("listings")
@@ -225,6 +261,66 @@ export default async function PublicProfilePage({
           </div>
 
           <div className="space-y-4 sm:space-y-6 lg:col-span-2">
+            <Card className="gap-4 py-4 sm:gap-6 sm:py-6">
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle>Opiniones</CardTitle>
+                <CardDescription>
+                  Valoraciones que otros usuarios han dejado después de un acuerdo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 sm:px-6">
+                {stats.reviews.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Este usuario todavía no tiene opiniones.
+                  </p>
+                ) : (
+                  stats.reviews.map((review) => {
+                    const reviewerName = review.reviewer_id
+                      ? reviewProfileMap.get(review.reviewer_id) || "Usuario de Wetudy"
+                      : "Usuario de Wetudy";
+                    const listingTitle = review.listing_id
+                      ? reviewListingMap.get(review.listing_id) || null
+                      : null;
+
+                    return (
+                      <div key={review.id} className="rounded-2xl border p-3 sm:p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold">{reviewerName}</p>
+                            <div className="mt-1 flex items-center gap-0.5" aria-label={`${review.rating} de 5 estrellas`}>
+                              {Array.from({ length: 5 }).map((_, index) => (
+                                <Star
+                                  key={index}
+                                  className={`h-3.5 w-3.5 ${
+                                    index < review.rating
+                                      ? "fill-chart-4 text-chart-4"
+                                      : "text-muted-foreground/30"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {review.created_at
+                              ? new Date(review.created_at).toLocaleDateString("es-ES")
+                              : "Sin fecha"}
+                          </span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                          {review.comment?.trim() || "Sin comentario adicional."}
+                        </p>
+                        {listingTitle ? (
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            {listingTitle}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="gap-4 py-4 sm:gap-6 sm:py-6">
               <CardHeader className="px-4 sm:px-6">
                 <CardTitle>Anuncios activos</CardTitle>

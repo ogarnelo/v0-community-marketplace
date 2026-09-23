@@ -31,6 +31,13 @@ type Review = {
   comment?: string | null;
 };
 
+type AgreementReport = {
+  id: string;
+  status: string;
+  resolution_note?: string | null;
+  resolved_at?: string | null;
+};
+
 type AgreementPanelProps = {
   conversationId: string;
   currentUserId: string;
@@ -42,6 +49,7 @@ type AgreementPanelProps = {
   listingType?: string | null;
   initialAgreement?: Agreement | null;
   initialReviews?: Review[];
+  initialReport?: AgreementReport | null;
 };
 
 function formatPrice(value?: number | null) {
@@ -77,11 +85,13 @@ export default function AgreementPanel({
   listingType,
   initialAgreement = null,
   initialReviews = [],
+  initialReport = null,
 }: AgreementPanelProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [agreement, setAgreement] = useState<Agreement | null>(initialAgreement);
   const [reviews, setReviews] = useState<Review[]>(initialReviews);
+  const [report, setReport] = useState<AgreementReport | null>(initialReport);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
@@ -101,6 +111,10 @@ export default function AgreementPanel({
   useEffect(() => {
     setAgreement(initialAgreement);
   }, [initialAgreement]);
+
+  useEffect(() => {
+    setReport(initialReport);
+  }, [initialReport]);
 
   useEffect(() => {
     const nextAmount =
@@ -251,11 +265,21 @@ export default function AgreementPanel({
       <section id="agreement-panel" className="scroll-mt-24 border-t px-3 py-3 sm:px-5">
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
-          <div>
-            <p className="font-semibold text-amber-950">Hay una incidencia abierta</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-amber-950">
+              {report ? "Tu incidencia está en revisión" : "Hay una incidencia abierta"}
+            </p>
             <p className="mt-1 text-sm text-amber-900">
               Podéis seguir hablando por el chat mientras se revisa.
             </p>
+            {report ? (
+              <a
+                href={`/account/activity#report-${report.id}`}
+                className="mt-2 inline-flex text-sm font-medium text-amber-950 underline underline-offset-4"
+              >
+                Ver mi incidencia
+              </a>
+            ) : null}
           </div>
         </div>
       </section>
@@ -298,19 +322,49 @@ export default function AgreementPanel({
               <span className="text-sm text-emerald-900">Valoración enviada</span>
             )}
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-rose-700 hover:text-rose-800"
-              onClick={() => setShowDispute((value) => !value)}
-              disabled={!!loadingAction}
-            >
-              {showDispute ? "Cancelar reporte" : "Reportar problema"}
-            </Button>
+            {!report ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-rose-700 hover:text-rose-800"
+                onClick={() => setShowDispute((value) => !value)}
+                disabled={!!loadingAction}
+              >
+                {showDispute ? "Cancelar reporte" : "Reportar problema"}
+              </Button>
+            ) : null}
           </div>
 
-          {showDispute ? (
+          {report ? (
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-950">
+                  {report.status === "resolved"
+                    ? "Tu incidencia está resuelta"
+                    : report.status === "dismissed"
+                      ? "Tu incidencia está descartada"
+                      : "Tu incidencia ya está registrada"}
+                </p>
+                <a
+                  href={`/account/activity#report-${report.id}`}
+                  className="text-xs font-medium text-primary underline underline-offset-4"
+                >
+                  Ver detalle
+                </a>
+              </div>
+              {(report.status === "resolved" || report.status === "dismissed") ? (
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {report.resolution_note?.trim() ||
+                    (report.status === "resolved"
+                      ? "El equipo de Wetudy ha revisado y resuelto tu incidencia."
+                      : "El equipo de Wetudy ha revisado y descartado tu incidencia.")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showDispute && !report ? (
             <div className="mt-3 space-y-3 rounded-xl border border-rose-200 bg-white p-3">
               <div>
                 <p className="text-sm font-semibold text-slate-950">Cuéntanos qué ha ocurrido</p>

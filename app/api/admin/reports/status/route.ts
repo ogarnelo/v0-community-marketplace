@@ -33,6 +33,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const reportId = typeof body?.reportId === "string" ? body.reportId.trim() : "";
     const status = typeof body?.status === "string" ? body.status.trim() : "";
+    const resolutionNote =
+      typeof body?.resolutionNote === "string"
+        ? body.resolutionNote.trim().slice(0, 1000)
+        : null;
 
     if (!reportId || !VALID_STATUSES.has(status)) {
       return NextResponse.json({ error: "Estado de incidencia no válido." }, { status: 400 });
@@ -43,6 +47,7 @@ export async function POST(request: Request) {
       p_actor_id: user.id,
       p_report_id: reportId,
       p_status: status,
+      p_resolution_note: resolutionNote || null,
     });
 
     if (error) {

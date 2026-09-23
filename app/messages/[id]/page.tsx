@@ -114,9 +114,20 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const typedDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const typedShipments = (shipments || []) as ShipmentRow[];
   const latestAgreement = Array.isArray(agreements) && agreements.length > 0 ? agreements[0] : null;
-  const { data: agreementReviews } = latestAgreement?.id
-    ? await adminSupabase.from("agreement_reviews").select("id, reviewer_id, reviewed_user_id, rating, comment").eq("agreement_id", latestAgreement.id)
-    : { data: [] as any[] };
+  const [{ data: agreementReviews }, { data: myAgreementReport }] = latestAgreement?.id
+    ? await Promise.all([
+        adminSupabase
+          .from("agreement_reviews")
+          .select("id, reviewer_id, reviewed_user_id, rating, comment")
+          .eq("agreement_id", latestAgreement.id),
+        adminSupabase
+          .from("reports")
+          .select("id, status, resolution_note, resolved_at")
+          .eq("agreement_id", latestAgreement.id)
+          .eq("reporter_id", user.id)
+          .maybeSingle(),
+      ])
+    : [{ data: [] as any[] }, { data: null }];
   const latestShipment = typedShipments[0] || null;
   const hasAcceptedOffer = typedOffers.some((offer) => offer.status === "accepted");
   const hasApprovedDonation = typedDonationRequests.some((request) => request.status === "approved");
@@ -219,6 +230,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             listingType={listing?.listing_type || listing?.type || null}
             initialAgreement={latestAgreement}
             initialReviews={(agreementReviews || []) as any[]}
+            initialReport={myAgreementReport}
           />
 
           <div className="border-t px-3 py-3 sm:px-5 sm:py-4">
