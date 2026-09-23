@@ -116,28 +116,28 @@ export function ListingCard({
           </h3>
         </Link>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-muted-foreground">{gradeText}</span>
+        <div className="mt-1.5 flex items-end justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">{gradeText}</span>
 
-          <span className="text-[10px] text-muted-foreground/40">•</span>
+            <span className="text-[10px] text-muted-foreground/40">•</span>
 
-          <Badge
-            variant="outline"
-            className="h-[18px] rounded-md border-border px-1.5 py-0 text-[10px] font-normal"
-          >
-            {conditionText}
-          </Badge>
-
-          {listing.type === "sale" && discountPercent > 0 ? (
-            <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
-              -{discountPercent}%
+            <Badge
+              variant="outline"
+              className="h-[18px] rounded-md border-border px-1.5 py-0 text-[10px] font-normal"
+            >
+              {conditionText}
             </Badge>
-          ) : null}
-        </div>
 
-        <div className="mt-2.5 flex items-center justify-end">
+            {listing.type === "sale" && discountPercent > 0 ? (
+              <Badge className="h-[18px] rounded-md border-0 bg-[#7EBA28]/15 px-1.5 py-0 text-[10px] font-semibold text-[#5a9010]">
+                -{discountPercent}%
+              </Badge>
+            ) : null}
+          </div>
+
           {!isDonation && listing.price != null ? (
-            <span className="text-[15px] font-bold text-foreground">
+            <span className="shrink-0 text-[15px] font-bold leading-none text-foreground">
               {formatPrice(listing.price)}
             </span>
           ) : null}
