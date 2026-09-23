@@ -9,6 +9,7 @@ export const revalidate = 0
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const fallbackNow = new Date()
   const seoRefresh = new Date("2026-09-20T00:00:00.000Z")
+  const securityRefresh = new Date("2026-09-23T21:00:00.000Z")
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified: seoRefresh, changeFrequency: "weekly", priority: 1 },
@@ -17,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/vende-tus-libros`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/about`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/help`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/seguridad`, lastModified: seoRefresh, changeFrequency: "monthly", priority: 0.65 },
+    { url: `${SITE_URL}/seguridad`, lastModified: securityRefresh, changeFrequency: "monthly", priority: 0.65 },
     { url: `${SITE_URL}/blog`, lastModified: seoRefresh, changeFrequency: "weekly", priority: 0.6 },
   ]
 
