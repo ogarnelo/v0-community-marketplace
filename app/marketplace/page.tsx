@@ -1,5 +1,6 @@
 import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
 import {
   buildPhotosMap,
@@ -62,7 +63,31 @@ export default async function MarketplacePage() {
 
   const listingRows = ((listingsData || []) as ListingRow[]) ?? [];
   const listingIds = listingRows.map((item) => item.id);
+  const sellerIds = Array.from(
+    new Set(
+      listingRows
+        .map((item) => item.seller_id || item.user_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+  const sellerSchoolMap = new Map<string, string | null>();
   let photosMap = new Map<string, string[]>();
+
+  if (sellerIds.length > 0) {
+    const admin = createAdminClient();
+    const { data: sellerProfiles, error: sellerProfilesError } = await admin
+      .from("profiles")
+      .select("id, school_id")
+      .in("id", sellerIds);
+
+    if (sellerProfilesError) {
+      console.error("Error cargando el centro actual de los vendedores:", sellerProfilesError);
+    } else {
+      for (const profile of sellerProfiles || []) {
+        sellerSchoolMap.set(profile.id, profile.school_id || null);
+      }
+    }
+  }
 
   if (listingIds.length > 0) {
     const { data: listingPhotos, error: listingPhotosError } = await supabase
@@ -78,7 +103,14 @@ export default async function MarketplacePage() {
     }
   }
 
-  const initialListings: MarketplaceListing[] = listingRows.map((item) => ({
+  const initialListings: MarketplaceListing[] = listingRows.map((item) => {
+    const sellerId = item.seller_id || item.user_id || null;
+    const currentSellerSchoolId =
+      sellerId && sellerSchoolMap.has(sellerId)
+        ? sellerSchoolMap.get(sellerId) || null
+        : item.school_id || null;
+
+    return {
     id: item.id,
     title: item.title || "Anuncio sin título",
     description: item.description || null,
@@ -100,14 +132,15 @@ export default async function MarketplacePage() {
     price: item.price ?? undefined,
     originalPrice: item.original_price ?? item.estimated_retail_price ?? undefined,
     photos: photosMap.get(item.id) || [],
-    sellerId: item.seller_id || item.user_id || null,
-    schoolId: item.school_id || null,
+    sellerId,
+    schoolId: currentSellerSchoolId,
     postalCode: item.postal_code || null,
     status: item.status,
     createdAt: item.created_at || null,
     distance: undefined,
     isFavorite: favoriteIds.has(item.id),
-  }));
+    };
+  });
 
   return (
     <MarketplaceClient
