@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { provisionSchoolAdminAccess } from "@/lib/admin/school-admin-invitation";
+import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 
 type SchoolRequestRow = {
   id: string;
@@ -93,12 +94,11 @@ export async function POST(request: Request) {
     const normalizedContactEmail = schoolRequest.contact_email?.trim().toLowerCase() || null;
 
     if (normalizedContactEmail && approvedSchoolId) {
-      const origin = new URL(request.url).origin;
       const access = await provisionSchoolAdminAccess({
         email: normalizedContactEmail,
         schoolId: approvedSchoolId,
         schoolName: schoolRequest.school_name,
-        origin,
+        origin: getAuthPublicOrigin(),
         idempotencyKeyPrefix: `school-admin-${schoolRequest.id}`,
       });
 
