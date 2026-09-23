@@ -164,7 +164,11 @@ export default async function SuperAdminReportDetailPage({
               </p>
             </div>
 
-            <ReportStatusControls reportId={report.id} initialStatus={report.status} />
+            <ReportStatusControls
+              reportId={report.id}
+              initialStatus={report.status}
+              initialResolutionNote={report.resolution_note}
+            />
           </div>
 
           <div className="grid gap-5">
