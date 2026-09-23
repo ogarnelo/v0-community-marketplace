@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Mail, Power, PowerOff } from "lucide-react";
+import { Loader2, Mail, Power, PowerOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -24,7 +24,7 @@ export function SchoolManagementActions({
 }: Props) {
   const router = useRouter();
   const [active, setActive] = useState(isActive);
-  const [loading, setLoading] = useState<"resend" | "toggle" | null>(null);
+  const [loading, setLoading] = useState<"resend" | "toggle" | "delete" | null>(null);
   const [status, setStatus] = useState("");
 
   const resendAccess = async () => {
@@ -47,6 +47,41 @@ export function SchoolManagementActions({
       setStatus(payload?.message || "Acceso enviado de nuevo.");
     } catch (error: any) {
       setStatus(error?.message || "No se pudo reenviar el acceso.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const deleteSchool = async () => {
+    if (active) {
+      setStatus("Desactiva primero el centro antes de eliminarlo.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Eliminar definitivamente "${schoolName}"? Esta acción no se puede deshacer. Solo se eliminará si no tiene usuarios, administradores ni anuncios asociados.`
+    );
+    if (!confirmed) return;
+
+    setStatus("");
+    setLoading("delete");
+
+    try {
+      const response = await fetch("/api/admin/delete-school", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo eliminar el centro.");
+      }
+
+      setStatus(payload?.message || "Centro eliminado.");
+      router.refresh();
+    } catch (error: any) {
+      setStatus(error?.message || "No se pudo eliminar el centro.");
     } finally {
       setLoading(null);
     }
@@ -124,6 +159,22 @@ export function SchoolManagementActions({
             <Power className="mr-2 h-4 w-4" />
           )}
           {active ? "Desactivar centro" : "Reactivar centro"}
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className={compact ? "w-full sm:w-auto" : ""}
+          disabled={loading !== null}
+          onClick={deleteSchool}
+        >
+          {loading === "delete" ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="mr-2 h-4 w-4" />
+          )}
+          Eliminar centro
         </Button>
       </div>
 

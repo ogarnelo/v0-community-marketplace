@@ -63,11 +63,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", type: "image/x-icon", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+      { url: "/favicon.ico?v=20260923-2", type: "image/x-icon", sizes: "any" },
+      { url: "/icon.svg?v=20260923-2", type: "image/svg+xml", sizes: "any" },
     ],
-    shortcut: "/favicon.ico",
-    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+    shortcut: "/favicon.ico?v=20260923-2",
+    apple: [{ url: "/apple-icon.png?v=20260923-2", type: "image/png", sizes: "180x180" }],
   },
   manifest: "/manifest.webmanifest",
 }
