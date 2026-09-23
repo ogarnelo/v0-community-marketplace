@@ -251,12 +251,6 @@ export default function EditListingForm({
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      newPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
-    };
-  }, [newPhotos]);
-
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const incomingFiles = Array.from(event.target.files || []);
     setPhotoError("");
