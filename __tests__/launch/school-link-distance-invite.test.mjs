@@ -33,13 +33,14 @@ test("account lets a regular user clear the selected school before saving", () =
   assert.match(accountProfile, /dejar este campo vacío y guardar/);
 });
 
-test("marketplace distance uses current school location and excludes unknown locations when radius is active", () => {
+test("marketplace distance uses account postal codes and excludes unknown locations when radius is active", () => {
   assert.match(marketplacePage, /sellerProfileMap/);
-  assert.match(marketplacePage, /schoolPostalMap/);
-  assert.match(marketplacePage, /viewerPostalCode = schoolPostalMap\.get\(viewerSchoolId\) \|\| viewerPostalCode/);
+  assert.match(marketplacePage, /viewerPostalCode = typedProfile\?\.postal_code\?\.trim\(\) \|\| ""/);
+  assert.match(marketplacePage, /sellerProfile\?\.postalCode/);
   assert.match(marketplacePage, /postalCode: currentSellerPostalCode/);
+  assert.doesNotMatch(marketplacePage, /schoolPostalMap/);
   assert.match(marketplaceClient, /l\.distance === undefined \|\| l\.distance > maxDistanceKm/);
-  assert.match(marketplaceClient, /centro vinculado como referencia/);
+  assert.match(marketplaceClient, /código postal de tu cuenta como referencia aproximada/);
 });
 
 test("listing cards keep price on the same compact detail row", () => {
