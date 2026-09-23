@@ -55,7 +55,7 @@ export function ListingCard({
   const discountPercent = getDiscountPercent(listing.originalPrice, listing.price);
 
   return (
-    <Card className="group overflow-hidden border-border bg-card transition-shadow duration-200 hover:shadow-lg">
+    <Card className="group gap-0 overflow-hidden border-border bg-card py-0 transition-shadow duration-200 hover:shadow-lg">
       <Link href={`/marketplace/listing/${listing.id}`} className="block">
         <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4 / 3" }}>
           {mainPhoto ? (
@@ -105,7 +105,7 @@ export function ListingCard({
         </div>
       </Link>
 
-      <CardContent className="px-3.5 pb-3.5 pt-2.5">
+      <CardContent className="px-2.5 pb-2.5 pt-2 sm:px-3.5 sm:pb-3.5 sm:pt-2.5">
         <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {categoryText}
         </span>
