@@ -85,6 +85,16 @@ export type MarketplaceListing = {
   condition: string | null;
   type: string | null;
   isbn?: string | null;
+  author?: string | null;
+  publisher?: string | null;
+  format?: string | null;
+  language?: string | null;
+  subject?: string | null;
+  specificType?: string | null;
+  sizeLabel?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  season?: string | null;
   price?: number;
   originalPrice?: number;
   photos: string[];
