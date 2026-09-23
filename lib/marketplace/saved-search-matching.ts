@@ -15,6 +15,16 @@ type ListingCandidate = {
   title?: string | null;
   description?: string | null;
   isbn?: string | null;
+  author?: string | null;
+  publisher?: string | null;
+  format?: string | null;
+  language?: string | null;
+  subject?: string | null;
+  specific_type?: string | null;
+  size_label?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  season?: string | null;
   category?: string | null;
   grade_level?: string | null;
   listing_type?: string | null;
@@ -38,7 +48,21 @@ function containsText(haystack: string, needle: string | null | undefined) {
 }
 
 export function savedSearchMatchesListing(search: SavedSearchCandidate, listing: ListingCandidate) {
-  const searchableText = normalize([listing.title, listing.description, listing.isbn].filter(Boolean).join(" "));
+  const searchableText = normalize([
+    listing.title,
+    listing.description,
+    listing.isbn,
+    listing.author,
+    listing.publisher,
+    listing.format,
+    listing.language,
+    listing.subject,
+    listing.specific_type,
+    listing.size_label,
+    listing.brand,
+    listing.model,
+    listing.season,
+  ].filter(Boolean).join(" "));
   const listingType = listing.type || listing.listing_type || null;
 
   if (search.only_my_community && search.school_id && search.school_id !== listing.school_id) return false;
