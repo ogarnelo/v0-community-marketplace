@@ -64,6 +64,8 @@ function getNotificationLabel(kind: string) {
     case "agreement_confirmed":
     case "agreement_cancelled":
       return "Acuerdo";
+    case "message_received":
+      return "Mensaje";
     default:
       return "Actividad";
   }
