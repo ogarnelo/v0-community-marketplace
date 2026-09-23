@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminFlags } from "@/lib/admin/roles";
-import { findAuthUserByEmail, grantSchoolAdminRole } from "@/lib/admin/school-admin-role";
+import { provisionSchoolAdminAccess } from "@/lib/admin/school-admin-invitation";
+import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 
 export async function POST(request: Request) {
   try {
@@ -38,60 +38,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Faltan email o schoolId." }, { status: 400 });
     }
 
-    const existingUser = await findAuthUserByEmail(email);
-
-    if (existingUser) {
-      await grantSchoolAdminRole({
-        userId: existingUser.id,
-        schoolId,
-      });
-
-      return NextResponse.json({
-        ok: true,
-        invited: false,
-        message: "La cuenta ya existía y ya tiene acceso de administración del centro.",
-      });
-    }
-
-    const adminSupabase = createAdminClient();
-    const origin = new URL(request.url).origin;
-
-    const { data: inviteData, error } = await adminSupabase.auth.admin.inviteUserByEmail(
+    const access = await provisionSchoolAdminAccess({
       email,
-      {
-        redirectTo: `${origin}/auth/callback?next=/admin/school`,
-        data: {
-          school_name: schoolName || null,
-        },
-      }
-    );
-
-    if (error) {
-      return NextResponse.json(
-        {
-          error:
-            error.message ||
-            "No se pudo enviar la invitación al colegio.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const invitedUserId = inviteData.user?.id;
-
-    if (!invitedUserId) {
-      return NextResponse.json(
-        { error: "La invitación se creó sin un usuario asociado." },
-        { status: 500 }
-      );
-    }
-
-    await grantSchoolAdminRole({
-      userId: invitedUserId,
       schoolId,
+      schoolName: schoolName || "tu centro",
+      origin: getAuthPublicOrigin(),
+      idempotencyKeyPrefix: `school-admin-direct-${schoolId}-${Date.now()}`,
     });
 
-    return NextResponse.json({ ok: true, invited: true });
+    return NextResponse.json({
+      ok: true,
+      invited: access.activationSent,
+      message: access.existingConfirmedUser
+        ? "La cuenta ya existía y ya tiene acceso de administración del centro."
+        : "Se ha enviado un enlace para activar la cuenta y crear la contraseña.",
+    });
   } catch (error: any) {
     return NextResponse.json(
       {
