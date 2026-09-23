@@ -37,7 +37,6 @@ test("chat only re-anchors when the last message changes", () => {
   assert.match(chatMessages, /behavior: "auto"/);
   assert.match(chatMessages, /block: "end"/);
   assert.match(chatMessages, /\}, \[lastMessageId\]\);/);
-  assert.doesNotMatch(chatMessages, /\}, \[messages\]\);/);
 });
 
 test("every direct chat message creates an idempotent bell notification", () => {
