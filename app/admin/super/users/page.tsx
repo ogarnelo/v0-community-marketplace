@@ -37,7 +37,6 @@ function formatDate(value?: string | null) {
 }
 
 async function listAllAuthUsers() {
-  const navbarData = await getNavbarData(supabase);
   const admin = createAdminClient();
   const users = [] as Awaited<ReturnType<typeof admin.auth.admin.listUsers>>["data"]["users"];
   const perPage = 1000;
@@ -69,6 +68,7 @@ export default async function SuperAdminUsersPage() {
 
   if (superAdminRoleError || !superAdminRoles?.length) redirect("/");
 
+  const navbarData = await getNavbarData(supabase);
   const admin = createAdminClient();
   const [authUsers, profilesResult, schoolsResult] = await Promise.all([
     listAllAuthUsers(),
