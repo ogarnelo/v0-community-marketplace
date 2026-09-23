@@ -510,6 +510,12 @@ export default function JoinSchoolPage() {
             </div>
           ) : !found ? (
             <div className="flex flex-col gap-4">
+              {statusMessage ? (
+                <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+                  {statusMessage}
+                </p>
+              ) : null}
+
               <form onSubmit={handleCodeSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="code">Código del centro</Label>
