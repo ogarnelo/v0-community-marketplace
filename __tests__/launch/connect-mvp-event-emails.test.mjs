@@ -7,11 +7,13 @@ const sendRoute = fs.readFileSync("app/api/messages/send/route.ts", "utf8");
 const proposeRoute = fs.readFileSync("app/api/agreements/propose/route.ts", "utf8");
 const confirmRoute = fs.readFileSync("app/api/agreements/confirm/route.ts", "utf8");
 
-test("first-message hook is wired and idempotent", () => {
+test("message hook notifies every recipient and keeps first-message email idempotent", () => {
   assert.match(sendForm, /\/api\/messages\/send/);
+  assert.match(sendRoute, /kind: "message_received"/);
+  assert.match(sendRoute, /contains\("metadata", \{ message_id: message\.id \}\)/);
   assert.match(sendRoute, /sendFirstMessageEmail/);
-  assert.match(sendRoute, /senderMessageCount/);
-  assert.match(sendRoute, /!== 1/);
+  assert.match(sendRoute, /firstMessage\?\.id === message\.id/);
+  assert.match(sendRoute, /first-message\/\$\{message\.id\}/);
 });
 
 test("agreement routes wire proposal and final confirmation emails", () => {
