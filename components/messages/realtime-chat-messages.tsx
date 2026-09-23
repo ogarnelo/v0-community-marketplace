@@ -182,6 +182,7 @@ export default function RealtimeChatMessages({
     () => Object.fromEntries(initialPaymentIntents.filter((row) => !!row.offer_id).map((row) => [row.offer_id as string, row]))
   );
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const lastMessageId = messages[messages.length - 1]?.id || null;
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -218,16 +219,18 @@ export default function RealtimeChatMessages({
   }, [highlightedIds]);
 
   useEffect(() => {
+    if (!lastMessageId) return;
+
     const frame = window.requestAnimationFrame(() => {
       bottomRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
+        behavior: "auto",
+        block: "nearest",
         inline: "nearest",
       });
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [messages]);
+  }, [lastMessageId]);
 
   useEffect(() => {
     const markMessageAsRead = async (messageId: string) => {
