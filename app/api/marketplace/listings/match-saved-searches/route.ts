@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, title, description, isbn, category, grade_level, listing_type, type, condition, school_id, status")
+      .select("id, seller_id, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, status")
       .eq("id", listingId)
       .maybeSingle();
 
