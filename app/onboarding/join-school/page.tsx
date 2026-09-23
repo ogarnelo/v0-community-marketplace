@@ -36,15 +36,19 @@ export default function JoinSchoolPage() {
   const [searchResults, setSearchResults] = useState<SchoolSearchRow[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [sharedSchoolLoading, setSharedSchoolLoading] = useState(true);
+  const [currentLinkedSchool, setCurrentLinkedSchool] = useState<SchoolSearchRow | null>(null);
+  const [changeSchoolMode, setChangeSchoolMode] = useState(false);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [authChoiceRequired, setAuthChoiceRequired] = useState(false);
   const [autoJoining, setAutoJoining] = useState(false);
   const autoJoinAttempted = useRef(false);
   const [attributionQuery, setAttributionQuery] = useState("");
 
   useEffect(() => {
-    const loadSharedSchool = async () => {
+    const loadSchoolContext = async () => {
       const params = new URLSearchParams(window.location.search);
-      const schoolId = params.get("school")?.trim();
+      const sharedSchoolId = params.get("school")?.trim();
       const attributionParams = new URLSearchParams();
       for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content"]) {
         const value = params.get(key)?.trim();
@@ -52,15 +56,38 @@ export default function JoinSchoolPage() {
       }
       setAttributionQuery(attributionParams.toString());
 
-      if (!schoolId) {
-        setSharedSchoolLoading(false);
-        return;
-      }
-
       try {
-        const response = await fetch(`/api/schools/public?id=${encodeURIComponent(schoolId)}`, {
-          cache: "no-store",
-        });
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("school_id")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const linkedSchoolId =
+            typeof profile?.school_id === "string" ? profile.school_id.trim() : "";
+
+          if (linkedSchoolId) {
+            try {
+              const linkedSchool = await resolveSchoolFromId(linkedSchoolId);
+              setCurrentLinkedSchool(linkedSchool);
+            } catch (linkedSchoolError) {
+              console.error("No se pudo cargar el centro ya vinculado:", linkedSchoolError);
+            }
+          }
+        }
+
+        if (!sharedSchoolId) return;
+
+        const response = await fetch(
+          `/api/schools/public?id=${encodeURIComponent(sharedSchoolId)}`,
+          { cache: "no-store" }
+        );
         const payload = (await response.json().catch(() => ({}))) as {
           school?: SchoolSearchRow | null;
           error?: string;
@@ -77,15 +104,17 @@ export default function JoinSchoolPage() {
 
         setFound(payload.school);
         setShowSearch(false);
-      } catch (error) {
-        console.error("Error cargando centro compartido:", error);
-        setError("No se pudo abrir el centro compartido. Puedes buscarlo manualmente.");
+      } catch (contextError) {
+        console.error("Error cargando el contexto del centro:", contextError);
+        if (sharedSchoolId) {
+          setError("No se pudo abrir el centro compartido. Puedes buscarlo manualmente.");
+        }
       } finally {
         setSharedSchoolLoading(false);
       }
     };
 
-    void loadSharedSchool();
+    void loadSchoolContext();
   }, []);
 
   useEffect(() => {
@@ -182,12 +211,63 @@ export default function JoinSchoolPage() {
     const { error: authError } = await supabase.auth.updateUser({
       data: {
         school_name: activeSchool.name,
+        school_id: activeSchool.id,
       },
     });
 
     if (authError) throw authError;
 
     return activeSchool;
+  };
+
+  const unlinkCurrentSchool = async () => {
+    if (!currentLinkedSchool || unlinkLoading) return;
+
+    setUnlinkLoading(true);
+    setError("");
+    setStatusMessage("");
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.assign("/auth?next=/onboarding/join-school");
+        return;
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ school_id: null })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
+
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          school_name: null,
+          school_id: null,
+        },
+      });
+
+      if (authError) throw authError;
+
+      setCurrentLinkedSchool(null);
+      setFound(null);
+      setChangeSchoolMode(false);
+      setStatusMessage("Ya no perteneces a ningún centro. Puedes vincular otro cuando quieras.");
+      router.refresh();
+    } catch (unlinkError: any) {
+      setError(
+        unlinkError?.message ||
+          unlinkError?.details ||
+          "No se pudo desvincular el centro."
+      );
+    } finally {
+      setUnlinkLoading(false);
+    }
   };
 
   const resolveSchoolFromCode = async (normalizedCode: string) => {
@@ -272,6 +352,8 @@ export default function JoinSchoolPage() {
       }
 
       const activeSchool = await linkCurrentUserToSchool(found);
+      setCurrentLinkedSchool(activeSchool);
+      setChangeSchoolMode(false);
       await recordSchoolJoin(activeSchool.id);
       router.push("/marketplace?joined=1");
       router.refresh();
@@ -319,6 +401,8 @@ export default function JoinSchoolPage() {
         }
 
         const activeSchool = await linkCurrentUserToSchool(found);
+        setCurrentLinkedSchool(activeSchool);
+        setChangeSchoolMode(false);
         await recordSchoolJoin(activeSchool.id);
         router.replace("/marketplace?joined=1");
         router.refresh();
@@ -359,9 +443,13 @@ export default function JoinSchoolPage() {
 
       <Card className="w-full max-w-md border-border shadow-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-foreground">Añade tu centro</CardTitle>
+          <CardTitle className="text-2xl text-foreground">
+            {currentLinkedSchool && !changeSchoolMode && !found ? "Tu centro educativo" : "Añade tu centro"}
+          </CardTitle>
           <CardDescription>
-            Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio. Puedes continuar ahora y añadirlo después desde tu cuenta.
+            {currentLinkedSchool && !changeSchoolMode && !found
+              ? "Tu cuenta ya pertenece a un centro. Desde aquí puedes cambiarlo o desvincularlo."
+              : "Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio."}
           </CardDescription>
         </CardHeader>
 
@@ -370,6 +458,55 @@ export default function JoinSchoolPage() {
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Preparando el centro...
+            </div>
+          ) : currentLinkedSchool && !changeSchoolMode && !found ? (
+            <div className="flex flex-col gap-4">
+              <Alert className="border-primary/20 bg-primary/5">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <AlertTitle className="text-foreground">Ya tienes un centro vinculado</AlertTitle>
+                <AlertDescription className="text-muted-foreground">
+                  <strong className="text-foreground">{currentLinkedSchool.name}</strong>
+                  <br />
+                  {currentLinkedSchool.city || "Ciudad no indicada"}
+                </AlertDescription>
+              </Alert>
+
+              {statusMessage ? (
+                <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+                  {statusMessage}
+                </p>
+              ) : null}
+
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <Button
+                type="button"
+                onClick={() => {
+                  setChangeSchoolMode(true);
+                  setStatusMessage("");
+                  setError("");
+                }}
+              >
+                Cambiar de centro
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void unlinkCurrentSchool()}
+                disabled={unlinkLoading}
+              >
+                {unlinkLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Desvincular centro
+              </Button>
+
+              <Button type="button" variant="ghost" onClick={skipSchoolLinking}>
+                Volver al marketplace
+              </Button>
             </div>
           ) : !found ? (
             <div className="flex flex-col gap-4">
@@ -400,8 +537,21 @@ export default function JoinSchoolPage() {
                 </Button>
               </form>
 
-              <Button variant="secondary" className="w-full gap-2" onClick={skipSchoolLinking}>
-                Continuar sin centro por ahora
+              <Button
+                variant="secondary"
+                className="w-full gap-2"
+                onClick={() => {
+                  if (currentLinkedSchool && changeSchoolMode) {
+                    setChangeSchoolMode(false);
+                    setFound(null);
+                    setShowSearch(false);
+                    setError("");
+                    return;
+                  }
+                  skipSchoolLinking();
+                }}
+              >
+                {currentLinkedSchool && changeSchoolMode ? "Cancelar cambio" : "Continuar sin centro por ahora"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
 
@@ -479,6 +629,15 @@ export default function JoinSchoolPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-4">
+              {currentLinkedSchool && currentLinkedSchool.id !== found.id ? (
+                <Alert>
+                  <AlertTitle>Vas a cambiar de centro</AlertTitle>
+                  <AlertDescription>
+                    Ahora perteneces a <strong>{currentLinkedSchool.name}</strong>. Al continuar, tu cuenta pasará a <strong>{found.name}</strong>.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               <Alert className="border-secondary/30 bg-secondary/5">
                 <CheckCircle2 className="h-4 w-4 text-secondary" />
                 <AlertTitle className="text-foreground">Centro encontrado</AlertTitle>
@@ -530,17 +689,28 @@ export default function JoinSchoolPage() {
               ) : (
                 <Button className="w-full" onClick={handleJoin} disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Unirme a {found.name}
+                  {currentLinkedSchool && currentLinkedSchool.id !== found.id
+                    ? `Cambiar a ${found.name}`
+                    : `Unirme a ${found.name}`}
                 </Button>
               )}
 
               <Button
                 variant="secondary"
                 className="w-full gap-2"
-                onClick={skipSchoolLinking}
+                onClick={() => {
+                  if (currentLinkedSchool) {
+                    setFound(null);
+                    setChangeSchoolMode(false);
+                    setAuthChoiceRequired(false);
+                    setError("");
+                    return;
+                  }
+                  skipSchoolLinking();
+                }}
                 disabled={autoJoining}
               >
-                Continuar sin centro por ahora
+                {currentLinkedSchool ? "Mantener mi centro actual" : "Continuar sin centro por ahora"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
 
