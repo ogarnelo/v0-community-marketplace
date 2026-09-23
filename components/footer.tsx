@@ -40,6 +40,7 @@ export function Footer() {
             <h4 className="mb-3 text-sm font-semibold text-foreground">Legal y soporte</h4>
             <ul className="flex flex-col gap-2">
               <li><Link href="/about" className="text-sm text-muted-foreground transition-colors hover:text-primary">Sobre Wetudy</Link></li>
+              <li><Link href="/seguridad" className="text-sm text-muted-foreground transition-colors hover:text-primary">Seguridad</Link></li>
               <li><Link href="/privacy" className="text-sm text-muted-foreground transition-colors hover:text-primary">Privacidad</Link></li>
               <li><Link href="/terms" className="text-sm text-muted-foreground transition-colors hover:text-primary">Términos de uso</Link></li>
             </ul>

@@ -75,7 +75,6 @@ export default async function MarketplacePage() {
     string,
     { schoolId: string | null; postalCode: string | null }
   >();
-  const schoolPostalMap = new Map<string, string | null>();
   let photosMap = new Map<string, string[]>();
 
   if (sellerIds.length > 0) {
@@ -94,35 +93,6 @@ export default async function MarketplacePage() {
         });
       }
     }
-  }
-
-  const relevantSchoolIds = Array.from(
-    new Set(
-      [
-        viewerSchoolId,
-        ...Array.from(sellerProfileMap.values()).map((profile) => profile.schoolId || ""),
-        ...listingRows.map((item) => item.school_id || ""),
-      ].filter(Boolean)
-    )
-  );
-
-  if (relevantSchoolIds.length > 0) {
-    const { data: schools, error: schoolsError } = await admin
-      .from("schools")
-      .select("id, postal_code")
-      .in("id", relevantSchoolIds);
-
-    if (schoolsError) {
-      console.error("Error cargando la ubicación de los centros:", schoolsError);
-    } else {
-      for (const school of schools || []) {
-        schoolPostalMap.set(school.id, school.postal_code || null);
-      }
-    }
-  }
-
-  if (viewerSchoolId) {
-    viewerPostalCode = schoolPostalMap.get(viewerSchoolId) || viewerPostalCode;
   }
 
   if (listingIds.length > 0) {
@@ -144,7 +114,6 @@ export default async function MarketplacePage() {
     const sellerProfile = sellerId ? sellerProfileMap.get(sellerId) || null : null;
     const currentSellerSchoolId = sellerProfile?.schoolId || item.school_id || null;
     const currentSellerPostalCode =
-      (currentSellerSchoolId ? schoolPostalMap.get(currentSellerSchoolId) || null : null) ||
       sellerProfile?.postalCode ||
       item.postal_code ||
       null;

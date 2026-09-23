@@ -15,12 +15,14 @@ const activityPage = read("app/account/activity/page.tsx");
 const adminControls = read("components/admin/report-status-controls.tsx");
 const adminRoute = read("app/api/admin/reports/status/route.ts");
 const migration = read("supabase/migrations/20260923223000_report_resolution_feedback.sql");
+const messageSendRoute = read("app/api/messages/send/route.ts");
+const notificationBell = read("components/notifications/navbar-notifications-bell.tsx");
 
 test("marketplace derives community badges from the seller current profile", () => {
   assert.match(marketplacePage, /createAdminClient/);
   assert.match(marketplacePage, /sellerProfileMap/);
-  assert.match(marketplacePage, /schoolPostalMap/);
   assert.match(marketplacePage, /currentSellerSchoolId/);
+  assert.match(marketplacePage, /sellerProfile\?\.postalCode/);
   assert.match(marketplacePage, /schoolId: currentSellerSchoolId/);
 });
 
@@ -30,10 +32,19 @@ test("marketplace is compact and uses two columns on mobile", () => {
   assert.match(listingCard, /px-2\.5 pb-2\.5 pt-2/);
 });
 
-test("chat scrolls the end anchor into the bottom edge", () => {
-  assert.match(chatMessages, /requestAnimationFrame/);
+test("chat only re-anchors when the last message changes", () => {
+  assert.match(chatMessages, /const lastMessageId = messages\[messages\.length - 1\]\?\.id/);
+  assert.match(chatMessages, /behavior: "auto"/);
   assert.match(chatMessages, /block: "end"/);
-  assert.match(chatMessages, /inline: "nearest"/);
+  assert.match(chatMessages, /\}, \[lastMessageId\]\);/);
+});
+
+test("every direct chat message creates an idempotent bell notification", () => {
+  assert.match(messageSendRoute, /kind: "message_received"/);
+  assert.match(messageSendRoute, /contains\("metadata", \{ message_id: message\.id \}\)/);
+  assert.match(messageSendRoute, /href: `\/messages\/\$\{conversation\.id\}`/);
+  assert.match(notificationBell, /case "message_received":/);
+  assert.match(notificationBell, /return "Mensaje"/);
 });
 
 test("public profiles expose the individual review text", () => {
