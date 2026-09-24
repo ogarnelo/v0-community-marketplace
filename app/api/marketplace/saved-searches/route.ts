@@ -32,6 +32,8 @@ export async function POST(request: Request) {
     const listingType = cleanText(body.listingType, 40);
     const condition = cleanText(body.condition, 40);
     const sourcePath = cleanText(body.sourcePath, 120) || "/marketplace";
+    const needDetails = cleanText(body.needDetails, 500);
+    const intentSource = cleanText(body.intentSource, 40) || "saved_search";
     const resultsCount = cleanNumber(body.resultsCount);
 
     if (!query && !isbnQuery && !category && !gradeLevel) {
@@ -62,6 +64,8 @@ export async function POST(request: Request) {
         school_id: schoolId,
         results_count: resultsCount,
         source_path: sourcePath,
+        need_details: needDetails,
+        intent_source: intentSource,
         notifications_enabled: true,
       })
       .select("id")
