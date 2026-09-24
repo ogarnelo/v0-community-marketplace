@@ -20,6 +20,7 @@ import { getOfferChatPreview } from "@/lib/offers/chat-message";
 import { getDonationChatPreview } from "@/lib/donations/chat-message";
 import { ShipmentStatusCard } from "@/components/shipments/shipment-status-card";
 import AgreementPanel from "@/components/agreements/agreement-panel";
+import { ConversationOutcomeFeedback } from "@/components/messages/conversation-outcome-feedback";
 
 type ConversationRow = { id: string; listing_id: string; buyer_id: string; seller_id: string; updated_at: string | null };
 type ListingChatRow = { id: string; title: string | null; price: number | null; status: string | null; listing_type?: string | null; type?: string | null };
@@ -73,7 +74,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const initialMessages = ((messagesDesc || []) as MessageRow[]).slice(0, 50).reverse();
   const hasOlderMessages = ((messagesDesc || []) as MessageRow[]).length > 50;
 
-  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }, { data: agreements }] = await Promise.all([
+  const [{ data: offers }, { data: donationRequests }, { data: paymentIntents }, { data: shipments }, { data: agreements }, { data: myConversationFeedback }] = await Promise.all([
     legacyCommerceEnabled
       ? adminSupabase.from("listing_offers").select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at").eq("listing_id", typedConversation.listing_id).eq("buyer_id", typedConversation.buyer_id).eq("seller_id", typedConversation.seller_id).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
@@ -85,6 +86,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       ? adminSupabase.from("shipments").select("*").eq("listing_id", typedConversation.listing_id).or(`buyer_id.eq.${typedConversation.buyer_id},seller_id.eq.${typedConversation.seller_id}`).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     adminSupabase.from("agreements").select("*").eq("conversation_id", typedConversation.id).order("created_at", { ascending: false }).limit(1),
+    supabase
+      .from("conversation_outcome_feedback")
+      .select("id")
+      .eq("conversation_id", typedConversation.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
 
   const listingsMap = new Map(((listings || []) as ListingChatRow[]).map((l) => [l.id, l]));
@@ -137,6 +144,23 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     hasAcceptedOffer ||
     hasApprovedDonation;
   const canCreateLabel = latestShipment?.seller_id === user.id;
+  const latestActivityAt =
+    ((messagesDesc || [])[0] as MessageRow | undefined)?.created_at ||
+    typedConversation.updated_at;
+  const latestActivityMs = latestActivityAt
+    ? new Date(latestActivityAt).getTime()
+    : Number.NaN;
+  const isConversationStale =
+    Number.isFinite(latestActivityMs) &&
+    Date.now() - latestActivityMs >= 7 * 24 * 60 * 60 * 1000;
+  const hasConfirmedAgreement = latestAgreement?.status === "confirmed";
+  const showConversationOutcomeFeedback =
+    initialMessages.length > 0 &&
+    isConversationStale &&
+    !myConversationFeedback &&
+    !hasConfirmedAgreement;
+  const currentConversationRole =
+    typedConversation.buyer_id === user.id ? "buyer" : "seller";
 
   return (
     <div className="mx-auto max-w-7xl px-3 py-3 lg:px-8 lg:py-6">
@@ -195,6 +219,15 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
               </div>
             </div>
           </div>
+
+          {showConversationOutcomeFeedback ? (
+            <div className="border-b px-3 py-3 sm:px-5">
+              <ConversationOutcomeFeedback
+                conversationId={typedConversation.id}
+                role={currentConversationRole}
+              />
+            </div>
+          ) : null}
 
           {latestShipment ? (
             <div className="border-b bg-muted/20 px-5 py-4">
