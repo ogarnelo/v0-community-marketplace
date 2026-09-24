@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School, Users, Package, Handshake, MousePointerClick } from "lucide-react";
+import { ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School, Users, Package, Handshake, MousePointerClick, MessageCircleQuestion, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,39 @@ type SummaryRow = {
   searches_count: number;
   zero_result_searches: number;
   last_seen_at: string | null;
+};
+
+type ExplicitDemandRow = {
+  id: string;
+  query: string | null;
+  isbn_query: string | null;
+  category: string | null;
+  grade_level: string | null;
+  need_details: string | null;
+  results_count: number;
+  created_at: string;
+};
+
+type ConversationOutcomeRow = {
+  reason: string;
+  feedback_role: "buyer" | "seller";
+  created_at: string;
+};
+
+const OUTCOME_REASON_LABELS: Record<string, string> = {
+  bought_here: "Compró / recibió el artículo",
+  unavailable: "Ya no estaba disponible",
+  seller_no_response: "El vendedor no respondió",
+  price: "No acordaron el precio",
+  distance: "Demasiado lejos",
+  found_other: "Encontró otra opción",
+  no_longer_needed: "Ya no lo necesitaba",
+  sold_here: "Lo vendió / entregó a esa persona",
+  sold_elsewhere: "Lo vendió por otro medio",
+  still_available: "El artículo sigue disponible",
+  buyer_no_response: "El comprador dejó de responder",
+  decided_not_to_sell: "Decidió no venderlo",
+  other: "Otro motivo",
 };
 
 function formatDate(value?: string | null) {
@@ -70,7 +103,7 @@ export default async function DemandIntelligencePage() {
 
   const acquisitionSince = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [navbarData, profileResult, eventResult, summaryResult, acquisitionResult] = await Promise.all([
+  const [navbarData, profileResult, eventResult, summaryResult, acquisitionResult, explicitDemandResult, conversationOutcomeResult] = await Promise.all([
     getNavbarData(supabase),
     supabase.from("profiles").select("id, full_name").eq("id", user.id).maybeSingle(),
     supabase
@@ -92,6 +125,20 @@ export default async function DemandIntelligencePage() {
       .order("created_at", { ascending: false })
       .limit(5000)
       .returns<AcquisitionEvent[]>(),
+    supabase
+      .from("saved_searches")
+      .select("id, query, isbn_query, category, grade_level, need_details, results_count, created_at")
+      .eq("results_count", 0)
+      .eq("intent_source", "zero_results_prompt")
+      .order("created_at", { ascending: false })
+      .limit(40)
+      .returns<ExplicitDemandRow[]>(),
+    supabase
+      .from("conversation_outcome_feedback")
+      .select("reason, feedback_role, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200)
+      .returns<ConversationOutcomeRow[]>(),
   ]);
 
   const events = eventResult.data || [];
@@ -102,6 +149,16 @@ export default async function DemandIntelligencePage() {
     .slice(0, 12);
   const seoOpportunities = buildSeoDemandOpportunities(events).slice(0, 8);
   const acquisitionEvents = acquisitionResult.data || [];
+  const explicitDemands = explicitDemandResult.data || [];
+  const conversationOutcomes = conversationOutcomeResult.data || [];
+  const outcomeReasonCounts = Array.from(
+    conversationOutcomes.reduce((map, item) => {
+      map.set(item.reason, (map.get(item.reason) || 0) + 1);
+      return map;
+    }, new Map<string, number>())
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
   const acquisitionSummary = buildAcquisitionSummaries(acquisitionEvents).slice(0, 10);
   const acquisitionTotals = {
     landings: acquisitionEvents.filter((event) => event.event_type === "landing").length,
@@ -173,6 +230,64 @@ export default async function DemandIntelligencePage() {
                 <p className="text-sm text-muted-foreground">Filtro comunidad</p>
                 <p className="mt-2 text-3xl font-bold">{events.filter((event) => event.only_my_community).length}</p>
                 <p className="mt-1 text-xs text-muted-foreground">Veces que se priorizó el centro</p>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Target className="h-4 w-4" /> Demanda explícita
+                </CardTitle>
+                <CardDescription>
+                  Familias que encontraron 0 resultados y confirmaron qué necesitaban. Estas señales todavía no activan vendedores automáticamente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {explicitDemands.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todavía no hay demandas explícitas guardadas desde búsquedas vacías.</p>
+                ) : null}
+                {explicitDemands.slice(0, 8).map((demand) => (
+                  <div key={demand.id} className="rounded-xl border p-3">
+                    <p className="font-medium text-foreground">
+                      {demand.need_details || demand.query || demand.isbn_query || demand.category || demand.grade_level || "Necesidad sin detalle"}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {[demand.category, demand.grade_level, demand.isbn_query].filter(Boolean).join(" · ") || "Sin filtros adicionales"}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">{formatDate(demand.created_at)}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MessageCircleQuestion className="h-4 w-4" /> Conversaciones que no avanzaron
+                </CardTitle>
+                <CardDescription>
+                  Motivos declarados por compradores y vendedores después de al menos 7 días sin actividad.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {conversationOutcomes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todavía no hay respuestas sobre conversaciones inactivas.</p>
+                ) : null}
+                {outcomeReasonCounts.map(([reason, count]) => (
+                  <div key={reason} className="flex items-center justify-between gap-3 rounded-xl border p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {OUTCOME_REASON_LABELS[reason] || reason}
+                    </p>
+                    <Badge variant="secondary">{count}</Badge>
+                  </div>
+                ))}
+                {conversationOutcomes.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {conversationOutcomes.length} respuestas registradas · comprador {conversationOutcomes.filter((item) => item.feedback_role === "buyer").length} · vendedor {conversationOutcomes.filter((item) => item.feedback_role === "seller").length}
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           </section>
