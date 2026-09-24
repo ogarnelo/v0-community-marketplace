@@ -66,6 +66,10 @@ function getNotificationLabel(kind: string) {
       return "Acuerdo";
     case "message_received":
       return "Mensaje";
+    case "supply_activation":
+      return "Demanda";
+    case "saved_search_match":
+      return "Coincidencia";
     default:
       return "Actividad";
   }
