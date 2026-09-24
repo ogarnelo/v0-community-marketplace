@@ -23,7 +23,7 @@ export default async function EditListingPage({
   const { data: listing, error: listingError } = await supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, seller_id, school_id, status"
+      "id, title, description, category, grade_level, condition, type, listing_type, isbn, book_edition_id, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, seller_id, school_id, status"
     )
     .eq("id", id)
     .maybeSingle();
