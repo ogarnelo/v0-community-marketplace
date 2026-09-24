@@ -13,7 +13,7 @@
     "prebuild": "npm run test:critical-contracts",
     "test:commerce-contracts": "node --test __tests__/launch/private-commerce-connect-v3.test.mjs",
     "test:ux-hotfix": "node --test __tests__/launch/mobile-ux-account-listing-hotfix.test.mjs",
-    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix && npm run test:publish-contracts && npm run test:chat-ux && npm run test:simple-deal && npm run test:reviews-incidents && npm run test:super-users && npm run test:school-admin && npm run test:listing-details && npm run test:manual-review-followup && npm run test:school-linking && npm run test:demand-observation && npm run test:book-catalog && npm run test:demand-b1 && npm run test:liquidity-attribution",
+    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix && npm run test:publish-contracts && npm run test:chat-ux && npm run test:simple-deal && npm run test:reviews-incidents && npm run test:super-users && npm run test:school-admin && npm run test:listing-details && npm run test:manual-review-followup && npm run test:school-linking && npm run test:demand-observation && npm run test:book-catalog && npm run test:demand-b1 && npm run test:liquidity-attribution && npm run test:liquidity-dashboard",
     "test:publish-contracts": "node --test __tests__/launch/publish-drafts-chat-turnstile.test.mjs",
     "test:chat-ux": "node --test __tests__/launch/chat-negotiation-mobile-ux.test.mjs",
     "test:simple-deal": "node --test __tests__/launch/simple-deal-session-email.test.mjs",
@@ -26,7 +26,8 @@
     "test:demand-observation": "node --test __tests__/launch/demand-observation-phase-a.test.mjs",
     "test:book-catalog": "node --test __tests__/launch/book-catalog-v1.test.mjs",
     "test:demand-b1": "node --test __tests__/launch/demand-b1-manual.test.mjs",
-    "test:liquidity-attribution": "node --test __tests__/launch/liquidity-attribution-v1.test.mjs"
+    "test:liquidity-attribution": "node --test __tests__/launch/liquidity-attribution-v1.test.mjs",
+    "test:liquidity-dashboard": "node --test __tests__/launch/liquidity-dashboard.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

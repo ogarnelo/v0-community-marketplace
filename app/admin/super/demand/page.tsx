@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School, Users, Package, Handshake, MousePointerClick, MessageCircleQuestion, Target } from "lucide-react";
+import { Activity, ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School, Users, Package, Handshake, MousePointerClick, MessageCircleQuestion, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -253,6 +253,12 @@ export default async function DemandIntelligencePage({
                 <Link href="/admin/super/sustainability">
                   <Leaf className="h-4 w-4" />
                   Sostenibilidad
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="gap-2">
+                <Link href="/admin/super/liquidity">
+                  <Activity className="h-4 w-4" />
+                  Liquidez
                 </Link>
               </Button>
               <Badge variant={zeroResults ? "destructive" : "secondary"} className="w-fit gap-2 px-3 py-1">
