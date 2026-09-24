@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requestDonationFlow } from "@/lib/services/donations.service";
+import { attributeNeedToConversation } from "@/lib/demand/need-attribution";
 
 export async function POST(request: Request) {
   try {
@@ -29,6 +30,16 @@ export async function POST(request: Request) {
       actorUserId: user.id,
       note,
     });
+
+    try {
+      await attributeNeedToConversation(adminSupabase, {
+        userId: user.id,
+        listingId,
+        conversationId: result.conversationId,
+      });
+    } catch (attributionError) {
+      console.error("No se pudo atribuir la solicitud de donación a una necesidad", attributionError);
+    }
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error: any) {

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeIsbn } from "@/lib/books/isbn";
 
 function cleanText(value: unknown, maxLength = 160) {
   if (typeof value !== "string") return null;
@@ -84,7 +86,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "insert_failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, savedSearchId: data.id });
+    let demandRequestId: string | null = null;
+    if (resultsCount === 0 && intentSource === "zero_results_prompt") {
+      try {
+        const admin = createAdminClient();
+        const canonicalIsbn = isbnQuery ? normalizeIsbn(isbnQuery)?.canonicalIsbn || isbnQuery : null;
+        const { data: demandRequest, error: demandError } = await admin
+          .from("demand_requests")
+          .insert({
+            user_id: user.id,
+            title: savedSearchName.slice(0, 160),
+            normalized_query: query?.toLowerCase() || needDetails?.toLowerCase().slice(0, 160) || null,
+            category,
+            grade_level: gradeLevel,
+            isbn: canonicalIsbn,
+            school_id: schoolId,
+            status: "open",
+            source: "saved_search",
+            metadata: {
+              saved_search_id: data.id,
+              intent_source: intentSource,
+              listing_type: listingType,
+              condition,
+              only_my_community: Boolean(body.onlyMyCommunity),
+              radius_km: typeof body.radiusKm === "number" ? body.radiusKm : null,
+            },
+          })
+          .select("id")
+          .single();
+        if (demandError) throw demandError;
+
+        demandRequestId = demandRequest.id;
+        const { error: linkError } = await admin
+          .from("saved_searches")
+          .update({ demand_request_id: demandRequest.id })
+          .eq("id", data.id)
+          .eq("user_id", user.id);
+        if (linkError) throw linkError;
+      } catch (demandError) {
+        console.error("La búsqueda se guardó, pero no se pudo crear la identidad de necesidad:", demandError);
+      }
+    }
+
+    return NextResponse.json({ ok: true, savedSearchId: data.id, demandRequestId });
   } catch (error) {
     console.error("Error en saved-searches:", error);
     return NextResponse.json({ ok: false, error: "unexpected_error" }, { status: 500 });

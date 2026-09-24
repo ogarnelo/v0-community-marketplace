@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementConfirmedEmail } from "@/lib/emails/mvp-event-emails";
 import { recordAttributedConversion } from "@/lib/growth/server-attribution";
 import { createNotification } from "@/lib/notifications";
+import { linkAgreementToNeed } from "@/lib/demand/need-attribution";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -60,6 +61,13 @@ export async function POST(request: Request) {
     }
 
     const isConfirmed = agreement.status === "confirmed";
+
+    try {
+      await linkAgreementToNeed(admin, agreement);
+    } catch (attributionError) {
+      console.error("No se pudo atribuir la confirmación a una necesidad", attributionError);
+    }
+
     const recipientId =
       user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
 

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotification } from "@/lib/notifications";
+import { recordNeedResult } from "@/lib/demand/need-attribution";
 
 export async function POST(request: Request) {
   try {
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
 
     const { data: savedSearches, error: searchesError } = await admin
       .from("saved_searches")
-      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id")
+      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, demand_request_id")
       .eq("notifications_enabled", true)
       .neq("user_id", user.id);
 
@@ -80,6 +81,19 @@ export async function POST(request: Request) {
       .upsert(matches, { onConflict: "saved_search_id,listing_id", ignoreDuplicates: true });
 
     if (insertError) throw insertError;
+
+    for (const search of savedSearches || []) {
+      if (!search.demand_request_id) continue;
+      if (!matches.some((match) => match.saved_search_id === search.id)) continue;
+      try {
+        await recordNeedResult(admin, {
+          needId: search.demand_request_id,
+          listingId: listing.id,
+        });
+      } catch (needError) {
+        console.error("No se pudo registrar el primer resultado de la necesidad", needError);
+      }
+    }
 
     const { data: pendingNotifications, error: notificationQueryError } = await admin
       .from("saved_search_matches")

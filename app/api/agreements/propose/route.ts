@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementProposedEmail } from "@/lib/emails/mvp-event-emails";
 import { createNotification } from "@/lib/notifications";
+import { linkAgreementToNeed } from "@/lib/demand/need-attribution";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -65,6 +66,12 @@ export async function POST(request: Request) {
     const agreement = normalizeRpcRow<any>(data);
     if (!agreement) {
       return NextResponse.json({ error: "No se pudo crear el acuerdo." }, { status: 500 });
+    }
+
+    try {
+      await linkAgreementToNeed(admin, agreement);
+    } catch (attributionError) {
+      console.error("No se pudo atribuir la propuesta a una necesidad", attributionError);
     }
 
     const [{ data: listing }, { data: recipientProfile }, recipientAuth] =
