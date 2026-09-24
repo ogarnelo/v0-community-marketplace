@@ -23,6 +23,21 @@ test("zero-result searches become explicit structured demand without replacing s
   assert.match(migration, /add column if not exists intent_source text/);
 });
 
+
+test("saved demand remains compatible with the existing production table", () => {
+  assert.match(savedSearchRoute, /const savedSearchName =/);
+  assert.match(savedSearchRoute, /name: savedSearchName/);
+  assert.match(savedSearchRoute, /needDetails \|\|[\s\S]*query \|\|[\s\S]*isbnQuery \|\|[\s\S]*category \|\|[\s\S]*gradeLevel/);
+});
+
+test("demand text survives filter changes and clears only on explicit reset or successful save", () => {
+  const filterResetEffect = /useEffect\(\(\) => \{\s*setSaveSearchStatus\("idle"\);\s*\}, \[searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceRange, distanceKm, publishedDateFilter\]\);/;
+  assert.match(marketplace, filterResetEffect);
+  assert.doesNotMatch(marketplace, /setSaveSearchStatus\("idle"\);\s*setDemandDetails\(""\);\s*\}, \[searchQuery/);
+  assert.match(marketplace, /const clearFilters = \(\) => \{[^}]*setDemandDetails\(""\);/);
+  assert.match(marketplace, /setSaveSearchStatus\("saved"\); setDemandDetails\(""\);/);
+});
+
 test("stale conversation feedback is participant-only and waits seven days", () => {
   assert.match(conversationFeedbackRoute, /STALE_CONVERSATION_DAYS = 7/);
   assert.match(conversationFeedbackRoute, /conversation\.buyer_id === user\.id/);
