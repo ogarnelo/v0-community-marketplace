@@ -315,7 +315,7 @@ export async function loadDemandOpportunities(admin: any): Promise<DemandOpportu
       brand: group.brand,
       model: group.model,
       familiesCount: group.users.size,
-      searchesCount: group.sourceIds.length,
+      searchesCount: 0,
       firstSeenAt: group.firstSeenAt,
       lastSeenAt: group.lastSeenAt,
       supplyCount: 0,
@@ -324,7 +324,8 @@ export async function loadDemandOpportunities(admin: any): Promise<DemandOpportu
       sourceIds: group.sourceIds,
     };
 
-    base.searchesCount += (events || []).filter((event: any) => groupMatchesEvent(base, event, schoolName)).length;
+    const matchingSearchEvents = (events || []).filter((event: any) => groupMatchesEvent(base, event, schoolName)).length;
+    base.searchesCount = matchingSearchEvents > 0 ? matchingSearchEvents : group.sourceIds.length;
     base.supplyCount = (listings || []).filter((listing: any) => supplyMatches(base, listing)).length;
     return base;
   });
@@ -343,7 +344,7 @@ export async function findDemandOpportunity(admin: any, key: string) {
 }
 
 export async function findSupplyCandidates(admin: any, opportunity: DemandOpportunity): Promise<SupplyCandidate[]> {
-  const [{ data: listings }, { data: profiles }, { data: recentActions }] = await Promise.all([
+  const [{ data: listings }, { data: profiles }, { data: recentActions }, { data: unresolvedReports }] = await Promise.all([
     admin
       .from("listings")
       .select("id,seller_id,title,isbn,category,grade_level,status,school_id,listing_type,type,specific_type,size_label,brand,model,created_at")
@@ -361,16 +362,29 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       .eq("action_type", "seller_contacted")
       .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .limit(1000),
+    admin
+      .from("reports")
+      .select("listing_id,status")
+      .not("listing_id", "is", null)
+      .neq("status", "resolved")
+      .limit(2000),
   ]);
 
   const profileById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
   const recentlyContacted = new Set((recentActions || []).map((action: any) => action.target_user_id).filter(Boolean));
+  const reportedListingIds = new Set((unresolvedReports || []).map((report: any) => report.listing_id).filter(Boolean));
+  const sellersWithUnresolvedListingReports = new Set(
+    (listings || [])
+      .filter((listing: any) => reportedListingIds.has(listing.id))
+      .map((listing: any) => listing.seller_id)
+      .filter(Boolean)
+  );
   const demanders = new Set(opportunity.demandUserIds);
   const bySeller = new Map<string, any[]>();
 
   for (const listing of listings || []) {
     const sellerId = listing.seller_id;
-    if (!sellerId || demanders.has(sellerId) || recentlyContacted.has(sellerId)) continue;
+    if (!sellerId || demanders.has(sellerId) || recentlyContacted.has(sellerId) || sellersWithUnresolvedListingReports.has(sellerId)) continue;
     const profile = profileById.get(sellerId);
     if (!profile || profile.user_type === "student") continue;
 
