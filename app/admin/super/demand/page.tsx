@@ -7,9 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { buildDemandActionLabel, buildDemandInsights, buildSeoDemandActionLabel, buildSeoDemandOpportunities } from "@/lib/admin/demand-insights";
 import { buildAcquisitionSummaries, type AcquisitionEvent } from "@/lib/admin/growth-insights";
+import { loadDemandOpportunities } from "@/lib/admin/demand-opportunities";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +87,25 @@ function pct(part: number, total: number) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
-export default async function DemandIntelligencePage() {
+function queryParam(value: string | string[] | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+const OPPORTUNITY_STATUS_LABELS: Record<string, string> = {
+  new: "Nueva",
+  suggested: "Nueva",
+  offer_search: "Buscando oferta",
+  sellers_contacted: "Vendedores contactados",
+  supply_generated: "Oferta generada",
+  satisfied: "Satisfecha",
+  closed: "Cerrada",
+};
+
+export default async function DemandIntelligencePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
@@ -100,6 +120,14 @@ export default async function DemandIntelligencePage() {
     .limit(1);
 
   if (!roleRows?.length) redirect("/");
+
+  const filters = await searchParams;
+  const schoolFilter = queryParam(filters.school);
+  const categoryFilter = queryParam(filters.category);
+  const statusFilter = queryParam(filters.status);
+  const isbnFilter = queryParam(filters.isbn);
+  const supplyFilter = queryParam(filters.supply);
+  const intensityFilter = queryParam(filters.intensity);
 
   const acquisitionSince = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -140,6 +168,30 @@ export default async function DemandIntelligencePage() {
       .limit(200)
       .returns<ConversationOutcomeRow[]>(),
   ]);
+
+  const admin = createAdminClient();
+  const demandOpportunities = await loadDemandOpportunities(admin);
+  const opportunitySchools = Array.from(
+    new Map(
+      demandOpportunities
+        .filter((opportunity) => opportunity.schoolId && opportunity.schoolName)
+        .map((opportunity) => [opportunity.schoolId as string, opportunity.schoolName as string])
+    ).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1], "es"));
+  const opportunityCategories = Array.from(
+    new Set(demandOpportunities.map((opportunity) => opportunity.category).filter((value): value is string => Boolean(value)))
+  ).sort((a, b) => a.localeCompare(b, "es"));
+  const filteredOpportunities = demandOpportunities.filter((opportunity) => {
+    if (schoolFilter && opportunity.schoolId !== schoolFilter) return false;
+    if (categoryFilter && opportunity.category !== categoryFilter) return false;
+    if (statusFilter && opportunity.status !== statusFilter) return false;
+    if (isbnFilter && !(opportunity.isbn || "").includes(isbnFilter.replace(/[^0-9Xx]/g, ""))) return false;
+    if (supplyFilter === "none" && opportunity.supplyCount !== 0) return false;
+    if (supplyFilter === "with" && opportunity.supplyCount === 0) return false;
+    if (intensityFilter === "multi" && opportunity.familiesCount < 2) return false;
+    if (intensityFilter === "high" && opportunity.familiesCount < 3) return false;
+    return true;
+  });
 
   const events = eventResult.data || [];
   const summary = summaryResult.data || [];
@@ -233,6 +285,89 @@ export default async function DemandIntelligencePage() {
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Target className="h-4 w-4" /> Oportunidades de demanda
+              </CardTitle>
+              <CardDescription>
+                Demanda explícita agrupada de forma determinista para convertir búsquedas sin resultado en oferta. ISBN tiene prioridad cuando existe.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <form method="get" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                <select name="school" defaultValue={schoolFilter} className="h-10 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Todos los centros</option>
+                  {opportunitySchools.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+                <select name="category" defaultValue={categoryFilter} className="h-10 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Todas las categorías</option>
+                  {opportunityCategories.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                <select name="status" defaultValue={statusFilter} className="h-10 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Todos los estados</option>
+                  <option value="new">Nueva</option>
+                  <option value="offer_search">Buscando oferta</option>
+                  <option value="sellers_contacted">Vendedores contactados</option>
+                  <option value="supply_generated">Oferta generada</option>
+                  <option value="satisfied">Satisfecha</option>
+                  <option value="closed">Cerrada</option>
+                </select>
+                <select name="supply" defaultValue={supplyFilter} className="h-10 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Con o sin oferta</option>
+                  <option value="none">Sin oferta</option>
+                  <option value="with">Con oferta</option>
+                </select>
+                <select name="intensity" defaultValue={intensityFilter} className="h-10 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Cualquier intensidad</option>
+                  <option value="multi">2+ familias</option>
+                  <option value="high">3+ familias</option>
+                </select>
+                <div className="flex gap-2">
+                  <input name="isbn" defaultValue={isbnFilter} placeholder="ISBN" className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" />
+                  <Button type="submit" size="sm" className="h-10">Filtrar</Button>
+                </div>
+              </form>
+
+              <div className="space-y-3">
+                {filteredOpportunities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No hay oportunidades que coincidan con estos filtros.</p>
+                ) : null}
+                {filteredOpportunities.slice(0, 30).map((opportunity) => (
+                  <div key={opportunity.key} className="rounded-xl border p-4">
+                    <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{opportunity.title}</p>
+                          <Badge variant={opportunity.supplyCount === 0 ? "destructive" : "secondary"}>
+                            {opportunity.supplyCount} anuncios compatibles
+                          </Badge>
+                          <Badge variant="outline">{OPPORTUNITY_STATUS_LABELS[opportunity.status] || opportunity.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {[opportunity.schoolName, opportunity.category, opportunity.gradeLevel, opportunity.isbn ? `ISBN ${opportunity.isbn}` : null]
+                            .filter(Boolean)
+                            .join(" · ") || "Sin atributos adicionales"}
+                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          <strong className="text-foreground">{opportunity.familiesCount}</strong> familias interesadas · {opportunity.searchesCount} búsquedas/señales · última {formatDate(opportunity.lastSeenAt)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/admin/super/demand/opportunity/${encodeURIComponent(opportunity.key)}`}>Ver demanda</Link>
+                        </Button>
+                        <Button asChild size="sm">
+                          <Link href={`/admin/super/demand/opportunity/${encodeURIComponent(opportunity.key)}#candidates`}>Buscar oferta potencial</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
