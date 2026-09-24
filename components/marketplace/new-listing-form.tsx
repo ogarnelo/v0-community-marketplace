@@ -53,11 +53,24 @@ const BAG_ITEMS = ["Mochila", "Estuche", "Bolsa de deporte", "Carrito", "Otros"]
 const COURSE_REQUIRED_CATEGORIES = ["Libros de texto", "Lectura y literatura"];
 const FALLBACK_GRADE_LEVEL = "Varios cursos";
 
+type DemandListingPrefill = {
+  title?: string;
+  category?: string;
+  gradeLevel?: string;
+  isbn?: string;
+  specificType?: string;
+  sizeLabel?: string;
+  brand?: string;
+  model?: string;
+};
+
 type NewListingFormProps = {
   currentUserId: string;
   initialSchoolId: string;
   initialSchoolName: string;
   initialSchoolCity: string;
+  initialPrefill?: DemandListingPrefill | null;
+  activationOpportunityKey?: string | null;
 };
 
 type PreviewFile = {
@@ -190,7 +203,14 @@ function SectionCard({
   );
 }
 
-export default function NewListingForm({ currentUserId, initialSchoolId, initialSchoolName, initialSchoolCity }: NewListingFormProps) {
+export default function NewListingForm({
+  currentUserId,
+  initialSchoolId,
+  initialSchoolName,
+  initialSchoolCity,
+  initialPrefill = null,
+  activationOpportunityKey = null,
+}: NewListingFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const suppressCategoryResetRef = useRef(false);
@@ -198,24 +218,24 @@ export default function NewListingForm({ currentUserId, initialSchoolId, initial
 
   const [loading, setLoading] = useState(false);
   const [isDonation, setIsDonation] = useState(false);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialPrefill?.title || "");
   const [description, setDescription] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedGradeLevel, setSelectedGradeLevel] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(initialPrefill?.category || "");
+  const [selectedGradeLevel, setSelectedGradeLevel] = useState(initialPrefill?.gradeLevel || "");
   const [selectedCondition, setSelectedCondition] = useState("");
   const [price, setPrice] = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
-  const [isbn, setIsbn] = useState("");
+  const [isbn, setIsbn] = useState(initialPrefill?.isbn || "");
   const [bookEditionId, setBookEditionId] = useState<string | null>(null);
   const [author, setAuthor] = useState("");
   const [publisher, setPublisher] = useState("");
   const [format, setFormat] = useState("");
   const [language, setLanguage] = useState("");
   const [subject, setSubject] = useState("");
-  const [specificType, setSpecificType] = useState("");
-  const [sizeLabel, setSizeLabel] = useState("");
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
+  const [specificType, setSpecificType] = useState(initialPrefill?.specificType || "");
+  const [sizeLabel, setSizeLabel] = useState(initialPrefill?.sizeLabel || "");
+  const [brand, setBrand] = useState(initialPrefill?.brand || "");
+  const [model, setModel] = useState(initialPrefill?.model || "");
   const [season, setSeason] = useState("");
   const [photos, setPhotos] = useState<PreviewFile[]>([]);
   const [photoError, setPhotoError] = useState("");
@@ -809,7 +829,7 @@ export default function NewListingForm({ currentUserId, initialSchoolId, initial
       await fetch("/api/marketplace/listings/match-saved-searches", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ listingId }),
+  body: JSON.stringify({ listingId, opportunityKey: activationOpportunityKey }),
 }).catch((matchError) => {
   console.error("No se pudieron procesar los avisos guardados", matchError);
 });
@@ -852,6 +872,12 @@ export default function NewListingForm({ currentUserId, initialSchoolId, initial
             Completa lo imprescindible y Wetudy adaptará los detalles según la categoría. La entrega y el pago se acuerdan directamente entre las partes.
           </p>
         </div>
+
+        {activationOpportunityKey ? (
+          <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            Hay familias esperando este tipo de material. Hemos precompletado únicamente los datos conocidos; puedes cambiar cualquier campo antes de publicar.
+          </div>
+        ) : null}
 
         {draftLoading ? (
           <div className="mb-5 rounded-2xl border bg-background px-4 py-3 text-sm text-muted-foreground">
