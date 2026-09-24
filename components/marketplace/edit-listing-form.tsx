@@ -14,6 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
+import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
 import { bookFormats, bookLanguages, categories, conditions, gradeLevels } from "@/lib/mock-data";
 import { buildListingTypeColumns, getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,7 @@ export type EditableListing = {
   type: string | null;
   listing_type: string | null;
   isbn: string | null;
+  book_edition_id: string | null;
   author: string | null;
   publisher: string | null;
   format: string | null;
@@ -103,15 +106,6 @@ function isTechCategory(category: string) {
 
 function isBagCategory(category: string) {
   return normalizedCategory(category).includes("mochila");
-}
-
-function normalizeIsbn(value: string) {
-  return value.replace(/[^0-9xX]/g, "").toUpperCase();
-}
-
-function isValidIsbn(value: string) {
-  if (!value) return true;
-  return /^(?:\d{9}[\dX]|\d{13})$/.test(normalizeIsbn(value));
 }
 
 function parsePrice(value: string) {
@@ -178,6 +172,7 @@ export default function EditListingForm({
   const [originalPrice, setOriginalPrice] = useState(initialListing.original_price == null ? "" : String(initialListing.original_price));
 
   const [isbn, setIsbn] = useState(initialListing.isbn || "");
+  const [bookEditionId, setBookEditionId] = useState<string | null>(initialListing.book_edition_id || null);
   const [author, setAuthor] = useState(initialListing.author || "");
   const [publisher, setPublisher] = useState(initialListing.publisher || "");
   const [format, setFormat] = useState(initialListing.format || "");
@@ -224,6 +219,7 @@ export default function EditListingForm({
 
     if (!isBookCategory(selectedCategory)) {
       setIsbn("");
+      setBookEditionId(null);
       setAuthor("");
       setPublisher("");
       setFormat("");
@@ -287,7 +283,7 @@ export default function EditListingForm({
     if (!selectedCategory) return "Debes seleccionar una categoría.";
     if (courseRequired && !selectedGradeLevel) return "Debes seleccionar un curso o etapa para libros y lecturas.";
     if (!selectedCondition) return "Debes seleccionar el estado del material.";
-    if (showBookFields && !isValidIsbn(isbn)) return "El ISBN debe tener 10 o 13 caracteres válidos.";
+    if (showBookFields && isbn.trim() && !isValidIsbn(isbn)) return "El ISBN no es válido. Revisa sus dígitos de control.";
 
     if (!isDonation) {
       const numericPrice = parsePrice(price);
@@ -355,7 +351,8 @@ export default function EditListingForm({
         grade_level: selectedGradeLevel || "Varios cursos",
         condition: selectedCondition,
         ...buildListingTypeColumns(isDonation ? "donation" : "sale"),
-        isbn: showBookFields && isbn.trim() ? normalizeIsbn(isbn) : null,
+        isbn: showBookFields && isbn.trim() ? normalizeIsbn(isbn)?.canonicalIsbn || null : null,
+        book_edition_id: showBookFields ? bookEditionId : null,
         author: showBookFields && author.trim() ? author.trim() : null,
         publisher: showBookFields && publisher.trim() ? publisher.trim() : null,
         format: showBookFields && format ? format : null,
@@ -600,7 +597,7 @@ export default function EditListingForm({
                     {showTextbookFields ? (
                       <div className="flex flex-col gap-2"><Label htmlFor="edit-subject">Asignatura</Label><Input id="edit-subject" value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11" placeholder="Ej: Lengua, Matemáticas" /></div>
                     ) : null}
-                    <div className="flex flex-col gap-2"><Label htmlFor="edit-isbn">ISBN</Label><Input id="edit-isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} className="h-11" inputMode="numeric" placeholder="Opcional, 10 o 13 dígitos" /></div>
+                    <div className="flex flex-col gap-2"><Label htmlFor="edit-isbn">ISBN</Label><Input id="edit-isbn" value={isbn} onChange={(e) => { setIsbn(e.target.value); setBookEditionId(null); }} className="h-11" inputMode="numeric" placeholder="Opcional, 10 o 13 dígitos" /></div><BookIsbnLookup isbn={isbn} onRecognized={(book) => setBookEditionId(book.id)} onApply={(book: BookLookupBook) => { setBookEditionId(book.id); if (!title.trim()) setTitle(book.title); if (!author.trim() && book.authors.length) setAuthor(book.authors.join(", ")); if (!publisher.trim() && book.publisher) setPublisher(book.publisher); if (!language && book.language) setLanguage(book.language); }} />
                     <div className="flex flex-col gap-2"><Label htmlFor="edit-author">Autor</Label><Input id="edit-author" value={author} onChange={(e) => setAuthor(e.target.value)} className="h-11" placeholder="Opcional" /></div>
                     <div className="flex flex-col gap-2"><Label htmlFor="edit-publisher">Editorial</Label><Input id="edit-publisher" value={publisher} onChange={(e) => setPublisher(e.target.value)} className="h-11" placeholder="Ej: Santillana, SM, Oxford" /></div>
                     <div className="flex flex-col gap-2"><Label>Formato</Label><Select value={format} onValueChange={setFormat}><SelectTrigger className="h-11"><SelectValue placeholder="Opcional" /></SelectTrigger><SelectContent>{bookFormats.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
