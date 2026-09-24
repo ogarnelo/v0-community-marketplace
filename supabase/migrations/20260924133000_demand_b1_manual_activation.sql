@@ -41,3 +41,11 @@ revoke insert, update, delete on table public.demand_opportunity_actions from an
 
 drop policy if exists "Users can insert own opportunity actions"
   on public.demand_opportunity_actions;
+
+
+alter table public.saved_search_matches
+  add column if not exists notified_at timestamptz;
+
+create index if not exists saved_search_matches_pending_notification_idx
+  on public.saved_search_matches (listing_id, notified_at)
+  where notified_at is null;
