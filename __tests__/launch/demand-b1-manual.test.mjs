@@ -5,6 +5,7 @@ import test from "node:test";
 const read = (path) => readFileSync(path, "utf8");
 const helper = read("lib/admin/demand-opportunities.ts");
 const migration = read("supabase/migrations/20260924133000_demand_b1_manual_activation.sql");
+const constraintFix = read("supabase/migrations/20260924123216_fix_demand_b1_constraints.sql");
 const demandPage = read("app/admin/super/demand/page.tsx");
 const opportunityPage = read("app/admin/super/demand/opportunity/[key]/page.tsx");
 const activationComponent = read("components/admin/demand-candidate-activation.tsx");
@@ -91,4 +92,14 @@ test("new supply closes the B1 loop and saved-search in-app notices are idempote
   assert.match(matcher, /is\("notified_at", null\)/);
   assert.match(notificationBell, /case "supply_activation":/);
   assert.match(notificationBell, /case "saved_search_match":/);
+});
+
+
+test("Demand B1 database checks accept the states and action used by the live flow", () => {
+  assert.match(constraintFix, /'sellers_contacted'::text/);
+  assert.match(constraintFix, /'supply_generated'::text/);
+  assert.match(constraintFix, /'satisfied'::text/);
+  assert.match(constraintFix, /'seller_contacted'::text/);
+  assert.match(constraintFix, /'suggested'::text/);
+  assert.match(constraintFix, /'supplier_outreach'::text/);
 });
