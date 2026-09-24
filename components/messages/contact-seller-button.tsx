@@ -24,6 +24,18 @@ export function ContactSellerButton({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
+  const attributeNeed = async (conversationId: string) => {
+    try {
+      await fetch("/api/demand/attribute-contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, conversationId }),
+      });
+    } catch (attributionError) {
+      console.error("No se pudo atribuir el contacto a una necesidad", attributionError);
+    }
+  };
+
   const handleContact = async () => {
     if (loading) return;
 
@@ -75,6 +87,7 @@ export function ContactSellerButton({
       }
 
       if (existingConversation?.id) {
+        await attributeNeed(existingConversation.id);
         router.push(`/messages/${existingConversation.id}`);
         return;
       }
@@ -112,6 +125,7 @@ export function ContactSellerButton({
         throw updateConversationError;
       }
 
+      await attributeNeed(newConversation.id);
       router.push(`/messages/${newConversation.id}`);
     } catch (error: any) {
       console.error("Error creando conversación:", error);
