@@ -35,6 +35,13 @@ export async function POST(request: Request) {
     const needDetails = cleanText(body.needDetails, 500);
     const intentSource = cleanText(body.intentSource, 40) || "saved_search";
     const resultsCount = cleanNumber(body.resultsCount);
+    const savedSearchName =
+      needDetails ||
+      query ||
+      isbnQuery ||
+      category ||
+      gradeLevel ||
+      "Búsqueda guardada";
 
     if (!query && !isbnQuery && !category && !gradeLevel) {
       return NextResponse.json({ ok: false, error: "search_intent_required" }, { status: 400 });
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
       .from("saved_searches")
       .insert({
         user_id: user.id,
+        name: savedSearchName,
         query,
         isbn_query: isbnQuery,
         category,
