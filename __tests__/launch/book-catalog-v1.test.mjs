@@ -43,8 +43,8 @@ test("publication and editing keep manual fallback and never silently overwrite 
   assert.match(lookup, /Solo completaremos campos vacíos/);
   assert.match(newForm, /<BookIsbnLookup/);
   assert.match(editForm, /<BookIsbnLookup/);
-  assert.match(newForm, /book_edition_id: bookEditionId/);
-  assert.match(editForm, /book_edition_id: bookEditionId/);
+  assert.match(newForm, /book_edition_id: showBookFields \? bookEditionId : null/);
+  assert.match(editForm, /book_edition_id: showBookFields \? bookEditionId : null/);
 });
 
 test("catalog schema deduplicates canonical ISBN and links listings/course materials optionally", () => {
