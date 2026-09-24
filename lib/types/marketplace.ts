@@ -12,6 +12,7 @@ export type ListingRow = {
   type: string | null;
   listing_type?: string | null;
   isbn?: string | null;
+  book_edition_id?: string | null;
   author?: string | null;
   publisher?: string | null;
   format?: string | null;
