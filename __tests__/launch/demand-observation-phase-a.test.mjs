@@ -11,6 +11,7 @@ const conversationPage = read("app/messages/[id]/page.tsx");
 const conversationFeedback = read("components/messages/conversation-outcome-feedback.tsx");
 const conversationFeedbackRoute = read("app/api/conversations/outcome-feedback/route.ts");
 const demandAdmin = read("app/admin/super/demand/page.tsx");
+const expandableAdminList = read("components/admin/expandable-admin-list.tsx");
 const migration = read("supabase/migrations/20260924095000_demand_observation_phase_a.sql");
 
 test("zero-result searches become explicit structured demand without replacing saved searches", () => {
@@ -76,4 +77,11 @@ test("ISBN telemetry waits for a complete valid ISBN instead of recording typing
   assert.match(searchEventsRoute, /extractIsbnFromText/);
   assert.match(searchEventsRoute, /normalizeIsbn/);
   assert.match(demandAdmin, /isIncompleteIsbnLikeInput/);
+});
+
+
+test("demand intelligence keeps long sections compact by default", () => {
+  assert.match(demandAdmin, /ExpandableAdminList initialCount=\{5\}/);
+  assert.match(expandableAdminList, /Ver más/);
+  assert.match(expandableAdminList, /Ver menos/);
 });
