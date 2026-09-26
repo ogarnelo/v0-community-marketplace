@@ -12,6 +12,7 @@ import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { buildDemandActionLabel, buildDemandInsights, buildSeoDemandActionLabel, buildSeoDemandOpportunities } from "@/lib/admin/demand-insights";
 import { buildAcquisitionSummaries, type AcquisitionEvent } from "@/lib/admin/growth-insights";
 import { loadDemandOpportunities } from "@/lib/admin/demand-opportunities";
+import { isIncompleteIsbnLikeInput } from "@/lib/books/isbn";
 
 export const dynamic = "force-dynamic";
 
@@ -193,7 +194,9 @@ export default async function DemandIntelligencePage({
     return true;
   });
 
-  const events = eventResult.data || [];
+  const events = (eventResult.data || []).filter(
+    (event) => !isIncompleteIsbnLikeInput(event.isbn_query || event.query || "")
+  );
   const summary = summaryResult.data || [];
   const zeroResults = events.filter((event) => (event.results_count || 0) === 0).length;
   const actionableInsights = buildDemandInsights(events)
