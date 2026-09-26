@@ -33,11 +33,9 @@ test("opportunity grouping is deterministic and ISBN-first", () => {
   assert.match(helper, /school:/);
 });
 
-test("candidate search excludes demanders, recent contacts and only non-university students", () => {
-  assert.match(helper, /profile\.user_type === "student"/);
-  assert.match(helper, /normalizeText\(profile\.grade_level\) === normalizeText\("Universidad"\)/);
-  assert.match(helper, /schoolTypeById\.get\(profile\.school_id\) === "university"/);
-  assert.match(helper, /if \(isStudent && !isUniversityStudent\) continue/);
+test("candidate search is open to all user types but excludes demanders and recent contacts", () => {
+  assert.doesNotMatch(helper, /profile\.user_type === "student"/);
+  assert.doesNotMatch(helper, /isUniversityStudent/);
   assert.match(helper, /demanders\.has\(sellerId\)/);
   assert.match(helper, /recentlyContacted\.has\(sellerId\)/);
   assert.match(helper, /sameIsbn/);

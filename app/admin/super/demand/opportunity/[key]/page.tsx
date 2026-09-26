@@ -126,7 +126,7 @@ export default async function DemandOpportunityPage({
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4" /> Buscar oferta potencial</CardTitle>
               <CardDescription>
-                Solo aparecen usuarios con historial de publicación y señales fuertes de afinidad. Se excluyen demandantes, estudiantes escolares, usuarios contactados recientemente y vendedores con reportes abiertos sobre sus anuncios. Los estudiantes universitarios sí pueden aparecer como candidatos.
+                Solo aparecen usuarios con historial de publicación y señales fuertes de afinidad. Se excluyen demandantes de esta oportunidad, usuarios contactados recientemente y vendedores con reportes abiertos sobre sus anuncios.
               </CardDescription>
             </CardHeader>
             <CardContent>
