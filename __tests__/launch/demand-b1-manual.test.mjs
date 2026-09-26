@@ -33,8 +33,11 @@ test("opportunity grouping is deterministic and ISBN-first", () => {
   assert.match(helper, /school:/);
 });
 
-test("candidate search excludes students, demanders and recently contacted users", () => {
+test("candidate search excludes demanders, recent contacts and only non-university students", () => {
   assert.match(helper, /profile\.user_type === "student"/);
+  assert.match(helper, /normalizeText\(profile\.grade_level\) === normalizeText\("Universidad"\)/);
+  assert.match(helper, /schoolTypeById\.get\(profile\.school_id\) === "university"/);
+  assert.match(helper, /if \(isStudent && !isUniversityStudent\) continue/);
   assert.match(helper, /demanders\.has\(sellerId\)/);
   assert.match(helper, /recentlyContacted\.has\(sellerId\)/);
   assert.match(helper, /sameIsbn/);
@@ -66,7 +69,8 @@ test("seller activation is manual, server-validated and in-app only", () => {
   assert.match(activationComponent, /Previsualización del mensaje/);
   assert.match(activationRoute, /eq\("role", "super_admin"\)/);
   assert.match(activationRoute, /findSupplyCandidates/);
-  assert.match(activationRoute, /profile\.user_type === "student"/);
+  assert.match(activationRoute, /const allowed = new Set\(candidates\.map/);
+  assert.doesNotMatch(activationRoute, /profile\.user_type === "student"/);
   assert.match(activationRoute, /kind: "supply_activation"/);
   assert.match(activationRoute, /channel: "in_app"/);
   assert.doesNotMatch(activationRoute, /sendEmail|Resend|sendSavedSearchMatchEmail/);
@@ -117,4 +121,10 @@ test("B1 candidate identity and ISBN-only prefill stay operator-friendly", () =>
   assert.match(newListingPage, /safeOpportunityTitle/);
   assert.match(newListingPage, /normalizeIsbn/);
   assert.match(newListingPage, /if \(titleIsbn && expectedIsbn && titleIsbn === expectedIsbn\) return undefined/);
+});
+
+
+test("dismissed reports do not block B1 candidates, while open/reviewing reports do", () => {
+  assert.match(helper, /\.in\("status", \["open", "reviewing"\]\)/);
+  assert.doesNotMatch(helper, /\.neq\("status", "resolved"\)/);
 });
