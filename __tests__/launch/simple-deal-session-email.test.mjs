@@ -142,6 +142,7 @@ test("conversation sidebar does not prefetch every chat at once", () => {
 });
 
 
+// Performance regression guard for the Spain/EU deployment path.
 test("server functions run next to Supabase and messages fan out independent reads in parallel", () => {
   assert.match(vercelConfig, /"regions": \[/);
   assert.match(vercelConfig, /"dub1"/);
