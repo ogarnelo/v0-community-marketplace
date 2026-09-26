@@ -245,6 +245,7 @@ export function ConversationsSidebar({
                 <div className="flex items-start gap-2">
                   <Link
                     href={`/messages/${conversation.id}`}
+                    prefetch={false}
                     className="min-w-0 flex-1 rounded-xl transition hover:bg-slate-50"
                   >
                     <div className="flex items-start gap-3 rounded-xl p-1">
