@@ -30,7 +30,14 @@ export function SessionInactivityGuard() {
         if (activityKey) {
           window.localStorage.removeItem(activityKey);
         }
-        await supabase.auth.signOut({ scope: "local" });
+
+        await fetch("/api/auth/signout", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+        }).catch(() => undefined);
+
+        await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
       } finally {
         window.location.assign("/auth?reason=inactive");
       }
@@ -106,11 +113,19 @@ export function SessionInactivityGuard() {
         timeoutMs = ADMIN_TIMEOUT_MS;
       }
 
-      // Reaching a page with a valid Supabase user is itself activity.
-      // Do not let a stale timestamp from an older tab/session sign out a
-      // freshly refreshed session during navigation.
-      lastWriteAt = Date.now();
-      window.localStorage.setItem(activityKey, String(lastWriteAt));
+      const storedActivity = window.localStorage.getItem(activityKey);
+      const parsedActivity = storedActivity ? Number(storedActivity) : NaN;
+      const now = Date.now();
+
+      if (Number.isFinite(parsedActivity) && now - parsedActivity >= timeoutMs) {
+        await signOutForInactivity();
+        return;
+      }
+
+      // A navigation/refresh counts as activity only after we have verified
+      // that the previous session did not already exceed the inactivity limit.
+      lastWriteAt = now;
+      window.localStorage.setItem(activityKey, String(now));
 
       const activityEvents: Array<keyof WindowEventMap> = [
         "pointerdown",
