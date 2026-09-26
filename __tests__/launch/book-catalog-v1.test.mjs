@@ -18,6 +18,9 @@ test("ISBN utility validates, canonicalizes and converts ISBN-10 to ISBN-13", ()
   assert.match(isbn, /isbn10To13/);
   assert.match(isbn, /canonicalIsbn/);
   assert.match(isbn, /extractIsbnFromText/);
+  assert.match(isbn, /isIncompleteIsbnLikeInput/);
+  assert.match(isbn, /\(\?:\\d\[\\s-\]\?\)\{12\}\\d/);
+  assert.match(isbn, /\(\?:\\d\[\\s-\]\?\)\{9\}\[\\dXx\]/);
   assert.match(isbn, /replace\(\/\[\^0-9xX\]\/g, ""\)/);
 });
 
