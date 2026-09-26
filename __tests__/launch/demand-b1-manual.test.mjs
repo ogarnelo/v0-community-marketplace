@@ -27,6 +27,7 @@ test("B1 reuses existing demand campaign/action infrastructure", () => {
 test("opportunity grouping is deterministic and ISBN-first", () => {
   assert.match(helper, /createHash\("sha256"\)/);
   assert.match(helper, /normalizeIsbn/);
+  assert.match(helper, /extractIsbnFromText/);
   assert.match(helper, /isbn:\$\{canonical\}/);
   assert.match(helper, /queryTokens/);
   assert.match(helper, /school:/);
@@ -102,4 +103,10 @@ test("Demand B1 database checks accept the states and action used by the live fl
   assert.match(constraintFix, /'seller_contacted'::text/);
   assert.match(constraintFix, /'suggested'::text/);
   assert.match(constraintFix, /'supplier_outreach'::text/);
+});
+
+
+test("free-text ISBN variants collapse into the ISBN-first identity", () => {
+  assert.match(helper, /extractIsbnFromText\(\[demand\.query, demand\.title\]/);
+  assert.match(helper, /canonicalIsbn/);
 });

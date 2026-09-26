@@ -64,6 +64,17 @@ export function normalizeIsbn(value: string): NormalizedIsbn | null {
   return null;
 }
 
+export function extractIsbnFromText(value: string): NormalizedIsbn | null {
+  const candidates = value.match(/[0-9Xx][0-9Xx\s-]{8,22}[0-9Xx]/g) || [];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeIsbn(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 export function isValidIsbn(value: string) {
   return normalizeIsbn(value) !== null;
 }

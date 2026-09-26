@@ -20,11 +20,10 @@ export type BookLookupBook = {
 type Props = {
   isbn: string;
   disabled?: boolean;
-  onRecognized: (book: BookLookupBook) => void;
   onApply: (book: BookLookupBook) => void;
 };
 
-export function BookIsbnLookup({ isbn, disabled = false, onRecognized, onApply }: Props) {
+export function BookIsbnLookup({ isbn, disabled = false, onApply }: Props) {
   const [status, setStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
   const [book, setBook] = useState<BookLookupBook | null>(null);
 
@@ -56,7 +55,6 @@ export function BookIsbnLookup({ isbn, disabled = false, onRecognized, onApply }
 
       setBook(payload.book);
       setStatus("found");
-      onRecognized(payload.book);
     } catch {
       setStatus("error");
     }
@@ -64,6 +62,9 @@ export function BookIsbnLookup({ isbn, disabled = false, onRecognized, onApply }
 
   return (
     <div className="sm:col-span-2">
+      <p className="mb-2 text-xs leading-relaxed text-muted-foreground">
+        Si tienes el ISBN, introdúcelo primero. Wetudy buscará los datos bibliográficos disponibles para que puedas revisarlos antes de completar el anuncio.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -105,7 +106,7 @@ export function BookIsbnLookup({ isbn, disabled = false, onRecognized, onApply }
             Usar datos encontrados
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">
-            Solo completaremos campos vacíos. No sobrescribiremos lo que ya hayas escrito.
+            Revisa los datos antes de aplicarlos. Si ya hay datos bibliográficos distintos, Wetudy te pedirá confirmación antes de sustituirlos.
           </p>
         </div>
       ) : null}

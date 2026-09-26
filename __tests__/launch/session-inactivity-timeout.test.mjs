@@ -4,6 +4,7 @@ import test from "node:test";
 
 const guard = readFileSync("components/auth/session-inactivity-guard.tsx", "utf8");
 const route = readFileSync("app/api/auth/session-policy/route.ts", "utf8");
+const signoutRoute = readFileSync("app/api/auth/signout/route.ts", "utf8");
 const layout = readFileSync("app/layout.tsx", "utf8");
 
 test("session inactivity policy is role-aware", () => {
@@ -15,14 +16,18 @@ test("session inactivity policy is role-aware", () => {
   assert.match(route, /user-8h/);
 });
 
-test("inactivity guard persists activity across refreshes and signs out locally", () => {
+test("inactivity guard checks stale activity before refreshing it and signs out client plus server", () => {
   assert.match(guard, /wetudy:last-activity:/);
   assert.match(guard, /window\.localStorage/);
-  assert.match(guard, /Date\.now\(\) - lastActivity >= timeoutMs/);
+  assert.match(guard, /now - parsedActivity >= timeoutMs/);
+  assert.match(guard, /fetch\("\/api\/auth\/signout"/);
   assert.match(guard, /signOut\(\{ scope: "local" \}\)/);
   assert.match(guard, /\/auth\?reason=inactive/);
   assert.match(guard, /visibilitychange/);
   assert.match(guard, /storage/);
+  assert.doesNotMatch(guard, /freshly refreshed session/);
+  assert.match(signoutRoute, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
+  assert.match(signoutRoute, /Cache-Control/);
 });
 
 test("inactivity guard runs globally", () => {

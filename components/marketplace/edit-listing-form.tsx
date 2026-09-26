@@ -189,6 +189,39 @@ export default function EditListingForm({
   const [newPhotos, setNewPhotos] = useState<NewPhoto[]>([]);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
 
+  const applyCatalogBook = (book: BookLookupBook) => {
+    const nextAuthor = book.authors.join(", ");
+    const conflicts = [
+      Boolean(title.trim() && title.trim() !== book.title.trim()),
+      Boolean(author.trim() && nextAuthor && author.trim() !== nextAuthor),
+      Boolean(publisher.trim() && book.publisher && publisher.trim() !== book.publisher.trim()),
+      Boolean(language && book.language && language !== book.language),
+    ].some(Boolean);
+
+    if (
+      conflicts &&
+      !window.confirm(
+        "Ya hay datos bibliográficos distintos en el formulario. ¿Quieres sustituir título, autor, editorial e idioma por los asociados a este ISBN? No cambiaremos descripción, precio, estado, fotos, asignatura ni formato."
+      )
+    ) {
+      return;
+    }
+
+    if (conflicts) {
+      setTitle(book.title);
+      if (nextAuthor) setAuthor(nextAuthor);
+      if (book.publisher) setPublisher(book.publisher);
+      if (book.language) setLanguage(book.language);
+    } else {
+      if (!title.trim()) setTitle(book.title);
+      if (!author.trim() && nextAuthor) setAuthor(nextAuthor);
+      if (!publisher.trim() && book.publisher) setPublisher(book.publisher);
+      if (!language && book.language) setLanguage(book.language);
+    }
+
+    setBookEditionId(book.id);
+  };
+
   const showBookFields = isBookCategory(selectedCategory);
   const showTextbookFields = isTextbookCategory(selectedCategory);
   const showUniformFields = isUniformCategory(selectedCategory);
@@ -594,10 +627,11 @@ export default function EditListingForm({
 
                 {showBookFields ? (
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2 sm:col-span-2"><Label htmlFor="edit-isbn">ISBN</Label><Input id="edit-isbn" value={isbn} onChange={(e) => { setIsbn(e.target.value); setBookEditionId(null); }} className="h-11" inputMode="numeric" placeholder="Opcional, 10 o 13 dígitos" /></div>
+                    <BookIsbnLookup isbn={isbn} onApply={applyCatalogBook} />
                     {showTextbookFields ? (
                       <div className="flex flex-col gap-2"><Label htmlFor="edit-subject">Asignatura</Label><Input id="edit-subject" value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11" placeholder="Ej: Lengua, Matemáticas" /></div>
                     ) : null}
-                    <div className="flex flex-col gap-2"><Label htmlFor="edit-isbn">ISBN</Label><Input id="edit-isbn" value={isbn} onChange={(e) => { setIsbn(e.target.value); setBookEditionId(null); }} className="h-11" inputMode="numeric" placeholder="Opcional, 10 o 13 dígitos" /></div><BookIsbnLookup isbn={isbn} onRecognized={(book) => setBookEditionId(book.id)} onApply={(book: BookLookupBook) => { setBookEditionId(book.id); if (!title.trim()) setTitle(book.title); if (!author.trim() && book.authors.length) setAuthor(book.authors.join(", ")); if (!publisher.trim() && book.publisher) setPublisher(book.publisher); if (!language && book.language) setLanguage(book.language); }} />
                     <div className="flex flex-col gap-2"><Label htmlFor="edit-author">Autor</Label><Input id="edit-author" value={author} onChange={(e) => setAuthor(e.target.value)} className="h-11" placeholder="Opcional" /></div>
                     <div className="flex flex-col gap-2"><Label htmlFor="edit-publisher">Editorial</Label><Input id="edit-publisher" value={publisher} onChange={(e) => setPublisher(e.target.value)} className="h-11" placeholder="Ej: Santillana, SM, Oxford" /></div>
                     <div className="flex flex-col gap-2"><Label>Formato</Label><Select value={format} onValueChange={setFormat}><SelectTrigger className="h-11"><SelectValue placeholder="Opcional" /></SelectTrigger><SelectContent>{bookFormats.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>

@@ -64,10 +64,12 @@ test("agreement emails deep-link to the exact chat", () => {
   assert.doesNotMatch(transactionalEmails, /http:\/\/localhost:3000/);
 });
 
-test("valid page loads refresh activity instead of signing out from stale local storage", () => {
-  assert.match(guard, /lastWriteAt = Date\.now\(\)/);
-  assert.match(guard, /localStorage\.setItem\(activityKey, String\(lastWriteAt\)\)/);
-  assert.doesNotMatch(guard, /const stored = window\.localStorage\.getItem\(activityKey\)/);
+test("page refresh cannot revive a session that already exceeded the inactivity limit", () => {
+  assert.match(guard, /const storedActivity = window\.localStorage\.getItem\(activityKey\)/);
+  assert.match(guard, /now - parsedActivity >= timeoutMs/);
+  assert.match(guard, /await signOutForInactivity\(\)/);
+  assert.match(guard, /lastWriteAt = now/);
+  assert.match(guard, /localStorage\.setItem\(activityKey, String\(now\)\)/);
 });
 
 test("browser auth callbacks remain on the current host and recover an existing login", () => {

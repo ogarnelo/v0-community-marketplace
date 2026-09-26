@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { normalizeIsbn } from "@/lib/books/isbn";
+import { extractIsbnFromText, normalizeIsbn } from "@/lib/books/isbn";
 
 type ExplicitDemand = {
   source: "saved_search" | "demand_request";
@@ -93,7 +93,10 @@ function metadataText(value: unknown) {
 }
 
 function buildIdentity(demand: ExplicitDemand, schoolName: string | null) {
-  const canonical = demand.isbn ? normalizeIsbn(demand.isbn)?.canonicalIsbn || null : null;
+  const canonical =
+    (demand.isbn ? normalizeIsbn(demand.isbn)?.canonicalIsbn || null : null) ||
+    extractIsbnFromText([demand.query, demand.title].filter(Boolean).join(" "))?.canonicalIsbn ||
+    null;
   if (canonical) {
     return {
       identity: `isbn:${canonical}|school:${demand.schoolId || "*"}`,
