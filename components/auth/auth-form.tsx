@@ -311,8 +311,12 @@ export function AuthForm() {
       return;
     }
 
-    if (!/^[0-9]{5}$/.test(normalizedPostalCode)) {
-      setError("Debes indicar un código postal válido de 5 dígitos.");
+    const postalPrefix = /^[0-9]{5}$/.test(normalizedPostalCode)
+      ? Number(normalizedPostalCode.slice(0, 2))
+      : NaN;
+
+    if (!Number.isInteger(postalPrefix) || postalPrefix < 1 || postalPrefix > 52) {
+      setError("Debes indicar un código postal español válido.");
       return;
     }
 
