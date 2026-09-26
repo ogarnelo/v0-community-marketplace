@@ -95,13 +95,15 @@ export type LiquidityRow = {
   searchSuccess: RateMetric;
   zeroResult: RateMetric;
   needToContact: RateMetric;
-  contactToAgreement: RateMetric;
+  contactToProposal: RateMetric;
+  contactToConfirmedAgreement: RateMetric;
   nr7: RateMetric;
   nr14: RateMetric;
   medianTimeToContactHours: number | null;
-  medianTimeToAgreementHours: number | null;
+  medianTimeToConfirmedAgreementHours: number | null;
   confirmedAgreements: number;
-  unmetNeeds: number;
+  noResultNeeds: number;
+  unresolvedNeeds: number;
   b1SupplyCreated: number;
   activatedSellers: number;
   activatedSellerToListing: RateMetric;
@@ -247,12 +249,20 @@ export function buildLiquidityRows(dataset: Dataset, filters: LiquidityFilters):
 
     const needsWithContact = periodNeeds.filter((need) => Boolean(need.first_contact_at)).length;
     const contactedNeeds = periodNeeds.filter((need) => Boolean(need.first_contact_at));
-    const contactsWithAgreement = contactedNeeds.filter((need) => Boolean(need.first_agreement_at)).length;
-    const nr7Count = periodNeeds.filter((need) => {
+    const contactsWithProposal = contactedNeeds.filter((need) => Boolean(need.first_agreement_at)).length;
+    const contactsWithConfirmedAgreement = contactedNeeds.filter((need) => Boolean(need.resolved_at)).length;
+
+    const now = Date.now();
+    const matureNeedsFor = (days: number) =>
+      periodNeeds.filter((need) => now - new Date(need.created_at).getTime() >= days * 24 * 60 * 60 * 1000);
+
+    const matureNeeds7 = matureNeedsFor(7);
+    const matureNeeds14 = matureNeedsFor(14);
+    const nr7Count = matureNeeds7.filter((need) => {
       const days = daysBetween(need.created_at, need.resolved_at);
       return days != null && days <= 7;
     }).length;
-    const nr14Count = periodNeeds.filter((need) => {
+    const nr14Count = matureNeeds14.filter((need) => {
       const days = daysBetween(need.created_at, need.resolved_at);
       return days != null && days <= 14;
     }).length;
@@ -260,8 +270,8 @@ export function buildLiquidityRows(dataset: Dataset, filters: LiquidityFilters):
     const contactTimes = periodNeeds
       .map((need) => hoursBetween(need.created_at, need.first_contact_at))
       .filter((value): value is number => value != null);
-    const agreementTimes = periodNeeds
-      .map((need) => hoursBetween(need.created_at, need.first_agreement_at))
+    const confirmedAgreementTimes = periodNeeds
+      .map((need) => hoursBetween(need.created_at, need.resolved_at))
       .filter((value): value is number => value != null);
 
     const actionsInScope = dataset.actions.filter((action) => {
@@ -295,13 +305,15 @@ export function buildLiquidityRows(dataset: Dataset, filters: LiquidityFilters):
       searchSuccess: ratio(successfulSearches, validSearches.length),
       zeroResult: ratio(zeroSearches, validSearches.length),
       needToContact: ratio(needsWithContact, periodNeeds.length),
-      contactToAgreement: ratio(contactsWithAgreement, contactedNeeds.length),
-      nr7: ratio(nr7Count, periodNeeds.length),
-      nr14: ratio(nr14Count, periodNeeds.length),
+      contactToProposal: ratio(contactsWithProposal, contactedNeeds.length),
+      contactToConfirmedAgreement: ratio(contactsWithConfirmedAgreement, contactedNeeds.length),
+      nr7: ratio(nr7Count, matureNeeds7.length),
+      nr14: ratio(nr14Count, matureNeeds14.length),
       medianTimeToContactHours: median(contactTimes),
-      medianTimeToAgreementHours: median(agreementTimes),
+      medianTimeToConfirmedAgreementHours: median(confirmedAgreementTimes),
       confirmedAgreements: periodAgreements.length,
-      unmetNeeds: periodNeeds.filter((need) => !need.first_result_at && !need.resolved_at).length,
+      noResultNeeds: periodNeeds.filter((need) => !need.first_result_at).length,
+      unresolvedNeeds: periodNeeds.filter((need) => !need.resolved_at).length,
       b1SupplyCreated: generatedListings.size,
       activatedSellers: activationTargets.size,
       activatedSellerToListing: ratio(
@@ -338,8 +350,10 @@ export function combineLiquidityRows(rows: LiquidityRow[]): LiquidityRow {
   const zeroDenominator = sum((row) => row.zeroResult.denominator);
   const contactNumerator = sum((row) => row.needToContact.numerator);
   const contactDenominator = sum((row) => row.needToContact.denominator);
-  const agreementNumerator = sum((row) => row.contactToAgreement.numerator);
-  const agreementDenominator = sum((row) => row.contactToAgreement.denominator);
+  const proposalNumerator = sum((row) => row.contactToProposal.numerator);
+  const proposalDenominator = sum((row) => row.contactToProposal.denominator);
+  const confirmedAgreementNumerator = sum((row) => row.contactToConfirmedAgreement.numerator);
+  const confirmedAgreementDenominator = sum((row) => row.contactToConfirmedAgreement.denominator);
   const nr7Numerator = sum((row) => row.nr7.numerator);
   const nr7Denominator = sum((row) => row.nr7.denominator);
   const nr14Numerator = sum((row) => row.nr14.numerator);
@@ -359,13 +373,15 @@ export function combineLiquidityRows(rows: LiquidityRow[]): LiquidityRow {
     searchSuccess: ratio(searchSuccessNumerator, searchSuccessDenominator),
     zeroResult: ratio(zeroNumerator, zeroDenominator),
     needToContact: ratio(contactNumerator, contactDenominator),
-    contactToAgreement: ratio(agreementNumerator, agreementDenominator),
+    contactToProposal: ratio(proposalNumerator, proposalDenominator),
+    contactToConfirmedAgreement: ratio(confirmedAgreementNumerator, confirmedAgreementDenominator),
     nr7: ratio(nr7Numerator, nr7Denominator),
     nr14: ratio(nr14Numerator, nr14Denominator),
     medianTimeToContactHours: null,
-    medianTimeToAgreementHours: null,
+    medianTimeToConfirmedAgreementHours: null,
     confirmedAgreements: sum((row) => row.confirmedAgreements),
-    unmetNeeds: sum((row) => row.unmetNeeds),
+    noResultNeeds: sum((row) => row.noResultNeeds),
+    unresolvedNeeds: sum((row) => row.unresolvedNeeds),
     b1SupplyCreated: sum((row) => row.b1SupplyCreated),
     activatedSellers: sum((row) => row.activatedSellers),
     activatedSellerToListing: ratio(activatedNumerator, activatedDenominator),

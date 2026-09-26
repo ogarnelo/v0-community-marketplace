@@ -172,13 +172,14 @@ export default async function LiquidityDashboard({
             </CardContent>
           </Card>
 
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9">
             <Card><CardContent className="p-4"><Users className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Familias vinculadas</p><p className="mt-1 text-2xl font-bold">{total.linkedFamilies}</p><p className="text-xs text-muted-foreground">{total.activeFamilies} activas en periodo</p></CardContent></Card>
             <Card><CardContent className="p-4"><PackagePlus className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Anuncios activos</p><p className="mt-1 text-2xl font-bold">{total.activeListings}</p><p className="text-xs text-muted-foreground">{total.listingsPer100Families == null ? "—" : total.listingsPer100Families.toFixed(1)} / 100 familias</p></CardContent></Card>
             <Card><CardContent className="p-4"><Search className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Búsquedas</p><p className="mt-1 text-2xl font-bold">{total.searches}</p><p className="text-xs text-muted-foreground">{total.needs} necesidades</p></CardContent></Card>
             <Card><CardContent className="p-4"><Activity className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Search Success</p><p className="mt-1 text-2xl font-bold">{formatRate(total.searchSuccess)}</p><SampleBadge metric={total.searchSuccess} /></CardContent></Card>
             <Card><CardContent className="p-4"><MessageCircle className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Need → Contact</p><p className="mt-1 text-2xl font-bold">{formatRate(total.needToContact)}</p><SampleBadge metric={total.needToContact} /></CardContent></Card>
-            <Card><CardContent className="p-4"><Handshake className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Contact → Agreement</p><p className="mt-1 text-2xl font-bold">{formatRate(total.contactToAgreement)}</p><SampleBadge metric={total.contactToAgreement} /></CardContent></Card>
+            <Card><CardContent className="p-4"><Handshake className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Contact → Proposal</p><p className="mt-1 text-2xl font-bold">{formatRate(total.contactToProposal)}</p><SampleBadge metric={total.contactToProposal} /></CardContent></Card>
+            <Card><CardContent className="p-4"><Handshake className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Contact → Confirmed</p><p className="mt-1 text-2xl font-bold">{formatRate(total.contactToConfirmedAgreement)}</p><SampleBadge metric={total.contactToConfirmedAgreement} /></CardContent></Card>
             <Card><CardContent className="p-4"><Timer className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">NR14</p><p className="mt-1 text-2xl font-bold">{formatRate(total.nr14)}</p><SampleBadge metric={total.nr14} /></CardContent></Card>
             <Card><CardContent className="p-4"><PackagePlus className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Supply B1</p><p className="mt-1 text-2xl font-bold">{total.b1SupplyCreated}</p><p className="text-xs text-muted-foreground">{formatRate(total.activatedSellerToListing)} seller → listing</p></CardContent></Card>
           </section>
@@ -194,7 +195,7 @@ export default async function LiquidityDashboard({
               {rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hay datos para los filtros seleccionados.</p>
               ) : (
-                <table className="w-full min-w-[1500px] border-collapse text-sm">
+                <table className="w-full min-w-[1750px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
                       <th className="px-2 py-3">Centro</th>
@@ -207,13 +208,15 @@ export default async function LiquidityDashboard({
                       <th className="px-2 py-3">Success</th>
                       <th className="px-2 py-3">Zero</th>
                       <th className="px-2 py-3">Need→Contact</th>
-                      <th className="px-2 py-3">Contact→Agr.</th>
+                      <th className="px-2 py-3">Contact→Prop.</th>
+                      <th className="px-2 py-3">Contact→Conf.</th>
                       <th className="px-2 py-3">NR7</th>
                       <th className="px-2 py-3">NR14</th>
                       <th className="px-2 py-3">T. contacto</th>
-                      <th className="px-2 py-3">T. acuerdo</th>
+                      <th className="px-2 py-3">T. confirmado</th>
                       <th className="px-2 py-3">Acuerdos</th>
-                      <th className="px-2 py-3">Sin cubrir</th>
+                      <th className="px-2 py-3">Sin resultado</th>
+                      <th className="px-2 py-3">Sin resolver</th>
                       <th className="px-2 py-3">Supply B1</th>
                     </tr>
                   </thead>
@@ -230,13 +233,15 @@ export default async function LiquidityDashboard({
                         <td className="px-2 py-3">{formatRate(row.searchSuccess)}{row.searchSuccess.lowSample ? " · baja" : ""}</td>
                         <td className="px-2 py-3">{formatRate(row.zeroResult)}{row.zeroResult.lowSample ? " · baja" : ""}</td>
                         <td className="px-2 py-3">{formatRate(row.needToContact)}{row.needToContact.lowSample ? " · baja" : ""}</td>
-                        <td className="px-2 py-3">{formatRate(row.contactToAgreement)}{row.contactToAgreement.lowSample ? " · baja" : ""}</td>
+                        <td className="px-2 py-3">{formatRate(row.contactToProposal)}{row.contactToProposal.lowSample ? " · baja" : ""}</td>
+                        <td className="px-2 py-3">{formatRate(row.contactToConfirmedAgreement)}{row.contactToConfirmedAgreement.lowSample ? " · baja" : ""}</td>
                         <td className="px-2 py-3">{formatRate(row.nr7)}{row.nr7.lowSample ? " · baja" : ""}</td>
                         <td className="px-2 py-3">{formatRate(row.nr14)}{row.nr14.lowSample ? " · baja" : ""}</td>
                         <td className="px-2 py-3">{formatDuration(row.medianTimeToContactHours)}</td>
-                        <td className="px-2 py-3">{formatDuration(row.medianTimeToAgreementHours)}</td>
+                        <td className="px-2 py-3">{formatDuration(row.medianTimeToConfirmedAgreementHours)}</td>
                         <td className="px-2 py-3">{row.confirmedAgreements}</td>
-                        <td className="px-2 py-3">{row.unmetNeeds}</td>
+                        <td className="px-2 py-3">{row.noResultNeeds}</td>
+                        <td className="px-2 py-3">{row.unresolvedNeeds}</td>
                         <td className="px-2 py-3">{row.b1SupplyCreated}</td>
                       </tr>
                     ))}
@@ -255,8 +260,11 @@ export default async function LiquidityDashboard({
               <p><strong className="text-foreground">Search Success Rate:</strong> búsquedas con al menos un resultado / búsquedas con conteo disponible.</p>
               <p><strong className="text-foreground">Zero Result Rate:</strong> búsquedas con 0 resultados / búsquedas con conteo disponible.</p>
               <p><strong className="text-foreground">Need → Contact:</strong> necesidades con contacto atribuible / necesidades válidas expresadas.</p>
-              <p><strong className="text-foreground">Contact → Agreement:</strong> necesidades con acuerdo iniciado / necesidades que llegaron a contacto.</p>
-              <p><strong className="text-foreground">NR7 / NR14:</strong> necesidades con acuerdo confirmado dentro de 7/14 días / necesidades válidas expresadas.</p>
+              <p><strong className="text-foreground">Contact → Proposal:</strong> necesidades con propuesta de acuerdo iniciada / necesidades que llegaron a contacto.</p>
+              <p><strong className="text-foreground">Contact → Confirmed:</strong> necesidades con acuerdo confirmado / necesidades que llegaron a contacto.</p>
+              <p><strong className="text-foreground">NR7 / NR14:</strong> necesidades maduras con acuerdo confirmado dentro de 7/14 días / necesidades que ya tuvieron al menos 7/14 días para resolverse.</p>
+              <p><strong className="text-foreground">Sin resultado:</strong> necesidades que todavía no han tenido ningún listing atribuible.</p>
+              <p><strong className="text-foreground">Sin resolver:</strong> necesidades que todavía no han terminado en un acuerdo confirmado.</p>
               <p><strong className="text-foreground">Supply B1:</strong> listings creados por vendedores activados manualmente desde una oportunidad de demanda.</p>
             </CardContent>
           </Card>
