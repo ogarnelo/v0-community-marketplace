@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, "utf8");
 
 const marketplace = read("components/marketplace/marketplace-client.tsx");
 const savedSearchRoute = read("app/api/marketplace/saved-searches/route.ts");
+const searchEventsRoute = read("app/api/marketplace/search-events/route.ts");
 const conversationPage = read("app/messages/[id]/page.tsx");
 const conversationFeedback = read("components/messages/conversation-outcome-feedback.tsx");
 const conversationFeedbackRoute = read("app/api/conversations/outcome-feedback/route.ts");
@@ -65,4 +66,14 @@ test("phase A observes demand only and does not activate sellers or commerce", (
   assert.doesNotMatch(conversationFeedbackRoute, /stripe|sendcloud|checkout|payout/i);
   assert.doesNotMatch(savedSearchRoute, /stripe|sendcloud|checkout|payout/i);
   assert.doesNotMatch(demandAdmin, /activar vendedores|enviar campaña automáticamente/i);
+});
+
+
+test("ISBN telemetry waits for a complete valid ISBN instead of recording typing prefixes", () => {
+  assert.match(marketplace, /isIncompleteIsbnLikeInput/);
+  assert.match(marketplace, /canonicalIsbn/);
+  assert.match(searchEventsRoute, /reason: "incomplete_isbn"/);
+  assert.match(searchEventsRoute, /extractIsbnFromText/);
+  assert.match(searchEventsRoute, /normalizeIsbn/);
+  assert.match(demandAdmin, /isIncompleteIsbnLikeInput/);
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { extractIsbnFromText, isIncompleteIsbnLikeInput, normalizeIsbn } from "@/lib/books/isbn";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +48,27 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const schoolId = profile?.school_id || null;
+    const query = cleanText(payload.query);
+    const rawIsbnQuery = cleanText(payload.isbnQuery);
+
+    if (
+      (rawIsbnQuery && isIncompleteIsbnLikeInput(rawIsbnQuery)) ||
+      (!rawIsbnQuery && query && isIncompleteIsbnLikeInput(query))
+    ) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "incomplete_isbn" });
+    }
+
+    const canonicalIsbn =
+      (rawIsbnQuery ? normalizeIsbn(rawIsbnQuery)?.canonicalIsbn || null : null) ||
+      extractIsbnFromText(query || "")?.canonicalIsbn ||
+      null;
+
     const admin = createAdminClient();
     const { error } = await admin.from("marketplace_search_events").insert({
       user_id: user.id,
       school_id: schoolId,
-      query: cleanText(payload.query),
-      isbn_query: cleanText(payload.isbnQuery),
+      query,
+      isbn_query: canonicalIsbn || rawIsbnQuery,
       category: cleanText(payload.category),
       grade_level: cleanText(payload.gradeLevel),
       listing_type: cleanText(payload.listingType),

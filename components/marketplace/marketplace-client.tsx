@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/popover";
 import { ListingCard } from "@/components/listing-card";
 import { categories, gradeLevels, conditions } from "@/lib/mock-data";
+import { extractIsbnFromText, isIncompleteIsbnLikeInput, normalizeIsbn } from "@/lib/books/isbn";
 import {
   Bell,
   CalendarDays,
@@ -138,8 +139,52 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
   }, [listingsWithDistance, onlyMyCommunity, currentUserSchoolId, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
 
   useEffect(() => {
-    if (!hasSearchIntent) return; const controller = new AbortController(); const timeout = window.setTimeout(() => { fetch("/api/marketplace/search-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: searchQuery.trim() || null, isbnQuery: isbnQuery.trim() || null, category: category === "all" ? null : category, gradeLevel: gradeLevel === "all" ? null : gradeLevel, listingType: listingType === "all" ? null : listingType, condition: condition === "all" ? null : condition, priceMin: minPrice > 0 ? minPrice : null, priceMax: maxPrice < PRICE_LIMIT ? maxPrice : null, onlyMyCommunity, nearbyMode: !onlyMyCommunity && maxDistanceKm !== Infinity, radiusKm: maxDistanceKm === Infinity ? null : maxDistanceKm, resultsCount: filteredListings.length, sourcePath: "/marketplace" }), signal: controller.signal, keepalive: true }).catch(() => undefined); }, 900);
-    return () => { window.clearTimeout(timeout); controller.abort(); };
+    if (!hasSearchIntent) return;
+
+    const rawSearchQuery = searchQuery.trim();
+    const rawIsbnQuery = isbnQuery.trim();
+
+    if (
+      (rawIsbnQuery && isIncompleteIsbnLikeInput(rawIsbnQuery)) ||
+      (!rawIsbnQuery && rawSearchQuery && isIncompleteIsbnLikeInput(rawSearchQuery))
+    ) {
+      return;
+    }
+
+    const canonicalIsbn =
+      (rawIsbnQuery ? normalizeIsbn(rawIsbnQuery)?.canonicalIsbn || null : null) ||
+      extractIsbnFromText(rawSearchQuery)?.canonicalIsbn ||
+      null;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      fetch("/api/marketplace/search-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: rawSearchQuery || null,
+          isbnQuery: canonicalIsbn,
+          category: category === "all" ? null : category,
+          gradeLevel: gradeLevel === "all" ? null : gradeLevel,
+          listingType: listingType === "all" ? null : listingType,
+          condition: condition === "all" ? null : condition,
+          priceMin: minPrice > 0 ? minPrice : null,
+          priceMax: maxPrice < PRICE_LIMIT ? maxPrice : null,
+          onlyMyCommunity,
+          nearbyMode: !onlyMyCommunity && maxDistanceKm !== Infinity,
+          radiusKm: maxDistanceKm === Infinity ? null : maxDistanceKm,
+          resultsCount: filteredListings.length,
+          sourcePath: "/marketplace",
+        }),
+        signal: controller.signal,
+        keepalive: true,
+      }).catch(() => undefined);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, minPrice, maxPrice, maxDistanceKm, filteredListings.length, hasSearchIntent]);
   useEffect(() => {
     setSaveSearchStatus("idle");

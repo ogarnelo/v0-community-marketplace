@@ -65,14 +65,28 @@ export function normalizeIsbn(value: string): NormalizedIsbn | null {
 }
 
 export function extractIsbnFromText(value: string): NormalizedIsbn | null {
-  const candidates = value.match(/[0-9Xx][0-9Xx\s-]{8,22}[0-9Xx]/g) || [];
+  const patterns = [
+    /(?:\d[\s-]?){12}\d/g,
+    /(?:\d[\s-]?){9}[\dXx]/g,
+  ];
 
-  for (const candidate of candidates) {
-    const normalized = normalizeIsbn(candidate);
-    if (normalized) return normalized;
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const normalized = normalizeIsbn(match[0]);
+      if (normalized) return normalized;
+    }
   }
 
   return null;
+}
+
+export function isIncompleteIsbnLikeInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || !/^[0-9Xx\s-]+$/.test(trimmed)) return false;
+  if (normalizeIsbn(trimmed)) return false;
+
+  const compact = stripIsbnFormatting(trimmed);
+  return compact.startsWith("978") || compact.startsWith("979") || compact.length >= 8;
 }
 
 export function isValidIsbn(value: string) {
