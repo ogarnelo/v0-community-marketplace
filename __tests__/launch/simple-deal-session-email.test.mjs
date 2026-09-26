@@ -16,6 +16,7 @@ const bell = read("components/notifications/navbar-notifications-bell.tsx");
 const contact = read("components/messages/contact-seller-button.tsx");
 const navbarData = read("lib/navbar/get-navbar-data.ts");
 const messages = read("app/messages/page.tsx");
+const vercelConfig = read("vercel.json");
 const conversationsSidebar = read("components/messages/conversations-sidebar.tsx");
 const account = read("app/account/page.tsx");
 const listings = read("app/account/listings/page.tsx");
@@ -138,4 +139,14 @@ test("actionable email templates deep-link to the exact destination", () => {
 
 test("conversation sidebar does not prefetch every chat at once", () => {
   assert.match(conversationsSidebar, /prefetch=\{false\}/);
+});
+
+
+test("server functions run next to Supabase and messages fan out independent reads in parallel", () => {
+  assert.match(vercelConfig, /"regions": \[/);
+  assert.match(vercelConfig, /"dub1"/);
+  assert.match(messages, /Promise\.all\(\[/);
+  assert.match(messages, /from\("listings"\)/);
+  assert.match(messages, /from\("profiles"\)/);
+  assert.match(messages, /from\("messages"\)/);
 });
