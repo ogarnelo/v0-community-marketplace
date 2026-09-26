@@ -347,7 +347,7 @@ export async function findDemandOpportunity(admin: any, key: string) {
 }
 
 export async function findSupplyCandidates(admin: any, opportunity: DemandOpportunity): Promise<SupplyCandidate[]> {
-  const [{ data: listings }, { data: profiles }, { data: recentActions }, { data: unresolvedReports }] = await Promise.all([
+  const [{ data: listings }, { data: profiles }, { data: schools }, { data: recentActions }, { data: unresolvedReports }] = await Promise.all([
     admin
       .from("listings")
       .select("id,seller_id,title,isbn,category,grade_level,status,school_id,listing_type,type,specific_type,size_label,brand,model,created_at")
@@ -356,7 +356,11 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       .limit(5000),
     admin
       .from("profiles")
-      .select("id,full_name,business_name,user_type")
+      .select("id,full_name,business_name,user_type,grade_level,school_id")
+      .limit(5000),
+    admin
+      .from("schools")
+      .select("id,school_type")
       .limit(5000),
     admin
       .from("demand_opportunity_actions")
@@ -369,11 +373,12 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       .from("reports")
       .select("listing_id,status")
       .not("listing_id", "is", null)
-      .neq("status", "resolved")
+      .in("status", ["open", "reviewing"])
       .limit(2000),
   ]);
 
   const profileById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
+  const schoolTypeById = new Map((schools || []).map((school: any) => [school.id, school.school_type]));
   const recentlyContacted = new Set((recentActions || []).map((action: any) => action.target_user_id).filter(Boolean));
   const reportedListingIds = new Set((unresolvedReports || []).map((report: any) => report.listing_id).filter(Boolean));
   const sellersWithUnresolvedListingReports = new Set(
@@ -389,7 +394,17 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
     const sellerId = listing.seller_id;
     if (!sellerId || demanders.has(sellerId) || recentlyContacted.has(sellerId) || sellersWithUnresolvedListingReports.has(sellerId)) continue;
     const profile = profileById.get(sellerId);
-    if (!profile || profile.user_type === "student") continue;
+    if (!profile) continue;
+
+    const isStudent = profile.user_type === "student";
+    const isUniversityStudent =
+      isStudent &&
+      (
+        normalizeText(profile.grade_level) === normalizeText("Universidad") ||
+        (profile.school_id && schoolTypeById.get(profile.school_id) === "university")
+      );
+
+    if (isStudent && !isUniversityStudent) continue;
 
     const sameIsbn = Boolean(
       opportunity.isbn &&
