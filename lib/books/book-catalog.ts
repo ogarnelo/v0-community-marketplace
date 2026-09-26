@@ -46,17 +46,44 @@ type OpenLibraryEdition = {
   last_modified?: { value?: string };
 };
 
+
+type GoogleBooksVolume = {
+  id?: string;
+  volumeInfo?: {
+    title?: string;
+    subtitle?: string;
+    authors?: string[];
+    publisher?: string;
+    publishedDate?: string;
+    language?: string;
+    industryIdentifiers?: Array<{ type?: string; identifier?: string }>;
+    imageLinks?: { thumbnail?: string; smallThumbnail?: string };
+  };
+};
+
+type GoogleBooksResponse = {
+  items?: GoogleBooksVolume[];
+};
+
 const LANGUAGE_NAMES: Record<string, string> = {
   spa: "Español",
+  es: "Español",
   eng: "Inglés",
+  en: "Inglés",
   cat: "Catalán",
+  ca: "Catalán",
   glg: "Gallego",
+  gl: "Gallego",
   eus: "Euskera",
+  eu: "Euskera",
   fre: "Francés",
   fra: "Francés",
+  fr: "Francés",
   ger: "Alemán",
   deu: "Alemán",
+  de: "Alemán",
   por: "Portugués",
+  pt: "Portugués",
 };
 
 function fromDb(row: any): BookEdition {
@@ -148,9 +175,72 @@ export const openLibraryAdapter: BookProviderAdapter = {
   },
 };
 
+
+export const googleBooksAdapter: BookProviderAdapter = {
+  id: "googlebooks",
+  async lookup(canonicalIsbn, signal) {
+    const apiKey = process.env.GOOGLE_BOOKS_API_KEY?.trim();
+    if (!apiKey) return null;
+
+    const params = new URLSearchParams({
+      q: `isbn:${canonicalIsbn}`,
+      maxResults: "5",
+      printType: "books",
+      key: apiKey,
+    });
+
+    const response = await fetch(`https://www.googleapis.com/books/v1/volumes?${params.toString()}`, {
+      signal,
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Wetudy/1.0 (book-catalog lookup)",
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) throw new Error(`googlebooks_http_${response.status}`);
+
+    const payload = (await response.json()) as GoogleBooksResponse;
+    const item = (payload.items || []).find((candidate) => {
+      const identifiers = candidate.volumeInfo?.industryIdentifiers || [];
+      return identifiers.some((entry) => {
+        const identifier = typeof entry.identifier === "string" ? entry.identifier : "";
+        return normalizeIsbn(identifier)?.canonicalIsbn === canonicalIsbn;
+      });
+    });
+
+    const info = item?.volumeInfo;
+    const title = typeof info?.title === "string" ? info.title.trim() : "";
+    if (!item || !title) return null;
+
+    const identifiers = info?.industryIdentifiers || [];
+    const isbn10 =
+      identifiers.find((entry) => entry.type === "ISBN_10")?.identifier?.trim() || null;
+    const isbn13 =
+      identifiers.find((entry) => entry.type === "ISBN_13")?.identifier?.trim() || canonicalIsbn;
+    const rawLanguage = typeof info?.language === "string" ? info.language.trim().toLowerCase() : "";
+    const rawCover = info?.imageLinks?.thumbnail || info?.imageLinks?.smallThumbnail || null;
+
+    return {
+      canonicalIsbn,
+      isbn10,
+      isbn13,
+      title,
+      subtitle: typeof info?.subtitle === "string" ? info.subtitle.trim() || null : null,
+      authors: Array.isArray(info?.authors) ? info.authors.map((author) => author.trim()).filter(Boolean) : [],
+      publisher: typeof info?.publisher === "string" ? info.publisher.trim() || null : null,
+      publicationDate: typeof info?.publishedDate === "string" ? info.publishedDate.trim() || null : null,
+      language: rawLanguage ? LANGUAGE_NAMES[rawLanguage] || rawLanguage : null,
+      coverUrl: rawCover ? rawCover.replace(/^http:/, "https:") : null,
+      provider: "googlebooks",
+      providerId: item.id || null,
+    };
+  },
+};
+
 export async function lookupBookByIsbn(
   rawIsbn: string,
-  options: { provider?: BookProviderAdapter; timeoutMs?: number } = {}
+  options: { provider?: BookProviderAdapter; providers?: BookProviderAdapter[]; timeoutMs?: number } = {}
 ): Promise<BookLookupResult> {
   const normalized = normalizeIsbn(rawIsbn);
   if (!normalized) return { status: "invalid" };
@@ -165,45 +255,61 @@ export async function lookupBookByIsbn(
   if (cacheError) throw cacheError;
   if (cached) return { status: "found", source: "cache", book: fromDb(cached) };
 
-  const provider = options.provider || openLibraryAdapter;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 4500);
+  const defaultProviders: BookProviderAdapter[] = [
+    openLibraryAdapter,
+    ...(process.env.GOOGLE_BOOKS_API_KEY?.trim() ? [googleBooksAdapter] : []),
+  ];
+  const providers = options.provider
+    ? [options.provider]
+    : options.providers?.length
+      ? options.providers
+      : defaultProviders;
 
-  try {
-    const providerBook = await provider.lookup(normalized.canonicalIsbn, controller.signal);
-    if (!providerBook) return { status: "not_found" };
+  let providerFailed = false;
 
-    const { data: stored, error: storeError } = await admin
-      .from("book_editions")
-      .upsert(
-        {
-          canonical_isbn: normalized.canonicalIsbn,
-          isbn_10: providerBook.isbn10 || normalized.isbn10,
-          isbn_13: providerBook.isbn13 || normalized.isbn13,
-          title: providerBook.title,
-          subtitle: providerBook.subtitle,
-          authors: providerBook.authors,
-          publisher: providerBook.publisher,
-          publication_date: providerBook.publicationDate,
-          language: providerBook.language,
-          cover_url: providerBook.coverUrl,
-          provider: provider.id,
-          provider_id: providerBook.providerId,
-          source_updated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "canonical_isbn" }
-      )
-      .select("id, canonical_isbn, isbn_10, isbn_13, title, subtitle, authors, publisher, publication_date, language, cover_url, provider, provider_id")
-      .single();
+  for (const provider of providers) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 4500);
 
-    if (storeError) throw storeError;
-    return { status: "found", source: "provider", book: fromDb(stored) };
-  } catch (error: any) {
-    if (error?.name === "AbortError") return { status: "provider_error" };
-    console.error("Error consultando el catálogo bibliográfico", error);
-    return { status: "provider_error" };
-  } finally {
-    clearTimeout(timeout);
+    try {
+      const providerBook = await provider.lookup(normalized.canonicalIsbn, controller.signal);
+      if (!providerBook) continue;
+
+      const { data: stored, error: storeError } = await admin
+        .from("book_editions")
+        .upsert(
+          {
+            canonical_isbn: normalized.canonicalIsbn,
+            isbn_10: providerBook.isbn10 || normalized.isbn10,
+            isbn_13: providerBook.isbn13 || normalized.isbn13,
+            title: providerBook.title,
+            subtitle: providerBook.subtitle,
+            authors: providerBook.authors,
+            publisher: providerBook.publisher,
+            publication_date: providerBook.publicationDate,
+            language: providerBook.language,
+            cover_url: providerBook.coverUrl,
+            provider: provider.id,
+            provider_id: providerBook.providerId,
+            source_updated_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "canonical_isbn" }
+        )
+        .select("id, canonical_isbn, isbn_10, isbn_13, title, subtitle, authors, publisher, publication_date, language, cover_url, provider, provider_id")
+        .single();
+
+      if (storeError) throw storeError;
+      return { status: "found", source: "provider", book: fromDb(stored) };
+    } catch (error: any) {
+      providerFailed = true;
+      if (error?.name !== "AbortError") {
+        console.error(`Error consultando proveedor bibliográfico ${provider.id}`, error);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  return providerFailed ? { status: "provider_error" } : { status: "not_found" };
 }
