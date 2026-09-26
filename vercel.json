@@ -10,5 +10,8 @@
       "path": "/api/cron/super-admin-reports",
       "schedule": "30 6 * * *"
     }
+  ],
+  "regions": [
+    "dub1"
   ]
 }
