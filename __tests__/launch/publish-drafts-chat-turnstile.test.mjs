@@ -5,6 +5,8 @@ import test from "node:test";
 const read = (path) => readFileSync(path, "utf8");
 
 const turnstile = read("components/auth/turnstile-widget.tsx");
+const authForm = read("components/auth/auth-form.tsx");
+const postalMigration = read("supabase/migrations/20260926102510_validate_spanish_postal_on_signup.sql");
 const form = read("components/marketplace/new-listing-form.tsx");
 const accountListings = read("app/account/listings/page.tsx");
 const statusActions = read("components/account/listing-status-actions.tsx");
@@ -64,4 +66,13 @@ test("seller listing actions have a clean visual hierarchy", () => {
   assert.match(accountListings, /className="w-full justify-center border-red-200/);
   assert.match(statusActions, /Estado del anuncio/);
   assert.match(statusActions, /grid-cols-\[minmax\(0,1fr\)_auto\]/);
+});
+
+
+test("public parent/student sign-up rejects postal codes outside Spain province prefixes", () => {
+  assert.match(authForm, /postalPrefix < 1 \|\| postalPrefix > 52/);
+  assert.match(authForm, /código postal español válido/);
+  assert.match(postalMigration, /role_value in \('parent', 'student'\)/);
+  assert.match(postalMigration, /postal_prefix < 1 or postal_prefix > 52/);
+  assert.match(postalMigration, /invalid_spanish_postal_code/);
 });

@@ -13,6 +13,7 @@ import { buildDemandActionLabel, buildDemandInsights, buildSeoDemandActionLabel,
 import { buildAcquisitionSummaries, type AcquisitionEvent } from "@/lib/admin/growth-insights";
 import { loadDemandOpportunities } from "@/lib/admin/demand-opportunities";
 import { isIncompleteIsbnLikeInput } from "@/lib/books/isbn";
+import { ExpandableAdminList } from "@/components/admin/expandable-admin-list";
 
 export const dynamic = "force-dynamic";
 
@@ -343,7 +344,8 @@ export default async function DemandIntelligencePage({
                 {filteredOpportunities.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No hay oportunidades que coincidan con estos filtros.</p>
                 ) : null}
-                {filteredOpportunities.slice(0, 30).map((opportunity) => (
+                <ExpandableAdminList initialCount={5}>
+                {filteredOpportunities.map((opportunity) => (
                   <div key={opportunity.key} className="rounded-xl border p-4">
                     <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                       <div className="min-w-0">
@@ -374,6 +376,7 @@ export default async function DemandIntelligencePage({
                     </div>
                   </div>
                 ))}
+                </ExpandableAdminList>
               </div>
             </CardContent>
           </Card>
@@ -392,7 +395,8 @@ export default async function DemandIntelligencePage({
                 {explicitDemands.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Todavía no hay demandas explícitas guardadas desde búsquedas vacías.</p>
                 ) : null}
-                {explicitDemands.slice(0, 8).map((demand) => (
+                <ExpandableAdminList initialCount={5}>
+                {explicitDemands.map((demand) => (
                   <div key={demand.id} className="rounded-xl border p-3">
                     <p className="font-medium text-foreground">
                       {demand.need_details || demand.query || demand.isbn_query || demand.category || demand.grade_level || "Necesidad sin detalle"}
@@ -403,6 +407,7 @@ export default async function DemandIntelligencePage({
                     <p className="mt-2 text-xs text-muted-foreground">{formatDate(demand.created_at)}</p>
                   </div>
                 ))}
+                </ExpandableAdminList>
               </CardContent>
             </Card>
 
@@ -419,6 +424,7 @@ export default async function DemandIntelligencePage({
                 {conversationOutcomes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Todavía no hay respuestas sobre conversaciones inactivas.</p>
                 ) : null}
+                <ExpandableAdminList initialCount={5}>
                 {outcomeReasonCounts.map(([reason, count]) => (
                   <div key={reason} className="flex items-center justify-between gap-3 rounded-xl border p-3">
                     <p className="text-sm font-medium text-foreground">
@@ -427,6 +433,7 @@ export default async function DemandIntelligencePage({
                     <Badge variant="secondary">{count}</Badge>
                   </div>
                 ))}
+                </ExpandableAdminList>
                 {conversationOutcomes.length > 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {conversationOutcomes.length} respuestas registradas · comprador {conversationOutcomes.filter((item) => item.feedback_role === "buyer").length} · vendedor {conversationOutcomes.filter((item) => item.feedback_role === "seller").length}
@@ -457,6 +464,7 @@ export default async function DemandIntelligencePage({
                 {acquisitionSummary.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Todavía no hay tráfico con UTM o referencia externa suficiente para atribuir.</p>
                 ) : null}
+                <ExpandableAdminList initialCount={5}>
                 {acquisitionSummary.map((row) => (
                   <div key={`${row.source}-${row.medium}-${row.campaign}`} className="rounded-xl border p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -471,6 +479,7 @@ export default async function DemandIntelligencePage({
                     </p>
                   </div>
                 ))}
+                </ExpandableAdminList>
               </div>
             </CardContent>
           </Card>
@@ -484,6 +493,7 @@ export default async function DemandIntelligencePage({
               {actionableInsights.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hay prioridades pendientes con las señales recientes.</p>
               ) : null}
+              <ExpandableAdminList initialCount={5}>
               {actionableInsights.map((insight) => (
                 <div key={`${insight.kind}-${insight.label}`} className="rounded-xl border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -497,6 +507,7 @@ export default async function DemandIntelligencePage({
                   </div>
                 </div>
               ))}
+              </ExpandableAdminList>
             </CardContent>
           </Card>
 
@@ -511,6 +522,7 @@ export default async function DemandIntelligencePage({
               {seoOpportunities.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aún no hay una consulta repetida con suficiente señal para priorizar contenido SEO.</p>
               ) : null}
+              <ExpandableAdminList initialCount={5}>
               {seoOpportunities.map((insight) => (
                 <div key={`seo-${insight.label}`} className="rounded-xl border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -524,6 +536,7 @@ export default async function DemandIntelligencePage({
                   </div>
                 </div>
               ))}
+              </ExpandableAdminList>
             </CardContent>
           </Card>
 
@@ -535,6 +548,7 @@ export default async function DemandIntelligencePage({
               </CardHeader>
               <CardContent className="space-y-3">
                 {summary.length === 0 ? <p className="text-sm text-muted-foreground">Aún no hay señales suficientes.</p> : null}
+                <ExpandableAdminList initialCount={5}>
                 {summary.map((row) => (
                   <div key={`${row.category}-${row.grade_level}`} className="rounded-xl border p-3">
                     <div className="flex items-center justify-between gap-3">
@@ -544,6 +558,7 @@ export default async function DemandIntelligencePage({
                     <p className="mt-1 text-sm text-muted-foreground">{row.grade_level} · {row.searches_count} búsquedas · última {formatDate(row.last_seen_at)}</p>
                   </div>
                 ))}
+                </ExpandableAdminList>
               </CardContent>
             </Card>
 
@@ -554,7 +569,8 @@ export default async function DemandIntelligencePage({
               </CardHeader>
               <CardContent className="space-y-3">
                 {events.length === 0 ? <p className="text-sm text-muted-foreground">Haz búsquedas en el marketplace para empezar a poblar este panel.</p> : null}
-                {events.slice(0, 20).map((event) => (
+                <ExpandableAdminList initialCount={5}>
+                {events.map((event) => (
                   <div key={event.id} className="rounded-xl border p-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="truncate font-medium text-foreground">
@@ -570,6 +586,7 @@ export default async function DemandIntelligencePage({
                     </p>
                   </div>
                 ))}
+                </ExpandableAdminList>
               </CardContent>
             </Card>
           </section>

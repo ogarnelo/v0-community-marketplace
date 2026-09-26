@@ -16,6 +16,7 @@ const bell = read("components/notifications/navbar-notifications-bell.tsx");
 const contact = read("components/messages/contact-seller-button.tsx");
 const navbarData = read("lib/navbar/get-navbar-data.ts");
 const messages = read("app/messages/page.tsx");
+const conversationsSidebar = read("components/messages/conversations-sidebar.tsx");
 const account = read("app/account/page.tsx");
 const listings = read("app/account/listings/page.tsx");
 const activity = read("app/account/activity/page.tsx");
@@ -132,4 +133,9 @@ test("actionable email templates deep-link to the exact destination", () => {
   assert.match(adminAlertEmails, /school-request-\$\{encodeURIComponent\(params\.requestId\)\}/);
   assert.match(schoolAdminEmails, /\/auth\?next=\/admin\/school/);
   assert.match(transactionalEmails, /\/messages\/\$\{encodeURIComponent\(params\.conversationId\)\}/);
+});
+
+
+test("conversation sidebar does not prefetch every chat at once", () => {
+  assert.match(conversationsSidebar, /prefetch=\{false\}/);
 });

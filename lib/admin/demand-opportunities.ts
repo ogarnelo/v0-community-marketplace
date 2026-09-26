@@ -478,7 +478,24 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
     });
   }
 
-  return candidates.sort((a, b) => b.score - a.score || String(b.lastListingAt || "").localeCompare(String(a.lastListingAt || "")));
+  const sorted = candidates.sort(
+    (a, b) => b.score - a.score || String(b.lastListingAt || "").localeCompare(String(a.lastListingAt || ""))
+  );
+
+  const enriched = await Promise.all(
+    sorted.map(async (candidate) => {
+      if (candidate.name !== "Usuario") return candidate;
+      try {
+        const { data } = await admin.auth.admin.getUserById(candidate.userId);
+        const email = data?.user?.email?.trim();
+        return email ? { ...candidate, name: email } : candidate;
+      } catch {
+        return candidate;
+      }
+    })
+  );
+
+  return enriched;
 }
 
 export function activationMessage(opportunity: DemandOpportunity) {

@@ -5,12 +5,24 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import NewListingForm from "@/components/marketplace/new-listing-form";
 import type { ProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { Button } from "@/components/ui/button";
+import { normalizeIsbn } from "@/lib/books/isbn";
 
 export const dynamic = "force-dynamic";
 
 function metadataString(metadata: Record<string, unknown>, key: string) {
   const value = metadata[key];
   return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function safeOpportunityTitle(title?: string | null, isbn?: string | null) {
+  const cleanTitle = title?.trim() || "";
+  if (!cleanTitle) return undefined;
+
+  const titleIsbn = normalizeIsbn(cleanTitle)?.canonicalIsbn || null;
+  const expectedIsbn = isbn ? normalizeIsbn(isbn)?.canonicalIsbn || null : null;
+  if (titleIsbn && expectedIsbn && titleIsbn === expectedIsbn) return undefined;
+
+  return cleanTitle;
 }
 
 export default async function NewListingPage({
@@ -77,11 +89,15 @@ export default async function NewListingPage({
     if (action && campaign) {
       const metadata = (campaign.metadata || {}) as Record<string, unknown>;
       activationOpportunityKey = opportunityKey;
+      const prefillIsbn = campaign.isbn || metadataString(metadata, "isbn") || undefined;
       initialPrefill = {
-        title: campaign.title || metadataString(metadata, "title") || undefined,
+        title: safeOpportunityTitle(
+          campaign.title || metadataString(metadata, "title") || undefined,
+          prefillIsbn
+        ),
         category: campaign.category || metadataString(metadata, "category") || undefined,
         gradeLevel: campaign.grade_level || metadataString(metadata, "grade_level") || undefined,
-        isbn: campaign.isbn || metadataString(metadata, "isbn") || undefined,
+        isbn: prefillIsbn,
         specificType: campaign.specific_type || metadataString(metadata, "specific_type") || undefined,
         sizeLabel: campaign.size_label || metadataString(metadata, "size_label") || undefined,
         brand: campaign.brand || metadataString(metadata, "brand") || undefined,
