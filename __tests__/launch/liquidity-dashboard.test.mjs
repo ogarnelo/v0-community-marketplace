@@ -16,7 +16,7 @@ test("liquidity cockpit exposes raw funnel metrics without arbitrary score", () 
   assert.match(page, /NR7/);
   assert.match(page, /NR14/);
   assert.match(page, /T\. contacto/);
-  assert.match(page, /T\. acuerdo/);
+  assert.match(page, /T\. confirmado/);
   assert.match(page, /Supply B1/);
   assert.doesNotMatch(page, /Liquid School score|0-100|liquidity score/i);
 });
