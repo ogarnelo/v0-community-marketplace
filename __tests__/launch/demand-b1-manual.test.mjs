@@ -110,3 +110,11 @@ test("free-text ISBN variants collapse into the ISBN-first identity", () => {
   assert.match(helper, /extractIsbnFromText\(\[demand\.query, demand\.title\]/);
   assert.match(helper, /canonicalIsbn/);
 });
+
+
+test("B1 candidate identity and ISBN-only prefill stay operator-friendly", () => {
+  assert.match(helper, /admin\.auth\.admin\.getUserById/);
+  assert.match(newListingPage, /safeOpportunityTitle/);
+  assert.match(newListingPage, /normalizeIsbn/);
+  assert.match(newListingPage, /if \(titleIsbn && expectedIsbn && titleIsbn === expectedIsbn\) return undefined/);
+});
