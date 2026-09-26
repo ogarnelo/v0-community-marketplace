@@ -81,13 +81,6 @@ export async function POST(
 
     const activatedUserIds: string[] = [];
     for (const targetUserId of targets) {
-      const { data: profile } = await admin
-        .from("profiles")
-        .select("id,user_type")
-        .eq("id", targetUserId)
-        .maybeSingle();
-      if (!profile || profile.user_type === "student") continue;
-
       const { data: existingAction } = await admin
         .from("demand_opportunity_actions")
         .select("id")
