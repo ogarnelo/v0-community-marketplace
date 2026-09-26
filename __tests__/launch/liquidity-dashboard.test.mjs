@@ -11,7 +11,8 @@ const demandPage = read("app/admin/super/demand/page.tsx");
 test("liquidity cockpit exposes raw funnel metrics without arbitrary score", () => {
   assert.match(page, /Search Success/);
   assert.match(page, /Need → Contact/);
-  assert.match(page, /Contact → Agreement/);
+  assert.match(page, /Contact → Proposal/);
+  assert.match(page, /Contact → Confirmed/);
   assert.match(page, /NR7/);
   assert.match(page, /NR14/);
   assert.match(page, /T\. contacto/);
@@ -39,9 +40,28 @@ test("dashboard supports requested segmentation and period filters", () => {
   assert.match(metrics, /isbn/);
 });
 
-test("NR14 is based on confirmed resolution timing and B1 supply is attributed from actions", () => {
+test("NR7/NR14 use mature cohorts and confirmed resolution timing", () => {
+  assert.match(metrics, /matureNeedsFor/);
+  assert.match(metrics, /matureNeeds7/);
+  assert.match(metrics, /matureNeeds14/);
+  assert.match(metrics, /ratio\(nr7Count, matureNeeds7\.length\)/);
+  assert.match(metrics, /ratio\(nr14Count, matureNeeds14\.length\)/);
   assert.match(metrics, /daysBetween\(need\.created_at, need\.resolved_at\)/);
   assert.match(metrics, /days <= 14/);
+});
+
+test("cockpit separates proposal from confirmed agreement and pending-need states", () => {
+  assert.match(metrics, /contactToProposal/);
+  assert.match(metrics, /contactToConfirmedAgreement/);
+  assert.match(metrics, /Boolean\(need\.first_agreement_at\)/);
+  assert.match(metrics, /Boolean\(need\.resolved_at\)/);
+  assert.match(metrics, /noResultNeeds/);
+  assert.match(metrics, /unresolvedNeeds/);
+  assert.match(page, /Sin resultado/);
+  assert.match(page, /Sin resolver/);
+});
+
+test("B1 supply is attributed from activation actions", () => {
   assert.match(metrics, /resulting_listing_id/);
   assert.match(metrics, /activatedSellerToListing/);
 });
