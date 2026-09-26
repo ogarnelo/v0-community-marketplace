@@ -104,29 +104,33 @@ export default async function MessagesPage() {
   );
   const conversationIds = safeConversations.map((c) => c.id);
 
-  const { data: listings } = await supabase
-    .from("listings")
-    .select("id, title")
-    .in("id", listingIds);
-
   const admin = createAdminClient();
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("id, full_name, user_type")
-    .in("id", otherUserIds);
-
-  const { data: latestMessages } = await supabase
-    .from("messages")
-    .select("conversation_id, body, created_at, sender_id, attachment_name")
-    .in("conversation_id", conversationIds)
-    .order("created_at", { ascending: false });
-
-  const { data: unreadMessages } = await supabase
-    .from("messages")
-    .select("conversation_id")
-    .in("conversation_id", conversationIds)
-    .neq("sender_id", user.id)
-    .is("read_at", null);
+  const [
+    { data: listings },
+    { data: profiles },
+    { data: latestMessages },
+    { data: unreadMessages },
+  ] = await Promise.all([
+    supabase
+      .from("listings")
+      .select("id, title")
+      .in("id", listingIds),
+    admin
+      .from("profiles")
+      .select("id, full_name, user_type")
+      .in("id", otherUserIds),
+    supabase
+      .from("messages")
+      .select("conversation_id, body, created_at, sender_id, attachment_name")
+      .in("conversation_id", conversationIds)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("messages")
+      .select("conversation_id")
+      .in("conversation_id", conversationIds)
+      .neq("sender_id", user.id)
+      .is("read_at", null),
+  ]);
 
   const listingsMap = new Map(
     ((listings || []) as ListingSummaryRow[]).map((l) => [l.id, l])
