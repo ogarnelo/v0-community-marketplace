@@ -25,35 +25,12 @@ create unique index if not exists product_feature_access_school_unique
   where school_id is not null;
 
 alter table public.product_feature_access enable row level security;
-
-revoke insert, update, delete on table public.product_feature_access from anon, authenticated;
-grant select on table public.product_feature_access to authenticated;
-
-drop policy if exists "Users can read applicable feature access" on public.product_feature_access;
-create policy "Users can read applicable feature access"
-  on public.product_feature_access
-  for select
-  to authenticated
-  using (
-    enabled = true
-    and (
-      user_id = (select auth.uid())
-      or (
-        school_id is not null
-        and exists (
-          select 1
-          from public.profiles p
-          where p.id = (select auth.uid())
-            and p.school_id = product_feature_access.school_id
-        )
-      )
-    )
-  );
+revoke all on table public.product_feature_access from anon, authenticated;
 
 create table if not exists public.family_learners (
   id uuid primary key default gen_random_uuid(),
   parent_user_id uuid not null references auth.users(id) on delete cascade,
-  school_id uuid not null references public.schools(id) on delete restrict,
+  school_id uuid not null references public.schools(id) on delete cascade,
   label text not null default 'Hijo/a',
   grade_level text not null,
   academic_year text not null,
@@ -77,34 +54,13 @@ create index if not exists family_learners_school_idx
   where active = true;
 
 alter table public.family_learners enable row level security;
-grant select, insert, update, delete on table public.family_learners to authenticated;
+revoke all on table public.family_learners from anon, authenticated;
+grant select on table public.family_learners to authenticated;
 
 drop policy if exists "Users can read own learners" on public.family_learners;
 create policy "Users can read own learners"
   on public.family_learners
   for select
-  to authenticated
-  using ((select auth.uid()) = parent_user_id);
-
-drop policy if exists "Users can create own learners" on public.family_learners;
-create policy "Users can create own learners"
-  on public.family_learners
-  for insert
-  to authenticated
-  with check ((select auth.uid()) = parent_user_id);
-
-drop policy if exists "Users can update own learners" on public.family_learners;
-create policy "Users can update own learners"
-  on public.family_learners
-  for update
-  to authenticated
-  using ((select auth.uid()) = parent_user_id)
-  with check ((select auth.uid()) = parent_user_id);
-
-drop policy if exists "Users can delete own learners" on public.family_learners;
-create policy "Users can delete own learners"
-  on public.family_learners
-  for delete
   to authenticated
   using ((select auth.uid()) = parent_user_id);
 
