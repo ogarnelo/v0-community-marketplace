@@ -22,7 +22,7 @@ export default async function MyCourseBetaPage() {
 
   const allowed = await canUseMyCourseBeta({
     userId: user.id,
-    schoolIds: [profile?.school_id],
+    linkedSchoolIds: [profile?.school_id],
   });
 
   if (!allowed) notFound();
