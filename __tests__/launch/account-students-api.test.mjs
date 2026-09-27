@@ -13,8 +13,8 @@ test("student API requires authenticated confirmed users", () => {
   assert.match(itemRoute, /auth\.getUser\(\)/);
   assert.match(collectionRoute, /email_confirmed_at/);
   assert.match(itemRoute, /email_confirmed_at/);
-  assert.match(collectionRoute, /status: 401/);
-  assert.match(itemRoute, /status: 401/);
+  assert.match(collectionRoute, /"Debes iniciar sesión\.", 401, "unauthorized"/);
+  assert.match(itemRoute, /"Debes iniciar sesión\.", 401, "unauthorized"/);
 });
 
 test("client cannot choose ownership or relationship", () => {
