@@ -1,9 +1,9 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, GraduationCap, Leaf, Users, MapPin } from "lucide-react"
+import { ArrowRight, Leaf, Users, MapPin } from "lucide-react"
 
-export function HeroSection({ showMyCourseBeta = false }: { showMyCourseBeta?: boolean }) {
+export function HeroSection() {
   return (
     <section className="relative overflow-hidden bg-card pb-14 pt-8 sm:pt-12 lg:pb-24 lg:pt-20">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-secondary/5" />
@@ -23,7 +23,7 @@ export function HeroSection({ showMyCourseBeta = false }: { showMyCourseBeta?: b
             Wetudy reúne a familias y estudiantes de una misma comunidad para ahorrar en cada curso y dar una segunda vida a libros, uniformes y material escolar.
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link href="/auth?mode=signup">
               <Button size="lg" className="gap-2 px-8">
                 Crear cuenta gratis
@@ -35,14 +35,6 @@ export function HeroSection({ showMyCourseBeta = false }: { showMyCourseBeta?: b
                 Explorar material
               </Button>
             </Link>
-            {showMyCourseBeta ? (
-              <Link href="/beta/mi-curso">
-                <Button variant="ghost" size="lg" className="gap-2 px-5 text-primary hover:text-primary">
-                  <GraduationCap className="h-4 w-4" />
-                  Preparar mi curso
-                </Button>
-              </Link>
-            ) : null}
           </div>
 
           <div className="mx-auto mt-10 grid max-w-sm justify-items-center gap-5 text-sm text-muted-foreground sm:mt-12 sm:max-w-none sm:grid-cols-3 sm:justify-items-stretch sm:gap-8">
