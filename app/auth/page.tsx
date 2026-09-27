@@ -2,11 +2,13 @@ import { Suspense } from "react"
 import { AuthForm } from "@/components/auth/auth-form"
 import { BookOpen } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default function AuthPage() {
+  const isPreview = process.env.VERCEL_ENV === "preview"
+
   return (
     <div className="flex min-h-screen">
-      {/* Left panel - branding */}
       <div className="hidden flex-1 flex-col justify-between bg-primary p-10 lg:flex">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-foreground/20">
@@ -29,7 +31,6 @@ export default function AuthPage() {
         </p>
       </div>
 
-      {/* Right panel - form */}
       <div className="flex flex-1 items-center justify-center bg-card p-6 lg:p-10">
         <div className="w-full max-w-md">
           <div className="mb-6 lg:hidden">
@@ -40,6 +41,19 @@ export default function AuthPage() {
               <span className="text-xl font-bold font-mono text-foreground">Wetudy</span>
             </Link>
           </div>
+
+          {isPreview ? (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+              <p className="font-medium">Prueba del entorno Preview</p>
+              <p className="mt-1 leading-5 text-amber-900/80">
+                El captcha del login real puede quedar bloqueado en este dominio temporal. Para revisar Mi curso como si tu perfil ya tuviera centro y curso, usa el modo de prueba.
+              </p>
+              <Button asChild size="sm" variant="outline" className="mt-3 bg-background">
+                <Link href="/beta/mi-curso?profile_demo=1">Probar con perfil configurado</Link>
+              </Button>
+            </div>
+          ) : null}
+
           <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
             <AuthForm />
           </Suspense>
