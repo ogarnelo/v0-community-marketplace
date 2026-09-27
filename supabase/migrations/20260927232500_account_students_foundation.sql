@@ -1,7 +1,8 @@
--- Account students foundation.
--- ADDITIVE ONLY. This migration intentionally keeps profiles.school_id and
--- profiles.grade_level unchanged for backwards compatibility with the
--- production account, marketplace and existing filters.
+-- Account students foundation — Phase A.
+-- STRICTLY ADDITIVE.
+-- This migration creates a new table only. It deliberately does NOT alter,
+-- update or backfill profiles, saved_searches, demand_requests, listings,
+-- conversations, agreements or any other existing production table.
 
 create table if not exists public.account_students (
   id uuid primary key default gen_random_uuid(),
@@ -44,9 +45,8 @@ create unique index if not exists account_students_one_primary_idx
 
 alter table public.account_students enable row level security;
 
--- Normal clients may read only their own student contexts.
--- Writes are intentionally server-side so account type / relationship rules
--- can be enforced without exposing a broad direct-write surface.
+-- Authenticated clients can only read their own student contexts.
+-- Writes remain server-side so later business rules can be enforced centrally.
 revoke all on table public.account_students from anon, authenticated;
 grant select on table public.account_students to authenticated;
 
@@ -56,78 +56,3 @@ create policy account_students_select_own
   for select
   to authenticated
   using ((select auth.uid()) = owner_user_id);
-
--- Link personalized demand/alerts to a student without changing any existing
--- marketplace behavior. Existing rows remain general with student_id = null.
-alter table public.demand_requests
-  add column if not exists student_id uuid references public.account_students(id) on delete set null;
-
-create index if not exists demand_requests_student_idx
-  on public.demand_requests (student_id, status, created_at desc)
-  where student_id is not null;
-
-alter table public.saved_searches
-  add column if not exists student_id uuid references public.account_students(id) on delete set null;
-
-create index if not exists saved_searches_student_idx
-  on public.saved_searches (student_id, created_at desc)
-  where student_id is not null;
-
--- Conservative compatibility backfill:
--- only profiles that already have BOTH school and grade are migrated.
--- profiles.school_id / profiles.grade_level are deliberately retained and
--- remain the current production compatibility context.
-with current_year as (
-  select
-    case
-      when extract(month from current_date) >= 8
-        then extract(year from current_date)::int
-      else extract(year from current_date)::int - 1
-    end as start_year
-),
-legacy_context as (
-  select
-    p.id as owner_user_id,
-    case
-      when p.user_type = 'student' then 'self'
-      when p.user_type = 'parent' then 'guardian'
-      else null
-    end as relationship,
-    p.school_id,
-    p.grade_level,
-    cy.start_year::text || '/' || right((cy.start_year + 1)::text, 2) as academic_year
-  from public.profiles p
-  cross join current_year cy
-  where p.school_id is not null
-    and p.grade_level is not null
-    and p.user_type in ('student', 'parent')
-)
-insert into public.account_students (
-  owner_user_id,
-  relationship,
-  alias,
-  school_id,
-  grade_level,
-  academic_year,
-  is_primary,
-  active,
-  sort_order
-)
-select
-  legacy.owner_user_id,
-  legacy.relationship,
-  null,
-  legacy.school_id,
-  legacy.grade_level,
-  legacy.academic_year,
-  true,
-  true,
-  0
-from legacy_context legacy
-where legacy.relationship is not null
-  and not exists (
-    select 1
-    from public.account_students existing
-    where existing.owner_user_id = legacy.owner_user_id
-      and existing.active = true
-  );
