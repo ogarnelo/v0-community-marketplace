@@ -57,6 +57,7 @@ type IncomingNeed = {
 type ProfileContext = {
   isLoggedIn: boolean;
   isDemoProfile: boolean;
+  userType: string | null;
   schoolId: string | null;
   schoolName: string | null;
   gradeLevel: string | null;
@@ -64,6 +65,7 @@ type ProfileContext = {
 };
 
 const STORAGE_KEY = "wetudy_my_course_beta_v0";
+const ONBOARDING_STORAGE_KEY = "wetudy_onboarding_beta_v1";
 const AUTO_PROFILE_SUPPRESS_KEY = "wetudy_my_course_beta_v0_suppress_profile";
 
 function normalizeText(value?: string | null) {
@@ -108,11 +110,25 @@ export default function MyCourseBetaClient({
   const [message, setMessage] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [incomingVisible, setIncomingVisible] = useState(Boolean(incomingNeed));
+  const [accountType, setAccountType] = useState<"student" | "parent" | null>(
+    profileContext.userType === "student" || profileContext.userType === "parent"
+      ? profileContext.userType
+      : null
+  );
+  const [activeLearnerId, setActiveLearnerId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
+      const onboardingRaw = window.localStorage.getItem(ONBOARDING_STORAGE_KEY);
       const suppressProfile = window.localStorage.getItem(AUTO_PROFILE_SUPPRESS_KEY) === "1";
+
+      if (onboardingRaw) {
+        const onboarding = JSON.parse(onboardingRaw);
+        if (onboarding?.accountType === "student" || onboarding?.accountType === "parent") {
+          setAccountType(onboarding.accountType);
+        }
+      }
 
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -134,7 +150,7 @@ export default function MyCourseBetaClient({
           learners: [
             {
               id: "profile-course",
-              label: "Mi curso",
+              label: profileContext.userType === "student" ? "Mi curso" : "Estudiante 1",
               schoolId: profileContext.schoolId,
               gradeLevel: profileContext.gradeLevel,
               academicYear: profileContext.academicYear,
@@ -154,6 +170,17 @@ export default function MyCourseBetaClient({
     if (!hydrated) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [hydrated, state]);
+
+  useEffect(() => {
+    if (state.learners.length === 0) {
+      setActiveLearnerId(null);
+      return;
+    }
+
+    if (!activeLearnerId || !state.learners.some((learner) => learner.id === activeLearnerId)) {
+      setActiveLearnerId(state.learners[0].id);
+    }
+  }, [activeLearnerId, state.learners]);
 
   const schoolById = useMemo(
     () => new Map(schools.map((school) => [school.id, school])),
@@ -227,16 +254,18 @@ export default function MyCourseBetaClient({
     const gradeLevel = String(formData.get("gradeLevel") || "");
     if (!schoolId || !gradeLevel) return;
 
+    const learnerIndex = state.learners.length + 1;
     const learner: Learner = {
       id: safeId("learner"),
-      label: String(formData.get("label") || "Hijo/a").trim() || "Hijo/a",
+      label: accountType === "student" ? "Mi curso" : "Estudiante " + learnerIndex,
       schoolId,
       gradeLevel,
       academicYear: String(formData.get("academicYear") || "2026/27"),
     };
 
     setState((current) => ({ ...current, learners: [...current.learners, learner] }));
-    setMessage("Curso añadido. Ahora añade lo que necesitarás.");
+    setActiveLearnerId(learner.id);
+    setMessage(accountType === "student" ? "Curso añadido." : "Estudiante añadido.");
   }
 
   function addIncomingNeed(learnerId: string) {
@@ -309,7 +338,7 @@ export default function MyCourseBetaClient({
       learners: [
         {
           id: "profile-course",
-          label: "Mi curso",
+          label: accountType === "student" ? "Mi curso" : "Estudiante 1",
           schoolId: profileContext.schoolId,
           gradeLevel: profileContext.gradeLevel,
           academicYear: profileContext.academicYear,
