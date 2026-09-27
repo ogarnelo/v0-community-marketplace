@@ -12,6 +12,8 @@ const marketplacePage = read("app/marketplace/page.tsx");
 const marketplaceClient = read("components/marketplace/marketplace-client.tsx");
 const landingPage = read("app/page.tsx");
 const hero = read("components/landing/hero-section.tsx");
+const howItWorks = read("components/landing/how-it-works.tsx");
+const authPage = read("app/auth/page.tsx");
 
 test("Mi curso Beta 0 is preview-only unless explicitly enabled", () => {
   assert.match(page, /VERCEL_ENV === "preview"/);
@@ -50,6 +52,14 @@ test("logged-in users reuse school and grade from their profile instead of recon
   assert.match(client, /Solo tienes que rellenarlo si quieres añadir otro hijo\/a/);
 });
 
+test("preview can simulate an already-configured profile without authenticating", () => {
+  assert.match(authPage, /Probar con perfil configurado/);
+  assert.match(authPage, /\/beta\/mi-curso\?profile_demo=1/);
+  assert.match(page, /params\.profile_demo === "1"/);
+  assert.match(page, /isDemoProfile: true/);
+  assert.match(client, /Perfil de prueba/);
+});
+
 test("Mi curso surfaces the value proposition before backend persistence", () => {
   assert.match(client, /de la lista con opciones/);
   assert.match(client, /Ahorro potencial/);
@@ -66,6 +76,20 @@ test("mobile reset uses an in-page confirmation instead of browser confirm", () 
   assert.match(client, /Sí, borrar/);
   assert.match(client, /Cancelar/);
   assert.doesNotMatch(client, /window\.confirm/);
+});
+
+test("landing hero keeps the original balanced structure", () => {
+  assert.doesNotMatch(hero, /Prepara el curso completo/);
+  assert.doesNotMatch(hero, /showMyCourseBeta/);
+  assert.match(hero, /Crear cuenta gratis/);
+  assert.match(hero, /Explorar material/);
+  assert.match(landingPage, /<HeroSection \/>/);
+});
+
+test("Mi curso discovery is integrated contextually inside Cómo funciona", () => {
+  assert.match(landingPage, /<HowItWorks showMyCourseBeta=/);
+  assert.match(howItWorks, /¿Necesitas varias cosas\? Prepara tu curso/);
+  assert.match(howItWorks, /href="\/beta\/mi-curso"/);
 });
 
 test("the options page is expressed as plain user intentions", () => {
@@ -86,12 +110,7 @@ test("the zero-cost beta includes a real-data demo and existing marketplace comp
   assert.match(client, /Ver y contactar/);
 });
 
-test("preview integration makes Mi curso discoverable without replacing current journeys", () => {
-  assert.match(landingPage, /showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
-  assert.match(landingPage, /isLoggedIn=\{navbarProps\.isLoggedIn\}/);
-  assert.match(hero, /Prepara el curso completo/);
-  assert.match(hero, /Organiza todo lo que necesitas/);
-  assert.match(hero, /href="\/beta\/mi-curso"/);
+test("preview integration remains contextual without replacing current journeys", () => {
   assert.match(accountPage, /href: "\/beta\/mi-curso"/);
   assert.match(marketplacePage, /showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
   assert.match(marketplaceClient, /¿Preparando todo el curso\?/);
