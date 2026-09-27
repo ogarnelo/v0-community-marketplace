@@ -155,6 +155,7 @@ export default async function MarketplacePage() {
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
       initialPostalCode={viewerPostalCode}
+      showMyCourseBeta={process.env.VERCEL_ENV === "preview"}
     />
   );
 }
