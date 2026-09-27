@@ -584,7 +584,7 @@ export default function MyCourseBetaClient({
               <CardDescription>
                 {accountType === "student"
                   ? "Solo necesitamos tu centro y curso."
-                  : "No necesitamos nombre ni otros datos personales del estudiante. Solo centro y curso."}
+                  : "El nombre o alias es opcional. Para organizar el curso solo necesitamos centro y curso."}
               </CardDescription>
             </CardHeader>
             <CardContent>
