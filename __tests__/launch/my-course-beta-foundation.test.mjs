@@ -31,8 +31,18 @@ test("Beta 0 only reads the minimum production data required for matching", () =
   assert.doesNotMatch(page, /postal_code/);
 });
 
-test("Mi curso preserves the existing marketplace as the completion path", () => {
+test("Mi curso surfaces the value proposition before backend persistence", () => {
+  assert.match(client, /de la lista con opciones/);
+  assert.match(client, /Ahorro potencial/);
+  assert.match(client, /Tu centro/);
+  assert.match(client, /Mejor opción/);
+  assert.match(client, /Wetudy debería buscarlo por ti/);
+});
+
+test("the zero-cost beta includes a real-data demo and existing marketplace completion path", () => {
+  assert.match(client, /function loadDemo/);
+  assert.match(client, /Ver ejemplo/);
+  assert.match(client, /anuncios reales/);
   assert.match(client, /\/marketplace\/listing\//);
-  assert.match(client, /Buscar por mí/);
-  assert.match(client, /Beta 0/);
+  assert.match(client, /Buscar manualmente/);
 });
