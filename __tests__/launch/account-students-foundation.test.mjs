@@ -13,7 +13,7 @@ test("Phase A creates only the new account_students table", () => {
   assert.match(migration, /owner_user_id uuid not null references public\.profiles/);
   assert.match(migration, /relationship in \('self', 'guardian'\)/);
   assert.match(migration, /alias text/);
-  assert.match(migration, /school_id uuid not null references public\.schools/);
+  assert.match(migration, /school_id uuid references public\.schools\(id\) on delete set null/);
   assert.match(migration, /grade_level text not null/);
   assert.match(migration, /academic_year text not null/);
 
