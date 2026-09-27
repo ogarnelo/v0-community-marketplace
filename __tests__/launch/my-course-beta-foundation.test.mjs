@@ -16,6 +16,8 @@ const authPage = read("app/auth/page.tsx");
 const betaLayout = read("app/beta/layout.tsx");
 const onboardingPage = read("app/beta/onboarding/page.tsx");
 const onboardingClient = read("components/my-course/onboarding-beta-client.tsx");
+const accountBetaPage = read("app/beta/cuenta/page.tsx");
+const accountBetaClient = read("components/my-course/account-students-beta-client.tsx");
 
 test("Mi curso remains preview-only and requires a user except for the explicit preview demo", () => {
   assert.match(page, /VERCEL_ENV === "preview"/);
@@ -59,6 +61,17 @@ test("preview auth links to the new onboarding without weakening real auth", () 
   assert.match(authPage, /Probar nuevo onboarding/);
   assert.match(authPage, /\/beta\/onboarding/);
   assert.match(page, /isDemoProfile: true/);
+});
+
+test("Mi cuenta manages students later without repeating the onboarding", () => {
+  assert.match(accountBetaPage, /VERCEL_ENV !== "preview"/);
+  assert.match(accountBetaClient, /Mi contexto educativo/);
+  assert.match(accountBetaClient, /Estudiantes/);
+  assert.match(accountBetaClient, /Añadir estudiante/);
+  assert.match(accountBetaClient, /Código postal/);
+  assert.match(accountBetaClient, /wetudy_onboarding_beta_v1/);
+  assert.match(navbar, /accountHref/);
+  assert.match(navbar, /\/beta\/cuenta\?profile_demo=1/);
 });
 
 test("student and family accounts get different Mi curso behavior", () => {
