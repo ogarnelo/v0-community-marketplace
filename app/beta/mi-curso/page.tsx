@@ -18,7 +18,7 @@ function betaEnabled() {
 export default async function MyCourseBetaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ add?: string; isbn?: string }>;
+  searchParams: Promise<{ add?: string; isbn?: string; profile_demo?: string }>;
 }) {
   if (!betaEnabled()) notFound();
 
@@ -73,22 +73,37 @@ export default async function MyCourseBetaPage({
     ? (schools || []).find((school: any) => school.id === profileResult.data?.school_id) || null
     : null;
 
+  const previewProfileDemo = process.env.VERCEL_ENV === "preview" && params.profile_demo === "1";
+  const demoSchool = previewProfileDemo ? (schools || [])[0] || null : null;
+  const demoGrade = gradeLevels.includes("2º ESO") ? "2º ESO" : gradeLevels[0] || null;
+
   const profileContext =
     user && profileResult.data?.school_id && profileResult.data?.grade_level
       ? {
           isLoggedIn: true,
+          isDemoProfile: false,
           schoolId: profileResult.data.school_id,
           schoolName: profileSchool?.name || "Mi centro",
           gradeLevel: profileResult.data.grade_level,
           academicYear: "2026/27",
         }
-      : {
-          isLoggedIn: Boolean(user),
-          schoolId: null,
-          schoolName: null,
-          gradeLevel: null,
-          academicYear: "2026/27",
-        };
+      : previewProfileDemo && demoSchool && demoGrade
+        ? {
+            isLoggedIn: true,
+            isDemoProfile: true,
+            schoolId: demoSchool.id,
+            schoolName: demoSchool.name,
+            gradeLevel: demoGrade,
+            academicYear: "2026/27",
+          }
+        : {
+            isLoggedIn: Boolean(user),
+            isDemoProfile: false,
+            schoolId: null,
+            schoolName: null,
+            gradeLevel: null,
+            academicYear: "2026/27",
+          };
 
   return (
     <MyCourseBetaClient
