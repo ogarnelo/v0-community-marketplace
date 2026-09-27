@@ -19,6 +19,9 @@ test("session inactivity policy is role-aware", () => {
 test("inactivity guard checks stale activity before refreshing it and signs out client plus server", () => {
   assert.match(guard, /wetudy:last-activity:/);
   assert.match(guard, /window\.localStorage/);
+  assert.match(guard, /user\.last_sign_in_at/);
+  assert.match(guard, /activityBelongsToPreviousSession/);
+  assert.match(guard, /parsedActivity < lastSignInAt/);
   assert.match(guard, /now - parsedActivity >= timeoutMs/);
   assert.match(guard, /fetch\("\/api\/auth\/signout"/);
   assert.match(guard, /signOut\(\{ scope: "local" \}\)/);
@@ -28,6 +31,16 @@ test("inactivity guard checks stale activity before refreshing it and signs out 
   assert.doesNotMatch(guard, /freshly refreshed session/);
   assert.match(signoutRoute, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
   assert.match(signoutRoute, /Cache-Control/);
+});
+
+test("manual logout clears the inactivity marker before signing out", () => {
+  const logoutButton = readFileSync("components/auth/logout-button.tsx", "utf8");
+  const navbar = readFileSync("components/navbar.tsx", "utf8");
+
+  assert.match(logoutButton, /wetudy:last-activity:/);
+  assert.match(logoutButton, /localStorage\.removeItem/);
+  assert.match(navbar, /wetudy:last-activity:/);
+  assert.match(navbar, /localStorage\.removeItem/);
 });
 
 test("inactivity guard runs globally", () => {
