@@ -56,6 +56,7 @@ type IncomingNeed = {
 
 type ProfileContext = {
   isLoggedIn: boolean;
+  isDemoProfile: boolean;
   schoolId: string | null;
   schoolName: string | null;
   gradeLevel: string | null;
@@ -392,6 +393,7 @@ export default function MyCourseBetaClient({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">Beta 0 · solo Preview</Badge>
           <Badge variant="outline">Sin escrituras en producción</Badge>
+          {profileContext.isDemoProfile ? <Badge variant="outline">Perfil de prueba</Badge> : null}
         </div>
         <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-4xl">
           Prepara el curso sin buscarlo todo desde cero
