@@ -22,7 +22,7 @@ const steps = [
   },
 ]
 
-export function HowItWorks({ showMyCourseBeta = false }: { showMyCourseBeta?: boolean }) {
+export function HowItWorks() {
   return (
     <section className="bg-background py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
@@ -49,11 +49,6 @@ export function HowItWorks({ showMyCourseBeta = false }: { showMyCourseBeta?: bo
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {step.description}
                 </p>
-                {showMyCourseBeta && step.step === "02" ? (
-                  <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                    Si necesitas varias cosas a la vez, puedes organizar todo el curso desde Mi curso.
-                  </p>
-                ) : null}
               </CardContent>
             </Card>
           ))}
