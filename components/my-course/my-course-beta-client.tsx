@@ -345,7 +345,7 @@ export default function MyCourseBetaClient({
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-10">
       <div className="mb-3">
         <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-          <Link href="/beta">← Inicio beta</Link>
+          <Link href="/beta">← Otras opciones</Link>
         </Button>
       </div>
 
