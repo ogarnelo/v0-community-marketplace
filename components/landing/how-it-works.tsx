@@ -51,12 +51,9 @@ export function HowItWorks({ showMyCourseBeta = false }: { showMyCourseBeta?: bo
                   {step.description}
                 </p>
                 {showMyCourseBeta && step.step === "02" ? (
-                  <Link
-                    href="/beta/mi-curso"
-                    className="mt-4 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  >
-                    ¿Necesitas varias cosas? Prepara tu curso →
-                  </Link>
+                  <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                    Si necesitas varias cosas a la vez, puedes organizar todo el curso desde Mi curso.
+                  </p>
                 ) : null}
               </CardContent>
             </Card>
