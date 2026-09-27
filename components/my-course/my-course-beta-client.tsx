@@ -106,6 +106,7 @@ export default function MyCourseBetaClient({
   const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [incomingVisible, setIncomingVisible] = useState(Boolean(incomingNeed));
 
   useEffect(() => {
     try {
@@ -258,6 +259,7 @@ export default function MyCourseBetaClient({
       setMessage("Añadido a Mi curso. Wetudy comprobará las opciones disponibles.");
     }
 
+    setIncomingVisible(false);
     window.history.replaceState({}, "", "/beta/mi-curso");
   }
 
@@ -419,7 +421,7 @@ export default function MyCourseBetaClient({
         </div>
       ) : null}
 
-      {incomingNeed && state.learners.length > 0 ? (
+      {incomingNeed && incomingVisible && state.learners.length > 0 ? (
         <Card className="mb-5 border-primary/20 bg-primary/5">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
