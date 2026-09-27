@@ -14,6 +14,8 @@ const howItWorks = read("components/landing/how-it-works.tsx");
 const accountPage = read("app/account/page.tsx");
 const authPage = read("app/auth/page.tsx");
 const betaLayout = read("app/beta/layout.tsx");
+const onboardingPage = read("app/beta/onboarding/page.tsx");
+const onboardingClient = read("components/my-course/onboarding-beta-client.tsx");
 
 test("Mi curso remains preview-only and requires a user except for the explicit preview demo", () => {
   assert.match(page, /VERCEL_ENV === "preview"/);
@@ -26,25 +28,53 @@ test("Mi curso remains preview-only and requires a user except for the explicit 
 test("Beta 0 performs no Supabase writes and stores experiment data locally", () => {
   assert.match(client, /localStorage/);
   assert.match(client, /wetudy_my_course_beta_v0/);
+  assert.match(onboardingClient, /wetudy_onboarding_beta_v1/);
   assert.doesNotMatch(client, /fetch\("\/api\/beta/);
   assert.doesNotMatch(page, /\.insert\(/);
   assert.doesNotMatch(page, /\.update\(/);
   assert.doesNotMatch(page, /\.delete\(/);
 });
 
-test("logged-in users reuse school and grade from their profile", () => {
-  assert.match(page, /select\("school_id, grade_level"\)/);
+test("logged-in users reuse school grade and account type from their profile", () => {
+  assert.match(page, /select\("school_id, grade_level, user_type"\)/);
   assert.match(client, /profileContext\.schoolId/);
   assert.match(client, /profileContext\.gradeLevel/);
-  assert.match(client, /label: "Mi curso"/);
+  assert.match(client, /profileContext\.userType/);
   assert.match(client, /Ya conocemos tu centro y curso/);
 });
 
-test("preview can simulate a configured profile without weakening real auth", () => {
-  assert.match(authPage, /Probar interfaz autenticada/);
-  assert.match(authPage, /\/marketplace\?profile_demo=1/);
+test("preview onboarding is two short steps and does not collect minor names", () => {
+  assert.match(onboardingPage, /VERCEL_ENV !== "preview"/);
+  assert.match(onboardingClient, /1 · Cuenta/);
+  assert.match(onboardingClient, /2 ·/);
+  assert.match(onboardingClient, /Código postal/);
+  assert.match(onboardingClient, /Soy estudiante/);
+  assert.match(onboardingClient, /Familia \/ tutor/);
+  assert.match(onboardingClient, /\+ Añadir otro estudiante|Añadir otro estudiante/);
+  assert.match(onboardingClient, /Entrar en Wetudy/);
+  assert.doesNotMatch(onboardingClient, /Nombre del estudiante|Fecha de nacimiento/);
+});
+
+test("preview auth links to the new onboarding without weakening real auth", () => {
+  assert.match(authPage, /Probar nuevo onboarding/);
+  assert.match(authPage, /\/beta\/onboarding/);
   assert.match(page, /isDemoProfile: true/);
-  assert.match(client, /Perfil de prueba/);
+});
+
+test("student and family accounts get different Mi curso behavior", () => {
+  assert.match(client, /accountType === "student"/);
+  assert.match(client, /Estudiante \{index \+ 1\}/);
+  assert.match(client, /\+ Añadir otro estudiante/);
+  assert.match(client, /Esta cuenta de estudiante gestiona únicamente su propio contexto educativo/);
+  assert.doesNotMatch(client, /Hijo\/a|hijo\/a|hijo|hija/);
+});
+
+test("Mi curso metrics and needs are scoped to the active student", () => {
+  assert.match(client, /activeLearnerId/);
+  assert.match(client, /activeLearner/);
+  assert.match(client, /visibleLearners/);
+  assert.match(client, /activeMetrics/);
+  assert.match(client, /setActiveLearnerId/);
 });
 
 test("landing contains no Mi curso acquisition CTA", () => {
@@ -57,8 +87,6 @@ test("Mi curso is a logged-in navigation destination directly after Marketplace"
   assert.match(navbar, /href: "\/marketplace", label: "Marketplace"[\s\S]*href: myCourseHref, label: "Mi curso"/);
   assert.match(navbar, /GraduationCap/);
   assert.match(navbar, /if \(href === "\/beta\/mi-curso"\)/);
-  assert.match(navbar, /previewDemoLoggedIn/);
-  assert.match(navbar, /Perfil de prueba/);
   assert.match(betaLayout, /<Navbar/);
   assert.match(betaLayout, /getNavbarData/);
   assert.match(betaLayout, /<Footer \/>/);
@@ -71,10 +99,6 @@ test("Marketplace shows Mi curso only for authenticated preview users and beside
   assert.match(marketplaceClient, />Mi curso<\/Link>/);
   assert.match(marketplaceClient, /Mi curso[\s\S]*Publicar anuncio/);
   assert.doesNotMatch(marketplaceClient, /MaterialModeSwitch/);
-});
-
-test("Mi cuenta does not duplicate the Mi curso entry point", () => {
-  assert.doesNotMatch(accountPage, /href: "\/beta\/mi-curso"/);
 });
 
 test("course metrics distinguish covered needs from visible product options", () => {
