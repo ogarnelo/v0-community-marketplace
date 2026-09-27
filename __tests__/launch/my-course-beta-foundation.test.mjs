@@ -77,7 +77,7 @@ test("Mi cuenta manages students later without repeating the onboarding", () => 
 
 test("student and family accounts get different Mi curso behavior", () => {
   assert.match(client, /accountType === "student"/);
-  assert.match(client, /Estudiante \{index \+ 1\}/);
+  assert.match(client, /learner\.label \|\| "Estudiante " \+ \(index \+ 1\)/);
   assert.match(client, /\+ Añadir otro estudiante/);
   assert.match(client, /Esta cuenta de estudiante gestiona únicamente su propio contexto educativo/);
   assert.doesNotMatch(client, /"Hijo\/a|>Hijo\/a|hijo\/a o|otro hijo|otra hija/i);
