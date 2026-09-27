@@ -195,6 +195,9 @@ export function Navbar({
   const myCourseHref = previewDemoLoggedIn && !isLoggedIn
     ? "/beta/mi-curso?profile_demo=1"
     : "/beta/mi-curso";
+  const accountHref = previewDemoLoggedIn && !isLoggedIn
+    ? "/beta/cuenta?profile_demo=1"
+    : "/account";
   const publishHref = effectiveLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
   const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = effectiveDisplayName.trim().charAt(0).toUpperCase() || "U";
@@ -296,7 +299,7 @@ export function Navbar({
           ))}
 
           <Button asChild variant="ghost" className="min-h-11 w-full justify-start gap-2">
-            <Link href="/account" onClick={() => setOpen(false)}>
+            <Link href={accountHref} onClick={() => setOpen(false)}>
               <User className="h-4 w-4" />
               Mi cuenta
             </Link>
@@ -433,7 +436,7 @@ export function Navbar({
 
                   <DropdownMenuContent align="end" sideOffset={8} collisionPadding={12} className="w-56">
                     <DropdownMenuItem asChild>
-                      <Link href="/account" className="gap-2">
+                      <Link href={accountHref} className="gap-2">
                         <User className="h-4 w-4" />
                         Mi cuenta
                       </Link>
