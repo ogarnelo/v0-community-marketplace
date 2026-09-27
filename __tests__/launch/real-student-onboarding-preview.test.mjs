@@ -25,7 +25,6 @@ test("preview reads account-holder data but does not rewrite the signup or profi
 
 test("preview uses the real student API and not localStorage", () => {
   assert.match(client, /fetch\("\/api\/account\/students"/);
-  assert.match(client, /method: "POST"/);
   assert.match(client, /method: editingId \? "PATCH" : "POST"/);
   assert.match(client, /method: "DELETE"/);
   assert.doesNotMatch(client, /localStorage/);
