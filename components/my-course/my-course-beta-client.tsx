@@ -636,7 +636,15 @@ export default function MyCourseBetaClient({
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   <Badge variant="secondary">Pendiente</Badge>
                                   <Button asChild size="sm" variant="outline">
-                                    <Link href="/marketplace">Buscar manualmente</Link>
+                                    <Link
+                                      href={
+                                        need.isbn
+                                          ? "/marketplace?isbn=" + encodeURIComponent(need.isbn)
+                                          : "/marketplace?q=" + encodeURIComponent(need.title)
+                                      }
+                                    >
+                                      Buscar en Marketplace
+                                    </Link>
                                   </Button>
                                 </div>
                               </div>
