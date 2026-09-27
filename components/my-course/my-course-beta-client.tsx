@@ -260,7 +260,7 @@ export default function MyCourseBetaClient({
       label: accountType === "student" ? "Mi curso" : "Estudiante " + learnerIndex,
       schoolId,
       gradeLevel,
-      academicYear: String(formData.get("academicYear") || "2026/27"),
+      academicYear: profileContext.academicYear,
     };
 
     setState((current) => ({ ...current, learners: [...current.learners, learner] }));
@@ -438,8 +438,12 @@ export default function MyCourseBetaClient({
         </p>
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
           <div className="rounded-2xl bg-background/80 p-3">
-            <p className="text-xs font-semibold text-primary">1 · Tu curso</p>
-            <p className="mt-1 text-xs text-muted-foreground">Centro, curso y año académico.</p>
+            <p className="text-xs font-semibold text-primary">
+              1 · {accountType === "student" ? "Tu curso" : "Estudiante"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {accountType === "student" ? "Tu centro y curso." : "Centro y curso del estudiante."}
+            </p>
           </div>
           <div className="rounded-2xl bg-background/80 p-3">
             <p className="text-xs font-semibold text-primary">2 · Lo que necesitas</p>
@@ -577,13 +581,6 @@ export default function MyCourseBetaClient({
                     {gradeLevels.map((grade) => (
                       <option key={grade} value={grade}>{grade}</option>
                     ))}
-                  </select>
-                </label>
-                <label className="space-y-1.5 text-sm">
-                  <span className="font-medium">Año académico</span>
-                  <select name="academicYear" defaultValue="2026/27" className="h-11 w-full rounded-md border bg-background px-3">
-                    <option value="2026/27">2026/27</option>
-                    <option value="2027/28">2027/28</option>
                   </select>
                 </label>
                 <Button type="submit" className="sm:col-span-2">
@@ -831,10 +828,6 @@ export default function MyCourseBetaClient({
                       {gradeLevels.map((grade) => (
                         <option key={grade} value={grade}>{grade}</option>
                       ))}
-                    </select>
-                    <select name="academicYear" defaultValue="2026/27" className="h-11 rounded-md border bg-background px-3 text-sm">
-                      <option value="2026/27">2026/27</option>
-                      <option value="2027/28">2027/28</option>
                     </select>
                     <Button type="submit">Añadir estudiante</Button>
                   </form>
