@@ -113,8 +113,8 @@ test("the zero-cost beta includes a real-data demo and existing marketplace comp
 test("preview integration remains contextual without replacing current journeys", () => {
   assert.match(accountPage, /href: "\/beta\/mi-curso"/);
   assert.match(marketplacePage, /showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
-  assert.match(marketplaceClient, /¿Preparando todo el curso\?/);
-  assert.match(marketplaceClient, /Abrir Mi curso/);
+  assert.match(marketplaceClient, /¿Buscas varias cosas para el curso\?/);
+  assert.match(marketplaceClient, /Organízalas juntas/);
 });
 
 test("Mi curso can return to simple alternatives without technical wording", () => {
