@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { gradeLevels } from "@/lib/mock-data";
 import MyCourseBetaClient from "@/components/my-course/my-course-beta-client";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";\n\nexport const metadata = {\n  title: "Mi curso Beta | Wetudy",\n  robots: { index: false, follow: false },\n};
 
 function betaEnabled() {
   return process.env.VERCEL_ENV === "preview" || process.env.WETUDY_MY_COURSE_BETA_ENABLED === "true";
