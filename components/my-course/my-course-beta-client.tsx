@@ -49,6 +49,11 @@ type Need = {
 
 type LocalState = { learners: Learner[]; needs: Need[] };
 
+type IncomingNeed = {
+  title: string;
+  isbn: string;
+};
+
 type ProfileContext = {
   isLoggedIn: boolean;
   schoolId: string | null;
@@ -89,11 +94,13 @@ export default function MyCourseBetaClient({
   gradeLevels,
   listings,
   profileContext,
+  incomingNeed,
 }: {
   schools: SchoolOption[];
   gradeLevels: string[];
   listings: ListingSummary[];
   profileContext: ProfileContext;
+  incomingNeed: IncomingNeed | null;
 }) {
   const [state, setState] = useState<LocalState>({ learners: [], needs: [] });
   const [hydrated, setHydrated] = useState(false);
@@ -222,6 +229,36 @@ export default function MyCourseBetaClient({
 
     setState((current) => ({ ...current, learners: [...current.learners, learner] }));
     setMessage("Curso añadido. Ahora añade lo que necesitarás.");
+  }
+
+  function addIncomingNeed(learnerId: string) {
+    if (!incomingNeed) return;
+
+    const normalizedIncomingIsbn = normalizeIsbn(incomingNeed.isbn);
+    const normalizedIncomingTitle = normalizeText(incomingNeed.title);
+    const alreadyExists = state.needs.some(
+      (need) =>
+        need.learnerId === learnerId &&
+        ((normalizedIncomingIsbn && normalizeIsbn(need.isbn) === normalizedIncomingIsbn) ||
+          (!normalizedIncomingIsbn && normalizeText(need.title) === normalizedIncomingTitle))
+    );
+
+    if (alreadyExists) {
+      setMessage("Esta necesidad ya estaba en Mi curso.");
+    } else {
+      const need: Need = {
+        id: safeId("need"),
+        learnerId,
+        title: incomingNeed.title,
+        isbn: incomingNeed.isbn,
+        category: "Libros de texto",
+        createdAt: new Date().toISOString(),
+      };
+      setState((current) => ({ ...current, needs: [need, ...current.needs] }));
+      setMessage("Añadido a Mi curso. Wetudy comprobará las opciones disponibles.");
+    }
+
+    window.history.replaceState({}, "", "/beta/mi-curso");
   }
 
   function createNeed(learnerId: string, formData: FormData) {
@@ -380,6 +417,23 @@ export default function MyCourseBetaClient({
         <div className="mb-5 rounded-2xl border bg-muted/30 px-4 py-3 text-sm" role="status">
           {message}
         </div>
+      ) : null}
+
+      {incomingNeed && state.learners.length > 0 ? (
+        <Card className="mb-5 border-primary/20 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">Has llegado buscando esto</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {incomingNeed.title}
+                {incomingNeed.isbn ? " · ISBN " + incomingNeed.isbn : ""}
+              </p>
+            </div>
+            <Button type="button" size="sm" onClick={() => addIncomingNeed(state.learners[0].id)}>
+              Añadir a Mi curso
+            </Button>
+          </CardContent>
+        </Card>
       ) : null}
 
       {state.learners.length > 0 ? (
