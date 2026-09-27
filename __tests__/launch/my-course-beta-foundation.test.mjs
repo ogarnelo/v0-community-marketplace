@@ -41,8 +41,8 @@ test("logged-in users reuse school and grade from their profile", () => {
 });
 
 test("preview can simulate a configured profile without weakening real auth", () => {
-  assert.match(authPage, /Probar con perfil configurado/);
-  assert.match(authPage, /\/beta\/mi-curso\?profile_demo=1/);
+  assert.match(authPage, /Probar interfaz autenticada/);
+  assert.match(authPage, /\/marketplace\?profile_demo=1/);
   assert.match(page, /isDemoProfile: true/);
   assert.match(client, /Perfil de prueba/);
 });
@@ -57,14 +57,17 @@ test("Mi curso is a logged-in navigation destination directly after Marketplace"
   assert.match(navbar, /href: "\/marketplace", label: "Marketplace"[\s\S]*href: "\/beta\/mi-curso", label: "Mi curso"/);
   assert.match(navbar, /GraduationCap/);
   assert.match(navbar, /if \(href === "\/beta\/mi-curso"\)/);
+  assert.match(navbar, /previewDemoLoggedIn/);
+  assert.match(navbar, /Perfil de prueba/);
   assert.match(betaLayout, /<Navbar/);
   assert.match(betaLayout, /getNavbarData/);
   assert.match(betaLayout, /<Footer \/>/);
 });
 
 test("Marketplace shows Mi curso only for authenticated preview users and beside Publicar anuncio", () => {
-  assert.match(marketplacePage, /showMyCourseBeta=\{Boolean\(user\) && process\.env\.VERCEL_ENV === "preview"\}/);
-  assert.match(marketplaceClient, /href="\/beta\/mi-curso"/);
+  assert.match(marketplacePage, /Boolean\(user\) \|\| previewProfileDemo/);
+  assert.match(marketplacePage, /myCourseHref=/);
+  assert.match(marketplaceClient, /href=\{myCourseHref\}/);
   assert.match(marketplaceClient, />Mi curso<\/Link>/);
   assert.match(marketplaceClient, /Mi curso[\s\S]*Publicar anuncio/);
   assert.doesNotMatch(marketplaceClient, /MaterialModeSwitch/);
