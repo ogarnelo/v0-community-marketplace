@@ -17,6 +17,7 @@ type AccountType = "student" | "parent";
 
 type DraftStudent = {
   id: string;
+  alias: string;
   schoolId: string;
   gradeLevel: string;
   academicYear: string;
@@ -55,6 +56,7 @@ export default function OnboardingBetaClient({
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [postalCode, setPostalCode] = useState("");
   const [students, setStudents] = useState<DraftStudent[]>([]);
+  const [alias, setAlias] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [error, setError] = useState("");
@@ -69,7 +71,15 @@ export default function OnboardingBetaClient({
       return;
     }
     setError("");
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setStep(2);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      });
+    });
   }
 
   function addStudent() {
@@ -82,11 +92,13 @@ export default function OnboardingBetaClient({
       ...current,
       {
         id: safeId("student"),
+        alias: alias.trim(),
         schoolId,
         gradeLevel,
         academicYear,
       },
     ]);
+    setAlias("");
     setSchoolId("");
     setGradeLevel("");
     setError("");
@@ -97,14 +109,38 @@ export default function OnboardingBetaClient({
   }
 
   function finish() {
-    if (students.length === 0) {
+    let studentsToPersist = [...students];
+    const hasDraftStudent = Boolean(alias.trim() || schoolId || gradeLevel);
+
+    if (accountType === "parent" && hasDraftStudent) {
+      if (!schoolId || !gradeLevel) {
+        setError("Completa centro y curso del estudiante antes de continuar.");
+        return;
+      }
+
+      studentsToPersist = [
+        ...studentsToPersist,
+        {
+          id: safeId("student"),
+          alias: alias.trim(),
+          schoolId,
+          gradeLevel,
+          academicYear,
+        },
+      ];
+    }
+
+    if (studentsToPersist.length === 0) {
       setError(accountType === "student" ? "Añade tu centro y curso." : "Añade al menos un estudiante.");
       return;
     }
 
-    const learners = students.map((student, index) => ({
+    const learners = studentsToPersist.map((student, index) => ({
       id: student.id,
-      label: accountType === "student" ? "Mi curso" : "Estudiante " + (index + 1),
+      label:
+        accountType === "student"
+          ? "Mi curso"
+          : student.alias.trim() || "Estudiante " + (index + 1),
       schoolId: student.schoolId,
       gradeLevel: student.gradeLevel,
       academicYear: student.academicYear,
@@ -209,7 +245,7 @@ export default function OnboardingBetaClient({
                   value={postalCode}
                   onChange={(event) => setPostalCode(event.target.value.replace(/\D/g, "").slice(0, 5))}
                   placeholder="28001"
-                  className="h-11 w-full rounded-md border bg-background pl-10 pr-3"
+                  className="h-11 w-full rounded-md border bg-background pl-10 pr-3 text-base"
                 />
               </div>
               <p className="text-xs text-muted-foreground">Lo usamos para proximidad. No necesitamos tu dirección exacta.</p>
@@ -231,7 +267,7 @@ export default function OnboardingBetaClient({
                     <CardContent className="flex items-center justify-between gap-3 p-4">
                       <div className="min-w-0">
                         <p className="font-semibold">
-                          {accountType === "student" ? "Tu curso" : "Estudiante " + (index + 1)}
+                          {accountType === "student" ? "Tu curso" : student.alias || "Estudiante " + (index + 1)}
                         </p>
                         <p className="mt-1 truncate text-sm text-muted-foreground">
                           {school?.name || "Centro"} · {student.gradeLevel} · {student.academicYear}
@@ -263,6 +299,24 @@ export default function OnboardingBetaClient({
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
+                {accountType === "parent" ? (
+                  <label className="space-y-1.5 text-sm sm:col-span-2">
+                    <span className="font-medium">
+                      Nombre o alias <span className="font-normal text-muted-foreground">(opcional)</span>
+                    </span>
+                    <input
+                      value={alias}
+                      onChange={(event) => setAlias(event.target.value)}
+                      maxLength={60}
+                      autoComplete="off"
+                      placeholder="Ej. Ana, ESO, Estudiante mayor…"
+                      className="h-11 w-full rounded-md border bg-background px-3 text-base"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Solo sirve para identificarlo dentro de tu cuenta. Si lo dejas vacío usaremos Estudiante {students.length + 1}.
+                    </p>
+                  </label>
+                ) : null}
                 <label className="space-y-1.5 text-sm">
                   <span className="font-medium">Centro</span>
                   <select
