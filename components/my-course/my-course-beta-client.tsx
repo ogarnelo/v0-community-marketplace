@@ -212,6 +212,7 @@ export default function MyCourseBetaClient({
   }
 
   function resetBeta() {
+    if (!window.confirm("¿Borrar todos los hijos/cursos y necesidades guardados en este navegador?")) return;
     setState({ learners: [], needs: [] });
     setMessage("Datos locales de la beta eliminados.");
   }
@@ -330,6 +331,7 @@ export default function MyCourseBetaClient({
               <p className="mt-1 text-2xl font-bold">
                 {globalMetrics.potentialSavings > 0 ? euro(globalMetrics.potentialSavings) : "—"}
               </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Estimación cuando existe precio de referencia</p>
             </CardContent>
           </Card>
         </div>
@@ -348,31 +350,44 @@ export default function MyCourseBetaClient({
             </CardHeader>
             <CardContent>
               <form action={createLearner} className="grid gap-3 sm:grid-cols-2">
-                <input
-                  name="label"
-                  defaultValue="Hijo/a 1"
-                  maxLength={80}
-                  className="h-11 rounded-md border bg-background px-3"
-                />
-                <select name="schoolId" required className="h-11 rounded-md border bg-background px-3">
-                  <option value="">Selecciona centro</option>
-                  {schools.map((school) => (
-                    <option key={school.id} value={school.id}>
-                      {school.name}
-                      {school.city ? " · " + school.city : ""}
-                    </option>
-                  ))}
-                </select>
-                <select name="gradeLevel" required className="h-11 rounded-md border bg-background px-3">
-                  <option value="">Selecciona curso</option>
-                  {gradeLevels.map((grade) => (
-                    <option key={grade} value={grade}>{grade}</option>
-                  ))}
-                </select>
-                <select name="academicYear" defaultValue="2026/27" className="h-11 rounded-md border bg-background px-3">
-                  <option value="2026/27">2026/27</option>
-                  <option value="2027/28">2027/28</option>
-                </select>
+                <label className="space-y-1.5 text-sm">
+                  <span className="font-medium">Etiqueta <span className="font-normal text-muted-foreground">(sin nombre real)</span></span>
+                  <input
+                    name="label"
+                    defaultValue="Hijo/a 1"
+                    maxLength={80}
+                    autoComplete="off"
+                    className="h-11 w-full rounded-md border bg-background px-3"
+                  />
+                </label>
+                <label className="space-y-1.5 text-sm">
+                  <span className="font-medium">Centro</span>
+                  <select name="schoolId" required className="h-11 w-full rounded-md border bg-background px-3">
+                    <option value="">Selecciona centro</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.name}
+                        {school.city ? " · " + school.city : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-sm">
+                  <span className="font-medium">Curso</span>
+                  <select name="gradeLevel" required className="h-11 w-full rounded-md border bg-background px-3">
+                    <option value="">Selecciona curso</option>
+                    {gradeLevels.map((grade) => (
+                      <option key={grade} value={grade}>{grade}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-sm">
+                  <span className="font-medium">Año académico</span>
+                  <select name="academicYear" defaultValue="2026/27" className="h-11 w-full rounded-md border bg-background px-3">
+                    <option value="2026/27">2026/27</option>
+                    <option value="2027/28">2027/28</option>
+                  </select>
+                </label>
                 <Button type="submit" className="sm:col-span-2">
                   <Plus className="mr-2 h-4 w-4" /> Crear Mi curso
                 </Button>
