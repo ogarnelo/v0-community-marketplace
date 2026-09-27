@@ -366,7 +366,7 @@ export default function MyCourseBetaClient({
     const learnerId = safeId("demo");
     const learner: Learner = {
       id: learnerId,
-      label: "Ejemplo",
+      label: accountType === "student" ? "Mi curso" : "Estudiante 1",
       schoolId: preferredSchool.id,
       gradeLevel: firstListing?.gradeLevel || gradeLevels[0] || "2º ESO",
       academicYear: "2026/27",
@@ -395,19 +395,24 @@ export default function MyCourseBetaClient({
     setMessage("Ejemplo cargado con anuncios reales disponibles y una necesidad pendiente.");
   }
 
-  const globalMetrics = state.learners.reduce(
-    (acc, learner) => {
-      const metrics = metricsForLearner(learner);
-      acc.total += metrics.total;
-      acc.coveredNeeds += metrics.coveredNeeds;
-      acc.pending += metrics.pending;
-      acc.visibleOptions += metrics.visibleOptions;
-      acc.sameSchoolOptions += metrics.sameSchoolOptions;
-      acc.potentialSavings += metrics.potentialSavings;
-      return acc;
-    },
-    { total: 0, coveredNeeds: 0, pending: 0, visibleOptions: 0, sameSchoolOptions: 0, potentialSavings: 0 }
-  );
+  const activeLearner =
+    state.learners.find((learner) => learner.id === activeLearnerId) ||
+    state.learners[0] ||
+    null;
+
+  const activeMetrics = activeLearner
+    ? metricsForLearner(activeLearner)
+    : {
+        total: 0,
+        coveredNeeds: 0,
+        pending: 0,
+        visibleOptions: 0,
+        sameSchoolOptions: 0,
+        coverage: 0,
+        potentialSavings: 0,
+      };
+
+  const visibleLearners = activeLearner ? [activeLearner] : [];
 
   if (!hydrated) {
     return (
@@ -463,11 +468,31 @@ export default function MyCourseBetaClient({
                 {incomingNeed.isbn ? " · ISBN " + incomingNeed.isbn : ""}
               </p>
             </div>
-            <Button type="button" size="sm" onClick={() => addIncomingNeed(state.learners[0].id)}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => addIncomingNeed(activeLearnerId || state.learners[0].id)}
+            >
               Añadir a Mi curso
             </Button>
           </CardContent>
         </Card>
+      ) : null}
+
+      {accountType === "parent" && state.learners.length > 1 ? (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {state.learners.map((learner, index) => (
+            <Button
+              key={learner.id}
+              type="button"
+              size="sm"
+              variant={activeLearner?.id === learner.id ? "default" : "outline"}
+              onClick={() => setActiveLearnerId(learner.id)}
+            >
+              Estudiante {index + 1}
+            </Button>
+          ))}
+        </div>
       ) : null}
 
       {state.learners.length > 0 ? (
@@ -475,26 +500,26 @@ export default function MyCourseBetaClient({
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Necesidades</p>
-              <p className="mt-1 text-2xl font-bold">{globalMetrics.total}</p>
+              <p className="mt-1 text-2xl font-bold">{activeMetrics.total}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Necesidades cubiertas</p>
-              <p className="mt-1 text-2xl font-bold">{globalMetrics.coveredNeeds}</p>
+              <p className="mt-1 text-2xl font-bold">{activeMetrics.coveredNeeds}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Opciones en tu centro</p>
-              <p className="mt-1 text-2xl font-bold">{globalMetrics.sameSchoolOptions}</p>
+              <p className="mt-1 text-2xl font-bold">{activeMetrics.sameSchoolOptions}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Ahorro potencial</p>
               <p className="mt-1 text-2xl font-bold">
-                {globalMetrics.potentialSavings > 0 ? euro(globalMetrics.potentialSavings) : "—"}
+                {activeMetrics.potentialSavings > 0 ? euro(activeMetrics.potentialSavings) : "—"}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">Estimación cuando existe precio de referencia</p>
             </CardContent>
@@ -521,26 +546,18 @@ export default function MyCourseBetaClient({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5" /> Añade el primer curso
+                <GraduationCap className="h-5 w-5" />
+                {accountType === "student" ? "Configura tu curso" : "Añade el primer estudiante"}
               </CardTitle>
               <CardDescription>
-                {profileContext.isLoggedIn
-                  ? "Solo tienes que rellenarlo si quieres añadir otro hijo/a o tu perfil no tiene centro y curso."
-                  : "No necesitamos datos personales del menor. Basta una etiqueta, el centro y el curso."}
+                {accountType === "student"
+                  ? "Solo necesitamos tu centro y curso."
+                  : "No necesitamos nombre ni otros datos personales del estudiante. Solo centro y curso."}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form action={createLearner} className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1.5 text-sm">
-                  <span className="font-medium">Etiqueta <span className="font-normal text-muted-foreground">(sin nombre real)</span></span>
-                  <input
-                    name="label"
-                    defaultValue="Hijo/a 1"
-                    maxLength={80}
-                    autoComplete="off"
-                    className="h-11 w-full rounded-md border bg-background px-3"
-                  />
-                </label>
+
                 <label className="space-y-1.5 text-sm">
                   <span className="font-medium">Centro</span>
                   <select name="schoolId" required className="h-11 w-full rounded-md border bg-background px-3">
@@ -570,7 +587,8 @@ export default function MyCourseBetaClient({
                   </select>
                 </label>
                 <Button type="submit" className="sm:col-span-2">
-                  <Plus className="mr-2 h-4 w-4" /> Crear Mi curso
+                  <Plus className="mr-2 h-4 w-4" />
+                  {accountType === "student" ? "Guardar mi curso" : "Añadir estudiante"}
                 </Button>
               </form>
             </CardContent>
@@ -592,7 +610,7 @@ export default function MyCourseBetaClient({
         </div>
       ) : (
         <div className="space-y-6">
-          {state.learners.map((learner) => {
+          {visibleLearners.map((learner) => {
             const learnerNeeds = state.needs.filter((need) => need.learnerId === learner.id);
             const metrics = metricsForLearner(learner);
             const school = schoolById.get(learner.schoolId);
@@ -796,41 +814,36 @@ export default function MyCourseBetaClient({
 
           <Card className="border-dashed">
             <CardContent className="space-y-4 p-5">
-              {profileContext.isLoggedIn ? (
+              {accountType !== "student" ? (
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium text-primary">
+                    + Añadir otro estudiante
+                  </summary>
+                  <form action={createLearner} className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <select name="schoolId" required className="h-11 rounded-md border bg-background px-3 text-sm">
+                      <option value="">Selecciona centro</option>
+                      {schools.map((school) => (
+                        <option key={school.id} value={school.id}>{school.name}</option>
+                      ))}
+                    </select>
+                    <select name="gradeLevel" required className="h-11 rounded-md border bg-background px-3 text-sm">
+                      <option value="">Selecciona curso</option>
+                      {gradeLevels.map((grade) => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                    <select name="academicYear" defaultValue="2026/27" className="h-11 rounded-md border bg-background px-3 text-sm">
+                      <option value="2026/27">2026/27</option>
+                      <option value="2027/28">2027/28</option>
+                    </select>
+                    <Button type="submit">Añadir estudiante</Button>
+                  </form>
+                </details>
+              ) : (
                 <p className="text-xs text-muted-foreground">
-                  Tu curso principal parte de los datos de Mi cuenta. Añade otro solo si necesitas gestionar más de un hijo/a o centro.
+                  Esta cuenta de estudiante gestiona únicamente su propio contexto educativo.
                 </p>
-              ) : null}
-              <details>
-                <summary className="cursor-pointer text-sm font-medium text-primary">
-                  + Añadir otro hijo/a o curso
-                </summary>
-                <form action={createLearner} className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <input
-                    name="label"
-                    defaultValue={"Hijo/a " + (state.learners.length + 1)}
-                    maxLength={80}
-                    className="h-11 rounded-md border bg-background px-3 text-sm"
-                  />
-                  <select name="schoolId" required className="h-11 rounded-md border bg-background px-3 text-sm">
-                    <option value="">Selecciona centro</option>
-                    {schools.map((school) => (
-                      <option key={school.id} value={school.id}>{school.name}</option>
-                    ))}
-                  </select>
-                  <select name="gradeLevel" required className="h-11 rounded-md border bg-background px-3 text-sm">
-                    <option value="">Selecciona curso</option>
-                    {gradeLevels.map((grade) => (
-                      <option key={grade} value={grade}>{grade}</option>
-                    ))}
-                  </select>
-                  <select name="academicYear" defaultValue="2026/27" className="h-11 rounded-md border bg-background px-3 text-sm">
-                    <option value="2026/27">2026/27</option>
-                    <option value="2027/28">2027/28</option>
-                  </select>
-                  <Button type="submit" className="sm:col-span-2">Añadir curso</Button>
-                </form>
-              </details>
+              )}
               {!confirmingReset ? (
                 <Button
                   type="button"
