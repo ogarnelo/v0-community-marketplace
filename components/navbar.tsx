@@ -64,6 +64,7 @@ export function Navbar({
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(userName);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [previewDemoLoggedIn, setPreviewDemoLoggedIn] = useState(false);
 
   useEffect(() => {
     setDisplayName(userName || "Mi cuenta");
@@ -83,6 +84,11 @@ export function Navbar({
 
   useEffect(() => {
     setOpen(false);
+
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const isPreviewHost = window.location.hostname.endsWith(".vercel.app");
+    setPreviewDemoLoggedIn(isPreviewHost && params.get("profile_demo") === "1");
   }, [pathname]);
 
   useEffect(() => {
@@ -184,16 +190,21 @@ export function Navbar({
     };
   }, [currentUserId, open, pathname]);
 
-  const publishHref = isLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
+  const effectiveLoggedIn = isLoggedIn || previewDemoLoggedIn;
+  const effectiveDisplayName = previewDemoLoggedIn && !isLoggedIn ? "Perfil de prueba" : displayName;
+  const myCourseHref = previewDemoLoggedIn && !isLoggedIn
+    ? "/beta/mi-curso?profile_demo=1"
+    : "/beta/mi-curso";
+  const publishHref = effectiveLoggedIn ? "/marketplace/new" : "/auth?next=/marketplace/new";
   const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
-  const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
+  const avatarLetter = effectiveDisplayName.trim().charAt(0).toUpperCase() || "U";
   const showMessagesBadge = Boolean(currentUserId);
   const schoolAdminNavigation = effectiveAdminHref === "/admin/school";
 
   const navItems = useMemo(
     () => [
       { href: "/marketplace", label: "Marketplace", icon: BookOpen },
-      { href: "/beta/mi-curso", label: "Mi curso", icon: GraduationCap },
+      { href: myCourseHref, label: "Mi curso", icon: GraduationCap },
       { href: "/favorites", label: "Favoritos", icon: Heart },
       { href: publishHref, label: "Publicar", icon: Plus },
       { href: "/messages", label: "Mensajes", icon: MessageCircle },
@@ -201,7 +212,7 @@ export function Navbar({
         ? [{ href: "/admin/school?tab=access", label: "Código de colegio", icon: QrCode }]
         : []),
     ],
-    [publishHref, schoolAdminNavigation]
+    [myCourseHref, publishHref, schoolAdminNavigation]
   );
 
   const handleMobileLogout = async () => {
@@ -235,13 +246,13 @@ export function Navbar({
       className={`absolute right-0 top-full z-[60] max-h-[calc(100dvh-4rem)] w-[86%] max-w-80 overflow-y-auto overscroll-contain border-b border-l border-border bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl ${schoolAdminNavigation ? "min-[1180px]:hidden" : "md:hidden"}`}
     >
       <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
-        {isLoggedIn ? (
+        {effectiveLoggedIn ? (
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-10 w-10 shrink-0">
               <AvatarFallback className="bg-primary text-primary-foreground">{avatarLetter}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{effectiveDisplayName}</p>
               <p className="text-xs text-muted-foreground">Tu espacio personal</p>
             </div>
           </div>
@@ -260,7 +271,7 @@ export function Navbar({
         </Button>
       </div>
 
-      {isLoggedIn ? (
+      {effectiveLoggedIn ? (
         <nav className="flex flex-col gap-1 py-4">
           {navItems.map(({ href, label, icon: Icon }) => (
             <Button
@@ -373,7 +384,7 @@ export function Navbar({
           <span className="truncate font-mono text-xl font-bold tracking-tight text-foreground">Wetudy</span>
         </Link>
 
-        {isLoggedIn ? (
+        {effectiveLoggedIn ? (
           <>
             <nav className={schoolAdminNavigation ? "hidden items-center gap-1 min-[1180px]:flex" : "hidden items-center gap-1 md:flex"}>
               {navItems.map(({ href, label, icon: Icon }) => (
@@ -416,7 +427,7 @@ export function Navbar({
                           {avatarLetter}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="max-w-[180px] truncate text-sm font-medium">{displayName}</span>
+                      <span className="max-w-[180px] truncate text-sm font-medium">{effectiveDisplayName}</span>
                     </Button>
                   </DropdownMenuTrigger>
 
