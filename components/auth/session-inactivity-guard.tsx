@@ -115,15 +115,30 @@ export function SessionInactivityGuard() {
 
       const storedActivity = window.localStorage.getItem(activityKey);
       const parsedActivity = storedActivity ? Number(storedActivity) : NaN;
+      const lastSignInAt = user.last_sign_in_at
+        ? Date.parse(user.last_sign_in_at)
+        : NaN;
       const now = Date.now();
 
-      if (Number.isFinite(parsedActivity) && now - parsedActivity >= timeoutMs) {
+      // A stale activity marker can survive a previous logout/session expiry.
+      // If Supabase says this user signed in after that marker was written,
+      // this is a new session and the old inactivity timestamp must not eject it.
+      const activityBelongsToPreviousSession =
+        Number.isFinite(parsedActivity) &&
+        Number.isFinite(lastSignInAt) &&
+        parsedActivity < lastSignInAt;
+
+      if (
+        Number.isFinite(parsedActivity) &&
+        !activityBelongsToPreviousSession &&
+        now - parsedActivity >= timeoutMs
+      ) {
         await signOutForInactivity();
         return;
       }
 
-      // A navigation/refresh counts as activity only after we have verified
-      // that the previous session did not already exceed the inactivity limit.
+      // A fresh login, navigation or refresh starts/refreshes activity only
+      // after verifying that the current session itself was not already stale.
       lastWriteAt = now;
       window.localStorage.setItem(activityKey, String(now));
 

@@ -206,6 +206,14 @@ export function Navbar({
     setIsLoggingOut(true);
     try {
       const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user?.id) {
+        window.localStorage.removeItem(`wetudy:last-activity:${user.id}`);
+      }
+
       await supabase.auth.signOut();
       window.location.assign("/auth");
     } finally {
