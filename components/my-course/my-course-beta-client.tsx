@@ -49,7 +49,16 @@ type Need = {
 
 type LocalState = { learners: Learner[]; needs: Need[] };
 
+type ProfileContext = {
+  isLoggedIn: boolean;
+  schoolId: string | null;
+  schoolName: string | null;
+  gradeLevel: string | null;
+  academicYear: string;
+};
+
 const STORAGE_KEY = "wetudy_my_course_beta_v0";
+const AUTO_PROFILE_SUPPRESS_KEY = "wetudy_my_course_beta_v0_suppress_profile";
 
 function normalizeText(value?: string | null) {
   return (value || "")
@@ -79,10 +88,12 @@ export default function MyCourseBetaClient({
   schools,
   gradeLevels,
   listings,
+  profileContext,
 }: {
   schools: SchoolOption[];
   gradeLevels: string[];
   listings: ListingSummary[];
+  profileContext: ProfileContext;
 }) {
   const [state, setState] = useState<LocalState>({ learners: [], needs: [] });
   const [hydrated, setHydrated] = useState(false);
@@ -92,18 +103,43 @@ export default function MyCourseBetaClient({
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
+      const suppressProfile = window.localStorage.getItem(AUTO_PROFILE_SUPPRESS_KEY) === "1";
+
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.learners) && Array.isArray(parsed?.needs)) {
-          setState({ learners: parsed.learners, needs: parsed.needs });
+          if (parsed.learners.length > 0 || suppressProfile) {
+            setState({ learners: parsed.learners, needs: parsed.needs });
+            return;
+          }
         }
+      }
+
+      if (
+        !suppressProfile &&
+        profileContext.isLoggedIn &&
+        profileContext.schoolId &&
+        profileContext.gradeLevel
+      ) {
+        setState({
+          learners: [
+            {
+              id: "profile-course",
+              label: "Mi curso",
+              schoolId: profileContext.schoolId,
+              gradeLevel: profileContext.gradeLevel,
+              academicYear: profileContext.academicYear,
+            },
+          ],
+          needs: [],
+        });
       }
     } catch {
       // La beta debe seguir funcionando aunque el almacenamiento local falle.
     } finally {
       setHydrated(true);
     }
-  }, []);
+  }, [profileContext]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -172,6 +208,7 @@ export default function MyCourseBetaClient({
 
   function createLearner(formData: FormData) {
     const schoolId = String(formData.get("schoolId") || "");
+    window.localStorage.removeItem(AUTO_PROFILE_SUPPRESS_KEY);
     const gradeLevel = String(formData.get("gradeLevel") || "");
     if (!schoolId || !gradeLevel) return;
 
@@ -213,9 +250,28 @@ export default function MyCourseBetaClient({
   }
 
   function resetBeta() {
+    window.localStorage.setItem(AUTO_PROFILE_SUPPRESS_KEY, "1");
     setState({ learners: [], needs: [] });
     setConfirmingReset(false);
     setMessage("Datos locales de la beta eliminados.");
+  }
+
+  function restoreProfileCourse() {
+    if (!profileContext.schoolId || !profileContext.gradeLevel) return;
+    window.localStorage.removeItem(AUTO_PROFILE_SUPPRESS_KEY);
+    setState({
+      learners: [
+        {
+          id: "profile-course",
+          label: "Mi curso",
+          schoolId: profileContext.schoolId,
+          gradeLevel: profileContext.gradeLevel,
+          academicYear: profileContext.academicYear,
+        },
+      ],
+      needs: [],
+    });
+    setMessage("Hemos recuperado el centro y curso de tu perfil.");
   }
 
   function loadDemo() {
@@ -360,13 +416,29 @@ export default function MyCourseBetaClient({
 
       {state.learners.length === 0 ? (
         <div className="space-y-4">
+          {profileContext.isLoggedIn && profileContext.schoolId && profileContext.gradeLevel ? (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">Ya conocemos tu centro y curso</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {profileContext.schoolName} · {profileContext.gradeLevel}
+                  </p>
+                </div>
+                <Button type="button" onClick={restoreProfileCourse}>Usar los datos de mi perfil</Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <GraduationCap className="h-5 w-5" /> Añade el primer curso
               </CardTitle>
               <CardDescription>
-                No necesitamos datos personales del menor. Basta una etiqueta, el centro y el curso.
+                {profileContext.isLoggedIn
+                  ? "Solo tienes que rellenarlo si quieres añadir otro hijo/a o tu perfil no tiene centro y curso."
+                  : "No necesitamos datos personales del menor. Basta una etiqueta, el centro y el curso."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -626,6 +698,11 @@ export default function MyCourseBetaClient({
 
           <Card className="border-dashed">
             <CardContent className="space-y-4 p-5">
+              {profileContext.isLoggedIn ? (
+                <p className="text-xs text-muted-foreground">
+                  Tu curso principal parte de los datos de Mi cuenta. Añade otro solo si necesitas gestionar más de un hijo/a o centro.
+                </p>
+              ) : null}
               <details>
                 <summary className="cursor-pointer text-sm font-medium text-primary">
                   + Añadir otro hijo/a o curso
