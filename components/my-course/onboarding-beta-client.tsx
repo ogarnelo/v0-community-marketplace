@@ -295,7 +295,7 @@ export default function OnboardingBetaClient({
                       : "Añadir otro estudiante"}
                 </CardTitle>
                 <CardDescription>
-                  No pedimos nombre, edad ni otros datos personales del estudiante.
+                  El nombre o alias es opcional. Para personalizar Wetudy solo necesitamos centro y curso.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -313,7 +313,7 @@ export default function OnboardingBetaClient({
                       className="h-11 w-full rounded-md border bg-background px-3 text-base"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Solo sirve para identificarlo dentro de tu cuenta. Si lo dejas vacío usaremos Estudiante {students.length + 1}.
+                      Solo sirve para identificarlo dentro de tu cuenta. Puedes usar un alias; si lo dejas vacío usaremos Estudiante {students.length + 1}.
                     </p>
                   </label>
                 ) : null}
