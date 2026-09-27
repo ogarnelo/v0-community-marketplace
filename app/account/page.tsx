@@ -143,6 +143,18 @@ export default async function AccountPage() {
   const averageRatingLabel = typeof stats.averageRating === "number" ? stats.averageRating.toFixed(1) : "—";
   const badges = stats.badgesForUserType(userType);
   const contactReady = Boolean(typedProfile?.phone || typedProfile?.shipping_city || typedProfile?.postal_code);
+  const effectiveQuickActions =
+    process.env.VERCEL_ENV === "preview"
+      ? [
+          {
+            href: "/beta/mi-curso",
+            label: "Mi curso",
+            helper: "Prepara el próximo curso",
+            icon: GraduationCap,
+          },
+          ...quickActions,
+        ]
+      : quickActions;
 
   return (
     <div className="min-h-screen bg-muted/20">
@@ -181,7 +193,7 @@ export default async function AccountPage() {
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2.5 sm:mb-5 sm:grid-cols-4 sm:gap-3 xl:grid-cols-8">
-          {quickActions.map((action) => {
+          {effectiveQuickActions.map((action) => {
             const Icon = action.icon;
             return (
               <Link key={action.href} href={action.href} className="min-w-0 rounded-2xl border bg-background p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4">
