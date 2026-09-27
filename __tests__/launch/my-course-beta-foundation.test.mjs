@@ -102,3 +102,14 @@ test("Mi curso can return to simple alternatives without technical wording", () 
   assert.match(client, /href="\/beta"/);
   assert.match(client, /Otras opciones/);
 });
+
+test("Mi curso and Marketplace preserve the user's need in both directions", () => {
+  assert.match(client, /\/marketplace\?isbn=/);
+  assert.match(client, /\/marketplace\?q=/);
+  assert.match(marketplaceClient, /params\.get\("q"\)/);
+  assert.match(marketplaceClient, /params\.get\("isbn"\)/);
+  assert.match(marketplaceClient, /Añadir a Mi curso/);
+  assert.match(marketplaceClient, /\/beta\/mi-curso\?add=/);
+  assert.match(page, /searchParams/);
+  assert.match(client, /Has llegado buscando esto/);
+});
