@@ -34,13 +34,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "need_required" }, { status: 400 });
     }
 
-    const { data: learner, error: learnerError } = await supabase
-      .from("family_learners")
-      .select("id, school_id, grade_level")
-      .eq("id", learnerId)
-      .eq("parent_user_id", user.id)
-      .eq("active", true)
-      .maybeSingle();
+    const [{ data: learner, error: learnerError }, { data: profile }] = await Promise.all([
+      supabase
+        .from("family_learners")
+        .select("id, school_id, grade_level")
+        .eq("id", learnerId)
+        .eq("parent_user_id", user.id)
+        .eq("active", true)
+        .maybeSingle(),
+      supabase.from("profiles").select("school_id").eq("id", user.id).maybeSingle(),
+    ]);
 
     if (learnerError) throw learnerError;
     if (!learner) {
@@ -49,7 +52,7 @@ export async function POST(request: Request) {
 
     const allowed = await canUseMyCourseBeta({
       userId: user.id,
-      schoolIds: [learner.school_id],
+      linkedSchoolIds: [profile?.school_id],
     });
 
     if (!allowed) {
