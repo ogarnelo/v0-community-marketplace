@@ -78,18 +78,19 @@ test("mobile reset uses an in-page confirmation instead of browser confirm", () 
   assert.doesNotMatch(client, /window\.confirm/);
 });
 
-test("landing hero keeps the original balanced structure", () => {
+test("landing keeps its original hero structure while exposing one compact preview CTA", () => {
   assert.doesNotMatch(hero, /Prepara el curso completo/);
-  assert.doesNotMatch(hero, /showMyCourseBeta/);
+  assert.match(hero, /showMyCourseBeta/);
   assert.match(hero, /Crear cuenta gratis/);
   assert.match(hero, /Explorar material/);
-  assert.match(landingPage, /<HeroSection \/>/);
+  assert.match(hero, /Preparar mi curso/);
+  assert.match(landingPage, /<HeroSection showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
 });
 
-test("Mi curso discovery is integrated contextually inside Cómo funciona", () => {
+test("Cómo funciona reinforces Mi curso without adding a second CTA", () => {
   assert.match(landingPage, /<HowItWorks showMyCourseBeta=/);
-  assert.match(howItWorks, /¿Necesitas varias cosas\? Prepara tu curso/);
-  assert.match(howItWorks, /href="\/beta\/mi-curso"/);
+  assert.match(howItWorks, /Si necesitas varias cosas a la vez/);
+  assert.doesNotMatch(howItWorks, /href="\/beta\/mi-curso"/);
 });
 
 test("the options page is expressed as plain user intentions", () => {
@@ -110,16 +111,11 @@ test("the zero-cost beta includes a real-data demo and existing marketplace comp
   assert.match(client, /Ver y contactar/);
 });
 
-test("preview integration remains contextual without replacing current journeys", () => {
+test("preview integration uses one shared mode selector between Marketplace and Mi curso", () => {
   assert.match(accountPage, /href: "\/beta\/mi-curso"/);
   assert.match(marketplacePage, /showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
-  assert.match(marketplaceClient, /¿Buscas varias cosas para el curso\?/);
-  assert.match(marketplaceClient, /Organízalas juntas/);
-});
-
-test("Mi curso can return to simple alternatives without technical wording", () => {
-  assert.match(client, /href="\/beta"/);
-  assert.match(client, /Otras opciones/);
+  assert.match(marketplaceClient, /MaterialModeSwitch active="marketplace"/);
+  assert.match(client, /MaterialModeSwitch active="course"/);
 });
 
 test("Mi curso and Marketplace preserve the user's need in both directions", () => {
