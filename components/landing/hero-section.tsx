@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Leaf, Users, MapPin } from "lucide-react"
+import { ArrowRight, GraduationCap, Leaf, Users, MapPin } from "lucide-react"
 
 export function HeroSection() {
   return (
@@ -23,7 +23,7 @@ export function HeroSection() {
             Wetudy reúne a familias y estudiantes de una misma comunidad para ahorrar en cada curso y dar una segunda vida a libros, uniformes y material escolar.
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
             <Link href="/auth?mode=signup">
               <Button size="lg" className="gap-2 px-8">
                 Crear cuenta gratis
@@ -33,6 +33,12 @@ export function HeroSection() {
             <Link href="/marketplace">
               <Button variant="outline" size="lg" className="px-8">
                 Explorar material
+              </Button>
+            </Link>
+            <Link href="/beta/mi-curso">
+              <Button variant="ghost" size="lg" className="gap-2 px-5 text-primary hover:text-primary">
+                <GraduationCap className="h-4 w-4" />
+                Preparar mi curso
               </Button>
             </Link>
           </div>
