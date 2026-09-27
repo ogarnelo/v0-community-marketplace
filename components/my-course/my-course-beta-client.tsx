@@ -140,13 +140,24 @@ export default function MyCourseBetaClient({
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.learners) && Array.isArray(parsed?.needs)) {
           if (parsed.learners.length > 0 || suppressProfile) {
-            const normalizedLearners = parsed.learners.map((learner: Learner, index: number) => ({
-              ...learner,
-              label:
-                resolvedAccountType === "student"
-                  ? "Mi curso"
-                  : "Estudiante " + (index + 1),
-            }));
+            const normalizedLearners = parsed.learners.map((learner: Learner, index: number) => {
+              const currentLabel = String(learner.label || "").trim();
+              const isLegacyLabel =
+                !currentLabel ||
+                /^hijo\/?a?\b/i.test(currentLabel) ||
+                /^hija\b/i.test(currentLabel) ||
+                currentLabel === "Mi curso";
+
+              return {
+                ...learner,
+                label:
+                  resolvedAccountType === "student"
+                    ? "Mi curso"
+                    : isLegacyLabel
+                      ? "Estudiante " + (index + 1)
+                      : currentLabel,
+              };
+            });
             setState({ learners: normalizedLearners, needs: parsed.needs });
             return;
           }
@@ -268,9 +279,13 @@ export default function MyCourseBetaClient({
     if (!schoolId || !gradeLevel) return;
 
     const learnerIndex = state.learners.length + 1;
+    const alias = String(formData.get("alias") || "").trim();
     const learner: Learner = {
       id: safeId("learner"),
-      label: accountType === "student" ? "Mi curso" : "Estudiante " + learnerIndex,
+      label:
+        accountType === "student"
+          ? "Mi curso"
+          : alias || "Estudiante " + learnerIndex,
       schoolId,
       gradeLevel,
       academicYear: profileContext.academicYear,
@@ -506,7 +521,7 @@ export default function MyCourseBetaClient({
               variant={activeLearner?.id === learner.id ? "default" : "outline"}
               onClick={() => setActiveLearnerId(learner.id)}
             >
-              Estudiante {index + 1}
+              {learner.label || "Estudiante " + (index + 1)}
             </Button>
           ))}
         </div>
@@ -574,6 +589,20 @@ export default function MyCourseBetaClient({
             </CardHeader>
             <CardContent>
               <form action={createLearner} className="grid gap-3 sm:grid-cols-2">
+                {accountType !== "student" ? (
+                  <label className="space-y-1.5 text-sm sm:col-span-2">
+                    <span className="font-medium">
+                      Nombre o alias <span className="font-normal text-muted-foreground">(opcional)</span>
+                    </span>
+                    <input
+                      name="alias"
+                      maxLength={60}
+                      autoComplete="off"
+                      placeholder="Ej. Ana, ESO, Estudiante mayor…"
+                      className="h-11 w-full rounded-md border bg-background px-3 text-base"
+                    />
+                  </label>
+                ) : null}
 
                 <label className="space-y-1.5 text-sm">
                   <span className="font-medium">Centro</span>
@@ -830,6 +859,18 @@ export default function MyCourseBetaClient({
                     + Añadir otro estudiante
                   </summary>
                   <form action={createLearner} className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1.5 text-sm sm:col-span-2">
+                      <span className="font-medium">
+                        Nombre o alias <span className="font-normal text-muted-foreground">(opcional)</span>
+                      </span>
+                      <input
+                        name="alias"
+                        maxLength={60}
+                        autoComplete="off"
+                        placeholder="Ej. Ana, ESO, Estudiante mayor…"
+                        className="h-11 w-full rounded-md border bg-background px-3 text-base"
+                      />
+                    </label>
                     <select name="schoolId" required className="h-11 rounded-md border bg-background px-3 text-sm">
                       <option value="">Selecciona centro</option>
                       {schools.map((school) => (
