@@ -4,7 +4,7 @@ import BetaJourneyHome from "@/components/my-course/beta-journey-home";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Journey Beta | Wetudy",
+  title: "¿Qué necesitas hacer? | Wetudy",
   robots: { index: false, follow: false },
 };
 
