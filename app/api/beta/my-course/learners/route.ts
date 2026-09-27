@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { canUseMyCourseBeta } from "@/lib/my-course/beta-access";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getMyCourseBetaAccess } from "@/lib/my-course/beta-access";
 
 function cleanText(value: unknown, maxLength = 80) {
   if (typeof value !== "string") return "";
@@ -37,16 +38,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "school_not_found" }, { status: 404 });
     }
 
-    const allowed = await canUseMyCourseBeta({
+    const access = await getMyCourseBetaAccess({
       userId: user.id,
-      schoolIds: [profile?.school_id, schoolId],
+      linkedSchoolIds: [profile?.school_id],
     });
 
-    if (!allowed) {
+    if (!access) {
       return NextResponse.json({ ok: false, error: "beta_not_enabled" }, { status: 404 });
     }
 
-    const { data, error } = await supabase
+    if (access === "school" && profile?.school_id !== schoolId) {
+      return NextResponse.json({ ok: false, error: "school_not_authorized" }, { status: 403 });
+    }
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
       .from("family_learners")
       .insert({
         parent_user_id: user.id,
