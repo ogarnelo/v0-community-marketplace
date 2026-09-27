@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { gradeLevels } from "@/lib/mock-data";
@@ -23,12 +23,17 @@ export default async function MyCourseBetaPage({
   if (!betaEnabled()) notFound();
 
   const params = await searchParams;
+  const previewProfileDemo = process.env.VERCEL_ENV === "preview" && params.profile_demo === "1";
   const supabase = await createClient();
   const admin = createAdminClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (!user && !previewProfileDemo) {
+    redirect("/auth?next=/beta/mi-curso");
+  }
 
   const [{ data: schools, error: schoolsError }, { data: listings, error: listingsError }, profileResult] =
     await Promise.all([
@@ -73,7 +78,6 @@ export default async function MyCourseBetaPage({
     ? (schools || []).find((school: any) => school.id === profileResult.data?.school_id) || null
     : null;
 
-  const previewProfileDemo = process.env.VERCEL_ENV === "preview" && params.profile_demo === "1";
   const demoSchool = previewProfileDemo ? (schools || [])[0] || null : null;
   const demoGrade = gradeLevels.includes("2º ESO") ? "2º ESO" : gradeLevels[0] || null;
 
