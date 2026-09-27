@@ -123,9 +123,15 @@ export default function MyCourseBetaClient({
       const onboardingRaw = window.localStorage.getItem(ONBOARDING_STORAGE_KEY);
       const suppressProfile = window.localStorage.getItem(AUTO_PROFILE_SUPPRESS_KEY) === "1";
 
+      let resolvedAccountType =
+        profileContext.userType === "student" || profileContext.userType === "parent"
+          ? profileContext.userType
+          : null;
+
       if (onboardingRaw) {
         const onboarding = JSON.parse(onboardingRaw);
         if (onboarding?.accountType === "student" || onboarding?.accountType === "parent") {
+          resolvedAccountType = onboarding.accountType;
           setAccountType(onboarding.accountType);
         }
       }
@@ -134,7 +140,14 @@ export default function MyCourseBetaClient({
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.learners) && Array.isArray(parsed?.needs)) {
           if (parsed.learners.length > 0 || suppressProfile) {
-            setState({ learners: parsed.learners, needs: parsed.needs });
+            const normalizedLearners = parsed.learners.map((learner: Learner, index: number) => ({
+              ...learner,
+              label:
+                resolvedAccountType === "student"
+                  ? "Mi curso"
+                  : "Estudiante " + (index + 1),
+            }));
+            setState({ learners: normalizedLearners, needs: parsed.needs });
             return;
           }
         }
