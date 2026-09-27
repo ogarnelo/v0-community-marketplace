@@ -7,6 +7,11 @@ const page = read("app/beta/mi-curso/page.tsx");
 const client = read("components/my-course/my-course-beta-client.tsx");
 const journeyPage = read("app/beta/page.tsx");
 const journeyClient = read("components/my-course/beta-journey-home.tsx");
+const accountPage = read("app/account/page.tsx");
+const marketplacePage = read("app/marketplace/page.tsx");
+const marketplaceClient = read("components/marketplace/marketplace-client.tsx");
+const landingPage = read("app/page.tsx");
+const hero = read("components/landing/hero-section.tsx");
 
 test("Mi curso Beta 0 is preview-only unless explicitly enabled", () => {
   assert.match(page, /VERCEL_ENV === "preview"/);
@@ -69,4 +74,19 @@ test("the zero-cost beta includes a real-data demo and existing marketplace comp
   assert.match(client, /anuncios reales/);
   assert.match(client, /\/marketplace\/listing\//);
   assert.match(client, /Ver y contactar/);
+});
+
+test("preview integration appears contextually without replacing current journeys", () => {
+  assert.match(landingPage, /showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
+  assert.match(hero, /¿Preparando el curso completo\?/);
+  assert.match(accountPage, /process\.env\.VERCEL_ENV === "preview"/);
+  assert.match(accountPage, /href: "\/beta\/mi-curso"/);
+  assert.match(marketplacePage, /showMyCourseBeta=\{process\.env\.VERCEL_ENV === "preview"\}/);
+  assert.match(marketplaceClient, /¿Preparando todo el curso\?/);
+  assert.match(marketplaceClient, /Abrir Mi curso/);
+});
+
+test("Mi curso can return to the intent-based beta home", () => {
+  assert.match(client, /href="\/beta"/);
+  assert.match(client, /Inicio beta/);
 });
