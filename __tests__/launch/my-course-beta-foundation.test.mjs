@@ -54,7 +54,7 @@ test("landing contains no Mi curso acquisition CTA", () => {
 });
 
 test("Mi curso is a logged-in navigation destination directly after Marketplace", () => {
-  assert.match(navbar, /href: "\/marketplace", label: "Marketplace"[\s\S]*href: "\/beta\/mi-curso", label: "Mi curso"/);
+  assert.match(navbar, /href: "\/marketplace", label: "Marketplace"[\s\S]*href: myCourseHref, label: "Mi curso"/);
   assert.match(navbar, /GraduationCap/);
   assert.match(navbar, /if \(href === "\/beta\/mi-curso"\)/);
   assert.match(navbar, /previewDemoLoggedIn/);
