@@ -100,6 +100,12 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const sharedQuery = params.get("q")?.trim() || "";
+    const sharedIsbn = params.get("isbn")?.trim() || "";
+
+    if (sharedQuery) setSearchQuery(sharedQuery);
+    if (sharedIsbn) setIsbnQuery(sharedIsbn);
+
     if (params.get("joined") !== "1") return;
 
     setShowSchoolInvite(true);
