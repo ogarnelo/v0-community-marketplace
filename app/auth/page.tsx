@@ -46,10 +46,10 @@ export default function AuthPage() {
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
               <p className="font-medium">Prueba del entorno Preview</p>
               <p className="mt-1 leading-5 text-amber-900/80">
-                El captcha del login real puede quedar bloqueado en este dominio temporal. Para revisar Mi curso como si tu perfil ya tuviera centro y curso, usa el modo de prueba.
+                El captcha del login real puede quedar bloqueado en este dominio temporal. Para revisar la navegación, Marketplace y Mi curso como si ya hubieras iniciado sesión, usa el modo de prueba.
               </p>
               <Button asChild size="sm" variant="outline" className="mt-3 bg-background">
-                <Link href="/beta/mi-curso?profile_demo=1">Probar con perfil configurado</Link>
+                <Link href="/marketplace?profile_demo=1">Probar interfaz autenticada</Link>
               </Button>
             </div>
           ) : null}
