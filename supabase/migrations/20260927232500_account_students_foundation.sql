@@ -9,7 +9,7 @@ create table if not exists public.account_students (
   owner_user_id uuid not null references public.profiles(id) on delete cascade,
   relationship text not null,
   alias text,
-  school_id uuid not null references public.schools(id) on delete restrict,
+  school_id uuid references public.schools(id) on delete set null,
   grade_level text not null,
   academic_year text not null,
   is_primary boolean not null default false,
