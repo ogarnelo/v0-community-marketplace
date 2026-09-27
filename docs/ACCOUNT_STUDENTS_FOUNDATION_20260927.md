@@ -2,90 +2,106 @@
 
 Fecha: 2026-09-27
 
-## Objetivo
+## Decisión tras auditoría
 
-Persistir el modelo validado en Preview:
+La primera migración real será una **Fase A estrictamente aditiva**.
 
-- una cuenta `student` administra su propio contexto educativo;
-- una cuenta `parent` puede administrar uno o varios estudiantes;
-- el Marketplace sigue siendo general;
-- `Mi curso`, recomendaciones y alertas pueden asociarse a un estudiante concreto.
+Solo crea `public.account_students`, sus índices y RLS.
+
+NO modifica ni escribe en ninguna tabla de producción existente.
+
+## Fase A
+
+Nueva tabla:
+
+- id
+- owner_user_id -> profiles.id
+- relationship: `self | guardian`
+- alias opcional
+- school_id
+- grade_level
+- academic_year
+- is_primary
+- active
+- sort_order
+- created_at / updated_at
+
+Seguridad:
+
+- RLS habilitado.
+- usuarios autenticados solo leen sus propios estudiantes;
+- INSERT / UPDATE / DELETE no se conceden al cliente;
+- futuras escrituras se harán server-side.
 
 ## Invariantes de compatibilidad
 
-Esta fase NO elimina ni cambia el significado actual de:
+Fase A NO altera:
 
+- `profiles`
 - `profiles.school_id`
 - `profiles.grade_level`
 - `profiles.postal_code`
+- `saved_searches`
+- `demand_requests`
 - `listings`
-- chat / conversations
-- agreements
+- `conversations`
+- `agreements`
 - diseño de `/account`
+- triggers de signup
+- funciones de administración
+- configuración de Vercel
 
-`profiles.school_id` y `profiles.grade_level` siguen funcionando como contexto principal de compatibilidad para el producto actual.
+No existe backfill en Fase A.
 
-## Cambios preparados
+La tabla se crea vacía.
 
-1. Tabla nueva `public.account_students`
-   - owner_user_id
-   - relationship: `self | guardian`
-   - alias opcional
-   - school_id
-   - grade_level
-   - academic_year
-   - is_primary
-   - active
-   - sort_order
+## Por qué se ha reducido el alcance
 
-2. Referencia opcional `student_id` en:
-   - `demand_requests`
-   - `saved_searches`
+La propuesta inicial también añadía `student_id` a `saved_searches` y `demand_requests` y copiaba contextos históricos desde `profiles`.
 
-3. Backfill conservador
-   - solo perfiles con `school_id` Y `grade_level`
-   - `student` -> relationship `self`
-   - `parent` -> relationship `guardian`
-   - alias permanece null
-   - no modifica el perfil existente
+La auditoría confirmó que esos cambios eran técnicamente compatibles, pero tocarían tablas existentes sin ser necesarios para validar primero la persistencia de estudiantes.
 
-## Seguridad
+Se posponen a fases independientes.
 
-- RLS habilitado.
-- Cliente autenticado solo puede leer sus propios estudiantes.
-- INSERT/UPDATE/DELETE quedan reservados al backend server-side.
-- Esto evita que el cliente pueda alterar `owner_user_id` o saltarse reglas de tipo de cuenta.
+## Fases posteriores — no preparadas para despliegue
 
-## Integración posterior
+### Fase B
+APIs server-side para crear/editar estudiantes.
 
-Cuando se conecte el backend:
+### Fase C
+Migración voluntaria del contexto principal existente hacia `account_students`, sin borrar `profiles.school_id/grade_level`.
 
-- Crear/editar estudiante se hará mediante API server-side.
-- El estudiante primario podrá sincronizar `profiles.school_id/grade_level` para mantener compatibilidad visual y funcional con producción.
-- Los estudiantes adicionales NO necesitan alterar la tarjeta superior actual de `/account`.
-- La futura sección de estudiantes se integrará dentro del diseño actual, sin rediseñar la página.
+### Fase D
+`student_id` opcional para necesidades, búsquedas guardadas, recomendaciones y alertas.
 
-## Rollback
+Cada fase tendrá PR y checkpoint propios.
 
-Mientras ninguna feature de producción dependa de estas columnas, el rollback es:
+## /account
+
+El diseño de producción debe conservarse.
+
+La gestión de estudiantes se integrará posteriormente dentro del diseño existente. No se sustituirá la página por la UI beta.
+
+## Rollback de Fase A
+
+Mientras ninguna feature dependa de la nueva tabla:
 
 ```sql
-alter table public.saved_searches drop column if exists student_id;
-alter table public.demand_requests drop column if exists student_id;
 drop table if exists public.account_students;
 ```
 
-No se debe ejecutar el rollback una vez existan datos de estudiantes en producción sin exportarlos primero.
+No hay que restaurar datos de otras tablas porque Fase A no las modifica.
+
+## Backups Git
+
+- producción antes del trabajo de estudiantes:
+  `backup/production-before-learners-20260927`
+- beta UX validada antes de persistencia:
+  `backup/my-course-beta-before-persistence-20260927`
 
 ## Estado
 
-- Migración versionada en GitHub.
-- NO aplicada a Supabase.
-- NO mergeada a main.
+- SQL preparado en GitHub.
+- NO aplicado a Supabase.
+- NO mergeado a main.
 - Producción permanece sin cambios.
-
-## Backup
-
-Snapshot de producción antes de esta fase:
-
-`backup/production-before-learners-20260927`
