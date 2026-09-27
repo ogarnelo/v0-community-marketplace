@@ -287,6 +287,12 @@ export default function MyCourseBetaClient({
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-10">
+      <div className="mb-3">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
+          <Link href="/beta">← Inicio beta</Link>
+        </Button>
+      </div>
+
       <div className="mb-6 rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-background p-5 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">Beta 0 · solo Preview</Badge>
