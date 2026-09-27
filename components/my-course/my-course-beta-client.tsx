@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MaterialModeSwitch } from "@/components/my-course/material-mode-switch";
 import {
   BookOpen,
   CheckCircle2,
@@ -192,15 +191,20 @@ export default function MyCourseBetaClient({
 
   function metricsForLearner(learner: Learner) {
     const learnerNeeds = state.needs.filter((need) => need.learnerId === learner.id);
-    let matched = 0;
-    let sameSchool = 0;
+    let coveredNeeds = 0;
+    let visibleOptions = 0;
+    let sameSchoolOptions = 0;
     let potentialSavings = 0;
 
     for (const need of learnerNeeds) {
-      const best = matchesForNeed(need, learner)[0];
+      const visibleMatches = matchesForNeed(need, learner).slice(0, 3);
+      const best = visibleMatches[0];
       if (!best) continue;
-      matched += 1;
-      if (best.schoolId === learner.schoolId) sameSchool += 1;
+
+      coveredNeeds += 1;
+      visibleOptions += visibleMatches.length;
+      sameSchoolOptions += visibleMatches.filter((match) => match.schoolId === learner.schoolId).length;
+
       if (best.price != null && best.originalPrice != null && best.originalPrice > best.price) {
         potentialSavings += best.originalPrice - best.price;
       }
@@ -208,10 +212,11 @@ export default function MyCourseBetaClient({
 
     return {
       total: learnerNeeds.length,
-      matched,
-      pending: learnerNeeds.length - matched,
-      sameSchool,
-      coverage: learnerNeeds.length ? Math.round((matched / learnerNeeds.length) * 100) : 0,
+      coveredNeeds,
+      pending: learnerNeeds.length - coveredNeeds,
+      visibleOptions,
+      sameSchoolOptions,
+      coverage: learnerNeeds.length ? Math.round((coveredNeeds / learnerNeeds.length) * 100) : 0,
       potentialSavings,
     };
   }
@@ -365,13 +370,14 @@ export default function MyCourseBetaClient({
     (acc, learner) => {
       const metrics = metricsForLearner(learner);
       acc.total += metrics.total;
-      acc.matched += metrics.matched;
+      acc.coveredNeeds += metrics.coveredNeeds;
       acc.pending += metrics.pending;
-      acc.sameSchool += metrics.sameSchool;
+      acc.visibleOptions += metrics.visibleOptions;
+      acc.sameSchoolOptions += metrics.sameSchoolOptions;
       acc.potentialSavings += metrics.potentialSavings;
       return acc;
     },
-    { total: 0, matched: 0, pending: 0, sameSchool: 0, potentialSavings: 0 }
+    { total: 0, coveredNeeds: 0, pending: 0, visibleOptions: 0, sameSchoolOptions: 0, potentialSavings: 0 }
   );
 
   if (!hydrated) {
@@ -384,10 +390,6 @@ export default function MyCourseBetaClient({
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-10">
-      <div className="mb-4">
-        <MaterialModeSwitch active="course" />
-      </div>
-
       <div className="mb-6 rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-background p-5 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">Beta 0 · solo Preview</Badge>
@@ -449,14 +451,14 @@ export default function MyCourseBetaClient({
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Con opciones</p>
-              <p className="mt-1 text-2xl font-bold">{globalMetrics.matched}</p>
+              <p className="text-xs text-muted-foreground">Necesidades cubiertas</p>
+              <p className="mt-1 text-2xl font-bold">{globalMetrics.coveredNeeds}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">En tu centro</p>
-              <p className="mt-1 text-2xl font-bold">{globalMetrics.sameSchool}</p>
+              <p className="text-xs text-muted-foreground">Opciones en tu centro</p>
+              <p className="mt-1 text-2xl font-bold">{globalMetrics.sameSchoolOptions}</p>
             </CardContent>
           </Card>
           <Card>
@@ -589,11 +591,11 @@ export default function MyCourseBetaClient({
                   </div>
                   {metrics.total > 0 ? (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="secondary">{metrics.matched}/{metrics.total} encontradas</Badge>
+                      <Badge variant="secondary">{metrics.coveredNeeds}/{metrics.total} necesidades con opciones</Badge>
                       <Badge variant="outline">{metrics.pending} pendientes</Badge>
-                      {metrics.sameSchool > 0 ? (
+                      {metrics.sameSchoolOptions > 0 ? (
                         <Badge variant="outline">
-                          <MapPin className="mr-1 h-3 w-3" /> {metrics.sameSchool} en tu centro
+                          <MapPin className="mr-1 h-3 w-3" /> {metrics.sameSchoolOptions} opciones en tu centro
                         </Badge>
                       ) : null}
                       {metrics.potentialSavings > 0 ? (
@@ -626,7 +628,9 @@ export default function MyCourseBetaClient({
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {need.isbn ? "ISBN " + need.isbn + " · " : ""}
                                   {best
-                                    ? matches.length + " opción/es encontradas"
+                                    ? matches.length > topMatches.length
+                                      ? topMatches.length + " mejores opciones de " + matches.length + " encontradas"
+                                      : topMatches.length + (topMatches.length === 1 ? " opción encontrada" : " opciones encontradas")
                                     : "Todavía no aparece en los anuncios actuales"}
                                 </p>
                               </div>
