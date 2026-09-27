@@ -33,7 +33,6 @@ import {
   MapPin,
   PackageSearch,
   Plus,
-  GraduationCap,
   School,
   Search,
   SlidersHorizontal,
