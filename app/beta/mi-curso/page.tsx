@@ -52,7 +52,7 @@ export default async function MyCourseBetaPage({
       user
         ? supabase
             .from("profiles")
-            .select("school_id, grade_level")
+            .select("school_id, grade_level, user_type")
             .eq("id", user.id)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
@@ -86,6 +86,7 @@ export default async function MyCourseBetaPage({
       ? {
           isLoggedIn: true,
           isDemoProfile: false,
+          userType: profileResult.data.user_type || null,
           schoolId: profileResult.data.school_id,
           schoolName: profileSchool?.name || "Mi centro",
           gradeLevel: profileResult.data.grade_level,
@@ -95,6 +96,7 @@ export default async function MyCourseBetaPage({
         ? {
             isLoggedIn: true,
             isDemoProfile: true,
+            userType: null,
             schoolId: demoSchool.id,
             schoolName: demoSchool.name,
             gradeLevel: demoGrade,
@@ -103,6 +105,7 @@ export default async function MyCourseBetaPage({
         : {
             isLoggedIn: Boolean(user),
             isDemoProfile: false,
+            userType: profileResult.data?.user_type || null,
             schoolId: null,
             schoolName: null,
             gradeLevel: null,
