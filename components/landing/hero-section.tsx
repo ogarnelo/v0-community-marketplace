@@ -1,15 +1,9 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, GraduationCap, Leaf, Users, MapPin } from "lucide-react"
+import { ArrowRight, Leaf, Users, MapPin } from "lucide-react"
 
-export function HeroSection({
-  showMyCourseBeta = false,
-  isLoggedIn = false,
-}: {
-  showMyCourseBeta?: boolean
-  isLoggedIn?: boolean
-}) {
+export function HeroSection() {
   return (
     <section className="relative overflow-hidden bg-card pb-14 pt-8 sm:pt-12 lg:pb-24 lg:pt-20">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-secondary/5" />
@@ -42,30 +36,6 @@ export function HeroSection({
               </Button>
             </Link>
           </div>
-
-          {showMyCourseBeta ? (
-            <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  <GraduationCap className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-foreground">
-                    {isLoggedIn ? "Prepara tu curso" : "Prepara el curso completo"}
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                    Organiza todo lo que necesitas y Wetudy te muestra qué puedes encontrar ya y qué queda pendiente.
-                  </p>
-                  <Link href="/beta/mi-curso" className="mt-3 inline-flex">
-                    <Button size="sm" className="gap-1.5">
-                      {isLoggedIn ? "Abrir Mi curso" : "Preparar el curso"}
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : null}
 
           <div className="mx-auto mt-10 grid max-w-sm justify-items-center gap-5 text-sm text-muted-foreground sm:mt-12 sm:max-w-none sm:grid-cols-3 sm:justify-items-stretch sm:gap-8">
             <div className="grid w-fit grid-cols-[2.5rem_1fr] items-center gap-3 text-left sm:w-auto">
