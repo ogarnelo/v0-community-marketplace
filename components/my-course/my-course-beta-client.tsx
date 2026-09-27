@@ -87,6 +87,7 @@ export default function MyCourseBetaClient({
   const [state, setState] = useState<LocalState>({ learners: [], needs: [] });
   const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   useEffect(() => {
     try {
@@ -212,8 +213,8 @@ export default function MyCourseBetaClient({
   }
 
   function resetBeta() {
-    if (!window.confirm("¿Borrar todos los hijos/cursos y necesidades guardados en este navegador?")) return;
     setState({ learners: [], needs: [] });
+    setConfirmingReset(false);
     setMessage("Datos locales de la beta eliminados.");
   }
 
@@ -297,6 +298,20 @@ export default function MyCourseBetaClient({
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
           Dinos qué necesitarás. Wetudy comprueba lo que ya existe y te enseña cuánto de tu curso puedes resolver ahora mismo.
         </p>
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl bg-background/80 p-3">
+            <p className="text-xs font-semibold text-primary">1 · Tu curso</p>
+            <p className="mt-1 text-xs text-muted-foreground">Centro, curso y año académico.</p>
+          </div>
+          <div className="rounded-2xl bg-background/80 p-3">
+            <p className="text-xs font-semibold text-primary">2 · Lo que necesitas</p>
+            <p className="mt-1 text-xs text-muted-foreground">Añade libros, uniforme o material.</p>
+          </div>
+          <div className="rounded-2xl bg-background/80 p-3">
+            <p className="text-xs font-semibold text-primary">3 · Wetudy busca</p>
+            <p className="mt-1 text-xs text-muted-foreground">Te enseña opciones y deja pendiente lo que falta.</p>
+          </div>
+        </div>
       </div>
 
       {message ? (
@@ -523,7 +538,7 @@ export default function MyCourseBetaClient({
                                         </p>
                                       </div>
                                       <Button asChild size="sm" variant={index === 0 ? "default" : "outline"}>
-                                        <Link href={"/marketplace/listing/" + match.id}>Ver opción</Link>
+                                        <Link href={"/marketplace/listing/" + match.id}>Ver y contactar</Link>
                                       </Button>
                                     </div>
                                   );
@@ -635,15 +650,30 @@ export default function MyCourseBetaClient({
                   <Button type="submit" className="sm:col-span-2">Añadir curso</Button>
                 </form>
               </details>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={resetBeta}
-                className="text-muted-foreground"
-              >
-                Borrar mis datos de prueba
-              </Button>
+              {!confirmingReset ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmingReset(true)}
+                  className="text-muted-foreground"
+                >
+                  Borrar mis datos de prueba
+                </Button>
+              ) : (
+                <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-3">
+                  <p className="text-sm font-medium">¿Borrar los datos guardados en este navegador?</p>
+                  <p className="mt-1 text-xs text-muted-foreground">No afecta a tu cuenta ni a los anuncios de Wetudy.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="destructive" onClick={resetBeta}>
+                      Sí, borrar
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setConfirmingReset(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
