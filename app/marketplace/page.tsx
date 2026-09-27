@@ -18,7 +18,14 @@ export const metadata = buildPublicMetadata({
   path: "/marketplace",
 });
 
-export default async function MarketplacePage() {
+export default async function MarketplacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ profile_demo?: string }>;
+}) {
+  const params = await searchParams;
+  const previewProfileDemo =
+    process.env.VERCEL_ENV === "preview" && params.profile_demo === "1";
   const supabase = await createClient();
   const admin = createAdminClient();
 
@@ -155,7 +162,8 @@ export default async function MarketplacePage() {
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
       initialPostalCode={viewerPostalCode}
-      showMyCourseBeta={Boolean(user) && process.env.VERCEL_ENV === "preview"}
+      showMyCourseBeta={(Boolean(user) || previewProfileDemo) && process.env.VERCEL_ENV === "preview"}
+      myCourseHref={previewProfileDemo && !user ? "/beta/mi-curso?profile_demo=1" : "/beta/mi-curso"}
     />
   );
 }
