@@ -126,6 +126,14 @@ export async function createAccountStudent(userId: string, input: AccountStudent
   const relationship = relationshipForAccountType(accountType);
   const existing = await listAccountStudents(userId);
 
+  if (existing.some((student) => student.relationship !== relationship)) {
+    throw new AccountStudentError(
+      "El tipo de cuenta ha cambiado y los contextos educativos existentes necesitan una revisión antes de añadir otros.",
+      409,
+      "relationship_mismatch"
+    );
+  }
+
   if (accountType === "student" && existing.length > 0) {
     throw new AccountStudentError(
       "Una cuenta de estudiante solo puede gestionar su propio contexto educativo.",
