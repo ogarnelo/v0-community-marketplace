@@ -58,7 +58,7 @@ export default async function LandingPage() {
       <JsonLd data={structuredData} />
       <Navbar {...navbarProps} />
       <main className="flex-1">
-        <HeroSection />
+        <HeroSection showMyCourseBeta={process.env.VERCEL_ENV === "preview"} />
         <HowItWorks />
         <BenefitsFamilies />
         <BenefitsSchools />
