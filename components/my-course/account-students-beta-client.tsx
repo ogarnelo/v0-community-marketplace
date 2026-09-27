@@ -43,6 +43,7 @@ export default function AccountStudentsBetaClient({
   gradeLevels: string[];
 }) {
   const [context, setContext] = useState<AccountContext | null>(null);
+  const [alias, setAlias] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -100,7 +101,7 @@ export default function AccountStudentsBetaClient({
       ...context.students,
       {
         id: safeId("student"),
-        label: "Estudiante " + (context.students.length + 1),
+        label: alias.trim() || "Estudiante " + (context.students.length + 1),
         schoolId,
         gradeLevel,
         academicYear: context.academicYear,
@@ -108,6 +109,7 @@ export default function AccountStudentsBetaClient({
     ];
 
     persist({ ...context, students: nextStudents });
+    setAlias("");
     setSchoolId("");
     setGradeLevel("");
     setAdding(false);
@@ -194,7 +196,7 @@ export default function AccountStudentsBetaClient({
                     <GraduationCap className="mt-0.5 h-5 w-5 text-primary" />
                     <div>
                       <p className="font-medium">
-                        {context.accountType === "student" ? "Tu curso" : "Estudiante " + (index + 1)}
+                        {context.accountType === "student" ? "Tu curso" : student.label || "Estudiante " + (index + 1)}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {school?.name || "Centro"} · {student.gradeLevel}
@@ -218,6 +220,19 @@ export default function AccountStudentsBetaClient({
                 <div className="rounded-xl border border-dashed p-3">
                   <p className="mb-3 text-sm font-semibold">Nuevo estudiante</p>
                   <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1.5 text-sm sm:col-span-2">
+                      <span className="font-medium">
+                        Nombre o alias <span className="font-normal text-muted-foreground">(opcional)</span>
+                      </span>
+                      <input
+                        value={alias}
+                        onChange={(event) => setAlias(event.target.value)}
+                        maxLength={60}
+                        autoComplete="off"
+                        placeholder="Ej. Ana, ESO, Estudiante mayor…"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-base"
+                      />
+                    </label>
                     <select
                       value={schoolId}
                       onChange={(event) => setSchoolId(event.target.value)}
@@ -243,7 +258,17 @@ export default function AccountStudentsBetaClient({
                     <Button type="button" size="sm" onClick={addStudent} disabled={!schoolId || !gradeLevel}>
                       Añadir
                     </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setAdding(false)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setAlias("");
+                        setSchoolId("");
+                        setGradeLevel("");
+                        setAdding(false);
+                      }}
+                    >
                       Cancelar
                     </Button>
                   </div>
