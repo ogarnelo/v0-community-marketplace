@@ -23,7 +23,7 @@ export default async function MyCourseBetaPage() {
       .limit(300),
     admin
       .from("listings")
-      .select("id, title, category, grade_level, isbn, school_id, price, listing_type, type")
+      .select("id, title, category, grade_level, isbn, school_id, price, original_price, estimated_retail_price, listing_type, type")
       .eq("status", "available")
       .order("created_at", { ascending: false })
       .limit(200),
@@ -40,6 +40,7 @@ export default async function MyCourseBetaPage() {
     isbn: listing.isbn || null,
     schoolId: listing.school_id || null,
     price: listing.price ?? null,
+    originalPrice: listing.original_price ?? listing.estimated_retail_price ?? null,
     listingType: listing.listing_type || listing.type || null,
   }));
 
