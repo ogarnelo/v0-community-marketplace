@@ -15,9 +15,14 @@ function betaEnabled() {
   return process.env.VERCEL_ENV === "preview" || process.env.WETUDY_MY_COURSE_BETA_ENABLED === "true";
 }
 
-export default async function MyCourseBetaPage() {
+export default async function MyCourseBetaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ add?: string; isbn?: string }>;
+}) {
   if (!betaEnabled()) notFound();
 
+  const params = await searchParams;
   const supabase = await createClient();
   const admin = createAdminClient();
 
@@ -91,6 +96,14 @@ export default async function MyCourseBetaPage() {
       gradeLevels={Array.from(new Set(gradeLevels)).filter(Boolean)}
       listings={safeListings}
       profileContext={profileContext}
+      incomingNeed={
+        params.add || params.isbn
+          ? {
+              title: params.add?.trim() || params.isbn?.trim() || "Necesidad",
+              isbn: params.isbn?.trim() || "",
+            }
+          : null
+      }
     />
   );
 }
