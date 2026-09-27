@@ -43,8 +43,10 @@ test("all student mutations are owner scoped and server-side", () => {
 test("student accounts have one self context and parent accounts can have guardians", () => {
   assert.match(service, /student_context_exists/);
   assert.match(service, /accountType === "student" && existing\.length > 0/);
-  assert.match(service, /relationship === "self"|relationshipForAccountType/);
+  assert.match(service, /relationshipForAccountType/);
   assert.match(service, /guardian/);
+  assert.match(service, /relationship_mismatch/);
+  assert.match(service, /student\.relationship !== relationship/);
   assert.match(service, /isPrimary = existing\.length === 0/);
 });
 
