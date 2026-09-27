@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { UserPlus, Search, Handshake } from "lucide-react"
 
@@ -22,7 +23,7 @@ const steps = [
   },
 ]
 
-export function HowItWorks() {
+export function HowItWorks({ showMyCourseBeta = false }: { showMyCourseBeta?: boolean }) {
   return (
     <section className="bg-background py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
@@ -49,6 +50,14 @@ export function HowItWorks() {
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {step.description}
                 </p>
+                {showMyCourseBeta && step.step === "02" ? (
+                  <Link
+                    href="/beta/mi-curso"
+                    className="mt-4 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    ¿Necesitas varias cosas? Prepara tu curso →
+                  </Link>
+                ) : null}
               </CardContent>
             </Card>
           ))}
