@@ -45,16 +45,17 @@ test("logged-in users reuse school grade and account type from their profile", (
   assert.match(client, /Ya conocemos tu centro y curso/);
 });
 
-test("preview onboarding is two short steps and does not collect minor names", () => {
+test("preview onboarding is two short steps with optional student aliases", () => {
   assert.match(onboardingPage, /VERCEL_ENV !== "preview"/);
   assert.match(onboardingClient, /1 · Cuenta/);
   assert.match(onboardingClient, /2 ·/);
   assert.match(onboardingClient, /Código postal/);
   assert.match(onboardingClient, /Soy estudiante/);
   assert.match(onboardingClient, /Familia \/ tutor/);
+  assert.match(onboardingClient, /Nombre o alias/);
   assert.match(onboardingClient, /\+ Añadir otro estudiante|Añadir otro estudiante/);
   assert.match(onboardingClient, /Entrar en Wetudy/);
-  assert.doesNotMatch(onboardingClient, /Nombre del estudiante|Fecha de nacimiento/);
+  assert.doesNotMatch(onboardingClient, /Fecha de nacimiento/);
 });
 
 test("preview auth links to the new onboarding without weakening real auth", () => {
@@ -140,4 +141,25 @@ test("Mi curso and Marketplace preserve the user's need in both directions", () 
   assert.match(marketplaceClient, /Añadir a Mi curso/);
   assert.match(marketplaceClient, /\/beta\/mi-curso\?add=/);
   assert.match(client, /Has llegado buscando esto/);
+});
+
+
+test("mobile onboarding avoids CP zoom and returns the next step to the top", () => {
+  assert.match(onboardingClient, /inputMode="numeric"/);
+  assert.match(onboardingClient, /text-base/);
+  assert.match(onboardingClient, /document\.activeElement\.blur\(\)/);
+  assert.match(onboardingClient, /window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
+});
+
+test("finishing onboarding persists a complete student still in draft", () => {
+  assert.match(onboardingClient, /hasDraftStudent/);
+  assert.match(onboardingClient, /studentsToPersist/);
+  assert.match(onboardingClient, /student\.alias\.trim\(\) \|\| "Estudiante "/);
+});
+
+test("student aliases survive into Mi curso and Mi cuenta", () => {
+  assert.match(accountBetaClient, /Nombre o alias/);
+  assert.match(accountBetaClient, /alias\.trim\(\) \|\| "Estudiante "/);
+  assert.match(client, /formData\.get\("alias"\)/);
+  assert.match(client, /learner\.label \|\| "Estudiante "/);
 });
