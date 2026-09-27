@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Leaf, Users, MapPin } from "lucide-react"
 
-export function HeroSection() {
+export function HeroSection({ showMyCourseBeta = false }: { showMyCourseBeta?: boolean }) {
   return (
     <section className="relative overflow-hidden bg-card pb-14 pt-8 sm:pt-12 lg:pb-24 lg:pt-20">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-secondary/5" />
@@ -36,6 +36,18 @@ export function HeroSection() {
               </Button>
             </Link>
           </div>
+
+          {showMyCourseBeta ? (
+            <div className="mt-4">
+              <Link
+                href="/beta"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                ¿Preparando el curso completo? Prueba el nuevo journey
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          ) : null}
 
           <div className="mx-auto mt-10 grid max-w-sm justify-items-center gap-5 text-sm text-muted-foreground sm:mt-12 sm:max-w-none sm:grid-cols-3 sm:justify-items-stretch sm:gap-8">
             <div className="grid w-fit grid-cols-[2.5rem_1fr] items-center gap-3 text-left sm:w-auto">
