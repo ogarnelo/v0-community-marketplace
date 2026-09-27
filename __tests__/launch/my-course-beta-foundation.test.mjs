@@ -13,6 +13,7 @@ const hero = read("components/landing/hero-section.tsx");
 const howItWorks = read("components/landing/how-it-works.tsx");
 const accountPage = read("app/account/page.tsx");
 const authPage = read("app/auth/page.tsx");
+const betaLayout = read("app/beta/layout.tsx");
 
 test("Mi curso remains preview-only and requires a user except for the explicit preview demo", () => {
   assert.match(page, /VERCEL_ENV === "preview"/);
@@ -56,6 +57,9 @@ test("Mi curso is a logged-in navigation destination directly after Marketplace"
   assert.match(navbar, /href: "\/marketplace", label: "Marketplace"[\s\S]*href: "\/beta\/mi-curso", label: "Mi curso"/);
   assert.match(navbar, /GraduationCap/);
   assert.match(navbar, /if \(href === "\/beta\/mi-curso"\)/);
+  assert.match(betaLayout, /<Navbar/);
+  assert.match(betaLayout, /getNavbarData/);
+  assert.match(betaLayout, /<Footer \/>/);
 });
 
 test("Marketplace shows Mi curso only for authenticated preview users and beside Publicar anuncio", () => {
