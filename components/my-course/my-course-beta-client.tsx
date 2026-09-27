@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MaterialModeSwitch } from "@/components/my-course/material-mode-switch";
 import {
   BookOpen,
   CheckCircle2,
@@ -383,10 +384,8 @@ export default function MyCourseBetaClient({
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-10">
-      <div className="mb-3">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-          <Link href="/beta">← Otras opciones</Link>
-        </Button>
+      <div className="mb-4">
+        <MaterialModeSwitch active="course" />
       </div>
 
       <div className="mb-6 rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-background p-5 sm:p-7">
