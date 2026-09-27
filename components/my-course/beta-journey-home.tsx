@@ -14,7 +14,7 @@ type StoredState = {
 
 const STORAGE_KEY = "wetudy_my_course_beta_v0";
 
-export default function BetaJourneyHome() {
+export default function BetaflujoHome() {
   const [configured, setConfigured] = useState(false);
   const [learnerCount, setLearnerCount] = useState(0);
   const [needCount, setNeedCount] = useState(0);
@@ -30,7 +30,7 @@ export default function BetaJourneyHome() {
       setNeedCount(needs.length);
       setConfigured(learners.length > 0);
     } catch {
-      // No bloquear el journey si el estado local está corrupto.
+      // No bloquear el flujo si el estado local está corrupto.
     }
   }, []);
 
@@ -39,14 +39,14 @@ export default function BetaJourneyHome() {
       <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
         <div className="mb-6 rounded-3xl border bg-background p-5 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Journey Beta</Badge>
+            <Badge variant="secondary">flujo Beta</Badge>
             <Badge variant="outline">Solo Preview</Badge>
           </div>
           <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">
             ¿Qué quieres resolver hoy?
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            No necesitas conocer las funciones de Wetudy. Elige tu objetivo y te llevamos al flujo adecuado.
+            Elige lo que quieres hacer y Wetudy te lleva directamente al sitio adecuado.
           </p>
         </div>
 
@@ -122,9 +122,9 @@ export default function BetaJourneyHome() {
           <div className="flex items-start gap-3">
             <BookOpen className="mt-0.5 h-5 w-5 text-primary" />
             <div>
-              <p className="font-semibold">Principio de integración</p>
+              <p className="font-semibold">¿No sabes por dónde empezar?</p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                “Mi curso” no sustituye al marketplace: organiza una necesidad completa. El marketplace sigue siendo la herramienta para explorar y completar cada match.
+                Si estás preparando varias cosas del curso, entra en Mi curso. Si buscas una sola cosa, ve al Marketplace.
               </p>
             </div>
           </div>
