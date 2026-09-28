@@ -28,7 +28,7 @@ export default async function RealStudentOnboardingPreviewPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth?next=/beta/onboarding-estudiantes");
+    redirect("/api/beta/preview-login?next=/beta/onboarding-estudiantes");
   }
 
   const metadata = (user.user_metadata || {}) as SafeMetadata;
