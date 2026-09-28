@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
 
 const PREVIEW_TEST_EMAIL = "wetudy-preview-test@example.com";
 
 function isAlreadyRegistered(message: string | undefined) {
   return Boolean(message && /already|registered|exists/i.test(message));
+}
+
+function previewPassword() {
+  return "Wt-" + crypto.randomUUID() + "-9a!";
 }
 
 export async function GET(request: Request) {
@@ -63,6 +68,36 @@ export async function GET(request: Request) {
     );
   }
 
+  const password = previewPassword();
+
+  const { error: updateAuthError } = await admin.auth.admin.updateUserById(
+    testUser.id,
+    {
+      password,
+      email_confirm: true,
+      user_metadata: {
+        ...(testUser.user_metadata || {}),
+        first_name: "Wetudy",
+        last_name: "Preview",
+        full_name: "Wetudy Preview",
+        user_type: "parent",
+        postal_code: "28001",
+        wetudy_preview_test: true,
+      },
+      app_metadata: {
+        ...(testUser.app_metadata || {}),
+        wetudy_preview_test: true,
+      },
+    }
+  );
+
+  if (updateAuthError) {
+    console.error("Preview login: no se pudo preparar Auth", updateAuthError);
+    return NextResponse.redirect(
+      new URL("/auth?auth_error=preview_test_auth", request.url)
+    );
+  }
+
   const { error: profileError } = await admin.from("profiles").upsert(
     {
       id: testUser.id,
@@ -82,26 +117,30 @@ export async function GET(request: Request) {
     );
   }
 
-  const callbackUrl = new URL("/auth/callback", requestUrl.origin);
-  callbackUrl.searchParams.set("next", safeNext);
-
-  const { data: linkData, error: linkError } =
-    await admin.auth.admin.generateLink({
-      type: "magiclink",
+  const supabase = await createClient();
+  const { data: signInData, error: signInError } =
+    await supabase.auth.signInWithPassword({
       email: PREVIEW_TEST_EMAIL,
-      options: {
-        redirectTo: callbackUrl.toString(),
-      },
+      password,
     });
 
-  const actionLink = linkData?.properties?.action_link;
-
-  if (linkError || !actionLink) {
-    console.error("Preview login: no se pudo generar el enlace técnico", linkError);
+  if (signInError || !signInData.session || !signInData.user) {
+    console.error("Preview login: no se pudo crear la sesión", signInError);
     return NextResponse.redirect(
-      new URL("/auth?auth_error=preview_test_link", request.url)
+      new URL("/auth?auth_error=preview_test_session", request.url)
     );
   }
 
-  return NextResponse.redirect(actionLink);
+  const {
+    data: { user: verifiedUser },
+  } = await supabase.auth.getUser();
+
+  if (!verifiedUser || verifiedUser.id !== testUser.id) {
+    console.error("Preview login: la sesión no quedó verificada");
+    return NextResponse.redirect(
+      new URL("/auth?auth_error=preview_test_session", request.url)
+    );
+  }
+
+  return NextResponse.redirect(new URL(safeNext, request.url));
 }
