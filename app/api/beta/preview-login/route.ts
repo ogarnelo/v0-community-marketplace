@@ -9,10 +9,6 @@ function isAlreadyRegistered(message: string | undefined) {
   return Boolean(message && /already|registered|exists/i.test(message));
 }
 
-function previewPassword() {
-  return "Wt-" + crypto.randomUUID() + "-9a!";
-}
-
 export async function GET(request: Request) {
   if (process.env.VERCEL_ENV !== "preview") {
     return new NextResponse("Not found", { status: 404 });
@@ -68,36 +64,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const password = previewPassword();
-
-  const { error: updateAuthError } = await admin.auth.admin.updateUserById(
-    testUser.id,
-    {
-      password,
-      email_confirm: true,
-      user_metadata: {
-        ...(testUser.user_metadata || {}),
-        first_name: "Wetudy",
-        last_name: "Preview",
-        full_name: "Wetudy Preview",
-        user_type: "parent",
-        postal_code: "28001",
-        wetudy_preview_test: true,
-      },
-      app_metadata: {
-        ...(testUser.app_metadata || {}),
-        wetudy_preview_test: true,
-      },
-    }
-  );
-
-  if (updateAuthError) {
-    console.error("Preview login: no se pudo preparar Auth", updateAuthError);
-    return NextResponse.redirect(
-      new URL("/auth?auth_error=preview_test_auth", request.url)
-    );
-  }
-
   const { error: profileError } = await admin.from("profiles").upsert(
     {
       id: testUser.id,
@@ -117,15 +83,29 @@ export async function GET(request: Request) {
     );
   }
 
-  const supabase = await createClient();
-  const { data: signInData, error: signInError } =
-    await supabase.auth.signInWithPassword({
+  const { data: linkData, error: linkError } =
+    await admin.auth.admin.generateLink({
+      type: "magiclink",
       email: PREVIEW_TEST_EMAIL,
-      password,
     });
 
-  if (signInError || !signInData.session || !signInData.user) {
-    console.error("Preview login: no se pudo crear la sesión", signInError);
+  const tokenHash = linkData?.properties?.hashed_token;
+
+  if (linkError || !tokenHash) {
+    console.error("Preview login: no se pudo generar el token técnico", linkError);
+    return NextResponse.redirect(
+      new URL("/auth?auth_error=preview_test_token", request.url)
+    );
+  }
+
+  const supabase = await createClient();
+  const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "magiclink",
+  });
+
+  if (verifyError || !verifyData.session || !verifyData.user) {
+    console.error("Preview login: no se pudo verificar el token técnico", verifyError);
     return NextResponse.redirect(
       new URL("/auth?auth_error=preview_test_session", request.url)
     );
