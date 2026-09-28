@@ -10,7 +10,7 @@ const authForm = readFileSync("components/auth/auth-form.tsx", "utf8");
 test("real student onboarding remains Preview-only", () => {
   assert.match(page, /VERCEL_ENV !== "preview"/);
   assert.match(page, /notFound\(\)/);
-  assert.match(page, /redirect\("\/auth\?next=\/beta\/onboarding-estudiantes"\)/);
+  assert.match(page, /redirect\("\/api\/beta\/preview-login\?next=\/beta\/onboarding-estudiantes"\)/);
 });
 
 test("preview reads account-holder data but does not rewrite the signup or profile", () => {
@@ -52,4 +52,17 @@ test("partially filled second student cannot be silently lost", () => {
 
 test("mobile form fields avoid browser zoom", () => {
   assert.match(client, /text-base sm:text-sm/);
+});
+
+
+test("preview technical login creates a same-domain server session without magic links", () => {
+  const previewLogin = readFileSync("app/api/beta/preview-login/route.ts", "utf8");
+
+  assert.match(previewLogin, /VERCEL_ENV !== "preview"/);
+  assert.match(previewLogin, /updateUserById/);
+  assert.match(previewLogin, /signInWithPassword/);
+  assert.match(previewLogin, /auth\.getUser\(\)/);
+  assert.match(previewLogin, /preview_test_session/);
+  assert.doesNotMatch(previewLogin, /generateLink/);
+  assert.doesNotMatch(previewLogin, /magiclink/);
 });
