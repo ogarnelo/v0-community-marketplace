@@ -55,14 +55,15 @@ test("mobile form fields avoid browser zoom", () => {
 });
 
 
-test("preview technical login creates a same-domain server session without magic links", () => {
+test("preview technical login creates a same-domain server session without password CAPTCHA", () => {
   const previewLogin = readFileSync("app/api/beta/preview-login/route.ts", "utf8");
 
   assert.match(previewLogin, /VERCEL_ENV !== "preview"/);
-  assert.match(previewLogin, /updateUserById/);
-  assert.match(previewLogin, /signInWithPassword/);
+  assert.match(previewLogin, /admin\.auth\.admin\.generateLink/);
+  assert.match(previewLogin, /hashed_token/);
+  assert.match(previewLogin, /verifyOtp/);
   assert.match(previewLogin, /auth\.getUser\(\)/);
   assert.match(previewLogin, /preview_test_session/);
-  assert.doesNotMatch(previewLogin, /generateLink/);
-  assert.doesNotMatch(previewLogin, /magiclink/);
+  assert.doesNotMatch(previewLogin, /signInWithPassword/);
+  assert.doesNotMatch(previewLogin, /captcha_token/);
 });
