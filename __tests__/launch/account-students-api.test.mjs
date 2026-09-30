@@ -58,10 +58,20 @@ test("deactivation preserves student self context and promotes next parent prima
   assert.match(service, /active: false/);
 });
 
-test("phase B does not change production account UI", () => {
-  assert.doesNotMatch(accountPage, /account_students/);
-  assert.doesNotMatch(accountPage, /AccountStudents/);
-  assert.doesNotMatch(accountPage, /api\/account\/students/);
+test("account reads students while mutations remain behind the server API", () => {
+  const section = readFileSync("components/account/account-students-section.tsx", "utf8");
+
+  assert.match(accountPage, /from\("account_students"\)/);
+  assert.match(accountPage, /\.eq\("owner_user_id", user\.id\)/);
+  assert.match(accountPage, /\.eq\("active", true\)/);
+  assert.match(accountPage, /AccountStudentsSection/);
+  assert.match(section, /\/api\/account\/students/);
+  assert.match(section, /method: editingId \? "PATCH" : "POST"/);
+  assert.match(section, /method: "DELETE"/);
+  assert.doesNotMatch(section, /from\("profiles"\)/);
+  assert.doesNotMatch(section, /createClient\(\)/);
+  assert.doesNotMatch(section, /localStorage/);
+  assert.doesNotMatch(section, /window\.confirm/);
 });
 
 test("signup continues to capture account-holder name surname and postal code", () => {
