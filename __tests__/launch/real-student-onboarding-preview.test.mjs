@@ -67,3 +67,46 @@ test("preview technical login creates a same-domain server session without passw
   assert.doesNotMatch(previewLogin, /signInWithPassword/);
   assert.doesNotMatch(previewLogin, /captcha_token/);
 });
+
+
+test("account shows real student contexts without replacing the existing account design", () => {
+  const accountPage = readFileSync("app/account/page.tsx", "utf8");
+  const section = readFileSync("components/account/account-students-section.tsx", "utf8");
+
+  assert.match(accountPage, /from\("account_students"\)/);
+  assert.match(accountPage, /\.eq\("owner_user_id", user\.id\)/);
+  assert.match(accountPage, /\.eq\("active", true\)/);
+  assert.match(accountPage, /AccountStudentsSection/);
+  assert.match(accountPage, /AccountProfileForm/);
+  assert.match(accountPage, /quickActions\.map/);
+  assert.ok(
+    accountPage.indexOf("<AccountStudentsSection") <
+      accountPage.indexOf("<AccountProfileForm")
+  );
+
+  assert.match(section, /Mi contexto educativo/);
+  assert.match(section, /Estudiantes/);
+  assert.match(section, /datos del titular de la cuenta son independientes/);
+  assert.doesNotMatch(section, /Hijo|hijo|Hija|hija/);
+});
+
+test("account student management uses the real API with inline delete confirmation", () => {
+  const section = readFileSync("components/account/account-students-section.tsx", "utf8");
+
+  assert.match(section, /\/api\/account\/students/);
+  assert.match(section, /method: editingId \? "PATCH" : "POST"/);
+  assert.match(section, /method: "DELETE"/);
+  assert.match(section, /pendingDeleteId/);
+  assert.match(section, /Confirmar/);
+  assert.doesNotMatch(section, /window\.confirm/);
+  assert.doesNotMatch(section, /localStorage/);
+});
+
+test("family can add multiple students while student account stays single-context", () => {
+  const section = readFileSync("components/account/account-students-section.tsx", "utf8");
+
+  assert.match(section, /accountType === "parent"/);
+  assert.match(section, /accountType === "student" && students\.length === 0/);
+  assert.match(section, /Añadir estudiante/);
+  assert.match(section, /Añadir contexto/);
+});
