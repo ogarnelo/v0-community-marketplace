@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Eye, EyeOff, Loader2, Mail, Lock, User, MapPin } from "lucide-react";
-import { gradeLevels } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { buildFullName, normalizeNamePart } from "@/lib/users/person-name";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
@@ -29,7 +28,6 @@ async function upsertProfileAfterAuth(params: {
   firstName: string;
   lastName: string;
   userType: SupportedSignupUserType;
-  gradeLevel: string;
   postalCode: string;
 }) {
   const supabase = createClient();
@@ -41,7 +39,6 @@ async function upsertProfileAfterAuth(params: {
     last_name: normalizeNamePart(params.lastName) || null,
     full_name: fullName,
     user_type: params.userType || null,
-    grade_level: params.gradeLevel.trim() || null,
     postal_code: params.postalCode.trim() || null,
   };
 
@@ -94,11 +91,6 @@ export function AuthForm() {
     [searchParams]
   );
 
-  const normalizedGradeLevels = useMemo(
-    () => Array.from(new Set(gradeLevels)).filter(Boolean),
-    []
-  );
-
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(() =>
@@ -116,7 +108,6 @@ export function AuthForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
-  const [gradeLevel, setGradeLevel] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [studentAgeConfirmed, setStudentAgeConfirmed] = useState(false);
@@ -306,11 +297,6 @@ export function AuthForm() {
       return;
     }
 
-    if (!gradeLevel) {
-      setError("Debes seleccionar un curso o etapa.");
-      return;
-    }
-
     const postalPrefix = /^[0-9]{5}$/.test(normalizedPostalCode)
       ? Number(normalizedPostalCode.slice(0, 2))
       : NaN;
@@ -333,10 +319,10 @@ export function AuthForm() {
 
     try {
       const callbackUrl = new URL("/auth/callback", getAuthPublicOrigin());
-
-      if (nextPath) {
-        callbackUrl.searchParams.set("next", nextPath);
-      }
+      const onboardingPath = nextPath
+        ? `/onboarding/students?next=${encodeURIComponent(nextPath)}`
+        : "/onboarding/students";
+      callbackUrl.searchParams.set("next", onboardingPath);
 
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -349,7 +335,6 @@ export function AuthForm() {
             last_name: normalizedLastName,
             full_name: normalizedFullName,
             user_type: userType,
-            grade_level: gradeLevel,
             postal_code: normalizedPostalCode,
             wetudy_email_confirmation_required: true,
             ...(signupAttribution
@@ -373,7 +358,6 @@ export function AuthForm() {
           firstName: normalizedFirstName,
           lastName: normalizedLastName,
           userType,
-          gradeLevel,
           postalCode: normalizedPostalCode,
         });
       }
@@ -697,22 +681,6 @@ export function AuthForm() {
                   </span>
                 </label>
               ) : null}
-
-              <div className="flex flex-col gap-2">
-                <Label>Curso / Etapa *</Label>
-                <Select value={gradeLevel || undefined} onValueChange={setGradeLevel}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona curso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {normalizedGradeLevels.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="postalCode">Código postal *</Label>
