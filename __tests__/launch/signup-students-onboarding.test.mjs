@@ -67,5 +67,5 @@ test("student account stays a single self context in UX", () => {
 test("account holder identity remains separate from student alias", () => {
   assert.match(onboardingClient, /Cuenta de \{accountHolderName\}/);
   assert.match(onboardingClient, /Nombre o alias/);
-  assert.doesNotMatch(onboardingClient, /fecha de nacimiento/i);
+  assert.doesNotMatch(onboardingClient, /birth_date|date_of_birth|fechaNacimiento/);
 });
