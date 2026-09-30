@@ -22,6 +22,7 @@ test("signup captures account holder data only", () => {
   assert.doesNotMatch(authForm, /Curso \/ Etapa/);
   assert.doesNotMatch(authForm, /Debes seleccionar un curso o etapa/);
   assert.doesNotMatch(authForm, /grade_level: gradeLevel/);
+  assert.match(authForm, /representante titular de la cuenta/);
 });
 
 test("new signup confirmation lands on student onboarding", () => {
@@ -31,6 +32,10 @@ test("new signup confirmation lands on student onboarding", () => {
     /\/onboarding\/students\?next=\$\{encodeURIComponent\(nextPath\)\}/
   );
   assert.match(callback, /"\/onboarding\/students"/);
+  assert.ok(
+    (authForm.match(/const onboardingPath = nextPath/g) || []).length >= 2,
+    "signup and resend confirmation must use the same onboarding destination"
+  );
 });
 
 test("student onboarding reads real account students and active schools", () => {
