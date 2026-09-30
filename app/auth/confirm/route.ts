@@ -31,8 +31,14 @@ export async function GET(request: NextRequest) {
       ? "/auth/update-password"
       : type === "invite" || type === "magiclink"
         ? "/auth/complete-invite?next=/admin/school"
-        : "/onboarding/join-school";
-  const destination = safeNext || fallbackDestination;
+        : "/onboarding/students";
+
+  const legacySignupDestination =
+    type === "email" && safeNext === "/onboarding/join-school"
+      ? "/onboarding/students"
+      : safeNext;
+
+  const destination = legacySignupDestination || fallbackDestination;
 
   const redirectTo = new URL(destination, request.url);
   return NextResponse.redirect(redirectTo);

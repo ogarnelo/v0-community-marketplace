@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { UserBadgePills } from "@/components/profile/user-badge-pills";
 import {
   Bell,
-  Building2,
   CalendarDays,
-  GraduationCap,
   Heart,
   KeyRound,
   LifeBuoy,
@@ -127,20 +125,13 @@ export default async function AccountPage() {
   const accountStudentRows: AccountStudentRow[] = Array.isArray(accountStudents)
     ? (accountStudents as AccountStudentRow[])
     : [];
-  const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
   const postalCode = typedProfile?.postal_code || metadata.postal_code || null;
   const createdAt = typedProfile?.created_at || user.created_at || null;
 
-  const effectiveSchoolId =
-    managedSchoolId || (typedProfile?.school_id && typedProfile.school_id.trim().length > 0
-      ? typedProfile.school_id
-      : "");
-
-  const selectedSchool = effectiveSchoolId
-    ? schoolOptions.find((school) => school.id === effectiveSchoolId) || null
+  const managedSchool = managedSchoolId
+    ? schoolOptions.find((school) => school.id === managedSchoolId) || null
     : null;
-
-  const schoolName = selectedSchool?.name || (typeof metadata.school_name === "string" && metadata.school_name.trim().length > 0 ? metadata.school_name.trim() : "Centro no asignado");
+  const schoolName = managedSchool?.name || "Centro";
 
   const { data: managedAccessCodeRow } = managedSchoolId
     ? await supabase
@@ -185,9 +176,7 @@ export default async function AccountPage() {
             <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:mt-5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
               <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><Mail className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{email}</span></div>
               {typedProfile?.phone ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><Phone className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{typedProfile.phone}</span></div> : null}
-              <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><Building2 className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{schoolName}</span></div>
               {postalCode ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><MapPin className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">CP {postalCode}</span></div> : null}
-              {gradeLevel ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><GraduationCap className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{gradeLevel}</span></div> : null}
               {createdAt ? <div className="flex min-w-0 items-center gap-2 rounded-2xl bg-background/80 p-2.5 sm:p-3"><CalendarDays className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">Desde {new Date(createdAt).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span></div> : null}
             </div>
           </div>
@@ -226,6 +215,7 @@ export default async function AccountPage() {
                 id: school.id,
                 name: school.name,
                 city: school.city,
+                postal_code: school.postal_code,
               }))}
               gradeLevels={normalizedGradeLevels}
             />
@@ -237,9 +227,7 @@ export default async function AccountPage() {
             initialFirstName={firstName}
             initialLastName={lastName}
             initialUserType={userType === "parent" || userType === "student" || userType === "business" ? userType : ""}
-            initialGradeLevel={typedProfile?.grade_level || ""}
             initialPostalCode={typedProfile?.postal_code || ""}
-            initialSchoolId={effectiveSchoolId}
             initialBusinessName=""
             initialBusinessDescription=""
             initialWebsite=""
@@ -250,8 +238,6 @@ export default async function AccountPage() {
             initialShippingRegion=""
             initialShippingCountryCode="ES"
             email={email}
-            gradeLevelOptions={normalizedGradeLevels}
-            schoolOptions={schoolOptions}
             isSchoolAdmin={Boolean(managedSchoolId)}
             managedSchoolId={managedSchoolId}
             managedSchoolName={schoolName}

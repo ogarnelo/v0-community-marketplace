@@ -15,16 +15,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import StudentContextFields, {
+  type StudentContextSchoolOption,
+} from "@/components/account-students/student-context-fields";
 
 type AccountType = "student" | "parent";
-
-type SchoolOption = {
-  id: string;
-  name: string;
-  city: string | null;
-};
 
 type StudentRow = {
   id: string;
@@ -52,10 +47,8 @@ const EMPTY_DRAFT: Draft = {
   gradeLevel: "",
 };
 
-function studentLabel(student: StudentRow, index: number, accountType: AccountType) {
-  const alias = student.alias?.trim();
-  if (alias) return alias;
-  return accountType === "student" ? "Mi curso" : "Estudiante " + (index + 1);
+function studentLabel(student: StudentRow, index: number) {
+  return student.alias?.trim() || "Estudiante " + (index + 1);
 }
 
 export default function AccountStudentsOnboarding({
@@ -69,14 +62,25 @@ export default function AccountStudentsOnboarding({
   accountType: AccountType;
   accountHolderName: string;
   initialStudents: StudentRow[];
-  schools: SchoolOption[];
+  schools: StudentContextSchoolOption[];
   gradeLevels: string[];
   nextPath: string | null;
 }) {
   const router = useRouter();
+  const initialSelf = accountType === "student" ? initialStudents[0] || null : null;
   const [students, setStudents] = useState(initialStudents);
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft>(() =>
+    initialSelf
+      ? {
+          alias: "",
+          schoolId: initialSelf.school_id || "",
+          gradeLevel: initialSelf.grade_level || "",
+        }
+      : EMPTY_DRAFT
+  );
+  const [editingId, setEditingId] = useState<string | null>(
+    accountType === "student" ? initialSelf?.id || null : null
+  );
   const [addingAnother, setAddingAnother] = useState(initialStudents.length === 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -87,9 +91,10 @@ export default function AccountStudentsOnboarding({
   );
 
   const showEditor =
+    accountType === "student" ||
     students.length === 0 ||
     editingId !== null ||
-    (accountType === "parent" && addingAnother);
+    addingAnother;
 
   function resetEditor() {
     setDraft(EMPTY_DRAFT);
@@ -100,7 +105,7 @@ export default function AccountStudentsOnboarding({
 
   function startEdit(student: StudentRow) {
     setDraft({
-      alias: student.alias || "",
+      alias: accountType === "student" ? "" : student.alias || "",
       schoolId: student.school_id || "",
       gradeLevel: student.grade_level || "",
     });
@@ -119,10 +124,6 @@ export default function AccountStudentsOnboarding({
   }
 
   async function saveDraft() {
-    if (!draft.schoolId) {
-      setError("Selecciona un centro.");
-      return null;
-    }
     if (!draft.gradeLevel) {
       setError("Selecciona un curso.");
       return null;
@@ -138,8 +139,8 @@ export default function AccountStudentsOnboarding({
           method: editingId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            alias: draft.alias.trim() || null,
-            schoolId: draft.schoolId,
+            alias: accountType === "student" ? null : draft.alias.trim() || null,
+            schoolId: draft.schoolId || null,
             gradeLevel: draft.gradeLevel,
           }),
         }
@@ -148,7 +149,7 @@ export default function AccountStudentsOnboarding({
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.student) {
-        throw new Error(payload?.error || "No se pudo guardar el estudiante.");
+        throw new Error(payload?.error || "No se pudo guardar el contexto educativo.");
       }
 
       const saved = payload.student as StudentRow;
@@ -160,10 +161,20 @@ export default function AccountStudentsOnboarding({
           : [...current, saved];
       });
 
-      resetEditor();
+      if (accountType === "student") {
+        setEditingId(saved.id);
+        setDraft({
+          alias: "",
+          schoolId: saved.school_id || "",
+          gradeLevel: saved.grade_level || "",
+        });
+      } else {
+        resetEditor();
+      }
+
       return saved;
     } catch (cause: any) {
-      setError(cause?.message || "No se pudo guardar el estudiante.");
+      setError(cause?.message || "No se pudo guardar el contexto educativo.");
       return null;
     } finally {
       setSaving(false);
@@ -206,11 +217,9 @@ export default function AccountStudentsOnboarding({
   }
 
   async function enterWetudy() {
-    const hasDraft = Boolean(
-      draft.alias.trim() || draft.schoolId || draft.gradeLevel
-    );
+    const hasDraft = Boolean(draft.alias.trim() || draft.schoolId || draft.gradeLevel);
 
-    if ((addingAnother || editingId) && hasDraft) {
+    if (showEditor && hasDraft) {
       const saved = await saveDraft();
       if (!saved) return;
     }
@@ -218,7 +227,7 @@ export default function AccountStudentsOnboarding({
     if (students.length === 0 && !hasDraft) {
       setError(
         accountType === "student"
-          ? "Configura tu centro y curso antes de continuar."
+          ? "Selecciona tu curso antes de continuar."
           : "Añade al menos un estudiante antes de continuar."
       );
       return;
@@ -238,7 +247,7 @@ export default function AccountStudentsOnboarding({
           </h1>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             {accountType === "student"
-              ? "Indica tu centro y curso. Podrás modificarlos más adelante desde Mi cuenta."
+              ? "Indica tu curso y, si quieres, tu centro educativo. Podrás modificarlos más adelante desde Mi cuenta."
               : "Añade el primer estudiante y ya podrás entrar en Wetudy. Los demás son opcionales."}
           </p>
           {accountHolderName ? (
@@ -254,7 +263,7 @@ export default function AccountStudentsOnboarding({
           </div>
         ) : null}
 
-        {students.length > 0 ? (
+        {accountType === "parent" && students.length > 0 ? (
           <div className="mb-4 space-y-2">
             {students.map((student, index) => {
               const school = student.school_id
@@ -266,15 +275,13 @@ export default function AccountStudentsOnboarding({
                   <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">
-                          {studentLabel(student, index, accountType)}
-                        </p>
-                        {student.is_primary && accountType === "parent" ? (
+                        <p className="font-semibold">{studentLabel(student, index)}</p>
+                        {student.is_primary ? (
                           <Badge variant="outline">Principal</Badge>
                         ) : null}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {school?.name || "Centro no disponible"} · {student.grade_level} · {student.academic_year}
+                        {school?.name || "Sin centro"} · {student.grade_level} · {student.academic_year}
                       </p>
                     </div>
 
@@ -289,18 +296,16 @@ export default function AccountStudentsOnboarding({
                         <Pencil className="mr-1.5 h-4 w-4" />
                         Editar
                       </Button>
-                      {accountType === "parent" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void removeStudent(student)}
-                          disabled={saving}
-                        >
-                          <Trash2 className="mr-1.5 h-4 w-4" />
-                          Quitar
-                        </Button>
-                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void removeStudent(student)}
+                        disabled={saving}
+                      >
+                        <Trash2 className="mr-1.5 h-4 w-4" />
+                        Quitar
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -310,7 +315,7 @@ export default function AccountStudentsOnboarding({
         ) : null}
 
         {showEditor ? (
-          <Card className={students.length > 0 ? "border-dashed" : ""}>
+          <Card className={students.length > 0 && accountType === "parent" ? "border-dashed" : ""}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 {accountType === "student" ? (
@@ -318,97 +323,43 @@ export default function AccountStudentsOnboarding({
                 ) : (
                   <UsersRound className="h-5 w-5 text-primary" />
                 )}
-                {editingId
-                  ? accountType === "student"
-                    ? "Editar mi contexto"
-                    : "Editar estudiante"
-                  : accountType === "student"
-                    ? "Centro y curso"
+                {accountType === "student"
+                  ? "Centro y curso"
+                  : editingId
+                    ? "Editar estudiante"
                     : students.length === 0
                       ? "Estudiante 1"
                       : "Añadir otro estudiante"}
               </CardTitle>
               <CardDescription>
-                Nombre o alias es opcional. No pedimos fecha de nacimiento ni otros datos personales.
+                {accountType === "student"
+                  ? "El centro es opcional. El curso nos ayuda a personalizar Wetudy."
+                  : "Nombre o alias y centro son opcionales. El curso es necesario."}
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="student-alias">
-                  Nombre o alias <span className="font-normal text-muted-foreground">(opcional)</span>
-                </Label>
-                <Input
-                  id="student-alias"
-                  value={draft.alias}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      alias: event.target.value.slice(0, 80),
-                    }))
-                  }
-                  placeholder={
-                    accountType === "student"
-                      ? "Ej. Mi curso"
-                      : "Ej. Ana, Mayor, ESO…"
-                  }
-                  autoComplete="off"
-                  className="text-base sm:text-sm"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="student-school">Centro</Label>
-                  <select
-                    id="student-school"
-                    value={draft.schoolId}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        schoolId: event.target.value,
-                      }))
-                    }
-                    className="h-11 w-full rounded-md border bg-background px-3 text-base sm:text-sm"
-                  >
-                    <option value="">Selecciona centro</option>
-                    {schools.map((school) => (
-                      <option key={school.id} value={school.id}>
-                        {school.name}{school.city ? " · " + school.city : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="student-grade">Curso</Label>
-                  <select
-                    id="student-grade"
-                    value={draft.gradeLevel}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        gradeLevel: event.target.value,
-                      }))
-                    }
-                    className="h-11 w-full rounded-md border bg-background px-3 text-base sm:text-sm"
-                  >
-                    <option value="">Selecciona curso</option>
-                    {gradeLevels.map((grade) => (
-                      <option key={grade} value={grade}>
-                        {grade}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            <CardContent className="space-y-5">
+              <StudentContextFields
+                showAlias={accountType === "parent"}
+                alias={draft.alias}
+                onAliasChange={(alias) =>
+                  setDraft((current) => ({ ...current, alias }))
+                }
+                schoolId={draft.schoolId}
+                onSchoolIdChange={(schoolId) =>
+                  setDraft((current) => ({ ...current, schoolId }))
+                }
+                gradeLevel={draft.gradeLevel}
+                onGradeLevelChange={(gradeLevel) =>
+                  setDraft((current) => ({ ...current, gradeLevel }))
+                }
+                schools={schools}
+                gradeLevels={gradeLevels}
+                disabled={saving}
+              />
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  type="button"
-                  onClick={() => void saveDraft()}
-                  disabled={saving}
-                >
+                <Button type="button" onClick={() => void saveDraft()} disabled={saving}>
                   {saving ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -416,7 +367,7 @@ export default function AccountStudentsOnboarding({
                   )}
                   {editingId ? "Guardar cambios" : "Guardar"}
                 </Button>
-                {students.length > 0 ? (
+                {accountType === "parent" && students.length > 0 ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -441,14 +392,10 @@ export default function AccountStudentsOnboarding({
                   <p className="mt-1 text-sm leading-5 text-muted-foreground">
                     {accountType === "parent"
                       ? "Puedes entrar ya o añadir otro estudiante. También podrás gestionarlos desde Mi cuenta."
-                      : "Tu centro y curso ya están guardados."}
+                      : "Tu contexto educativo ya está guardado."}
                   </p>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      type="button"
-                      onClick={() => void enterWetudy()}
-                      disabled={saving}
-                    >
+                    <Button type="button" onClick={() => void enterWetudy()} disabled={saving}>
                       Entrar en Wetudy
                     </Button>
                     {accountType === "parent" && !showEditor ? (

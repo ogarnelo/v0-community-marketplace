@@ -16,8 +16,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import StudentContextFields, {
+  type StudentContextSchoolOption,
+} from "@/components/account-students/student-context-fields";
 
 type AccountType = "student" | "parent";
 
@@ -35,12 +36,6 @@ export type AccountStudentRow = {
   updated_at: string;
 };
 
-type SchoolOption = {
-  id: string;
-  name: string;
-  city: string | null;
-};
-
 type Draft = {
   alias: string;
   schoolId: string;
@@ -53,14 +48,21 @@ const EMPTY_DRAFT: Draft = {
   gradeLevel: "",
 };
 
+function draftFromStudent(student: AccountStudentRow | null): Draft {
+  return student
+    ? {
+        alias: student.alias || "",
+        schoolId: student.school_id || "",
+        gradeLevel: student.grade_level || "",
+      }
+    : EMPTY_DRAFT;
+}
+
 function getStudentLabel(
   student: AccountStudentRow,
-  index: number,
-  accountType: AccountType
+  index: number
 ) {
-  const alias = student.alias?.trim();
-  if (alias) return alias;
-  return accountType === "student" ? "Mi curso" : "Estudiante " + (index + 1);
+  return student.alias?.trim() || "Estudiante " + (index + 1);
 }
 
 export default function AccountStudentsSection({
@@ -71,16 +73,22 @@ export default function AccountStudentsSection({
 }: {
   accountType: AccountType;
   initialStudents: AccountStudentRow[];
-  schools: SchoolOption[];
+  schools: StudentContextSchoolOption[];
   gradeLevels: string[];
 }) {
   const router = useRouter();
+  const initialSelf = accountType === "student" ? initialStudents[0] || null : null;
   const [students, setStudents] = useState(initialStudents);
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(initialStudents.length === 0);
+  const [draft, setDraft] = useState<Draft>(() => draftFromStudent(initialSelf));
+  const [editingId, setEditingId] = useState<string | null>(
+    accountType === "student" ? initialSelf?.id || null : null
+  );
+  const [adding, setAdding] = useState(
+    accountType === "student" ? true : initialStudents.length === 0
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const schoolById = useMemo(
@@ -93,6 +101,7 @@ export default function AccountStudentsSection({
     setEditingId(null);
     setAdding(false);
     setError("");
+    setSuccess("");
   }
 
   function startAdd() {
@@ -101,25 +110,19 @@ export default function AccountStudentsSection({
     setAdding(true);
     setPendingDeleteId(null);
     setError("");
+    setSuccess("");
   }
 
   function startEdit(student: AccountStudentRow) {
-    setDraft({
-      alias: student.alias || "",
-      schoolId: student.school_id || "",
-      gradeLevel: student.grade_level || "",
-    });
+    setDraft(draftFromStudent(student));
     setEditingId(student.id);
     setAdding(false);
     setPendingDeleteId(null);
     setError("");
+    setSuccess("");
   }
 
   function validate() {
-    if (!draft.schoolId) {
-      setError("Selecciona un centro.");
-      return false;
-    }
     if (!draft.gradeLevel) {
       setError("Selecciona un curso.");
       return false;
@@ -132,6 +135,7 @@ export default function AccountStudentsSection({
 
     setSaving(true);
     setError("");
+    setSuccess("");
 
     try {
       const response = await fetch(
@@ -140,8 +144,8 @@ export default function AccountStudentsSection({
           method: editingId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            alias: draft.alias.trim() || null,
-            schoolId: draft.schoolId,
+            alias: accountType === "student" ? null : draft.alias.trim() || null,
+            schoolId: draft.schoolId || null,
             gradeLevel: draft.gradeLevel,
           }),
         }
@@ -150,7 +154,7 @@ export default function AccountStudentsSection({
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.student) {
-        throw new Error(payload?.error || "No se pudo guardar el estudiante.");
+        throw new Error(payload?.error || "No se pudo guardar el contexto educativo.");
       }
 
       const saved = payload.student as AccountStudentRow;
@@ -162,10 +166,18 @@ export default function AccountStudentsSection({
           : [...current, saved];
       });
 
-      resetEditor();
+      if (accountType === "student") {
+        setDraft(draftFromStudent(saved));
+        setEditingId(saved.id);
+        setAdding(true);
+        setSuccess("Contexto educativo actualizado.");
+      } else {
+        resetEditor();
+      }
+
       router.refresh();
     } catch (cause: any) {
-      setError(cause?.message || "No se pudo guardar el estudiante.");
+      setError(cause?.message || "No se pudo guardar el contexto educativo.");
     } finally {
       setSaving(false);
     }
@@ -174,6 +186,7 @@ export default function AccountStudentsSection({
   async function removeStudent(student: AccountStudentRow) {
     setSaving(true);
     setError("");
+    setSuccess("");
 
     try {
       const response = await fetch("/api/account/students/" + student.id, {
@@ -204,9 +217,74 @@ export default function AccountStudentsSection({
     }
   }
 
-  const canAdd =
-    accountType === "parent" ||
-    (accountType === "student" && students.length === 0);
+  if (accountType === "student") {
+    const currentStudent = students[0] || null;
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserRound className="h-5 w-5 text-primary" />
+            Mi contexto educativo
+          </CardTitle>
+          <CardDescription>
+            Tu centro y curso se gestionan aquí, separados de los datos personales de la cuenta.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-5">
+          {error ? (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+
+          {success ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {success}
+            </div>
+          ) : null}
+
+          <StudentContextFields
+            showAlias={false}
+            alias=""
+            onAliasChange={() => undefined}
+            schoolId={draft.schoolId}
+            onSchoolIdChange={(schoolId) =>
+              setDraft((current) => ({ ...current, schoolId }))
+            }
+            gradeLevel={draft.gradeLevel}
+            onGradeLevelChange={(gradeLevel) =>
+              setDraft((current) => ({ ...current, gradeLevel }))
+            }
+            schools={schools}
+            gradeLevels={gradeLevels}
+            disabled={saving}
+          />
+
+          {currentStudent ? (
+            <p className="text-xs text-muted-foreground">
+              Curso académico {currentStudent.academic_year}.
+            </p>
+          ) : null}
+
+          <Button
+            type="button"
+            onClick={() => void saveStudent()}
+            disabled={saving}
+            className="w-full sm:w-auto"
+          >
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="mr-2 h-4 w-4" />
+            )}
+            Guardar contexto educativo
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const showEditor = editingId !== null || adding;
 
@@ -216,24 +294,18 @@ export default function AccountStudentsSection({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              {accountType === "student" ? (
-                <UserRound className="h-5 w-5 text-primary" />
-              ) : (
-                <UsersRound className="h-5 w-5 text-primary" />
-              )}
-              {accountType === "student" ? "Mi contexto educativo" : "Estudiantes"}
+              <UsersRound className="h-5 w-5 text-primary" />
+              Estudiantes
             </CardTitle>
             <CardDescription className="mt-1.5">
-              {accountType === "student"
-                ? "Tu centro y curso se gestionan aquí, separados de los datos personales de la cuenta."
-                : "Los datos del titular de la cuenta son independientes. Aquí gestionas los estudiantes asociados."}
+              Los datos del titular de la cuenta son independientes. Aquí gestionas los estudiantes asociados.
             </CardDescription>
           </div>
 
-          {canAdd && !showEditor ? (
+          {!showEditor ? (
             <Button type="button" variant="outline" onClick={startAdd}>
               <Plus className="mr-2 h-4 w-4" />
-              {accountType === "student" ? "Añadir contexto" : "Añadir estudiante"}
+              Añadir estudiante
             </Button>
           ) : null}
         </div>
@@ -263,14 +335,14 @@ export default function AccountStudentsSection({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold">
-                          {getStudentLabel(student, index, accountType)}
+                          {getStudentLabel(student, index)}
                         </p>
-                        {student.is_primary && accountType === "parent" ? (
+                        {student.is_primary ? (
                           <Badge variant="outline">Principal</Badge>
                         ) : null}
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                        <span>{school?.name || "Centro no disponible"}</span>
+                        <span>{school?.name || "Sin centro"}</span>
                         <span aria-hidden="true">·</span>
                         <span>{student.grade_level}</span>
                         <span aria-hidden="true">·</span>
@@ -290,7 +362,7 @@ export default function AccountStudentsSection({
                         Editar
                       </Button>
 
-                      {accountType === "parent" && !pendingDelete ? (
+                      {!pendingDelete ? (
                         <Button
                           type="button"
                           size="sm"
@@ -306,9 +378,7 @@ export default function AccountStudentsSection({
                           <Trash2 className="mr-1.5 h-4 w-4" />
                           Quitar
                         </Button>
-                      ) : null}
-
-                      {accountType === "parent" && pendingDelete ? (
+                      ) : (
                         <>
                           <Button
                             type="button"
@@ -334,7 +404,7 @@ export default function AccountStudentsSection({
                             Cancelar
                           </Button>
                         </>
-                      ) : null}
+                      )}
                     </div>
                   </div>
                 </div>
@@ -343,9 +413,7 @@ export default function AccountStudentsSection({
           </div>
         ) : !showEditor ? (
           <div className="rounded-2xl border border-dashed p-5 text-sm text-muted-foreground">
-            {accountType === "student"
-              ? "Todavía no has configurado tu centro y curso."
-              : "Todavía no hay estudiantes asociados a esta cuenta."}
+            Todavía no hay estudiantes asociados a esta cuenta.
           </div>
         ) : null}
 
@@ -355,91 +423,34 @@ export default function AccountStudentsSection({
               <GraduationCap className="h-5 w-5 text-primary" />
               <div>
                 <p className="font-semibold">
-                  {editingId
-                    ? accountType === "student"
-                      ? "Editar mi contexto"
-                      : "Editar estudiante"
-                    : accountType === "student"
-                      ? "Añadir mi contexto"
-                      : "Añadir estudiante"}
+                  {editingId ? "Editar estudiante" : "Añadir estudiante"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Nombre o alias es opcional. Centro y curso son obligatorios.
+                  El nombre o alias es opcional. El centro también puede dejarse vacío.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="account-student-alias">
-                  Nombre o alias <span className="font-normal text-muted-foreground">(opcional)</span>
-                </Label>
-                <Input
-                  id="account-student-alias"
-                  value={draft.alias}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      alias: event.target.value.slice(0, 80),
-                    }))
-                  }
-                  placeholder={
-                    accountType === "student"
-                      ? "Ej. Mi curso"
-                      : "Ej. Ana, Mayor, ESO…"
-                  }
-                  autoComplete="off"
-                  className="text-base sm:text-sm"
-                />
-              </div>
+            <StudentContextFields
+              showAlias
+              alias={draft.alias}
+              onAliasChange={(alias) =>
+                setDraft((current) => ({ ...current, alias }))
+              }
+              schoolId={draft.schoolId}
+              onSchoolIdChange={(schoolId) =>
+                setDraft((current) => ({ ...current, schoolId }))
+              }
+              gradeLevel={draft.gradeLevel}
+              onGradeLevelChange={(gradeLevel) =>
+                setDraft((current) => ({ ...current, gradeLevel }))
+              }
+              schools={schools}
+              gradeLevels={gradeLevels}
+              disabled={saving}
+            />
 
-              <div className="space-y-2">
-                <Label htmlFor="account-student-school">Centro</Label>
-                <select
-                  id="account-student-school"
-                  value={draft.schoolId}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      schoolId: event.target.value,
-                    }))
-                  }
-                  className="h-10 w-full rounded-md border bg-background px-3 text-base sm:text-sm"
-                >
-                  <option value="">Selecciona centro</option>
-                  {schools.map((school) => (
-                    <option key={school.id} value={school.id}>
-                      {school.name}
-                      {school.city ? " · " + school.city : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="account-student-grade">Curso</Label>
-                <select
-                  id="account-student-grade"
-                  value={draft.gradeLevel}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      gradeLevel: event.target.value,
-                    }))
-                  }
-                  className="h-10 w-full rounded-md border bg-background px-3 text-base sm:text-sm"
-                >
-                  <option value="">Selecciona curso</option>
-                  {gradeLevels.map((grade) => (
-                    <option key={grade} value={grade}>
-                      {grade}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <Button
                 type="button"
                 onClick={() => void saveStudent()}

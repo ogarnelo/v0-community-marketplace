@@ -85,3 +85,15 @@ test("signup continues to capture account-holder name surname and postal code", 
   assert.match(authForm, /last_name: normalizedLastName/);
   assert.match(authForm, /postal_code: normalizedPostalCode/);
 });
+
+
+test("educational center is optional while course remains required", () => {
+  assert.match(service, /schoolId: string \| null/);
+  assert.match(service, /if \(schoolId && !UUID_RE\.test\(schoolId\)\)/);
+  assert.match(service, /if \(!gradeLevel\)/);
+  assert.match(service, /if \(input\.schoolId\) \{[\s\S]*ensureActiveSchool\(input\.schoolId\)/);
+});
+
+test("student self context never stores an alias supplied by the client", () => {
+  assert.match(service, /alias: accountType === "student" \? null : input\.alias/);
+});

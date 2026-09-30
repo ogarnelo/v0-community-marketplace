@@ -13,6 +13,7 @@ const sidebar = read("components/messages/conversations-sidebar.tsx");
 const conversationSummary = read("app/api/messages/conversation-summary/route.ts");
 const joinSchool = read("app/onboarding/join-school/page.tsx");
 const accountProfile = read("components/account/account-profile-form.tsx");
+const studentContextFields = read("components/account-students/student-context-fields.tsx");
 const resolveCode = read("app/api/schools/resolve-code/route.ts");
 const shipmentLabel = read("app/api/shipments/create-label/route.ts");
 
@@ -51,7 +52,7 @@ test("school access codes cannot be enumerated by ordinary authenticated users",
   assert.doesNotMatch(joinSchool, /\.from\("school_access_codes"\)/);
   assert.doesNotMatch(accountProfile, /\.from\("school_access_codes"\)/);
   assert.match(joinSchool, /\/api\/schools\/resolve-code/);
-  assert.match(accountProfile, /\/api\/schools\/resolve-code/);
+  assert.match(studentContextFields, /\/api\/schools\/resolve-code/);
 
   assert.match(resolveCode, /supabase\.auth\.getUser\(\)/);
   assert.match(resolveCode, /createAdminClient/);

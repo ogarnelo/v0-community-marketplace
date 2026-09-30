@@ -246,7 +246,34 @@ export function AuthForm() {
       }
 
       await triggerWelcomeEmail();
-      window.location.assign(nextPath || "/account");
+
+      let destination = nextPath || "/account";
+      const accountType = data.user?.user_metadata?.user_type;
+
+      if (accountType === "parent" || accountType === "student") {
+        try {
+          const response = await fetch("/api/account/students", {
+            method: "GET",
+            cache: "no-store",
+          });
+          const payload = await response.json().catch(() => null);
+          const students = Array.isArray(payload?.students) ? payload.students : [];
+
+          if (response.ok && students.length === 0) {
+            destination =
+              nextPath && nextPath !== "/onboarding/students"
+                ? `/onboarding/students?next=${encodeURIComponent(nextPath)}`
+                : "/onboarding/students";
+          }
+        } catch (contextError) {
+          console.warn(
+            "No se pudo comprobar el onboarding educativo tras login",
+            contextError
+          );
+        }
+      }
+
+      window.location.assign(destination);
     } catch (e: any) {
       setError(getAuthErrorMessage(e, "login"));
     } finally {
