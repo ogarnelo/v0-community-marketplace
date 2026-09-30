@@ -65,7 +65,8 @@ test("family can enter after first student or add another", () => {
 
 test("student account stays a single self context in UX", () => {
   assert.match(onboardingClient, /accountType === "student"/);
-  assert.match(onboardingClient, /Mi curso/);
+  assert.match(onboardingClient, /Tu contexto educativo/);
+  assert.match(onboardingClient, /showAlias=\{accountType === "parent"\}/);
   assert.doesNotMatch(onboardingClient, /Hijo|hijo|Hija|hija/);
 });
 
