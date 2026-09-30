@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, "utf8");
 
 const joinSchool = read("app/onboarding/join-school/page.tsx");
 const accountProfile = read("components/account/account-profile-form.tsx");
+const studentContextFields = read("components/account-students/student-context-fields.tsx");
 const marketplacePage = read("app/marketplace/page.tsx");
 const marketplaceClient = read("components/marketplace/marketplace-client.tsx");
 const listingCard = read("components/listing-card.tsx");
@@ -26,11 +27,12 @@ test("join-school recognizes an existing link and supports switching or unlinkin
   assert.match(joinSchool, /school_id: null/);
 });
 
-test("account lets a regular user clear the selected school before saving", () => {
-  assert.match(accountProfile, /Quitar centro educativo/);
-  assert.match(accountProfile, /setSelectedSchoolId\(""\)/);
-  assert.match(accountProfile, /school_id: normalizedSchoolId \|\| null/);
-  assert.match(accountProfile, /dejar este campo vacío y guardar/);
+test("educational context lets a regular user clear the selected school before saving", () => {
+  assert.match(studentContextFields, /Quitar centro educativo/);
+  assert.match(studentContextFields, /onSchoolIdChange\(""\)/);
+  assert.match(studentContextFields, /Puedes dejar este campo vacío y guardar para no pertenecer a ningún centro/);
+  assert.doesNotMatch(accountProfile, /Centro educativo/);
+  assert.doesNotMatch(accountProfile, /Curso \/ nivel/);
 });
 
 test("marketplace distance uses account postal codes and excludes unknown locations when radius is active", () => {
