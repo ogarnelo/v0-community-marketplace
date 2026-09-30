@@ -41,8 +41,10 @@ test("student writes remain server-side and reads are owner scoped", () => {
   assert.match(migration, /auth\.uid\(\).*owner_user_id/);
 });
 
-test("production account layout is not converted into the beta account UI", () => {
-  assert.doesNotMatch(accountPage, /account_students/);
+test("account integration keeps the production account shell and never uses the old beta account UI", () => {
+  assert.match(accountPage, /AccountStudentsSection/);
+  assert.match(accountPage, /AccountProfileForm/);
+  assert.match(accountPage, /quickActions\.map/);
   assert.doesNotMatch(accountPage, /AccountStudentsBetaClient/);
   assert.doesNotMatch(accountPage, /beta\/cuenta/);
 });
