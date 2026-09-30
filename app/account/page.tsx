@@ -26,6 +26,7 @@ import {
   Star,
 } from "lucide-react";
 import AccountProfileForm from "@/components/account/account-profile-form";
+import AccountStudentsSection, { type AccountStudentRow } from "@/components/account/account-students-section";
 import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
@@ -74,6 +75,7 @@ export default async function AccountPage() {
     { data: profile, error: profileError },
     { data: schoolsData, error: schoolsError },
     { data: roles, error: rolesError },
+    { data: accountStudents, error: accountStudentsError },
     stats,
     { count: buyerAgreementsCount },
     { count: sellerAgreementsCount },
@@ -85,6 +87,13 @@ export default async function AccountPage() {
       .maybeSingle(),
     supabase.from("schools").select("id, name, city, postal_code").eq("is_active", true).order("name", { ascending: true }),
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<UserRoleRow[]>(),
+    supabase
+      .from("account_students")
+      .select("id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
+      .eq("owner_user_id", user.id)
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }),
     getUserProfileStats(supabase, user.id),
     supabase
       .from("agreements")
@@ -101,6 +110,7 @@ export default async function AccountPage() {
   if (profileError) console.error("Error cargando profile:", profileError);
   if (schoolsError) console.error("Error cargando schools:", schoolsError);
   if (rolesError) console.error("Error cargando roles:", rolesError);
+  if (accountStudentsError) console.error("Error cargando estudiantes de cuenta:", accountStudentsError);
 
   const typedProfile = (profile || null) as AccountProfileWithNames | null;
   const schoolOptions: SchoolRow[] = Array.isArray(schoolsData) ? (schoolsData as SchoolRow[]) : [];
@@ -114,6 +124,9 @@ export default async function AccountPage() {
   const fullName = buildFullName(firstName, lastName) || typedProfile?.full_name || metadata.full_name || user.email || "Mi cuenta";
   const email = user.email || "Sin email";
   const userType = typedProfile?.user_type || metadata.user_type || null;
+  const accountStudentRows: AccountStudentRow[] = Array.isArray(accountStudents)
+    ? (accountStudents as AccountStudentRow[])
+    : [];
   const gradeLevel = typedProfile?.grade_level || metadata.grade_level || null;
   const postalCode = typedProfile?.postal_code || metadata.postal_code || null;
   const createdAt = typedProfile?.created_at || user.created_at || null;
@@ -203,6 +216,21 @@ export default async function AccountPage() {
         <div className="mt-5 sm:mt-6">
           <UserBadgePills badges={badges} />
         </div>
+
+        {userType === "parent" || userType === "student" ? (
+          <div className="mt-5 sm:mt-6">
+            <AccountStudentsSection
+              accountType={userType}
+              initialStudents={accountStudentRows}
+              schools={schoolOptions.map((school) => ({
+                id: school.id,
+                name: school.name,
+                city: school.city,
+              }))}
+              gradeLevels={normalizedGradeLevels}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-5 sm:mt-6">
           <AccountProfileForm
