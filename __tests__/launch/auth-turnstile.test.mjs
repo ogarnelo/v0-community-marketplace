@@ -152,7 +152,8 @@ test("token-hash confirmation endpoint verifies email links without browser PKCE
   assert.match(confirm, /token_hash/);
   assert.match(confirm, /supabase\.auth\.verifyOtp/);
   assert.match(confirm, /type === "recovery"/);
-  assert.match(confirm, /\/onboarding\/join-school/);
+  assert.match(confirm, /\/onboarding\/students/);
+  assert.match(confirm, /safeNext === "\/onboarding\/join-school"/);
   assert.match(confirm, /\/auth\/update-password/);
 
   assert.match(templates, /TokenHash/);
