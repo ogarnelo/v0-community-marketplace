@@ -92,7 +92,7 @@ export async function GET(request: Request) {
     safeNext ||
     ((user?.user_metadata || {}).user_type === "business"
       ? "/account"
-      : "/onboarding/join-school");
+      : "/onboarding/students");
 
   return NextResponse.redirect(new URL(destination, request.url));
 }
