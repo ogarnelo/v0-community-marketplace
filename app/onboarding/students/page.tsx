@@ -66,7 +66,7 @@ export default async function StudentsOnboardingPage({
       .maybeSingle(),
     supabase
       .from("schools")
-      .select("id, name, city")
+      .select("id, name, city, postal_code")
       .eq("is_active", true)
       .order("name", { ascending: true })
       .limit(500),
@@ -106,7 +106,7 @@ export default async function StudentsOnboardingPage({
       accountType={userType}
       accountHolderName={buildFullName(firstName, lastName)}
       initialStudents={(students || []) as StudentRow[]}
-      schools={(schools || []) as Array<{ id: string; name: string; city: string | null }>}
+      schools={(schools || []) as Array<{ id: string; name: string; city: string | null; postal_code: string | null }>}
       gradeLevels={Array.from(new Set(gradeLevels)).filter(Boolean)}
       nextPath={safeNext}
     />
