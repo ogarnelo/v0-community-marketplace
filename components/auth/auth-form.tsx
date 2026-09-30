@@ -193,10 +193,10 @@ export function AuthForm() {
 
     try {
       const callbackUrl = new URL("/auth/callback", getAuthPublicOrigin());
-
-      if (nextPath) {
-        callbackUrl.searchParams.set("next", nextPath);
-      }
+      const onboardingPath = nextPath
+        ? `/onboarding/students?next=${encodeURIComponent(nextPath)}`
+        : "/onboarding/students";
+      callbackUrl.searchParams.set("next", onboardingPath);
 
       const { error } = await supabase.auth.resend({
         type: "signup",
@@ -656,12 +656,14 @@ export function AuthForm() {
                     <SelectValue placeholder="Selecciona tu perfil" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="parent">Familia / Tutor legal</SelectItem>
+                    <SelectItem value="parent">Familia / tutor</SelectItem>
                     <SelectItem value="student">Estudiante</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Las cuentas de vendedor profesional no están disponibles en Wetudy.
+                  {userType === "parent"
+                    ? "Nombre y apellidos corresponden al representante titular de la cuenta."
+                    : "Las cuentas de vendedor profesional no están disponibles en Wetudy."}
                 </p>
               </div>
 
