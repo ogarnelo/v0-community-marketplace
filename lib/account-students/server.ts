@@ -6,7 +6,7 @@ export type StudentRelationship = "self" | "guardian";
 
 export type AccountStudentInput = {
   alias: string | null;
-  schoolId: string;
+  schoolId: string | null;
   gradeLevel: string;
 };
 
@@ -40,10 +40,10 @@ function currentAcademicYear() {
 
 export function parseStudentInput(body: any): AccountStudentInput {
   const alias = cleanText(body?.alias, MAX_ALIAS_LENGTH);
-  const schoolId = cleanText(body?.schoolId, 64);
+  const schoolId = cleanText(body?.schoolId, 64) || null;
   const gradeLevel = cleanText(body?.gradeLevel, MAX_GRADE_LENGTH);
 
-  if (!UUID_RE.test(schoolId)) {
+  if (schoolId && !UUID_RE.test(schoolId)) {
     throw new AccountStudentError("Selecciona un centro válido.");
   }
 
@@ -118,10 +118,10 @@ export async function listAccountStudents(userId: string) {
 
 export async function createAccountStudent(userId: string, input: AccountStudentInput) {
   const admin = createAdminClient();
-  const [accountType] = await Promise.all([
-    getAccountType(userId),
-    ensureActiveSchool(input.schoolId),
-  ]);
+  const accountType = await getAccountType(userId);
+  if (input.schoolId) {
+    await ensureActiveSchool(input.schoolId);
+  }
 
   const relationship = relationshipForAccountType(accountType);
   const existing = await listAccountStudents(userId);
@@ -151,7 +151,7 @@ export async function createAccountStudent(userId: string, input: AccountStudent
     .insert({
       owner_user_id: userId,
       relationship,
-      alias: input.alias,
+      alias: accountType === "student" ? null : input.alias,
       school_id: input.schoolId,
       grade_level: input.gradeLevel,
       academic_year: currentAcademicYear(),
@@ -186,10 +186,10 @@ export async function updateAccountStudent(
   }
 
   const admin = createAdminClient();
-  const [accountType] = await Promise.all([
-    getAccountType(userId),
-    ensureActiveSchool(input.schoolId),
-  ]);
+  const accountType = await getAccountType(userId);
+  if (input.schoolId) {
+    await ensureActiveSchool(input.schoolId);
+  }
   const expectedRelationship = relationshipForAccountType(accountType);
 
   const { data: existing, error: existingError } = await admin
@@ -215,7 +215,7 @@ export async function updateAccountStudent(
   const { data, error } = await admin
     .from("account_students")
     .update({
-      alias: input.alias,
+      alias: accountType === "student" ? null : input.alias,
       school_id: input.schoolId,
       grade_level: input.gradeLevel,
       updated_at: new Date().toISOString(),
