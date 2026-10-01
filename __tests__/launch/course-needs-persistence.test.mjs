@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync(
-  "supabase/migrations/20261001210000_course_needs_foundation.sql",
+  "supabase/migrations/20261001204816_course_needs_foundation.sql",
+  "utf8"
+);
+const fkIndexMigration = readFileSync(
+  "supabase/migrations/20261001204851_course_needs_student_fk_index.sql",
   "utf8"
 );
 const service = readFileSync(
@@ -37,6 +41,12 @@ test("course_needs migration is additive and isolated", () => {
   assert.doesNotMatch(migration, /alter table public\.demand_requests/);
   assert.doesNotMatch(migration, /insert into public\.(profiles|account_students|saved_searches|demand_requests)/);
   assert.doesNotMatch(migration, /update public\./);
+});
+
+test("course_needs foreign keys have supporting indexes", () => {
+  assert.match(migration, /course_needs_owner_student_active_idx/);
+  assert.match(fkIndexMigration, /course_needs_student_id_idx/);
+  assert.match(fkIndexMigration, /on public\.course_needs \(student_id\)/);
 });
 
 test("course_needs is read-only from authenticated clients", () => {
