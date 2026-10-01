@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import {
-  CourseNeedError,
-  archiveCourseNeed,
-} from "@/lib/my-course/course-needs-server";
+import { CourseNeedError } from "@/lib/my-course/course-needs-server";
+import { archiveCourseNeedAndStopSearch } from "@/lib/my-course/course-need-search-server";
 
 function errorResponse(error: unknown) {
   if (error instanceof CourseNeedError) {
@@ -40,7 +38,7 @@ export async function DELETE(
   try {
     const user = await requireUser();
     const { id } = await params;
-    const need = await archiveCourseNeed(user.id, id);
+    const need = await archiveCourseNeedAndStopSearch(user.id, id);
     return NextResponse.json({ need });
   } catch (error) {
     return errorResponse(error);
