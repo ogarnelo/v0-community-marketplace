@@ -30,6 +30,7 @@ import {
   Heart,
   Activity,
   QrCode,
+  GraduationCap,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -192,6 +193,7 @@ export function Navbar({
   const navItems = useMemo(
     () => [
       { href: "/marketplace", label: "Marketplace", icon: BookOpen },
+      { href: "/mi-curso", label: "Mi curso", icon: GraduationCap },
       { href: "/favorites", label: "Favoritos", icon: Heart },
       { href: publishHref, label: "Publicar", icon: Plus },
       { href: "/messages", label: "Mensajes", icon: MessageCircle },
@@ -227,6 +229,7 @@ export function Navbar({
     if (href === "/") return pathname === "/";
     if (href === "/marketplace/new") return pathname === "/marketplace/new";
     if (href === "/marketplace") return pathname === "/marketplace" || pathname.startsWith("/marketplace/listing");
+    if (href === "/mi-curso") return pathname === "/mi-curso";
     if (href === "/messages") return pathname === "/messages" || pathname.startsWith("/messages/");
     if (href === "/favorites") return pathname === "/favorites";
     if (href === "/account/activity") return pathname === "/account/activity" || pathname.startsWith("/account/activity/");
