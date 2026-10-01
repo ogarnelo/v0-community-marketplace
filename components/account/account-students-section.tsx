@@ -48,14 +48,20 @@ const EMPTY_DRAFT: Draft = {
   gradeLevel: "",
 };
 
-function draftFromStudent(student: AccountStudentRow | null): Draft {
+function draftFromStudent(
+  student: AccountStudentRow | null,
+  defaultSchoolId = ""
+): Draft {
   return student
     ? {
         alias: student.alias || "",
-        schoolId: student.school_id || "",
+        schoolId: student.school_id || defaultSchoolId,
         gradeLevel: student.grade_level || "",
       }
-    : EMPTY_DRAFT;
+    : {
+        ...EMPTY_DRAFT,
+        schoolId: defaultSchoolId,
+      };
 }
 
 function getStudentLabel(
@@ -70,16 +76,20 @@ export default function AccountStudentsSection({
   initialStudents,
   schools,
   gradeLevels,
+  defaultSchoolId = "",
 }: {
   accountType: AccountType;
   initialStudents: AccountStudentRow[];
   schools: StudentContextSchoolOption[];
   gradeLevels: string[];
+  defaultSchoolId?: string;
 }) {
   const router = useRouter();
   const initialSelf = accountType === "student" ? initialStudents[0] || null : null;
   const [students, setStudents] = useState(initialStudents);
-  const [draft, setDraft] = useState<Draft>(() => draftFromStudent(initialSelf));
+  const [draft, setDraft] = useState<Draft>(() =>
+    draftFromStudent(initialSelf, defaultSchoolId)
+  );
   const [editingId, setEditingId] = useState<string | null>(
     accountType === "student" ? initialSelf?.id || null : null
   );
@@ -97,7 +107,7 @@ export default function AccountStudentsSection({
   );
 
   function resetEditor() {
-    setDraft(EMPTY_DRAFT);
+    setDraft(draftFromStudent(null, defaultSchoolId));
     setEditingId(null);
     setAdding(false);
     setError("");
@@ -105,7 +115,7 @@ export default function AccountStudentsSection({
   }
 
   function startAdd() {
-    setDraft(EMPTY_DRAFT);
+    setDraft(draftFromStudent(null, defaultSchoolId));
     setEditingId(null);
     setAdding(true);
     setPendingDeleteId(null);
@@ -114,7 +124,7 @@ export default function AccountStudentsSection({
   }
 
   function startEdit(student: AccountStudentRow) {
-    setDraft(draftFromStudent(student));
+    setDraft(draftFromStudent(student, defaultSchoolId));
     setEditingId(student.id);
     setAdding(false);
     setPendingDeleteId(null);
@@ -167,7 +177,7 @@ export default function AccountStudentsSection({
       });
 
       if (accountType === "student") {
-        setDraft(draftFromStudent(saved));
+        setDraft(draftFromStudent(saved, defaultSchoolId));
         setEditingId(saved.id);
         setAdding(true);
         setSuccess("Contexto educativo actualizado.");
