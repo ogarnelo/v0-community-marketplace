@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+const accountPage = readFileSync("app/account/page.tsx", "utf8");
 const profile = readFileSync("components/account/account-profile-form.tsx", "utf8");
 const section = readFileSync("components/account/account-students-section.tsx", "utf8");
 const fields = readFileSync("components/account-students/student-context-fields.tsx", "utf8");
@@ -70,4 +71,45 @@ test("email confirmation and later login cannot silently skip required education
   assert.match(authForm, /fetch\("\/api\/account\/students"/);
   assert.match(authForm, /students\.length === 0/);
   assert.match(authForm, /\/onboarding\/students/);
+});
+
+
+test("existing profile school or managed school preselects the educational context", () => {
+  assert.match(
+    accountPage,
+    /typedProfile\?\.school_id\?\.trim\(\) \|\| managedSchoolId/
+  );
+  assert.match(
+    accountPage,
+    /defaultSchoolId=\{defaultEducationalSchoolId\}/
+  );
+  assert.match(accountPage, /key=\{\[/);
+  assert.match(section, /defaultSchoolId = ""/);
+  assert.match(
+    section,
+    /schoolId: student\.school_id \|\| defaultSchoolId/
+  );
+  assert.match(
+    section,
+    /schoolId: defaultSchoolId/
+  );
+});
+
+test("Mi perfil requires a valid Spanish postal code before any account-type change", () => {
+  assert.match(profile, /const normalizedPostalCode = postalCode\.trim\(\)/);
+  assert.match(profile, /\^\[0-9\]\{5\}\$/);
+  assert.match(profile, /postalPrefix < 1/);
+  assert.match(profile, /postalPrefix > 52/);
+  assert.match(profile, /Debes indicar un código postal español válido/);
+  assert.match(profile, /id="postal_code"[\s\S]*required/);
+  assert.match(profile, /pattern="\[0-9\]\{5\}"/);
+  assert.match(profile, /Es obligatorio\. Lo usamos para calcular cercanía/);
+
+  const postalValidationIndex = profile.indexOf(
+    "Debes indicar un código postal español válido."
+  );
+  const typeChangeIndex = profile.indexOf('fetch("/api/account/type"');
+
+  assert.ok(postalValidationIndex > -1);
+  assert.ok(typeChangeIndex > postalValidationIndex);
 });

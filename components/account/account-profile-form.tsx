@@ -167,6 +167,20 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
       return;
     }
 
+    const normalizedPostalCode = postalCode.trim();
+    const postalPrefix = /^[0-9]{5}$/.test(normalizedPostalCode)
+      ? Number(normalizedPostalCode.slice(0, 2))
+      : NaN;
+
+    if (
+      !Number.isInteger(postalPrefix) ||
+      postalPrefix < 1 ||
+      postalPrefix > 52
+    ) {
+      setErrorMessage("Debes indicar un código postal español válido.");
+      return;
+    }
+
     if (isBusiness && !businessName.trim()) {
       setErrorMessage("Añade el nombre comercial para activar el perfil profesional.");
       return;
@@ -208,8 +222,6 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
         normalizedFirstName,
         normalizedLastName
       );
-      const normalizedPostalCode = postalCode.trim();
-
       const payload = {
         id: user.id,
         first_name: normalizedFirstName,
@@ -341,7 +353,9 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="postal_code">Código postal</Label>
+              <Label htmlFor="postal_code">
+                Código postal <span className="text-destructive">*</span>
+              </Label>
               <div className="relative">
                 <MapPin className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -355,8 +369,18 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
                   className="pl-9"
                   placeholder="28001"
                   maxLength={5}
+                  minLength={5}
+                  pattern="[0-9]{5}"
+                  required
+                  aria-describedby="postal-code-help"
                 />
               </div>
+              <p
+                id="postal-code-help"
+                className="text-xs leading-5 text-muted-foreground"
+              >
+                Es obligatorio. Lo usamos para calcular cercanía y ordenar mejor los resultados.
+              </p>
             </div>
 
             {isSchoolAdmin ? (
