@@ -74,8 +74,15 @@ test("email confirmation and later login cannot silently skip required education
 });
 
 
-test("school-admin accounts preselect their managed school in educational context", () => {
-  assert.match(accountPage, /defaultSchoolId=\{managedSchoolId\}/);
+test("existing profile school or managed school preselects the educational context", () => {
+  assert.match(
+    accountPage,
+    /typedProfile\?\.school_id\?\.trim\(\) \|\| managedSchoolId/
+  );
+  assert.match(
+    accountPage,
+    /defaultSchoolId=\{defaultEducationalSchoolId\}/
+  );
   assert.match(accountPage, /key=\{\[/);
   assert.match(section, /defaultSchoolId = ""/);
   assert.match(
