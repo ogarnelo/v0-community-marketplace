@@ -150,6 +150,7 @@ export default async function MyCoursePage({
       isbn: need.isbn || "",
       category: need.category,
       academicYear: need.academic_year,
+      demandRequestId: need.demand_request_id,
       createdAt: need.created_at,
     }));
 
