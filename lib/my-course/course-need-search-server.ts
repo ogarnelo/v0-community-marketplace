@@ -26,7 +26,6 @@ function demandTitle(need: CourseNeedRow) {
 }
 
 function normalizedDemandQuery(need: CourseNeedRow) {
-  if (need.isbn) return null;
   const value = need.title.trim().toLowerCase();
   return value ? value.slice(0, 160) : null;
 }
@@ -39,13 +38,13 @@ async function bestEffort(query: PromiseLike<unknown>) {
   }
 }
 
-async function loadOwnedActiveNeed(userId: string, needId: string): Promise<CourseNeedContext> {
+async function loadOwnedActiveNeedRow(userId: string, needId: string) {
   if (!UUID_RE.test(needId)) {
     throw new CourseNeedError("La necesidad no es válida.", 400, "invalid_need");
   }
 
   const admin = createAdminClient();
-  const { data: need, error: needError } = await admin
+  const { data: need, error } = await admin
     .from("course_needs")
     .select(
       "id, owner_user_id, student_id, title, isbn, category, academic_year, demand_request_id, status, created_at, updated_at"
@@ -54,7 +53,7 @@ async function loadOwnedActiveNeed(userId: string, needId: string): Promise<Cour
     .eq("owner_user_id", userId)
     .maybeSingle();
 
-  if (needError) throw needError;
+  if (error) throw error;
   if (!need || need.status !== "active") {
     throw new CourseNeedError(
       "Esa necesidad ya no está disponible.",
@@ -62,6 +61,13 @@ async function loadOwnedActiveNeed(userId: string, needId: string): Promise<Cour
       "need_not_found"
     );
   }
+
+  return need as CourseNeedRow;
+}
+
+async function loadOwnedActiveNeed(userId: string, needId: string): Promise<CourseNeedContext> {
+  const admin = createAdminClient();
+  const need = await loadOwnedActiveNeedRow(userId, needId);
 
   const { data: student, error: studentError } = await admin
     .from("account_students")
@@ -285,7 +291,7 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
 
 export async function archiveCourseNeedAndStopSearch(userId: string, needId: string) {
   const admin = createAdminClient();
-  const need = await loadOwnedActiveNeed(userId, needId);
+  const need = await loadOwnedActiveNeedRow(userId, needId);
 
   if (!need.demand_request_id) {
     return archiveCourseNeed(userId, needId);
