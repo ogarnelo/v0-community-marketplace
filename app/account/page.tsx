@@ -132,6 +132,8 @@ export default async function AccountPage() {
     ? schoolOptions.find((school) => school.id === managedSchoolId) || null
     : null;
   const schoolName = managedSchool?.name || "Centro";
+  const defaultEducationalSchoolId =
+    typedProfile?.school_id?.trim() || managedSchoolId;
 
   const { data: managedAccessCodeRow } = managedSchoolId
     ? await supabase
@@ -211,7 +213,7 @@ export default async function AccountPage() {
             <AccountStudentsSection
               key={[
                 userType,
-                managedSchoolId,
+                defaultEducationalSchoolId,
                 ...accountStudentRows.map((student) =>
                   [student.id, student.school_id || "", student.grade_level].join(":")
                 ),
@@ -225,7 +227,7 @@ export default async function AccountPage() {
                 postal_code: school.postal_code,
               }))}
               gradeLevels={normalizedGradeLevels}
-              defaultSchoolId={managedSchoolId}
+              defaultSchoolId={defaultEducationalSchoolId}
             />
           </div>
         ) : null}
