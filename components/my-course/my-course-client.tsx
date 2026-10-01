@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   CheckCircle2,
   GraduationCap,
+  Loader2,
   MapPin,
   PackageSearch,
   Plus,
@@ -50,16 +51,22 @@ type Need = {
   title: string;
   isbn: string;
   category: string;
+  academicYear: string;
   createdAt: string;
-};
-
-type StoredState = {
-  needs: Need[];
 };
 
 type IncomingNeed = {
   title: string;
   isbn: string;
+};
+
+type LegacyNeed = {
+  id?: string;
+  studentId?: string;
+  title?: string;
+  isbn?: string;
+  category?: string;
+  createdAt?: string;
 };
 
 function normalizeText(value?: string | null) {
@@ -72,13 +79,6 @@ function normalizeText(value?: string | null) {
 
 function normalizeIsbn(value?: string | null) {
   return (value || "").replace(/[^0-9xX]/g, "").toLowerCase();
-}
-
-function safeId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return "need-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
 function euro(value: number) {
@@ -95,74 +95,160 @@ function listingPriceLabel(listing: ListingSummary) {
   return euro(listing.price);
 }
 
+function fromApiNeed(raw: any): Need | null {
+  if (!raw?.id || !raw?.student_id || !raw?.title || !raw?.academic_year) {
+    return null;
+  }
+
+  return {
+    id: String(raw.id),
+    studentId: String(raw.student_id),
+    title: String(raw.title),
+    isbn: typeof raw.isbn === "string" ? raw.isbn : "",
+    category: typeof raw.category === "string" ? raw.category : "Libros de texto",
+    academicYear: String(raw.academic_year),
+    createdAt: typeof raw.created_at === "string" ? raw.created_at : new Date().toISOString(),
+  };
+}
+
 export default function MyCourseClient({
   accountType,
   students,
   categories,
   listings,
-  storageKey,
+  initialNeeds,
+  legacyStorageKey,
   incomingNeed,
 }: {
   accountType: AccountType;
   students: CourseStudent[];
   categories: string[];
   listings: ListingSummary[];
-  storageKey: string;
+  initialNeeds: Need[];
+  legacyStorageKey: string;
   incomingNeed: IncomingNeed | null;
 }) {
-  const [needs, setNeeds] = useState<Need[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [needs, setNeeds] = useState<Need[]>(initialNeeds);
   const [activeStudentId, setActiveStudentId] = useState(students[0]?.id || "");
   const [title, setTitle] = useState(incomingNeed?.title || "");
   const [isbn, setIsbn] = useState(incomingNeed?.isbn || "");
   const [category, setCategory] = useState(categories[0] || "Libros de texto");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as StoredState;
-        if (Array.isArray(parsed?.needs)) {
-          const validStudentIds = new Set(students.map((student) => student.id));
-          setNeeds(
-            parsed.needs.filter(
-              (need) =>
-                need &&
-                typeof need.id === "string" &&
-                typeof need.studentId === "string" &&
-                validStudentIds.has(need.studentId)
-            )
-          );
-        }
-      }
-    } catch {
-      // Mi curso sigue siendo usable aunque el almacenamiento local falle.
-    } finally {
-      setHydrated(true);
-    }
-  }, [storageKey, students]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify({ needs } satisfies StoredState));
-    } catch {
-      // No bloqueamos la experiencia si el navegador no permite almacenamiento.
-    }
-  }, [hydrated, needs, storageKey]);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const legacyImportStarted = useRef(false);
 
   useEffect(() => {
     if (students.some((student) => student.id === activeStudentId)) return;
     setActiveStudentId(students[0]?.id || "");
   }, [activeStudentId, students]);
 
+  useEffect(() => {
+    if (legacyImportStarted.current) return;
+    legacyImportStarted.current = true;
+
+    let cancelled = false;
+
+    async function importLegacyNeeds() {
+      try {
+        const raw = window.localStorage.getItem(legacyStorageKey);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw) as { needs?: LegacyNeed[] };
+        const legacyNeeds = Array.isArray(parsed?.needs) ? parsed.needs : [];
+
+        if (legacyNeeds.length === 0) {
+          window.localStorage.removeItem(legacyStorageKey);
+          return;
+        }
+
+        const validStudentIds = new Set(students.map((student) => student.id));
+        const importable = legacyNeeds.filter(
+          (need) =>
+            typeof need?.studentId === "string" &&
+            validStudentIds.has(need.studentId) &&
+            (Boolean(need.title?.trim()) || Boolean(need.isbn?.trim()))
+        );
+
+        if (importable.length === 0) {
+          window.localStorage.removeItem(legacyStorageKey);
+          return;
+        }
+
+        const imported: Need[] = [];
+        let allHandled = true;
+
+        for (const legacy of importable) {
+          const response = await fetch("/api/my-course/needs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studentId: legacy.studentId,
+              title: legacy.title || legacy.isbn || "",
+              isbn: legacy.isbn || "",
+              category: legacy.category || "Libros de texto",
+            }),
+          });
+
+          const payload = await response.json().catch(() => null);
+
+          if (response.ok) {
+            const mapped = fromApiNeed(payload?.need);
+            if (mapped) imported.push(mapped);
+            continue;
+          }
+
+          if (response.status === 409 && payload?.code === "need_exists") {
+            continue;
+          }
+
+          allHandled = false;
+          break;
+        }
+
+        if (cancelled) return;
+
+        if (imported.length > 0) {
+          setNeeds((current) => {
+            const existingIds = new Set(current.map((need) => need.id));
+            return [
+              ...imported.filter((need) => !existingIds.has(need.id)),
+              ...current,
+            ];
+          });
+        }
+
+        if (allHandled) {
+          window.localStorage.removeItem(legacyStorageKey);
+          setMessage(
+            imported.length > 0
+              ? "Hemos guardado en tu cuenta las necesidades que tenías en este navegador."
+              : ""
+          );
+        }
+      } catch {
+        // Si la importación falla, conservamos el almacenamiento local para reintentar.
+      }
+    }
+
+    void importLegacyNeeds();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [legacyStorageKey, students]);
+
   const activeStudent =
     students.find((student) => student.id === activeStudentId) || students[0] || null;
 
   const needsForStudent = useMemo(
-    () => needs.filter((need) => need.studentId === activeStudent?.id),
-    [activeStudent?.id, needs]
+    () =>
+      needs.filter(
+        (need) =>
+          need.studentId === activeStudent?.id &&
+          need.academicYear === activeStudent?.academicYear
+      ),
+    [activeStudent?.academicYear, activeStudent?.id, needs]
   );
 
   function matchesForNeed(need: Need, student: CourseStudent) {
@@ -246,9 +332,9 @@ export default function MyCourseClient({
     };
   }, [activeStudent, needsForStudent, listings]);
 
-  function addNeed(event: React.FormEvent<HTMLFormElement>) {
+  async function addNeed(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!activeStudent) return;
+    if (!activeStudent || saving) return;
 
     const cleanTitle = title.trim();
     const cleanIsbn = isbn.trim();
@@ -258,44 +344,70 @@ export default function MyCourseClient({
       return;
     }
 
-    const duplicate = needs.some((need) => {
-      if (need.studentId !== activeStudent.id) return false;
-      const sameIsbn =
-        cleanIsbn &&
-        normalizeIsbn(need.isbn) === normalizeIsbn(cleanIsbn);
-      const sameTitle =
-        !cleanIsbn &&
-        normalizeText(need.title) === normalizeText(cleanTitle);
-      return Boolean(sameIsbn || sameTitle);
-    });
+    setSaving(true);
+    setMessage("");
 
-    if (duplicate) {
-      setMessage("Esta necesidad ya está en Mi curso.");
-      return;
+    try {
+      const response = await fetch("/api/my-course/needs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: activeStudent.id,
+          title: cleanTitle || cleanIsbn,
+          isbn: cleanIsbn,
+          category,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo guardar la necesidad.");
+      }
+
+      const need = fromApiNeed(payload?.need);
+      if (!need) {
+        throw new Error("No se pudo leer la necesidad guardada.");
+      }
+
+      setNeeds((current) => [need, ...current]);
+      setTitle("");
+      setIsbn("");
+      setMessage("Necesidad guardada. Wetudy ha comprobado los anuncios disponibles.");
+      window.history.replaceState({}, "", "/mi-curso");
+    } catch (cause: any) {
+      setMessage(cause?.message || "No se pudo guardar la necesidad.");
+    } finally {
+      setSaving(false);
     }
-
-    const need: Need = {
-      id: safeId(),
-      studentId: activeStudent.id,
-      title: cleanTitle || cleanIsbn,
-      isbn: cleanIsbn,
-      category,
-      createdAt: new Date().toISOString(),
-    };
-
-    setNeeds((current) => [need, ...current]);
-    setTitle("");
-    setIsbn("");
-    setMessage("Necesidad añadida. Wetudy ha comprobado los anuncios disponibles.");
-    window.history.replaceState({}, "", "/mi-curso");
   }
 
-  function removeNeed(id: string) {
-    setNeeds((current) => current.filter((need) => need.id !== id));
-    setMessage("Necesidad eliminada.");
+  async function removeNeed(id: string) {
+    if (deletingId) return;
+
+    setDeletingId(id);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/my-course/needs/" + id, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo eliminar la necesidad.");
+      }
+
+      setNeeds((current) => current.filter((need) => need.id !== id));
+      setMessage("Necesidad eliminada de Mi curso.");
+    } catch (cause: any) {
+      setMessage(cause?.message || "No se pudo eliminar la necesidad.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
-  if (!hydrated || !activeStudent) {
+  if (!activeStudent) {
     return (
       <div className="mx-auto w-full max-w-5xl px-4 py-10 text-sm text-muted-foreground">
         Preparando Mi curso…
@@ -426,6 +538,7 @@ export default function MyCourseClient({
                   onChange={(event) => setTitle(event.target.value.slice(0, 180))}
                   placeholder="Ej. Matemáticas 2º ESO"
                   className="text-base sm:text-sm"
+                  disabled={saving}
                 />
               </div>
 
@@ -438,12 +551,13 @@ export default function MyCourseClient({
                   placeholder="978..."
                   inputMode="numeric"
                   className="text-base sm:text-sm"
+                  disabled={saving}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>Categoría</Label>
-                <Select value={category} onValueChange={setCategory}>
+                <Select value={category} onValueChange={setCategory} disabled={saving}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -457,13 +571,17 @@ export default function MyCourseClient({
                 </Select>
               </div>
 
-              <Button type="submit" className="w-full">
-                <Search className="mr-2 h-4 w-4" />
-                Añadir y buscar
+              <Button type="submit" className="w-full" disabled={saving}>
+                {saving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="mr-2 h-4 w-4" />
+                )}
+                {saving ? "Guardando…" : "Añadir y buscar"}
               </Button>
 
               <p className="text-xs leading-5 text-muted-foreground">
-                En esta primera versión, tus necesidades de Mi curso se guardan en este navegador.
+                Tus necesidades se guardan en tu cuenta y quedan asociadas al estudiante seleccionado.
               </p>
             </form>
           </CardContent>
@@ -510,9 +628,14 @@ export default function MyCourseClient({
                         variant="ghost"
                         size="icon"
                         aria-label="Eliminar necesidad"
-                        onClick={() => removeNeed(need.id)}
+                        onClick={() => void removeNeed(need.id)}
+                        disabled={deletingId === need.id}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {deletingId === need.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </CardHeader>
@@ -548,7 +671,7 @@ export default function MyCourseClient({
                           <div>
                             <p className="text-sm font-semibold">Sin coincidencias ahora</p>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              La necesidad queda en Mi curso. Puedes volver a comprobarla cuando quieras.
+                              La necesidad queda guardada en tu cuenta. Más adelante podremos activar “Buscar por mí” sobre estas necesidades pendientes.
                             </p>
                           </div>
                         </div>

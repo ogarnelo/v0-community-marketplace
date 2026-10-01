@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { categories } from "@/lib/mock-data";
 import MyCourseClient from "@/components/my-course/my-course-client";
+import { listCourseNeeds } from "@/lib/my-course/course-needs-server";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,33 @@ export default async function MyCoursePage({
     };
   });
 
+  let persistedNeeds = [] as Awaited<ReturnType<typeof listCourseNeeds>>;
+
+  try {
+    persistedNeeds = await listCourseNeeds(user.id);
+  } catch (error) {
+    console.error("Mi curso: error cargando necesidades persistentes", error);
+  }
+
+  const activeCourseByStudent = new Map(
+    courseStudents.map((student) => [student.id, student.academicYear])
+  );
+
+  const initialNeeds = persistedNeeds
+    .filter(
+      (need) =>
+        activeCourseByStudent.get(need.student_id) === need.academic_year
+    )
+    .map((need) => ({
+      id: need.id,
+      studentId: need.student_id,
+      title: need.title,
+      isbn: need.isbn || "",
+      category: need.category,
+      academicYear: need.academic_year,
+      createdAt: need.created_at,
+    }));
+
   const safeListings = (listings || []).map((listing: any) => ({
     id: listing.id,
     title: listing.title || "Anuncio",
@@ -148,7 +176,8 @@ export default async function MyCoursePage({
       students={courseStudents}
       categories={Array.from(new Set(categories)).filter(Boolean)}
       listings={safeListings}
-      storageKey={`wetudy_my_course_v1:${user.id}`}
+      initialNeeds={initialNeeds}
+      legacyStorageKey={`wetudy_my_course_v1:${user.id}`}
       incomingNeed={
         incomingTitle || incomingIsbn
           ? {
