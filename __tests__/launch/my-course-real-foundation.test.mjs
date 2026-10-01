@@ -48,9 +48,11 @@ test("needs are scoped to a real student and matching prioritizes school and gra
   assert.match(client, /tokenRatio/);
 });
 
-test("foundation keeps needs isolated from production demand tables", () => {
-  assert.match(client, /window\.localStorage\.setItem/);
-  assert.match(client, /se guardan en este navegador/);
+test("Mi curso persists needs separately from saved-search and demand tables", () => {
+  assert.match(page, /listCourseNeeds/);
+  assert.match(client, /\/api\/my-course\/needs/);
+  assert.doesNotMatch(client, /window\.localStorage\.setItem/);
+  assert.doesNotMatch(client, /se guardan en este navegador/);
   assert.doesNotMatch(client, /saved_searches/);
   assert.doesNotMatch(client, /demand_requests/);
   assert.doesNotMatch(page, /saved_searches/);
