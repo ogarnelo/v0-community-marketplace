@@ -77,7 +77,7 @@ test("need API requires an authenticated confirmed account and uses server servi
   assert.match(collectionRoute, /parseCourseNeedInput/);
   assert.match(collectionRoute, /createCourseNeed\(user\.id, input\)/);
   assert.match(collectionRoute, /listCourseNeeds\(user\.id\)/);
-  assert.match(itemRoute, /archiveCourseNeed\(user\.id, id\)/);
+  assert.match(itemRoute, /archiveCourseNeedAndStopSearch\(user\.id, id\)/);
 });
 
 test("duplicate protection is scoped by student and academic year", () => {

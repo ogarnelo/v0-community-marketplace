@@ -24,6 +24,7 @@ export type CourseNeedRow = {
   isbn: string | null;
   category: string;
   academic_year: string;
+  demand_request_id: string | null;
   status: "active" | "fulfilled" | "archived";
   created_at: string;
   updated_at: string;
@@ -112,7 +113,7 @@ export async function listCourseNeeds(userId: string) {
   const { data, error } = await admin
     .from("course_needs")
     .select(
-      "id, owner_user_id, student_id, title, isbn, category, academic_year, status, created_at, updated_at"
+      "id, owner_user_id, student_id, title, isbn, category, academic_year, demand_request_id, status, created_at, updated_at"
     )
     .eq("owner_user_id", userId)
     .eq("status", "active")
@@ -173,7 +174,7 @@ export async function createCourseNeed(userId: string, input: CourseNeedInput) {
       status: "active",
     })
     .select(
-      "id, owner_user_id, student_id, title, isbn, category, academic_year, status, created_at, updated_at"
+      "id, owner_user_id, student_id, title, isbn, category, academic_year, demand_request_id, status, created_at, updated_at"
     )
     .single();
 
