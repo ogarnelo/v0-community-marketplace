@@ -52,6 +52,7 @@ type Need = {
   isbn: string;
   category: string;
   academicYear: string;
+  demandRequestId: string | null;
   createdAt: string;
 };
 
@@ -107,6 +108,7 @@ function fromApiNeed(raw: any): Need | null {
     isbn: typeof raw.isbn === "string" ? raw.isbn : "",
     category: typeof raw.category === "string" ? raw.category : "Libros de texto",
     academicYear: String(raw.academic_year),
+    demandRequestId: typeof raw.demand_request_id === "string" ? raw.demand_request_id : null,
     createdAt: typeof raw.created_at === "string" ? raw.created_at : new Date().toISOString(),
   };
 }
@@ -136,6 +138,7 @@ export default function MyCourseClient({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchingId, setSearchingId] = useState<string | null>(null);
   const legacyImportStarted = useRef(false);
 
   useEffect(() => {
@@ -379,6 +382,38 @@ export default function MyCourseClient({
       setMessage(cause?.message || "No se pudo guardar la necesidad.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function activateSearch(need: Need) {
+    if (searchingId || need.demandRequestId) return;
+
+    setSearchingId(need.id);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/my-course/needs/" + need.id + "/search", {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo activar Buscar por mí.");
+      }
+
+      const updated = fromApiNeed(payload?.need);
+      if (!updated) {
+        throw new Error("No se pudo leer la búsqueda activada.");
+      }
+
+      setNeeds((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setMessage("Buscar por mí está activo. Te avisaremos cuando aparezca una coincidencia.");
+    } catch (cause: any) {
+      setMessage(cause?.message || "No se pudo activar Buscar por mí.");
+    } finally {
+      setSearchingId(null);
     }
   }
 
@@ -671,13 +706,37 @@ export default function MyCourseClient({
                           <div>
                             <p className="text-sm font-semibold">Sin coincidencias ahora</p>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              La necesidad queda guardada en tu cuenta. Más adelante podremos activar “Buscar por mí” sobre estas necesidades pendientes.
+                              {need.demandRequestId
+                                ? "Buscar por mí está activo. Wetudy te avisará cuando aparezca una coincidencia."
+                                : "La necesidad queda guardada en tu cuenta. Puedes activar Buscar por mí para recibir avisos cuando aparezca una coincidencia."}
                             </p>
                           </div>
                         </div>
-                        <Button asChild variant="outline" size="sm" className="mt-3">
-                          <Link href="/marketplace">Explorar Marketplace</Link>
-                        </Button>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {need.demandRequestId ? (
+                            <Button type="button" variant="secondary" size="sm" disabled>
+                              <Search className="mr-2 h-4 w-4" />
+                              Buscando por ti
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => void activateSearch(need)}
+                              disabled={searchingId === need.id}
+                            >
+                              {searchingId === need.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="mr-2 h-4 w-4" />
+                              )}
+                              {searchingId === need.id ? "Activando…" : "Buscar por mí"}
+                            </Button>
+                          )}
+                          <Button asChild variant="outline" size="sm">
+                            <Link href="/marketplace">Explorar Marketplace</Link>
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </CardContent>
