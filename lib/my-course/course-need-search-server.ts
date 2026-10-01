@@ -31,6 +31,14 @@ function normalizedDemandQuery(need: CourseNeedRow) {
   return value ? value.slice(0, 160) : null;
 }
 
+async function bestEffort(query: PromiseLike<unknown>) {
+  try {
+    await query;
+  } catch {
+    // Best-effort compensation must never hide the original failure.
+  }
+}
+
 async function loadOwnedActiveNeed(userId: string, needId: string): Promise<CourseNeedContext> {
   if (!UUID_RE.test(needId)) {
     throw new CourseNeedError("La necesidad no es válida.", 400, "invalid_need");
@@ -253,21 +261,23 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
     );
   } catch (error) {
     if (createdSavedSearchId) {
-      await admin
-        .from("saved_searches")
-        .delete()
-        .eq("id", createdSavedSearchId)
-        .eq("user_id", userId)
-        .catch(() => undefined);
+      await bestEffort(
+        admin
+          .from("saved_searches")
+          .delete()
+          .eq("id", createdSavedSearchId)
+          .eq("user_id", userId)
+      );
     }
     if (createdDemandId) {
-      await admin
-        .from("demand_requests")
-        .delete()
-        .eq("id", createdDemandId)
-        .eq("user_id", userId)
-        .eq("source", "course_need")
-        .catch(() => undefined);
+      await bestEffort(
+        admin
+          .from("demand_requests")
+          .delete()
+          .eq("id", createdDemandId)
+          .eq("user_id", userId)
+          .eq("source", "course_need")
+      );
     }
     throw error;
   }
@@ -327,15 +337,16 @@ export async function archiveCourseNeedAndStopSearch(userId: string, needId: str
       .in("status", ["open", "matched"]);
     if (error) {
       if (enabledSearchIds.length > 0) {
-        await admin
-          .from("saved_searches")
-          .update({
-            notifications_enabled: true,
-            updated_at: new Date().toISOString(),
-          })
-          .in("id", enabledSearchIds)
-          .eq("user_id", userId)
-          .catch(() => undefined);
+        await bestEffort(
+          admin
+            .from("saved_searches")
+            .update({
+              notifications_enabled: true,
+              updated_at: new Date().toISOString(),
+            })
+            .in("id", enabledSearchIds)
+            .eq("user_id", userId)
+        );
       }
       throw error;
     }
@@ -346,24 +357,26 @@ export async function archiveCourseNeedAndStopSearch(userId: string, needId: str
     return await archiveCourseNeed(userId, needId);
   } catch (error) {
     if (demandStatusChanged && previousDemandStatus) {
-      await admin
-        .from("demand_requests")
-        .update({ status: previousDemandStatus })
-        .eq("id", demandRequestId)
-        .eq("user_id", userId)
-        .catch(() => undefined);
+      await bestEffort(
+        admin
+          .from("demand_requests")
+          .update({ status: previousDemandStatus })
+          .eq("id", demandRequestId)
+          .eq("user_id", userId)
+      );
     }
 
     if (enabledSearchIds.length > 0) {
-      await admin
-        .from("saved_searches")
-        .update({
-          notifications_enabled: true,
-          updated_at: new Date().toISOString(),
-        })
-        .in("id", enabledSearchIds)
-        .eq("user_id", userId)
-        .catch(() => undefined);
+      await bestEffort(
+        admin
+          .from("saved_searches")
+          .update({
+            notifications_enabled: true,
+            updated_at: new Date().toISOString(),
+          })
+          .in("id", enabledSearchIds)
+          .eq("user_id", userId)
+      );
     }
 
     throw error;
