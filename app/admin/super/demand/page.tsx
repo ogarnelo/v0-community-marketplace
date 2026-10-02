@@ -12,6 +12,7 @@ import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { buildDemandActionLabel, buildDemandInsights, buildSeoDemandActionLabel, buildSeoDemandOpportunities } from "@/lib/admin/demand-insights";
 import { buildAcquisitionSummaries, type AcquisitionEvent } from "@/lib/admin/growth-insights";
 import { loadDemandOpportunities } from "@/lib/admin/demand-opportunities";
+import { loadCourseNeedObservability } from "@/lib/admin/course-need-observability";
 import { isIncompleteIsbnLikeInput } from "@/lib/books/isbn";
 import { ExpandableAdminList } from "@/components/admin/expandable-admin-list";
 
@@ -172,7 +173,10 @@ export default async function DemandIntelligencePage({
   ]);
 
   const admin = createAdminClient();
-  const demandOpportunities = await loadDemandOpportunities(admin);
+  const [demandOpportunities, courseNeedObservability] = await Promise.all([
+    loadDemandOpportunities(admin),
+    loadCourseNeedObservability(admin),
+  ]);
   const opportunitySchools = Array.from(
     new Map(
       demandOpportunities
@@ -295,6 +299,56 @@ export default async function DemandIntelligencePage({
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Target className="h-4 w-4" /> Mi curso · Buscar por mí
+              </CardTitle>
+              <CardDescription>
+                Estado operativo de las necesidades de Mi curso que activaron una demanda estable. Permite detectar resultados, pausas y cualquier desincronización entre demanda y alertas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Activadas</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.activated}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Demandas creadas desde Mi curso</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Buscando ahora</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.searching}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Demanda abierta y alerta activa</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Con resultado</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.withResult}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Al menos un resultado atribuido</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Pausadas</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.paused}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Necesidad activa con búsqueda detenida</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Acuerdo confirmado</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.resolved}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Demanda con resolución atribuida</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Archivadas</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.archived}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Retiradas sin borrar el historial</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Inconsistencias</p>
+                  <p className="mt-1 text-2xl font-bold">{courseNeedObservability.inconsistent}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Demanda y alerta con estados incompatibles</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
