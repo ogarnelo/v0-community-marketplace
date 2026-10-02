@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { categories } from "@/lib/mock-data";
 import MyCourseClient from "@/components/my-course/my-course-client";
-import { listCourseNeeds, listFulfilledCourseNeeds } from "@/lib/my-course/course-needs-server";
+import { listCourseNeeds } from "@/lib/my-course/course-needs-server";
+import { listFulfilledCourseNeeds } from "@/lib/my-course/course-need-history-server";
 import { getCourseNeedSearchStates } from "@/lib/my-course/course-need-search-server";
 
 export const dynamic = "force-dynamic";
