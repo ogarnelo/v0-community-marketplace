@@ -43,7 +43,7 @@ export default async function SavedSearchesPage() {
   const [savedSearchesResult, matchesResult] = await Promise.all([
     supabase
       .from("saved_searches")
-      .select("id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, results_count, notifications_enabled, intent_source, created_at")
+      .select("id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, results_count, notifications_enabled, intent_source, demand_request_id, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50),
@@ -62,6 +62,44 @@ export default async function SavedSearchesPage() {
   if (matchesResult.error) {
     console.error("Error cargando coincidencias guardadas:", matchesResult.error);
   }
+
+  const savedSearches = savedSearchesResult.data || [];
+  const courseNeedDemandIds = Array.from(
+    new Set(
+      savedSearches
+        .filter((search: any) => search.intent_source === "course_need" && search.demand_request_id)
+        .map((search: any) => search.demand_request_id as string)
+    )
+  );
+
+  let activeCourseNeedDemandIds = new Set<string>();
+  let courseNeedStateLoaded = courseNeedDemandIds.length === 0;
+  if (courseNeedDemandIds.length > 0) {
+    const { data: activeCourseNeeds, error: activeCourseNeedsError } = await supabase
+      .from("course_needs")
+      .select("demand_request_id")
+      .eq("owner_user_id", user.id)
+      .eq("status", "active")
+      .in("demand_request_id", courseNeedDemandIds);
+
+    if (activeCourseNeedsError) {
+      console.error("Error cargando búsquedas de Mi curso activas:", activeCourseNeedsError);
+    } else {
+      courseNeedStateLoaded = true;
+      activeCourseNeedDemandIds = new Set(
+        (activeCourseNeeds || [])
+          .map((need: any) => need.demand_request_id)
+          .filter((id: string | null): id is string => Boolean(id))
+      );
+    }
+  }
+
+  const visibleSavedSearches = savedSearches.filter(
+    (search: any) =>
+      search.intent_source !== "course_need" ||
+      !courseNeedStateLoaded ||
+      (search.demand_request_id && activeCourseNeedDemandIds.has(search.demand_request_id))
+  );
 
   const matches = matchesResult.data || [];
   const listingIds = Array.from(new Set(matches.map((match) => match.listing_id)));
@@ -147,7 +185,7 @@ export default async function SavedSearchesPage() {
           <SavedSearchMatchesList initialMatches={matchItems} />
         </section>
 
-        <SavedSearchesList initialSearches={(savedSearchesResult.data || []) as any} />
+        <SavedSearchesList initialSearches={visibleSavedSearches as any} />
       </div>
     </div>
   );
