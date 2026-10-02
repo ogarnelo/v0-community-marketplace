@@ -980,20 +980,22 @@ export default function MyCourseClient({
                         </Button>
                       )}
                       {(need.listingId || need.conversationId) ? (
-                        {need.listingId ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/marketplace/listing/${need.listingId}`}>
-                              Ver anuncio
-                            </Link>
-                          </Button>
-                        ) : null}
-                        {need.conversationId ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/messages/${need.conversationId}`}>
-                              Ver conversación
-                            </Link>
-                          </Button>
-                        ) : null}
+                        <>
+                          {need.listingId ? (
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/marketplace/listing/${need.listingId}`}>
+                                Ver anuncio
+                              </Link>
+                            </Button>
+                          ) : null}
+                          {need.conversationId ? (
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/messages/${need.conversationId}`}>
+                                Ver conversación
+                              </Link>
+                            </Button>
+                          ) : null}
+                        </>
                       ) : null}
                     </div>
                   </CardContent>
