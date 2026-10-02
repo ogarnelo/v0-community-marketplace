@@ -155,6 +155,99 @@ export async function attributeNeedToConversation(
   return { attributed: true, needId, reason: "unique_reliable_match" as const };
 }
 
+async function fulfillCourseNeedFromResolvedDemand(
+  admin: any,
+  demandRequestId: string,
+  fulfilledAt: string
+) {
+  const { data: courseNeed, error: courseNeedError } = await admin
+    .from("course_needs")
+    .select("id,status")
+    .eq("demand_request_id", demandRequestId)
+    .maybeSingle();
+
+  if (courseNeedError) throw courseNeedError;
+  if (!courseNeed || courseNeed.status === "archived") return false;
+
+  const { data: searches, error: searchesError } = await admin
+    .from("saved_searches")
+    .select("id,notifications_enabled")
+    .eq("demand_request_id", demandRequestId)
+    .eq("intent_source", "course_need");
+
+  if (searchesError) throw searchesError;
+
+  const enabledSearchIds = (searches || [])
+    .filter((search: any) => search.notifications_enabled)
+    .map((search: any) => search.id);
+
+  if (enabledSearchIds.length > 0) {
+    const { error: disableError } = await admin
+      .from("saved_searches")
+      .update({
+        notifications_enabled: false,
+        updated_at: fulfilledAt,
+      })
+      .in("id", enabledSearchIds)
+      .eq("intent_source", "course_need");
+
+    if (disableError) throw disableError;
+  }
+
+  if (courseNeed.status === "fulfilled") return true;
+
+  const { data: fulfilled, error: fulfillError } = await admin
+    .from("course_needs")
+    .update({
+      status: "fulfilled",
+      updated_at: fulfilledAt,
+    })
+    .eq("id", courseNeed.id)
+    .eq("status", "active")
+    .select("id,status")
+    .maybeSingle();
+
+  if (fulfillError) {
+    if (enabledSearchIds.length > 0) {
+      await admin
+        .from("saved_searches")
+        .update({
+          notifications_enabled: true,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", enabledSearchIds)
+        .eq("intent_source", "course_need");
+    }
+    throw fulfillError;
+  }
+
+  if (fulfilled?.status === "fulfilled") return true;
+
+  const { data: current, error: currentError } = await admin
+    .from("course_needs")
+    .select("status")
+    .eq("id", courseNeed.id)
+    .maybeSingle();
+
+  if (currentError) throw currentError;
+  if (current?.status === "fulfilled" || current?.status === "archived") {
+    return current.status === "fulfilled";
+  }
+
+  if (enabledSearchIds.length > 0) {
+    await admin
+      .from("saved_searches")
+      .update({
+        notifications_enabled: true,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", enabledSearchIds)
+      .eq("intent_source", "course_need");
+  }
+
+  throw new Error("No se pudo completar la necesidad de Mi curso.");
+}
+
 export async function linkAgreementToNeed(
   admin: any,
   agreement: {
@@ -225,6 +318,10 @@ export async function linkAgreementToNeed(
         .in("status", ["sellers_contacted", "supply_generated"]);
       if (campaignError) throw campaignError;
     }
+  }
+
+  if (resolvedAt) {
+    await fulfillCourseNeedFromResolvedDemand(admin, needId, resolvedAt);
   }
 
   return needId;
