@@ -73,6 +73,7 @@ export default async function SavedSearchesPage() {
   );
 
   let activeCourseNeedDemandIds = new Set<string>();
+  let courseNeedStateLoaded = courseNeedDemandIds.length === 0;
   if (courseNeedDemandIds.length > 0) {
     const { data: activeCourseNeeds, error: activeCourseNeedsError } = await supabase
       .from("course_needs")
@@ -84,6 +85,7 @@ export default async function SavedSearchesPage() {
     if (activeCourseNeedsError) {
       console.error("Error cargando búsquedas de Mi curso activas:", activeCourseNeedsError);
     } else {
+      courseNeedStateLoaded = true;
       activeCourseNeedDemandIds = new Set(
         (activeCourseNeeds || [])
           .map((need: any) => need.demand_request_id)
@@ -95,6 +97,7 @@ export default async function SavedSearchesPage() {
   const visibleSavedSearches = savedSearches.filter(
     (search: any) =>
       search.intent_source !== "course_need" ||
+      !courseNeedStateLoaded ||
       (search.demand_request_id && activeCourseNeedDemandIds.has(search.demand_request_id))
   );
 
