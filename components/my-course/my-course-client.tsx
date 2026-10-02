@@ -11,6 +11,7 @@ import {
   MapPin,
   PackageSearch,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
 } from "lucide-react";
@@ -116,6 +117,20 @@ function listingPriceLabel(listing: ListingSummary) {
   return euro(listing.price);
 }
 
+function sameNeedIdentity(active: Need, fulfilled: FulfilledNeed) {
+  if (active.studentId !== fulfilled.studentId) return false;
+
+  const fulfilledIsbn = normalizeIsbn(fulfilled.isbn);
+  const activeIsbn = normalizeIsbn(active.isbn);
+  if (fulfilledIsbn) return activeIsbn === fulfilledIsbn;
+
+  return (
+    !activeIsbn &&
+    normalizeText(active.title) === normalizeText(fulfilled.title) &&
+    normalizeText(active.category) === normalizeText(fulfilled.category)
+  );
+}
+
 function fromApiNeed(raw: any): Need | null {
   if (!raw?.id || !raw?.student_id || !raw?.title || !raw?.academic_year) {
     return null;
@@ -162,6 +177,7 @@ export default function MyCourseClient({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchingId, setSearchingId] = useState<string | null>(null);
+  const [restartingId, setRestartingId] = useState<string | null>(null);
   const legacyImportStarted = useRef(false);
 
   useEffect(() => {
@@ -477,6 +493,44 @@ export default function MyCourseClient({
       setMessage(cause?.message || "No se pudo pausar Buscar por mí.");
     } finally {
       setSearchingId(null);
+    }
+  }
+
+  async function restartFulfilledNeed(need: FulfilledNeed) {
+    if (restartingId) return;
+
+    setRestartingId(need.id);
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        "/api/my-course/needs/" + need.id + "/restart",
+        { method: "POST" }
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo volver a buscar este material.");
+      }
+
+      const restarted = fromApiNeed(payload?.need);
+      if (!restarted) {
+        throw new Error("No se pudo leer la nueva búsqueda.");
+      }
+
+      setNeeds((current) => [
+        restarted,
+        ...current.filter((item) => item.id !== restarted.id),
+      ]);
+      setMessage(
+        payload?.reused_existing
+          ? "Ya había una búsqueda activa para este material. La hemos reactivado."
+          : "Nueva búsqueda activada. Conservamos el acuerdo anterior en Conseguidos."
+      );
+    } catch (cause: any) {
+      setMessage(cause?.message || "No se pudo volver a buscar este material.");
+    } finally {
+      setRestartingId(null);
     }
   }
 
@@ -855,6 +909,9 @@ export default function MyCourseClient({
 
           <div className="grid gap-3 sm:grid-cols-2">
             {fulfilledForStudent.map((need) => {
+              const activeRestart = needs.some((item) =>
+                sameNeedIdentity(item, need)
+              );
               const resolvedDate = new Date(need.fulfilledAt);
               const resolvedLabel = Number.isNaN(resolvedDate.getTime())
                 ? null
@@ -901,24 +958,46 @@ export default function MyCourseClient({
                       </p>
                     </div>
 
-                    {(need.listingId || need.conversationId) ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {need.listingId ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/marketplace/listing/${need.listingId}`}>
-                              Ver anuncio
-                            </Link>
-                          </Button>
-                        ) : null}
-                        {need.conversationId ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/messages/${need.conversationId}`}>
-                              Ver conversación
-                            </Link>
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activeRestart ? (
+                        <Button type="button" variant="secondary" size="sm" disabled>
+                          <Search className="mr-2 h-4 w-4" />
+                          Buscando de nuevo
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => void restartFulfilledNeed(need)}
+                          disabled={restartingId === need.id}
+                        >
+                          {restartingId === need.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                          )}
+                          {restartingId === need.id ? "Activando…" : "Volver a buscar"}
+                        </Button>
+                      )}
+                      {(need.listingId || need.conversationId) ? (
+                        <>
+                          {need.listingId ? (
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/marketplace/listing/${need.listingId}`}>
+                                Ver anuncio
+                              </Link>
+                            </Button>
+                          ) : null}
+                          {need.conversationId ? (
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/messages/${need.conversationId}`}>
+                                Ver conversación
+                              </Link>
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
                   </CardContent>
                 </Card>
               );
