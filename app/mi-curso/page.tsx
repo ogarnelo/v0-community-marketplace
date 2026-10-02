@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { categories } from "@/lib/mock-data";
 import MyCourseClient from "@/components/my-course/my-course-client";
 import { listCourseNeeds } from "@/lib/my-course/course-needs-server";
+import { getCourseNeedSearchStates } from "@/lib/my-course/course-need-search-server";
 
 export const dynamic = "force-dynamic";
 
@@ -134,6 +135,17 @@ export default async function MyCoursePage({
     console.error("Mi curso: error cargando necesidades persistentes", error);
   }
 
+  let searchStateByDemandId: Record<string, boolean> = {};
+
+  try {
+    searchStateByDemandId = await getCourseNeedSearchStates(
+      user.id,
+      persistedNeeds.map((need) => need.demand_request_id)
+    );
+  } catch (error) {
+    console.error("Mi curso: error cargando estado de Buscar por mí", error);
+  }
+
   const activeCourseByStudent = new Map(
     courseStudents.map((student) => [student.id, student.academicYear])
   );
@@ -151,6 +163,9 @@ export default async function MyCoursePage({
       category: need.category,
       academicYear: need.academic_year,
       demandRequestId: need.demand_request_id,
+      searchActive: need.demand_request_id
+        ? Boolean(searchStateByDemandId[need.demand_request_id])
+        : false,
       createdAt: need.created_at,
     }));
 

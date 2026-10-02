@@ -13,7 +13,7 @@
     "prebuild": "npm run test:critical-contracts",
     "test:commerce-contracts": "node --test __tests__/launch/private-commerce-connect-v3.test.mjs",
     "test:ux-hotfix": "node --test __tests__/launch/mobile-ux-account-listing-hotfix.test.mjs",
-    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix && npm run test:publish-contracts && npm run test:chat-ux && npm run test:simple-deal && npm run test:reviews-incidents && npm run test:super-users && npm run test:school-admin && npm run test:listing-details && npm run test:manual-review-followup && npm run test:school-linking && npm run test:demand-observation && npm run test:book-catalog && npm run test:demand-b1 && npm run test:liquidity-attribution && npm run test:liquidity-dashboard && npm run test:account-students-foundation && npm run test:account-students-api && npm run test:signup-students-onboarding && npm run test:account-context-refactor && npm run test:my-course-real && npm run test:course-needs-persistence && npm run test:course-need-search",
+    "test:critical-contracts": "npm run test:commerce-contracts && npm run test:ux-hotfix && npm run test:publish-contracts && npm run test:chat-ux && npm run test:simple-deal && npm run test:reviews-incidents && npm run test:super-users && npm run test:school-admin && npm run test:listing-details && npm run test:manual-review-followup && npm run test:school-linking && npm run test:demand-observation && npm run test:book-catalog && npm run test:demand-b1 && npm run test:liquidity-attribution && npm run test:liquidity-dashboard && npm run test:account-students-foundation && npm run test:account-students-api && npm run test:signup-students-onboarding && npm run test:account-context-refactor && npm run test:my-course-real && npm run test:course-needs-persistence && npm run test:course-need-search && npm run test:course-need-search-state",
     "test:publish-contracts": "node --test __tests__/launch/publish-drafts-chat-turnstile.test.mjs",
     "test:chat-ux": "node --test __tests__/launch/chat-negotiation-mobile-ux.test.mjs",
     "test:simple-deal": "node --test __tests__/launch/simple-deal-session-email.test.mjs",
@@ -34,7 +34,8 @@
     "test:account-context-refactor": "node --test __tests__/launch/account-context-refactor.test.mjs",
     "test:my-course-real": "node --test __tests__/launch/my-course-real-foundation.test.mjs",
     "test:course-needs-persistence": "node --test __tests__/launch/course-needs-persistence.test.mjs",
-    "test:course-need-search": "node --test __tests__/launch/course-need-search.test.mjs"
+    "test:course-need-search": "node --test __tests__/launch/course-need-search.test.mjs",
+    "test:course-need-search-state": "node --test __tests__/launch/course-need-search-state.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

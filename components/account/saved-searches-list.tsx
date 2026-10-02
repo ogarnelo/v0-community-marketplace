@@ -20,6 +20,7 @@ type SavedSearch = {
   only_my_community: boolean | null;
   results_count: number | null;
   notifications_enabled: boolean | null;
+  intent_source: string | null;
   created_at: string | null;
 };
 
@@ -96,6 +97,7 @@ export function SavedSearchesList({ initialSearches }: SavedSearchesListProps) {
     <div className="space-y-3">
       {items.map((item) => {
         const enabled = Boolean(item.notifications_enabled);
+        const isCourseNeed = item.intent_source === "course_need";
         return (
           <Card key={item.id}>
             <CardContent className="p-4 sm:p-5">
@@ -104,24 +106,39 @@ export function SavedSearchesList({ initialSearches }: SavedSearchesListProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-semibold">{describeSearch(item)}</h2>
                     {item.only_my_community ? <Badge variant="secondary">Mi comunidad</Badge> : null}
+                    {isCourseNeed ? <Badge variant="secondary">Mi curso</Badge> : null}
                     {item.results_count === 0 ? <Badge variant="outline">Sin resultados</Badge> : null}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Guardada {item.created_at ? new Date(item.created_at).toLocaleDateString("es-ES") : "recientemente"}. {enabled ? "Aviso activo: te enviaremos un email cuando aparezca una coincidencia." : "Aviso pausado: puedes reactivarlo cuando quieras."}
+                    Guardada {item.created_at ? new Date(item.created_at).toLocaleDateString("es-ES") : "recientemente"}. {isCourseNeed
+                      ? enabled
+                        ? "Buscar por mí está activo. Gestiona este aviso desde Mi curso."
+                        : "Buscar por mí está pausado. Reactívalo desde Mi curso."
+                      : enabled
+                        ? "Aviso activo: te enviaremos un email cuando aparezca una coincidencia."
+                        : "Aviso pausado: puedes reactivarlo cuando quieras."}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-sm">
-                    {enabled ? <Bell className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}
-                    <span>Aviso</span>
-                    <Switch checked={enabled} disabled={busyId === item.id} onCheckedChange={(checked) => toggleNotifications(item.id, checked)} />
-                  </div>
+                  {isCourseNeed ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/mi-curso">Gestionar en Mi curso</Link>
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-sm">
+                      {enabled ? <Bell className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}
+                      <span>Aviso</span>
+                      <Switch checked={enabled} disabled={busyId === item.id} onCheckedChange={(checked) => toggleNotifications(item.id, checked)} />
+                    </div>
+                  )}
                   <Button asChild variant="outline" size="sm"><Link href={buildMarketplaceHref(item)}>Reabrir</Link></Button>
-                  <Button variant="ghost" size="icon" disabled={busyId === item.id} onClick={() => deleteSearch(item.id)}>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Borrar búsqueda</span>
-                  </Button>
+                  {!isCourseNeed ? (
+                    <Button variant="ghost" size="icon" disabled={busyId === item.id} onClick={() => deleteSearch(item.id)}>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Borrar búsqueda</span>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </CardContent>

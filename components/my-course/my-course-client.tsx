@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  BellOff,
   BookOpen,
   CheckCircle2,
   GraduationCap,
@@ -53,6 +54,7 @@ type Need = {
   category: string;
   academicYear: string;
   demandRequestId: string | null;
+  searchActive: boolean;
   createdAt: string;
 };
 
@@ -109,6 +111,7 @@ function fromApiNeed(raw: any): Need | null {
     category: typeof raw.category === "string" ? raw.category : "Libros de texto",
     academicYear: String(raw.academic_year),
     demandRequestId: typeof raw.demand_request_id === "string" ? raw.demand_request_id : null,
+    searchActive: raw.search_active === true,
     createdAt: typeof raw.created_at === "string" ? raw.created_at : new Date().toISOString(),
   };
 }
@@ -386,7 +389,7 @@ export default function MyCourseClient({
   }
 
   async function activateSearch(need: Need) {
-    if (searchingId || need.demandRequestId) return;
+    if (searchingId || need.searchActive) return;
 
     setSearchingId(need.id);
     setMessage("");
@@ -412,6 +415,38 @@ export default function MyCourseClient({
       setMessage("Buscar por mí está activo. Te avisaremos cuando aparezca una coincidencia.");
     } catch (cause: any) {
       setMessage(cause?.message || "No se pudo activar Buscar por mí.");
+    } finally {
+      setSearchingId(null);
+    }
+  }
+
+  async function pauseSearch(need: Need) {
+    if (searchingId || !need.demandRequestId || !need.searchActive) return;
+
+    setSearchingId(need.id);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/my-course/needs/" + need.id + "/search", {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo pausar Buscar por mí.");
+      }
+
+      const updated = fromApiNeed(payload?.need);
+      if (!updated) {
+        throw new Error("No se pudo leer la búsqueda pausada.");
+      }
+
+      setNeeds((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setMessage("Buscar por mí está pausado. Puedes reactivarlo cuando quieras.");
+    } catch (cause: any) {
+      setMessage(cause?.message || "No se pudo pausar Buscar por mí.");
     } finally {
       setSearchingId(null);
     }
@@ -706,18 +741,36 @@ export default function MyCourseClient({
                           <div>
                             <p className="text-sm font-semibold">Sin coincidencias ahora</p>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              {need.demandRequestId
+                              {need.searchActive
                                 ? "Buscar por mí está activo. Wetudy te avisará cuando aparezca una coincidencia."
-                                : "La necesidad queda guardada en tu cuenta. Puedes activar Buscar por mí para recibir avisos cuando aparezca una coincidencia."}
+                                : need.demandRequestId
+                                  ? "Buscar por mí está pausado. La necesidad sigue guardada y puedes reactivar el aviso sin crear otra búsqueda."
+                                  : "La necesidad queda guardada en tu cuenta. Puedes activar Buscar por mí para recibir avisos cuando aparezca una coincidencia."}
                             </p>
                           </div>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {need.demandRequestId ? (
-                            <Button type="button" variant="secondary" size="sm" disabled>
-                              <Search className="mr-2 h-4 w-4" />
-                              Buscando por ti
-                            </Button>
+                          {need.searchActive ? (
+                            <>
+                              <Button type="button" variant="secondary" size="sm" disabled>
+                                <Search className="mr-2 h-4 w-4" />
+                                Buscando por ti
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void pauseSearch(need)}
+                                disabled={searchingId === need.id}
+                              >
+                                {searchingId === need.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <BellOff className="mr-2 h-4 w-4" />
+                                )}
+                                {searchingId === need.id ? "Pausando…" : "Pausar aviso"}
+                              </Button>
+                            </>
                           ) : (
                             <Button
                               type="button"
@@ -730,7 +783,11 @@ export default function MyCourseClient({
                               ) : (
                                 <Search className="mr-2 h-4 w-4" />
                               )}
-                              {searchingId === need.id ? "Activando…" : "Buscar por mí"}
+                              {searchingId === need.id
+                                ? "Activando…"
+                                : need.demandRequestId
+                                  ? "Reactivar búsqueda"
+                                  : "Buscar por mí"}
                             </Button>
                           )}
                           <Button asChild variant="outline" size="sm">
