@@ -61,10 +61,11 @@ async function loadOwnedFulfilledNeed(
     )
     .eq("id", needId)
     .eq("owner_user_id", userId)
+    .eq("status", "fulfilled")
     .maybeSingle();
 
   if (error) throw error;
-  if (!data || data.status !== "fulfilled") {
+  if (!data) {
     throw new CourseNeedError(
       "Esa necesidad no está disponible en Conseguidos.",
       404,
