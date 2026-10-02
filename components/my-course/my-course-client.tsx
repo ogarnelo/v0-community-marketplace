@@ -690,9 +690,15 @@ export default function MyCourseClient({
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center px-5 py-10 text-center">
                 <BookOpen className="h-9 w-9 text-primary" />
-                <p className="mt-3 font-semibold">Todavía no has añadido necesidades</p>
+                <p className="mt-3 font-semibold">
+                  {fulfilledForStudent.length > 0
+                    ? "No tienes necesidades pendientes"
+                    : "Todavía no has añadido necesidades"}
+                </p>
                 <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">
-                  Añade libros, uniformes o material. Wetudy priorizará coincidencias de tu centro y curso.
+                  {fulfilledForStudent.length > 0
+                    ? "Lo que ya conseguiste aparece en tu historial más abajo."
+                    : "Añade libros, uniformes o material. Wetudy priorizará coincidencias de tu centro y curso."}
                 </p>
               </CardContent>
             </Card>
