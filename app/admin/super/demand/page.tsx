@@ -90,6 +90,24 @@ function pct(part: number, total: number) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
+function funnelPct(value: number | null) {
+  if (value == null) return "—";
+  return `${value.toLocaleString("es-ES", { maximumFractionDigits: 1 })}%`;
+}
+
+function funnelDuration(minutes: number | null) {
+  if (minutes == null) return "—";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  if (minutes < 24 * 60) {
+    return `${(minutes / 60).toLocaleString("es-ES", {
+      maximumFractionDigits: 1,
+    })} h`;
+  }
+  return `${(minutes / (24 * 60)).toLocaleString("es-ES", {
+    maximumFractionDigits: 1,
+  })} d`;
+}
+
 function queryParam(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -345,6 +363,97 @@ export default async function DemandIntelligencePage({
                   <p className="text-xs text-muted-foreground">Inconsistencias</p>
                   <p className="mt-1 text-2xl font-bold">{courseNeedObservability.inconsistent}</p>
                   <p className="mt-1 text-xs text-muted-foreground">Demanda y alerta con estados incompatibles</p>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t pt-5">
+                <div>
+                  <p className="text-sm font-semibold">Conversión y velocidad</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Cada demanda de Buscar por mí cuenta como un ciclo. Los tiempos son medianas y solo usan ciclos con ambos hitos registrados.
+                  </p>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="rounded-xl border p-3">
+                    <p className="text-xs text-muted-foreground">Activación → resultado</p>
+                    <p className="mt-1 text-xl font-bold">
+                      {funnelPct(courseNeedObservability.conversion.activationToResultPct)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {courseNeedObservability.withResult} de {courseNeedObservability.activated} ciclos
+                    </p>
+                    <p className="mt-2 text-xs font-medium">
+                      Mediana {funnelDuration(courseNeedObservability.medianMinutes.activationToResult)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      n={courseNeedObservability.timingSamples.activationToResult}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-3">
+                    <p className="text-xs text-muted-foreground">Resultado → conversación</p>
+                    <p className="mt-1 text-xl font-bold">
+                      {funnelPct(courseNeedObservability.conversion.resultToContactPct)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {courseNeedObservability.contacted} de {courseNeedObservability.withResult} ciclos con resultado
+                    </p>
+                    <p className="mt-2 text-xs font-medium">
+                      Mediana {funnelDuration(courseNeedObservability.medianMinutes.resultToContact)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      n={courseNeedObservability.timingSamples.resultToContact}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-3">
+                    <p className="text-xs text-muted-foreground">Conversación → acuerdo</p>
+                    <p className="mt-1 text-xl font-bold">
+                      {funnelPct(courseNeedObservability.conversion.contactToAgreementPct)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {courseNeedObservability.withAgreement} de {courseNeedObservability.contacted} ciclos contactados
+                    </p>
+                    <p className="mt-2 text-xs font-medium">
+                      Mediana {funnelDuration(courseNeedObservability.medianMinutes.contactToAgreement)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      n={courseNeedObservability.timingSamples.contactToAgreement}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-3">
+                    <p className="text-xs text-muted-foreground">Acuerdo → resolución</p>
+                    <p className="mt-1 text-xl font-bold">
+                      {funnelPct(courseNeedObservability.conversion.agreementToResolvedPct)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {courseNeedObservability.resolved} de {courseNeedObservability.withAgreement} ciclos con acuerdo
+                    </p>
+                    <p className="mt-2 text-xs font-medium">
+                      Mediana {funnelDuration(courseNeedObservability.medianMinutes.agreementToResolved)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      n={courseNeedObservability.timingSamples.agreementToResolved}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-3">
+                    <p className="text-xs text-muted-foreground">Activación → resolución</p>
+                    <p className="mt-1 text-xl font-bold">
+                      {funnelPct(courseNeedObservability.conversion.activationToResolvedPct)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {courseNeedObservability.resolved} de {courseNeedObservability.activated} ciclos activados
+                    </p>
+                    <p className="mt-2 text-xs font-medium">
+                      Mediana {funnelDuration(courseNeedObservability.medianMinutes.activationToResolved)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      n={courseNeedObservability.timingSamples.activationToResolved}
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
