@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const server = readFileSync("lib/my-course/course-needs-server.ts", "utf8");
+const server = readFileSync("lib/my-course/course-need-history-server.ts", "utf8");
 const page = readFileSync("app/mi-curso/page.tsx", "utf8");
 const client = readFileSync("components/my-course/my-course-client.tsx", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
