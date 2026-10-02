@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { categories } from "@/lib/mock-data";
 import MyCourseClient from "@/components/my-course/my-course-client";
 import { listCourseNeeds } from "@/lib/my-course/course-needs-server";
+import { listFulfilledCourseNeeds } from "@/lib/my-course/course-need-history-server";
 import { getCourseNeedSearchStates } from "@/lib/my-course/course-need-search-server";
 
 export const dynamic = "force-dynamic";
@@ -135,6 +136,16 @@ export default async function MyCoursePage({
     console.error("Mi curso: error cargando necesidades persistentes", error);
   }
 
+  let fulfilledCourseNeeds = [] as Awaited<
+    ReturnType<typeof listFulfilledCourseNeeds>
+  >;
+
+  try {
+    fulfilledCourseNeeds = await listFulfilledCourseNeeds(user.id);
+  } catch (error) {
+    console.error("Mi curso: error cargando historial de necesidades", error);
+  }
+
   let searchStateByDemandId: Record<string, boolean> = {};
 
   try {
@@ -169,6 +180,24 @@ export default async function MyCoursePage({
       createdAt: need.created_at,
     }));
 
+  const fulfilledNeeds = fulfilledCourseNeeds.map((need) => ({
+    id: need.id,
+    studentId: need.student_id,
+    title: need.title,
+    isbn: need.isbn || "",
+    category: need.category,
+    academicYear: need.academic_year,
+    fulfilledAt: need.fulfilled_at,
+    listingId: need.listing_id,
+    listingTitle: need.listing_title,
+    listingStatus: need.listing_status,
+    agreementId: need.agreement_id,
+    agreementType: need.agreement_type,
+    agreementAmount: need.agreement_amount,
+    agreementConfirmedAt: need.agreement_confirmed_at,
+    conversationId: need.conversation_id,
+  }));
+
   const safeListings = (listings || []).map((listing: any) => ({
     id: listing.id,
     title: listing.title || "Anuncio",
@@ -193,6 +222,7 @@ export default async function MyCoursePage({
       categories={Array.from(new Set(categories)).filter(Boolean)}
       listings={safeListings}
       initialNeeds={initialNeeds}
+      fulfilledNeeds={fulfilledNeeds}
       legacyStorageKey={`wetudy_my_course_v1:${user.id}`}
       incomingNeed={
         incomingTitle || incomingIsbn

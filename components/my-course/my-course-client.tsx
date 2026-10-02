@@ -58,6 +58,24 @@ type Need = {
   createdAt: string;
 };
 
+type FulfilledNeed = {
+  id: string;
+  studentId: string;
+  title: string;
+  isbn: string;
+  category: string;
+  academicYear: string;
+  fulfilledAt: string;
+  listingId: string | null;
+  listingTitle: string | null;
+  listingStatus: string | null;
+  agreementId: string | null;
+  agreementType: string | null;
+  agreementAmount: number | null;
+  agreementConfirmedAt: string | null;
+  conversationId: string | null;
+};
+
 type IncomingNeed = {
   title: string;
   isbn: string;
@@ -122,6 +140,7 @@ export default function MyCourseClient({
   categories,
   listings,
   initialNeeds,
+  fulfilledNeeds,
   legacyStorageKey,
   incomingNeed,
 }: {
@@ -130,6 +149,7 @@ export default function MyCourseClient({
   categories: string[];
   listings: ListingSummary[];
   initialNeeds: Need[];
+  fulfilledNeeds: FulfilledNeed[];
   legacyStorageKey: string;
   incomingNeed: IncomingNeed | null;
 }) {
@@ -255,6 +275,14 @@ export default function MyCourseClient({
           need.academicYear === activeStudent?.academicYear
       ),
     [activeStudent?.academicYear, activeStudent?.id, needs]
+  );
+
+  const fulfilledForStudent = useMemo(
+    () =>
+      fulfilledNeeds.filter(
+        (need) => need.studentId === activeStudent?.id
+      ),
+    [activeStudent?.id, fulfilledNeeds]
   );
 
   function matchesForNeed(need: Need, student: CourseStudent) {
@@ -662,9 +690,15 @@ export default function MyCourseClient({
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center px-5 py-10 text-center">
                 <BookOpen className="h-9 w-9 text-primary" />
-                <p className="mt-3 font-semibold">Todavía no has añadido necesidades</p>
+                <p className="mt-3 font-semibold">
+                  {fulfilledForStudent.length > 0
+                    ? "No tienes necesidades pendientes"
+                    : "Todavía no has añadido necesidades"}
+                </p>
                 <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">
-                  Añade libros, uniformes o material. Wetudy priorizará coincidencias de tu centro y curso.
+                  {fulfilledForStudent.length > 0
+                    ? "Lo que ya conseguiste aparece en tu historial más abajo."
+                    : "Añade libros, uniformes o material. Wetudy priorizará coincidencias de tu centro y curso."}
                 </p>
               </CardContent>
             </Card>
@@ -803,6 +837,95 @@ export default function MyCourseClient({
           )}
         </div>
       </section>
+
+      {fulfilledForStudent.length > 0 ? (
+        <section className="mt-8">
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-primary">Historial</p>
+              <h2 className="mt-1 text-xl font-semibold">Conseguidos</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Materiales que ya resolviste mediante un acuerdo confirmado en Wetudy.
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {fulfilledForStudent.length}
+            </Badge>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {fulfilledForStudent.map((need) => {
+              const resolvedDate = new Date(need.fulfilledAt);
+              const resolvedLabel = Number.isNaN(resolvedDate.getTime())
+                ? null
+                : resolvedDate.toLocaleDateString("es-ES", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  });
+              const agreementLabel =
+                need.agreementType === "donation"
+                  ? "Donación"
+                  : need.agreementAmount != null
+                    ? euro(need.agreementAmount)
+                    : "Acuerdo confirmado";
+
+              return (
+                <Card key={need.id} className="border-primary/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-full bg-primary/10 p-2 text-primary">
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CardTitle className="text-base">{need.title}</CardTitle>
+                          <Badge variant="secondary">Conseguido</Badge>
+                        </div>
+                        <CardDescription className="mt-1">
+                          {need.category}
+                          {need.isbn ? " · ISBN " + need.isbn : ""}
+                          {need.academicYear ? " · " + need.academicYear : ""}
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-xl bg-muted/40 p-4">
+                      <p className="text-sm font-semibold">
+                        {need.listingTitle || "Necesidad resuelta"}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {agreementLabel}
+                        {resolvedLabel ? " · Conseguido el " + resolvedLabel : ""}
+                      </p>
+                    </div>
+
+                    {(need.listingId || need.conversationId) ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {need.listingId ? (
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/marketplace/listing/${need.listingId}`}>
+                              Ver anuncio
+                            </Link>
+                          </Button>
+                        ) : null}
+                        {need.conversationId ? (
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/messages/${need.conversationId}`}>
+                              Ver conversación
+                            </Link>
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }
