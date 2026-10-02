@@ -38,6 +38,50 @@ async function bestEffort(query: PromiseLike<unknown>) {
   }
 }
 
+export async function getCourseNeedSearchStates(
+  userId: string,
+  demandRequestIds: Array<string | null>
+) {
+  const ids = Array.from(
+    new Set(demandRequestIds.filter((id): id is string => Boolean(id)))
+  );
+  if (ids.length === 0) return {} as Record<string, boolean>;
+
+  const admin = createAdminClient();
+  const [demandResult, searchResult] = await Promise.all([
+    admin
+      .from("demand_requests")
+      .select("id, status")
+      .eq("user_id", userId)
+      .eq("source", "course_need")
+      .in("id", ids),
+    admin
+      .from("saved_searches")
+      .select("demand_request_id, notifications_enabled")
+      .eq("user_id", userId)
+      .eq("intent_source", "course_need")
+      .in("demand_request_id", ids),
+  ]);
+
+  if (demandResult.error) throw demandResult.error;
+  if (searchResult.error) throw searchResult.error;
+
+  const enabledDemandIds = new Set(
+    (searchResult.data || [])
+      .filter((search) => search.notifications_enabled && search.demand_request_id)
+      .map((search) => search.demand_request_id as string)
+  );
+
+  const states: Record<string, boolean> = {};
+  for (const demand of demandResult.data || []) {
+    states[demand.id] =
+      enabledDemandIds.has(demand.id) &&
+      (demand.status === "open" || demand.status === "matched");
+  }
+
+  return states;
+}
+
 async function loadOwnedActiveNeedRow(userId: string, needId: string) {
   if (!UUID_RE.test(needId)) {
     throw new CourseNeedError("La necesidad no es válida.", 400, "invalid_need");
@@ -116,6 +160,49 @@ async function findExistingDemand(userId: string, needId: string) {
   return data || null;
 }
 
+async function ensureDemandActive(userId: string, demandRequestId: string) {
+  const admin = createAdminClient();
+  const { data: demand, error } = await admin
+    .from("demand_requests")
+    .select("id, status")
+    .eq("id", demandRequestId)
+    .eq("user_id", userId)
+    .eq("source", "course_need")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!demand) {
+    throw new CourseNeedError(
+      "La búsqueda asociada ya no está disponible.",
+      409,
+      "search_not_found"
+    );
+  }
+
+  if (demand.status === "closed") {
+    throw new CourseNeedError(
+      "Esta búsqueda ya está cerrada.",
+      409,
+      "search_closed"
+    );
+  }
+
+  if (demand.status !== "dismissed") {
+    return { reopened: false };
+  }
+
+  const { error: reopenError } = await admin
+    .from("demand_requests")
+    .update({ status: "open" })
+    .eq("id", demandRequestId)
+    .eq("user_id", userId)
+    .eq("source", "course_need")
+    .eq("status", "dismissed");
+
+  if (reopenError) throw reopenError;
+  return { reopened: true };
+}
+
 async function ensureSavedSearch(
   userId: string,
   need: CourseNeedContext,
@@ -124,14 +211,33 @@ async function ensureSavedSearch(
   const admin = createAdminClient();
   const { data: existing, error: existingError } = await admin
     .from("saved_searches")
-    .select("id")
+    .select("id, notifications_enabled")
     .eq("user_id", userId)
     .eq("demand_request_id", demandRequestId)
+    .eq("intent_source", "course_need")
     .limit(1)
     .maybeSingle();
 
   if (existingError) throw existingError;
-  if (existing) return { id: existing.id, created: false };
+
+  if (existing) {
+    if (!existing.notifications_enabled) {
+      const { error: enableError } = await admin
+        .from("saved_searches")
+        .update({
+          notifications_enabled: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .eq("user_id", userId)
+        .eq("intent_source", "course_need");
+
+      if (enableError) throw enableError;
+      return { id: existing.id, created: false, reenabled: true };
+    }
+
+    return { id: existing.id, created: false, reenabled: false };
+  }
 
   const { data, error } = await admin
     .from("saved_searches")
@@ -157,7 +263,7 @@ async function ensureSavedSearch(
     .single();
 
   if (error) throw error;
-  return { id: data.id, created: true };
+  return { id: data.id, created: true, reenabled: false };
 }
 
 async function loadNeedRow(userId: string, needId: string) {
@@ -180,12 +286,102 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
   const need = await loadOwnedActiveNeed(userId, needId);
 
   if (need.demand_request_id) {
-    await ensureSavedSearch(userId, need, need.demand_request_id);
-    return loadNeedRow(userId, need.id);
+    let reopened = false;
+    let reenabledSavedSearchId: string | null = null;
+
+    try {
+      const demandState = await ensureDemandActive(userId, need.demand_request_id);
+      reopened = demandState.reopened;
+
+      const savedSearch = await ensureSavedSearch(
+        userId,
+        need,
+        need.demand_request_id
+      );
+      if (savedSearch.reenabled) reenabledSavedSearchId = savedSearch.id;
+
+      return loadNeedRow(userId, need.id);
+    } catch (error) {
+      if (reenabledSavedSearchId) {
+        await bestEffort(
+          admin
+            .from("saved_searches")
+            .update({
+              notifications_enabled: false,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", reenabledSavedSearchId)
+            .eq("user_id", userId)
+            .eq("intent_source", "course_need")
+        );
+      }
+
+      if (reopened) {
+        await bestEffort(
+          admin
+            .from("demand_requests")
+            .update({ status: "dismissed" })
+            .eq("id", need.demand_request_id)
+            .eq("user_id", userId)
+            .eq("source", "course_need")
+            .eq("status", "open")
+        );
+      }
+
+      throw error;
+    }
   }
 
   let createdDemandId: string | null = null;
   let createdSavedSearchId: string | null = null;
+  let reenabledSavedSearchId: string | null = null;
+  let reopenedDemandId: string | null = null;
+
+  async function compensateActivation() {
+    if (createdSavedSearchId) {
+      await bestEffort(
+        admin
+          .from("saved_searches")
+          .delete()
+          .eq("id", createdSavedSearchId)
+          .eq("user_id", userId)
+          .eq("intent_source", "course_need")
+      );
+    } else if (reenabledSavedSearchId) {
+      await bestEffort(
+        admin
+          .from("saved_searches")
+          .update({
+            notifications_enabled: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", reenabledSavedSearchId)
+          .eq("user_id", userId)
+          .eq("intent_source", "course_need")
+      );
+    }
+
+    if (createdDemandId) {
+      await bestEffort(
+        admin
+          .from("demand_requests")
+          .delete()
+          .eq("id", createdDemandId)
+          .eq("user_id", userId)
+          .eq("source", "course_need")
+      );
+    } else if (reopenedDemandId) {
+      await bestEffort(
+        admin
+          .from("demand_requests")
+          .update({ status: "dismissed" })
+          .eq("id", reopenedDemandId)
+          .eq("user_id", userId)
+          .eq("source", "course_need")
+          .eq("status", "open")
+      );
+    }
+  }
 
   try {
     let demand = await findExistingDemand(userId, need.id);
@@ -215,10 +411,14 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
       if (error) throw error;
       demand = data;
       createdDemandId = data.id;
+    } else {
+      const demandState = await ensureDemandActive(userId, demand.id);
+      if (demandState.reopened) reopenedDemandId = demand.id;
     }
 
     const savedSearch = await ensureSavedSearch(userId, need, demand.id);
     if (savedSearch.created) createdSavedSearchId = savedSearch.id;
+    if (savedSearch.reenabled) reenabledSavedSearchId = savedSearch.id;
 
     const { data: linked, error: linkError } = await admin
       .from("course_needs")
@@ -241,21 +441,7 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
     const current = await loadNeedRow(userId, need.id);
     if (current.demand_request_id) {
       if (current.demand_request_id !== demand.id) {
-        if (createdSavedSearchId) {
-          await admin
-            .from("saved_searches")
-            .delete()
-            .eq("id", createdSavedSearchId)
-            .eq("user_id", userId);
-        }
-        if (createdDemandId) {
-          await admin
-            .from("demand_requests")
-            .delete()
-            .eq("id", createdDemandId)
-            .eq("user_id", userId)
-            .eq("source", "course_need");
-        }
+        await compensateActivation();
       }
       return current;
     }
@@ -266,27 +452,92 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
       "search_link_failed"
     );
   } catch (error) {
-    if (createdSavedSearchId) {
-      await bestEffort(
-        admin
-          .from("saved_searches")
-          .delete()
-          .eq("id", createdSavedSearchId)
-          .eq("user_id", userId)
-      );
-    }
-    if (createdDemandId) {
-      await bestEffort(
-        admin
-          .from("demand_requests")
-          .delete()
-          .eq("id", createdDemandId)
-          .eq("user_id", userId)
-          .eq("source", "course_need")
-      );
-    }
+    await compensateActivation();
     throw error;
   }
+}
+
+export async function pauseCourseNeedSearch(userId: string, needId: string) {
+  const admin = createAdminClient();
+  const need = await loadOwnedActiveNeedRow(userId, needId);
+
+  if (!need.demand_request_id) {
+    return loadNeedRow(userId, need.id);
+  }
+
+  const demandRequestId = need.demand_request_id;
+  const { data: demand, error: demandError } = await admin
+    .from("demand_requests")
+    .select("id, status")
+    .eq("id", demandRequestId)
+    .eq("user_id", userId)
+    .eq("source", "course_need")
+    .maybeSingle();
+
+  if (demandError) throw demandError;
+  if (!demand) {
+    throw new CourseNeedError(
+      "La búsqueda asociada ya no está disponible.",
+      409,
+      "search_not_found"
+    );
+  }
+
+  const { data: searches, error: searchesError } = await admin
+    .from("saved_searches")
+    .select("id, notifications_enabled")
+    .eq("user_id", userId)
+    .eq("demand_request_id", demandRequestId)
+    .eq("intent_source", "course_need");
+
+  if (searchesError) throw searchesError;
+
+  const enabledSearchIds = (searches || [])
+    .filter((search) => search.notifications_enabled)
+    .map((search) => search.id);
+
+  if (enabledSearchIds.length > 0) {
+    const { error: pauseError } = await admin
+      .from("saved_searches")
+      .update({
+        notifications_enabled: false,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", enabledSearchIds)
+      .eq("user_id", userId)
+      .eq("intent_source", "course_need");
+
+    if (pauseError) throw pauseError;
+  }
+
+  if (demand.status === "open" || demand.status === "matched") {
+    const { error: dismissError } = await admin
+      .from("demand_requests")
+      .update({ status: "dismissed" })
+      .eq("id", demandRequestId)
+      .eq("user_id", userId)
+      .eq("source", "course_need")
+      .in("status", ["open", "matched"]);
+
+    if (dismissError) {
+      if (enabledSearchIds.length > 0) {
+        await bestEffort(
+          admin
+            .from("saved_searches")
+            .update({
+              notifications_enabled: true,
+              updated_at: new Date().toISOString(),
+            })
+            .in("id", enabledSearchIds)
+            .eq("user_id", userId)
+            .eq("intent_source", "course_need")
+        );
+      }
+      throw dismissError;
+    }
+  }
+
+  return loadNeedRow(userId, need.id);
 }
 
 export async function archiveCourseNeedAndStopSearch(userId: string, needId: string) {
@@ -303,6 +554,7 @@ export async function archiveCourseNeedAndStopSearch(userId: string, needId: str
     .select("id, status")
     .eq("id", demandRequestId)
     .eq("user_id", userId)
+    .eq("source", "course_need")
     .maybeSingle();
 
   if (demandError) throw demandError;
@@ -311,7 +563,8 @@ export async function archiveCourseNeedAndStopSearch(userId: string, needId: str
     .from("saved_searches")
     .select("id, notifications_enabled")
     .eq("user_id", userId)
-    .eq("demand_request_id", demandRequestId);
+    .eq("demand_request_id", demandRequestId)
+    .eq("intent_source", "course_need");
 
   if (searchesError) throw searchesError;
 

@@ -43,7 +43,7 @@ export default async function SavedSearchesPage() {
   const [savedSearchesResult, matchesResult] = await Promise.all([
     supabase
       .from("saved_searches")
-      .select("id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, results_count, notifications_enabled, created_at")
+      .select("id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, results_count, notifications_enabled, intent_source, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50),

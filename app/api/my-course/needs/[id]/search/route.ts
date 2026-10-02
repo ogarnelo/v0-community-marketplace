@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CourseNeedError } from "@/lib/my-course/course-needs-server";
-import { activateCourseNeedSearch } from "@/lib/my-course/course-need-search-server";
+import {
+  activateCourseNeedSearch,
+  pauseCourseNeedSearch,
+} from "@/lib/my-course/course-need-search-server";
 
 function errorResponse(error: unknown) {
   if (error instanceof CourseNeedError) {
@@ -11,9 +14,9 @@ function errorResponse(error: unknown) {
     );
   }
 
-  console.error("Error activando Buscar por mí:", error);
+  console.error("Error actualizando Buscar por mí:", error);
   return NextResponse.json(
-    { error: "No se pudo activar Buscar por mí." },
+    { error: "No se pudo actualizar Buscar por mí." },
     { status: 500 }
   );
 }
@@ -47,7 +50,26 @@ export async function POST(
     const user = await requireUser();
     const { id } = await params;
     const need = await activateCourseNeedSearch(user.id, id);
-    return NextResponse.json({ need });
+    return NextResponse.json({
+      need: { ...need, search_active: true },
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+    const need = await pauseCourseNeedSearch(user.id, id);
+    return NextResponse.json({
+      need: { ...need, search_active: false },
+    });
   } catch (error) {
     return errorResponse(error);
   }
