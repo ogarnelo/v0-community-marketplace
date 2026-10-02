@@ -5,6 +5,7 @@ import test from "node:test";
 const helper = readFileSync("lib/demand/need-attribution.ts", "utf8");
 const confirmRoute = readFileSync("app/api/agreements/confirm/route.ts", "utf8");
 const proposeRoute = readFileSync("app/api/agreements/propose/route.ts", "utf8");
+const savedSearchesPage = readFileSync("app/account/saved-searches/page.tsx", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
 test("confirmed attributed agreement fulfills only the linked Mi curso need", () => {
@@ -30,6 +31,14 @@ test("proposal only attributes demand while final confirmation closes Mi curso",
   assert.match(helper, /if \(resolvedAt\) \{/);
   assert.match(helper, /await fulfillCourseNeedFromResolvedDemand\(admin, needId, resolvedAt\)/);
   assert.match(helper, /agreement\.confirmed_at \|\| \(agreement\.status === "confirmed"/);
+});
+
+test("fulfilled Mi curso alerts stop appearing as manageable active searches", () => {
+  assert.match(savedSearchesPage, /demand_request_id/);
+  assert.match(savedSearchesPage, /from\("course_needs"\)/);
+  assert.match(savedSearchesPage, /eq\("status", "active"\)/);
+  assert.match(savedSearchesPage, /activeCourseNeedDemandIds/);
+  assert.match(savedSearchesPage, /visibleSavedSearches/);
 });
 
 test("course-need fulfillment is part of the critical prebuild contracts", () => {
