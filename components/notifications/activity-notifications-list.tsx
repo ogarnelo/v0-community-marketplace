@@ -39,6 +39,8 @@ function getNotificationLabel(kind: string) {
       return "Moderación";
     case "saved_search_match":
       return "Búsqueda";
+    case "email_health_alert":
+      return "Email";
     default:
       return "Actividad";
   }
