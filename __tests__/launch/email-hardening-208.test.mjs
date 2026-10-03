@@ -6,6 +6,10 @@ const migration = readFileSync(
   "supabase/migrations/20261003073142_transactional_email_notification_idempotency.sql",
   "utf8"
 );
+const conflictFix = readFileSync(
+  "supabase/migrations/20261003074031_fix_notification_event_key_conflict_target.sql",
+  "utf8"
+);
 const delivery = readFileSync("lib/emails/delivery-idempotency.ts", "utf8");
 const notifications = readFileSync("lib/notifications.ts", "utf8");
 const matchRoute = readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts", "utf8");
@@ -15,10 +19,12 @@ const confirmRoute = readFileSync("app/api/agreements/confirm/route.ts", "utf8")
 const cancelRoute = readFileSync("app/api/agreements/cancel/route.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
-test("notification event keys are unique while legacy notifications remain nullable", () => {
+test("notification event keys are unique and usable as an ON CONFLICT target", () => {
   assert.match(migration, /add column if not exists event_key text/);
   assert.match(migration, /create unique index if not exists notifications_event_key_uidx/);
-  assert.match(migration, /where event_key is not null/);
+  assert.match(conflictFix, /drop index if exists public\.notifications_event_key_uidx/);
+  assert.match(conflictFix, /create unique index notifications_event_key_uidx[\s\S]*on public\.notifications\(event_key\)/);
+  assert.doesNotMatch(conflictFix, /where event_key is not null/);
   assert.match(notifications, /createNotificationOnce/);
   assert.match(notifications, /onConflict: "event_key"/);
   assert.match(notifications, /ignoreDuplicates: true/);
