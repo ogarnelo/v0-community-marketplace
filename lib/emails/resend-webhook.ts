@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hashRecipientEmail } from "@/lib/emails/delivery-idempotency";
 
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 const SOFT_BOUNCE_SUPPRESSION_THRESHOLD = 3;
@@ -31,6 +32,16 @@ export type ResendWebhookEvent = {
   data?: {
     email_id?: string;
     message_id?: string;
+    email?: string;
+    origin?: string;
+    source_id?: string | null;
+    suppression?: {
+      email?: string;
+      origin?: string;
+      source_id?: string | null;
+      [key: string]: unknown;
+    };
+    to?: string[];
     bounce?: {
       type?: string;
       subType?: string;
@@ -138,6 +149,109 @@ function normalizeBounceType(event: ResendWebhookEvent) {
   return "undetermined";
 }
 
+function suppressionLifecycleData(event: ResendWebhookEvent) {
+  const data = event.data || {};
+  const suppression =
+    data.suppression && typeof data.suppression === "object"
+      ? data.suppression
+      : undefined;
+
+  const emailCandidates = [
+    typeof data.email === "string" ? data.email : "",
+    typeof suppression?.email === "string" ? suppression.email : "",
+    Array.isArray(data.to) && typeof data.to[0] === "string" ? data.to[0] : "",
+  ];
+  const email = emailCandidates.map((value) => value.trim()).find(Boolean) || "";
+
+  const originCandidates = [
+    typeof data.origin === "string" ? data.origin : "",
+    typeof suppression?.origin === "string" ? suppression.origin : "",
+  ];
+  const origin =
+    originCandidates.map((value) => value.trim().toLowerCase()).find(Boolean) || "manual";
+
+  const sourceIdCandidates = [
+    typeof data.source_id === "string" ? data.source_id : "",
+    typeof suppression?.source_id === "string" ? suppression.source_id : "",
+  ];
+  const sourceId = sourceIdCandidates.map((value) => value.trim()).find(Boolean) || null;
+
+  return { email, origin, sourceId };
+}
+
+function suppressionReasonFromOrigin(
+  origin: string
+): "hard_bounce" | "complaint" | "provider_suppressed" {
+  if (origin === "bounce") return "hard_bounce";
+  if (origin === "complaint") return "complaint";
+  return "provider_suppressed";
+}
+
+async function syncProviderSuppressionLifecycle(
+  supabase: SupabaseClient,
+  params: {
+    eventId: string;
+    eventType: "suppression.added" | "suppression.removed";
+    eventAt: string;
+    email: string;
+    origin: string;
+    sourceId: string | null;
+  }
+) {
+  const recipientEmailHash = hashRecipientEmail(params.email);
+
+  if (params.eventType === "suppression.added") {
+    const { error } = await supabase
+      .from("transactional_email_recipient_health")
+      .upsert(
+        {
+          recipient_email_hash: recipientEmailHash,
+          is_suppressed: true,
+          suppression_reason: suppressionReasonFromOrigin(params.origin),
+          source_event_id: params.eventId,
+          source_provider_message_id: params.sourceId,
+          last_event_type: params.eventType,
+          last_event_at: params.eventAt,
+          suppressed_at: params.eventAt,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "recipient_email_hash" }
+      );
+
+    if (error) throw error;
+    return "suppression_added";
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("transactional_email_recipient_health")
+    .select("recipient_email_hash")
+    .eq("recipient_email_hash", recipientEmailHash)
+    .maybeSingle();
+
+  if (currentError) throw currentError;
+
+  if (current) {
+    const { error } = await supabase
+      .from("transactional_email_recipient_health")
+      .update({
+        soft_bounce_count: 0,
+        is_suppressed: false,
+        suppression_reason: null,
+        source_event_id: params.eventId,
+        source_provider_message_id: params.sourceId,
+        last_event_type: params.eventType,
+        last_event_at: params.eventAt,
+        suppressed_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("recipient_email_hash", recipientEmailHash);
+
+    if (error) throw error;
+  }
+
+  return "suppression_removed";
+}
+
 async function upsertImmediateSuppression(
   supabase: SupabaseClient,
   params: {
@@ -204,7 +318,9 @@ async function recordBounceHealth(
   if (currentError) throw currentError;
 
   const softBounceCount = Number(current?.soft_bounce_count || 0) + 1;
-  const shouldSuppress = Boolean(current?.is_suppressed) || softBounceCount >= SOFT_BOUNCE_SUPPRESSION_THRESHOLD;
+  const shouldSuppress =
+    Boolean(current?.is_suppressed) ||
+    softBounceCount >= SOFT_BOUNCE_SUPPRESSION_THRESHOLD;
 
   const { error } = await supabase
     .from("transactional_email_recipient_health")
@@ -320,6 +436,22 @@ export async function processResendWebhookEvent(
 
   let processingResult = "ignored_event";
   let matchedDelivery = false;
+
+  if (eventType === "suppression.added" || eventType === "suppression.removed") {
+    const lifecycle = suppressionLifecycleData(params.event);
+    if (lifecycle.email) {
+      processingResult = await syncProviderSuppressionLifecycle(supabase, {
+        eventId: params.eventId,
+        eventType,
+        eventAt: providerEventAt,
+        email: lifecycle.email,
+        origin: lifecycle.origin,
+        sourceId: lifecycle.sourceId,
+      });
+    } else {
+      processingResult = "suppression_missing_email";
+    }
+  }
 
   const deliveryStatus = DELIVERY_STATUS_BY_EVENT[eventType];
   if (deliveryStatus && providerMessageId) {
