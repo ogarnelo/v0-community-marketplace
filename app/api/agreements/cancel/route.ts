@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOnce } from "@/lib/notifications";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -72,7 +72,8 @@ export async function POST(request: Request) {
           : Boolean(agreement.seller_confirmed_at);
 
       try {
-        await createNotification(admin, {
+        await createNotificationOnce(admin, {
+          event_key: `agreement-cancelled/${agreement.id}`,
           user_id: recipientId,
           kind: "agreement_cancelled",
           title: actorHadProposed ? "Propuesta retirada" : "Propuesta rechazada",
