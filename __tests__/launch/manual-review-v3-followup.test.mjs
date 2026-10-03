@@ -40,8 +40,10 @@ test("chat only re-anchors when the last message changes", () => {
 });
 
 test("every direct chat message creates an idempotent bell notification", () => {
+  assert.match(messageSendRoute, /createNotificationOnce/);
+  assert.match(messageSendRoute, /event_key: `message-received\/\$\{message\.id\}`/);
   assert.match(messageSendRoute, /kind: "message_received"/);
-  assert.match(messageSendRoute, /contains\("metadata", \{ message_id: message\.id \}\)/);
+  assert.match(messageSendRoute, /message_id: message\.id/);
   assert.match(messageSendRoute, /href: `\/messages\/\$\{conversation\.id\}`/);
   assert.match(notificationBell, /case "message_received":/);
   assert.match(notificationBell, /return "Mensaje"/);

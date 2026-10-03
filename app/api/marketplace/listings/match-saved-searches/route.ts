@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOnce } from "@/lib/notifications";
+import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 import { recordNeedResult } from "@/lib/demand/need-attribution";
 
 export async function POST(request: Request) {
@@ -106,29 +107,19 @@ export async function POST(request: Request) {
 
     let notified = 0;
     for (const match of pendingNotifications || []) {
-      const { data: existingNotification } = await admin
-        .from("notifications")
-        .select("id")
-        .eq("user_id", match.user_id)
-        .eq("kind", "saved_search_match")
-        .contains("metadata", { saved_search_match_id: match.id })
-        .limit(1)
-        .maybeSingle();
-
-      if (!existingNotification) {
-        const result = await createNotification(admin, {
-          user_id: match.user_id,
-          kind: "saved_search_match",
-          title: "Ha aparecido algo que estabas buscando",
-          body: listing.title,
-          href: `/marketplace/listing/${listing.id}`,
-          metadata: {
-            saved_search_match_id: match.id,
-            listing_id: listing.id,
-          },
-        });
-        if (result.error) throw result.error;
-      }
+      const result = await createNotificationOnce(admin, {
+        event_key: `saved-search-match/${match.id}`,
+        user_id: match.user_id,
+        kind: "saved_search_match",
+        title: "Ha aparecido algo que estabas buscando",
+        body: listing.title,
+        href: `/marketplace/listing/${listing.id}`,
+        metadata: {
+          saved_search_match_id: match.id,
+          listing_id: listing.id,
+        },
+      });
+      if (result.error) throw result.error;
 
       const { error: markNotificationError } = await admin
         .from("saved_search_matches")
@@ -155,13 +146,20 @@ export async function POST(request: Request) {
         if (recipientError) throw recipientError;
         if (!recipient.user?.email) continue;
 
-        const result = await sendSavedSearchMatchEmail({
-          to: recipient.user.email,
-          listingId: listing.id,
-          listingTitle: listing.title,
-          idempotencyKey: `saved-search-match/${match.id}`,
+        const emailEventKey = `saved-search-match/${match.id}`;
+        const delivery = await sendTransactionalEmailOnce(admin, {
+          eventKey: emailEventKey,
+          userId: match.user_id,
+          kind: "saved_search_match",
+          send: () =>
+            sendSavedSearchMatchEmail({
+              to: recipient.user.email!,
+              listingId: listing.id,
+              listingTitle: listing.title,
+              idempotencyKey: emailEventKey,
+            }),
         });
-        if ("skipped" in result && result.skipped) continue;
+        if (!delivery.sent) continue;
 
         const { error: markError } = await admin
           .from("saved_search_matches")

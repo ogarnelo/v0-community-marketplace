@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementConfirmedEmail } from "@/lib/emails/mvp-event-emails";
 import { recordAttributedConversion } from "@/lib/growth/server-attribution";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOnce } from "@/lib/notifications";
+import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 import { linkAgreementToNeed } from "@/lib/demand/need-attribution";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
@@ -78,7 +79,10 @@ export async function POST(request: Request) {
         .eq("id", agreement.listing_id)
         .maybeSingle();
 
-      await createNotification(admin, {
+      await createNotificationOnce(admin, {
+        event_key: isConfirmed
+          ? `agreement-confirmed/${agreement.id}/${recipientId}`
+          : `agreement-part-confirmed/${agreement.id}/${user.id}`,
         user_id: recipientId,
         kind: isConfirmed ? "agreement_confirmed" : "agreement_part_confirmed",
         title: isConfirmed ? "¡Hecho!" : "Propuesta aceptada",
@@ -129,12 +133,19 @@ export async function POST(request: Request) {
           .filter((recipient) => recipient.email)
           .map(async (recipient) => {
             try {
-              await sendAgreementConfirmedEmail({
-                to: recipient.email!,
-                recipientName: recipient.fullName,
-                listingTitle: listing?.title || "el anuncio",
-                conversationId: agreement.conversation_id,
-                idempotencyKey: `agreement-confirmed/${agreement.id}/${recipient.id}`,
+              const eventKey = `agreement-confirmed/${agreement.id}/${recipient.id}`;
+              await sendTransactionalEmailOnce(admin, {
+                eventKey,
+                userId: recipient.id,
+                kind: "agreement_confirmed",
+                send: () =>
+                  sendAgreementConfirmedEmail({
+                    to: recipient.email!,
+                    recipientName: recipient.fullName,
+                    listingTitle: listing?.title || "el anuncio",
+                    conversationId: agreement.conversation_id,
+                    idempotencyKey: eventKey,
+                  }),
               });
             } catch (emailError) {
               console.error("No se pudo enviar el email de confirmación", emailError);

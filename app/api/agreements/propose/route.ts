@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementProposedEmail } from "@/lib/emails/mvp-event-emails";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOnce } from "@/lib/notifications";
+import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 import { linkAgreementToNeed } from "@/lib/demand/need-attribution";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
@@ -106,7 +107,8 @@ export async function POST(request: Request) {
     });
 
     try {
-      await createNotification(admin, {
+      await createNotificationOnce(admin, {
+        event_key: `agreement-proposed/${agreement.id}`,
         user_id: recipientId,
         kind: "agreement_proposed",
         title:
@@ -133,16 +135,23 @@ export async function POST(request: Request) {
     }
     if (recipientEmail) {
       try {
-        await sendAgreementProposedEmail({
-          to: recipientEmail,
-          recipientName: recipientProfile?.full_name,
-          listingTitle: listing?.title || "el anuncio",
-          conversationId: agreement.conversation_id,
-          agreementType: agreement.agreement_type,
-          amount: agreement.amount == null ? null : Number(agreement.amount),
-          actorName,
-          actorRole,
-          idempotencyKey: `agreement-proposed/${agreement.id}`,
+        const eventKey = `agreement-proposed/${agreement.id}`;
+        await sendTransactionalEmailOnce(admin, {
+          eventKey,
+          userId: recipientId,
+          kind: "agreement_proposed",
+          send: () =>
+            sendAgreementProposedEmail({
+              to: recipientEmail,
+              recipientName: recipientProfile?.full_name,
+              listingTitle: listing?.title || "el anuncio",
+              conversationId: agreement.conversation_id,
+              agreementType: agreement.agreement_type,
+              amount: agreement.amount == null ? null : Number(agreement.amount),
+              actorName,
+              actorRole,
+              idempotencyKey: eventKey,
+            }),
         });
       } catch (emailError) {
         console.error("No se pudo enviar el email de propuesta", emailError);

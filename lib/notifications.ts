@@ -9,6 +9,10 @@ type NotificationInsert = {
   metadata?: Record<string, unknown> | null;
 };
 
+type NotificationOnceInsert = NotificationInsert & {
+  event_key: string;
+};
+
 export type AppNotificationRow = {
   id: string;
   user_id: string;
@@ -33,6 +37,29 @@ export async function createNotification(
     href: payload.href || null,
     metadata: payload.metadata || null,
   });
+}
+
+export async function createNotificationOnce(
+  supabase: SupabaseClient,
+  payload: NotificationOnceInsert
+) {
+  const eventKey = payload.event_key.trim();
+  if (!eventKey) {
+    throw new Error("Notification event key is required.");
+  }
+
+  return supabase.from("notifications").upsert(
+    {
+      user_id: payload.user_id,
+      kind: payload.kind,
+      title: payload.title,
+      body: payload.body || null,
+      href: payload.href || null,
+      metadata: payload.metadata || null,
+      event_key: eventKey,
+    },
+    { onConflict: "event_key", ignoreDuplicates: true }
+  );
 }
 
 export async function createNotifications(
