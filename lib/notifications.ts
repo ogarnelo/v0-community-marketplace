@@ -125,6 +125,10 @@ export function getNotificationDestination(
     }
   }
 
+  if (notification.kind === "email_health_alert") {
+    return "/admin/super/email-health";
+  }
+
   const href = notification.href?.trim();
   if (!href || !href.startsWith("/") || href.startsWith("//")) {
     return "/account/activity";
