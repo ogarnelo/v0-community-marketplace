@@ -70,6 +70,8 @@ function getNotificationLabel(kind: string) {
       return "Demanda";
     case "saved_search_match":
       return "Coincidencia";
+    case "email_health_alert":
+      return "Email";
     default:
       return "Actividad";
   }

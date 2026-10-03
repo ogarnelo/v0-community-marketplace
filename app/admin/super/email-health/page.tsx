@@ -18,6 +18,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { loadEmailHealth } from "@/lib/admin/email-health";
+import {
+  loadEmailHealthAlertStates,
+  loadEmailHealthHistory,
+} from "@/lib/admin/email-health-monitoring";
 
 export const dynamic = "force-dynamic";
 
@@ -72,9 +76,11 @@ export default async function EmailHealthPage() {
   if (!roleRows?.length) redirect("/");
 
   const admin = createAdminClient();
-  const [navbarData, health] = await Promise.all([
+  const [navbarData, health, history, alertStates] = await Promise.all([
     getNavbarData(supabase),
     loadEmailHealth(admin, 30),
+    loadEmailHealthHistory(admin, 14),
+    loadEmailHealthAlertStates(admin),
   ]);
 
   return (
@@ -133,6 +139,30 @@ export default async function EmailHealthPage() {
                   </div>
                 ))
               )}
+              <div className="grid gap-2 pt-2 sm:grid-cols-2">
+                {alertStates.map((state) => (
+                  <div key={state.metric} className="rounded-xl border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium text-foreground">
+                        {state.metric === "bounce_rate" ? "Rebotes" : "Complaints"}
+                      </p>
+                      <Badge variant={state.is_active ? "destructive" : "outline"}>
+                        {state.is_active ? "Activa" : "Normal"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Ciclos de alerta: {state.generation}
+                      {state.last_value_percent == null
+                        ? ""
+                        : ` · Último valor ${pct(state.last_value_percent)}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Wetudy avisa solo al pasar de normal a superar el umbral. Para volver a avisar,
+                la métrica debe recuperarse primero y cruzarlo de nuevo.
+              </p>
             </CardContent>
           </Card>
 
@@ -245,6 +275,47 @@ export default async function EmailHealthPage() {
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Histórico diario</CardTitle>
+              <CardDescription>
+                Un snapshot por día de la ventana móvil de 30 días. Se actualiza también cuando
+                entra una incidencia para que el cruce quede persistido.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {history.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  El primer snapshot se guardará en la siguiente evaluación.
+                </p>
+              ) : (
+                history.map((row) => (
+                  <div
+                    key={row.snapshot_date}
+                    className="grid gap-2 rounded-xl border p-3 text-sm sm:grid-cols-4"
+                  >
+                    <div>
+                      <p className="text-xs text-muted-foreground">Día</p>
+                      <p className="font-medium">{row.snapshot_date}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Envíos</p>
+                      <p className="font-medium">{row.total}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Rebote</p>
+                      <p className="font-medium">{pct(row.bounce_rate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Complaints</p>
+                      <p className="font-medium">{pct(row.complaint_rate)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
