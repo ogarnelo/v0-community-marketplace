@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type ProviderSendResult = {
@@ -18,13 +19,24 @@ export type TransactionalEmailOnceResult =
       sent: false;
       alreadySent: false;
       skipped: true;
+      reason?: "provider_skipped" | "suppressed";
+      suppressionReason?: string | null;
     };
+
+export function normalizeRecipientEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+export function hashRecipientEmail(email: string) {
+  return createHash("sha256").update(normalizeRecipientEmail(email)).digest("hex");
+}
 
 export async function sendTransactionalEmailOnce(
   supabase: SupabaseClient,
   params: {
     eventKey: string;
     userId?: string | null;
+    recipientEmail?: string | null;
     kind: string;
     send: () => Promise<ProviderSendResult>;
   }
@@ -50,9 +62,39 @@ export async function sendTransactionalEmailOnce(
     };
   }
 
+  const recipientEmailHash =
+    typeof params.recipientEmail === "string" && params.recipientEmail.trim()
+      ? hashRecipientEmail(params.recipientEmail)
+      : null;
+
+  if (recipientEmailHash) {
+    const { data: health, error: healthError } = await supabase
+      .from("transactional_email_recipient_health")
+      .select("is_suppressed,suppression_reason")
+      .eq("recipient_email_hash", recipientEmailHash)
+      .maybeSingle();
+
+    if (healthError) throw healthError;
+
+    if (health?.is_suppressed) {
+      return {
+        sent: false,
+        alreadySent: false,
+        skipped: true,
+        reason: "suppressed",
+        suppressionReason: health.suppression_reason || null,
+      };
+    }
+  }
+
   const providerResult = await params.send();
   if (providerResult.skipped === true) {
-    return { sent: false, alreadySent: false, skipped: true };
+    return {
+      sent: false,
+      alreadySent: false,
+      skipped: true,
+      reason: "provider_skipped",
+    };
   }
 
   const providerMessageId =
@@ -66,6 +108,7 @@ export async function sendTransactionalEmailOnce(
       {
         event_key: eventKey,
         user_id: params.userId || null,
+        recipient_email_hash: recipientEmailHash,
         kind: params.kind,
         provider: "resend",
         provider_message_id: providerMessageId,

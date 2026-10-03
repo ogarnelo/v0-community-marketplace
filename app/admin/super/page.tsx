@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import SuperAdminDashboard from "@/components/admin/super-admin-dashboard";
-import { Activity, FlaskConical, Globe, Leaf, Search, School, Users } from "lucide-react";
+import { Activity, FlaskConical, Globe, Leaf, MailCheck, Search, School, Users } from "lucide-react";
 
 
 type SupportTicketRow = {
@@ -303,6 +303,9 @@ export default async function SuperAdminPage() {
               </Button>
               <Button asChild variant="outline" className="gap-2">
                 <Link href="/admin/super/liquidity"><Activity className="h-4 w-4" />Liquidez</Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/admin/super/email-health"><MailCheck className="h-4 w-4" />Salud email</Link>
               </Button>
               <Button asChild variant="outline" className="gap-2">
                 <Link href="/admin/super/commerce-lab"><FlaskConical className="h-4 w-4" />Commerce Lab</Link>

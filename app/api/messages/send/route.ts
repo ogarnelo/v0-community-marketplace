@@ -79,6 +79,7 @@ export async function POST(request: Request) {
           await sendTransactionalEmailOnce(admin, {
             eventKey,
             userId: recipientId,
+            recipientEmail,
             kind: "first_message",
             send: () =>
               sendFirstMessageEmail({
