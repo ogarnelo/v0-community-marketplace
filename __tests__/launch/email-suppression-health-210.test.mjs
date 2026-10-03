@@ -6,6 +6,10 @@ const migration = readFileSync(
   "supabase/migrations/20261003081154_transactional_email_recipient_health.sql",
   "utf8"
 );
+const userIndexMigration = readFileSync(
+  "supabase/migrations/20261003081645_transactional_email_recipient_health_user_idx.sql",
+  "utf8"
+);
 const delivery = readFileSync("lib/emails/delivery-idempotency.ts", "utf8");
 const webhook = readFileSync("lib/emails/resend-webhook.ts", "utf8");
 const health = readFileSync("lib/admin/email-health.ts", "utf8");
@@ -22,6 +26,8 @@ test("recipient suppression state is service-only and keyed by an email hash", (
   assert.match(migration, /enable row level security/);
   assert.match(migration, /revoke all[^;]*public, anon, authenticated/s);
   assert.match(migration, /to service_role/);
+  assert.match(userIndexMigration, /transactional_email_recipient_health_user_id_idx/);
+  assert.match(userIndexMigration, /on public\.transactional_email_recipient_health\(user_id\)/);
   assert.doesNotMatch(migration, /recipient_email\s+text/i);
   assert.match(delivery, /createHash\("sha256"\)/);
   assert.match(delivery, /normalizeRecipientEmail/);
