@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { refreshEmailHealthMonitoring } from "@/lib/admin/email-health-monitoring";
 import {
   loadActiveResendWebhookSecrets,
   processResendWebhookEvent,
@@ -37,6 +38,14 @@ export async function POST(request: Request) {
       eventId: verified.messageId,
       event,
     });
+
+    if (event.type === "email.bounced" || event.type === "email.complained") {
+      try {
+        await refreshEmailHealthMonitoring(admin);
+      } catch (monitoringError) {
+        console.error("Email health monitoring refresh failed", monitoringError);
+      }
+    }
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error: any) {
