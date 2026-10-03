@@ -2,12 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type ProviderSendResult =
-  | { skipped: true }
-  | {
-      id?: string | null;
-      [key: string]: unknown;
-    };
+type ProviderSendResult = {
+  skipped?: boolean;
+  id?: string | null;
+  [key: string]: unknown;
+};
 
 export type TransactionalEmailOnceResult =
   | {
@@ -52,7 +51,7 @@ export async function sendTransactionalEmailOnce(
   }
 
   const providerResult = await params.send();
-  if ("skipped" in providerResult && providerResult.skipped) {
+  if (providerResult.skipped === true) {
     return { sent: false, alreadySent: false, skipped: true };
   }
 
