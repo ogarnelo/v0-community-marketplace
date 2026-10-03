@@ -103,6 +103,39 @@ export default async function EmailHealthPage() {
             </Button>
           </div>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TriangleAlert className="h-4 w-4" />
+                Alertas operativas
+              </CardTitle>
+              <CardDescription>
+                Umbrales de higiene: rebote &gt; {health.bounceAlertThreshold}% y complaints &gt;{" "}
+                {health.complaintAlertThreshold}%.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {health.alerts.length === 0 ? (
+                <div className="flex items-center gap-2 rounded-xl border p-3 text-sm">
+                  <CircleCheckBig className="h-4 w-4" />
+                  Sin alertas de entregabilidad en la ventana actual.
+                </div>
+              ) : (
+                health.alerts.map((alert) => (
+                  <div key={alert.key} className="rounded-xl border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground">{alert.title}</p>
+                      <Badge variant={alert.severity === "critical" ? "destructive" : "outline"}>
+                        {alert.severity === "critical" ? "Crítica" : "Atención"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{alert.detail}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
@@ -161,6 +194,9 @@ export default async function EmailHealthPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-3xl font-bold">{health.activeSuppressions}</p>
+                <p className="text-xs text-muted-foreground">
+                  Reactivadas por una retirada explícita en Resend: {health.providerUnsuppressed}
+                </p>
                 {health.activeSuppressions === 0 ? (
                   <p className="text-sm text-muted-foreground">No hay destinatarios bloqueados.</p>
                 ) : (
