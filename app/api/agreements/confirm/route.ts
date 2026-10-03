@@ -137,6 +137,7 @@ export async function POST(request: Request) {
               await sendTransactionalEmailOnce(admin, {
                 eventKey,
                 userId: recipient.id,
+                recipientEmail: recipient.email!,
                 kind: "agreement_confirmed",
                 send: () =>
                   sendAgreementConfirmedEmail({
