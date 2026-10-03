@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendFirstMessageEmail } from "@/lib/emails/mvp-event-emails";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOnce } from "@/lib/notifications";
+import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 
 export async function POST(request: Request) {
   try {
@@ -42,33 +43,20 @@ export async function POST(request: Request) {
       message.body?.trim() ||
       (message.attachment_name ? `Archivo adjunto: ${message.attachment_name}` : "Te ha enviado un mensaje.");
 
-    const { data: existingMessageNotification, error: existingMessageNotificationError } = await admin
-      .from("notifications")
-      .select("id")
-      .eq("user_id", recipientId)
-      .eq("kind", "message_received")
-      .contains("metadata", { message_id: message.id })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingMessageNotificationError) throw existingMessageNotificationError;
-
-    if (!existingMessageNotification) {
-      const { error: notificationError } = await createNotification(admin, {
-        user_id: recipientId,
-        kind: "message_received",
-        title: `Nuevo mensaje de ${senderName}`,
-        body: messagePreview.slice(0, 240),
-        href: `/messages/${conversation.id}`,
-        metadata: {
-          conversation_id: conversation.id,
-          message_id: message.id,
-          listing_id: conversation.listing_id,
-        },
-      });
-
-      if (notificationError) throw notificationError;
-    }
+    const { error: notificationError } = await createNotificationOnce(admin, {
+      event_key: `message-received/${message.id}`,
+      user_id: recipientId,
+      kind: "message_received",
+      title: `Nuevo mensaje de ${senderName}`,
+      body: messagePreview.slice(0, 240),
+      href: `/messages/${conversation.id}`,
+      metadata: {
+        conversation_id: conversation.id,
+        message_id: message.id,
+        listing_id: conversation.listing_id,
+      },
+    });
+    if (notificationError) throw notificationError;
 
     const { data: firstMessage, error: firstMessageError } = await admin
       .from("messages")
@@ -87,12 +75,19 @@ export async function POST(request: Request) {
 
       if (recipientEmail) {
         try {
-          await sendFirstMessageEmail({
-            to: recipientEmail,
-            recipientName: recipientProfile?.full_name,
-            listingTitle: listing?.title || "el anuncio",
-            conversationId: conversation.id,
-            idempotencyKey: `first-message/${message.id}`,
+          const eventKey = `first-message/${message.id}`;
+          await sendTransactionalEmailOnce(admin, {
+            eventKey,
+            userId: recipientId,
+            kind: "first_message",
+            send: () =>
+              sendFirstMessageEmail({
+                to: recipientEmail,
+                recipientName: recipientProfile?.full_name,
+                listingTitle: listing?.title || "el anuncio",
+                conversationId: conversation.id,
+                idempotencyKey: eventKey,
+              }),
           });
         } catch (emailError) {
           console.error("No se pudo enviar el email del primer mensaje", emailError);
