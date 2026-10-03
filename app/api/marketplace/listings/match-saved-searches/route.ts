@@ -150,6 +150,7 @@ export async function POST(request: Request) {
         const delivery = await sendTransactionalEmailOnce(admin, {
           eventKey: emailEventKey,
           userId: match.user_id,
+          recipientEmail: recipient.user.email!,
           kind: "saved_search_match",
           send: () =>
             sendSavedSearchMatchEmail({
