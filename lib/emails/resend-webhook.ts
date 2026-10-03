@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
+const SOFT_BOUNCE_SUPPRESSION_THRESHOLD = 3;
 
 const DELIVERY_STATUS_BY_EVENT: Record<string, string> = {
   "email.sent": "sent",
@@ -30,6 +31,13 @@ export type ResendWebhookEvent = {
   data?: {
     email_id?: string;
     message_id?: string;
+    bounce?: {
+      type?: string;
+      subType?: string;
+      message?: string;
+      [key: string]: unknown;
+    };
+    bounce_type?: string;
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -118,6 +126,141 @@ function normalizeEventTime(event: ResendWebhookEvent) {
   return parsed.toISOString();
 }
 
+function normalizeBounceType(event: ResendWebhookEvent) {
+  const raw =
+    (typeof event.data?.bounce?.type === "string" && event.data.bounce.type) ||
+    (typeof event.data?.bounce_type === "string" && event.data.bounce_type) ||
+    "";
+
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "permanent" || normalized.includes("hard")) return "hard";
+  if (normalized === "transient" || normalized.includes("soft")) return "soft";
+  return "undetermined";
+}
+
+async function upsertImmediateSuppression(
+  supabase: SupabaseClient,
+  params: {
+    recipientEmailHash: string;
+    userId?: string | null;
+    reason: "hard_bounce" | "complaint" | "provider_suppressed";
+    eventId: string;
+    providerMessageId: string;
+    eventType: string;
+    eventAt: string;
+  }
+) {
+  const { error } = await supabase
+    .from("transactional_email_recipient_health")
+    .upsert(
+      {
+        recipient_email_hash: params.recipientEmailHash,
+        user_id: params.userId || null,
+        is_suppressed: true,
+        suppression_reason: params.reason,
+        source_event_id: params.eventId,
+        source_provider_message_id: params.providerMessageId,
+        last_event_type: params.eventType,
+        last_event_at: params.eventAt,
+        suppressed_at: params.eventAt,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "recipient_email_hash" }
+    );
+
+  if (error) throw error;
+}
+
+async function recordBounceHealth(
+  supabase: SupabaseClient,
+  params: {
+    recipientEmailHash: string;
+    userId?: string | null;
+    eventId: string;
+    providerMessageId: string;
+    eventAt: string;
+    bounceType: "hard" | "soft" | "undetermined";
+  }
+) {
+  if (params.bounceType === "hard") {
+    await upsertImmediateSuppression(supabase, {
+      recipientEmailHash: params.recipientEmailHash,
+      userId: params.userId,
+      reason: "hard_bounce",
+      eventId: params.eventId,
+      providerMessageId: params.providerMessageId,
+      eventType: "email.bounced",
+      eventAt: params.eventAt,
+    });
+    return;
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("transactional_email_recipient_health")
+    .select("soft_bounce_count,is_suppressed,suppression_reason,suppressed_at")
+    .eq("recipient_email_hash", params.recipientEmailHash)
+    .maybeSingle();
+
+  if (currentError) throw currentError;
+
+  const softBounceCount = Number(current?.soft_bounce_count || 0) + 1;
+  const shouldSuppress = Boolean(current?.is_suppressed) || softBounceCount >= SOFT_BOUNCE_SUPPRESSION_THRESHOLD;
+
+  const { error } = await supabase
+    .from("transactional_email_recipient_health")
+    .upsert(
+      {
+        recipient_email_hash: params.recipientEmailHash,
+        user_id: params.userId || null,
+        soft_bounce_count: softBounceCount,
+        is_suppressed: shouldSuppress,
+        suppression_reason: current?.is_suppressed
+          ? current.suppression_reason
+          : shouldSuppress
+            ? "soft_bounce_limit"
+            : null,
+        source_event_id: shouldSuppress ? params.eventId : null,
+        source_provider_message_id: shouldSuppress ? params.providerMessageId : null,
+        last_event_type: "email.bounced",
+        last_event_at: params.eventAt,
+        suppressed_at: current?.suppressed_at || (shouldSuppress ? params.eventAt : null),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "recipient_email_hash" }
+    );
+
+  if (error) throw error;
+}
+
+async function resetTransientBounceCountAfterDelivery(
+  supabase: SupabaseClient,
+  params: {
+    recipientEmailHash: string;
+    eventAt: string;
+  }
+) {
+  const { data: current, error: currentError } = await supabase
+    .from("transactional_email_recipient_health")
+    .select("is_suppressed")
+    .eq("recipient_email_hash", params.recipientEmailHash)
+    .maybeSingle();
+
+  if (currentError) throw currentError;
+  if (!current || current.is_suppressed) return;
+
+  const { error } = await supabase
+    .from("transactional_email_recipient_health")
+    .update({
+      soft_bounce_count: 0,
+      last_event_type: "email.delivered",
+      last_event_at: params.eventAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("recipient_email_hash", params.recipientEmailHash);
+
+  if (error) throw error;
+}
+
 export async function loadActiveResendWebhookSecrets(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("resend_webhook_secrets")
@@ -182,7 +325,7 @@ export async function processResendWebhookEvent(
   if (deliveryStatus && providerMessageId) {
     const { data: delivery, error: deliveryError } = await supabase
       .from("transactional_email_deliveries")
-      .select("id,last_provider_event_at")
+      .select("id,user_id,recipient_email_hash,last_provider_event_at")
       .eq("provider", "resend")
       .eq("provider_message_id", providerMessageId)
       .maybeSingle();
@@ -213,6 +356,44 @@ export async function processResendWebhookEvent(
           .eq("id", delivery.id);
 
         if (updateError) throw updateError;
+      }
+
+      if (delivery.recipient_email_hash) {
+        if (eventType === "email.complained") {
+          await upsertImmediateSuppression(supabase, {
+            recipientEmailHash: delivery.recipient_email_hash,
+            userId: delivery.user_id,
+            reason: "complaint",
+            eventId: params.eventId,
+            providerMessageId,
+            eventType,
+            eventAt: providerEventAt,
+          });
+        } else if (eventType === "email.suppressed") {
+          await upsertImmediateSuppression(supabase, {
+            recipientEmailHash: delivery.recipient_email_hash,
+            userId: delivery.user_id,
+            reason: "provider_suppressed",
+            eventId: params.eventId,
+            providerMessageId,
+            eventType,
+            eventAt: providerEventAt,
+          });
+        } else if (eventType === "email.bounced") {
+          await recordBounceHealth(supabase, {
+            recipientEmailHash: delivery.recipient_email_hash,
+            userId: delivery.user_id,
+            eventId: params.eventId,
+            providerMessageId,
+            eventAt: providerEventAt,
+            bounceType: normalizeBounceType(params.event),
+          });
+        } else if (eventType === "email.delivered") {
+          await resetTransientBounceCountAfterDelivery(supabase, {
+            recipientEmailHash: delivery.recipient_email_hash,
+            eventAt: providerEventAt,
+          });
+        }
       }
 
       processingResult = "matched_delivery";
