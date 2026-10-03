@@ -176,7 +176,8 @@ async function evaluateAlertStates(
   admin: SupabaseClient,
   health: EmailHealthSnapshot,
   snapshotDate: string,
-  now: Date
+  now: Date,
+  notify: boolean
 ) {
   const metrics: EmailHealthMetric[] = ["bounce_rate", "complaint_rate"];
   const { data: rows, error } = await admin
@@ -204,13 +205,15 @@ async function evaluateAlertStates(
     if (nextActive && !wasActive && value != null) {
       const nextGeneration = generation + 1;
 
-      await notifySuperAdmins(admin, {
-        metric,
-        generation: nextGeneration,
-        valuePercent: value,
-        thresholdPercent: threshold,
-        snapshotDate,
-      });
+      if (notify) {
+        await notifySuperAdmins(admin, {
+          metric,
+          generation: nextGeneration,
+          valuePercent: value,
+          thresholdPercent: threshold,
+          snapshotDate,
+        });
+      }
 
       const { error: upsertError } = await admin
         .from("transactional_email_health_alert_states")
@@ -299,6 +302,7 @@ export async function refreshEmailHealthMonitoring(
   options: {
     now?: Date;
     windowDays?: number;
+    notify?: boolean;
   } = {}
 ) {
   const now = options.now || new Date();
@@ -308,7 +312,8 @@ export async function refreshEmailHealthMonitoring(
     admin,
     health,
     snapshotDate,
-    now
+    now,
+    options.notify !== false
   );
 
   return {
