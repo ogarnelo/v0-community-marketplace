@@ -51,6 +51,23 @@ export default async function NewListingPage({
   }
 
   const typedProfile = (profile as ProfileRow | null) ?? null;
+
+  const { data: primaryStudentContext, error: studentContextError } = await supabase
+    .from("account_students")
+    .select("school_id,is_primary,sort_order,created_at")
+    .eq("owner_user_id", user.id)
+    .eq("active", true)
+    .not("school_id", "is", null)
+    .order("is_primary", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (studentContextError) {
+    console.error("Error cargando el contexto educativo principal:", studentContextError);
+  }
+
   const requestedParams = await searchParams;
   const opportunityKey =
     typeof requestedParams.opportunity === "string" ? requestedParams.opportunity.trim() : "";
@@ -129,12 +146,17 @@ export default async function NewListingPage({
   }
 
   let selectedSchool: SchoolRow | null = null;
+  const preferredSchoolId =
+    primaryStudentContext?.school_id ||
+    (typedProfile?.school_id && typedProfile.school_id.trim().length > 0
+      ? typedProfile.school_id
+      : null);
 
-  if (typedProfile?.school_id && typedProfile.school_id.trim().length > 0) {
+  if (preferredSchoolId) {
     const { data: school, error: schoolError } = await supabase
       .from("schools")
       .select("id, name, city")
-      .eq("id", typedProfile.school_id)
+      .eq("id", preferredSchoolId)
       .eq("is_active", true)
       .maybeSingle();
 
