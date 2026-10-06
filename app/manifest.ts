@@ -14,19 +14,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["education", "shopping"],
     icons: [
       {
-        src: "/wetudy-icon-192.png?v=20260923-2",
+        src: "/wetudy-icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/wetudy-icon-512.png?v=20260923-2",
+        src: "/wetudy-icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any maskable",
       },
       {
-        src: "/icon.svg?v=20260923-2",
+        src: "/icon.svg",
         sizes: "any",
         type: "image/svg+xml",
         purpose: "any maskable",
