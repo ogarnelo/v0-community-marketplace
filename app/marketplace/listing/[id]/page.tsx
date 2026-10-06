@@ -20,6 +20,7 @@ import JsonLd from "@/components/seo/json-ld";
 import ListingViewTracker from "@/components/analytics/listing-view-tracker";
 import MobileListingActions from "@/components/marketplace/mobile-listing-actions";
 import { SEO_SITE_URL, buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
+import { isDemoListing } from "@/lib/seo/demo-listing";
 
 function formatPrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
@@ -70,6 +71,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     };
   }
 
+  const demoListing = isDemoListing(listing);
   const title = listing.title || "Material escolar en Wetudy";
   const contextParts = [listing.category, listing.grade_level].filter(Boolean).join(" · ");
   const fallbackDescription = contextParts
@@ -83,9 +85,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     alternates: { canonical },
-    robots: listing.status === "available"
-      ? { index: true, follow: true }
-      : { index: false, follow: true },
+    robots: demoListing
+      ? { index: false, follow: false, noarchive: true }
+      : listing.status === "available"
+        ? { index: true, follow: true }
+        : { index: false, follow: true },
     openGraph: {
       title,
       description,
@@ -130,6 +134,7 @@ export default async function ListingDetailPage({
 
   if (listingError || !listing) notFound();
 
+  const demoListing = isDemoListing(listing);
   const currentUserId = authData?.user?.id || null;
   const isOwnListing = !!currentUserId && listing.seller_id === currentUserId;
   const isDonation = getListingTypeFromRow(listing as any) === "donation";
@@ -266,8 +271,10 @@ export default async function ListingDetailPage({
 
   return (
     <div className="bg-slate-50/60 pb-28 md:pb-10">
-      <JsonLd data={[productJsonLd, breadcrumbJsonLd]} />
-      <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
+      {!demoListing ? <JsonLd data={[productJsonLd, breadcrumbJsonLd]} /> : null}
+      {!demoListing ? (
+        <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
+      ) : null}
 
       <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm">
