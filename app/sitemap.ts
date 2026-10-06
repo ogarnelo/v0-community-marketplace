@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { posts } from "@/lib/blog-data"
+import { isDemoListing } from "@/lib/seo/demo-listing"
 
 const SITE_URL = "https://www.wetudy.com"
 
@@ -33,17 +34,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const admin = createAdminClient()
     const { data: listings } = await admin
       .from("listings")
-      .select("id, updated_at, created_at")
+      .select("id, title, updated_at, created_at")
       .eq("status", "available")
       .order("updated_at", { ascending: false })
       .limit(5000)
 
-    const listingPages: MetadataRoute.Sitemap = (listings || []).map((listing) => ({
-      url: `${SITE_URL}/marketplace/listing/${listing.id}`,
-      lastModified: listing.updated_at || listing.created_at || fallbackNow,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    }))
+    const listingPages: MetadataRoute.Sitemap = (listings || [])
+      .filter((listing) => !isDemoListing(listing))
+      .map((listing) => ({
+        url: `${SITE_URL}/marketplace/listing/${listing.id}`,
+        lastModified: listing.updated_at || listing.created_at || fallbackNow,
+        changeFrequency: "weekly",
+        priority: 0.7,
+      }))
 
     return [...staticPages, ...blogPages, ...listingPages]
   } catch (error) {
