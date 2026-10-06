@@ -5,6 +5,13 @@ export type LiquidityProfile = {
   created_at: string | null;
 };
 
+export type LiquidityAccountStudent = {
+  owner_user_id: string;
+  school_id: string | null;
+  relationship: "self" | "guardian" | string;
+  active: boolean;
+};
+
 export type LiquidityListing = {
   id: string;
   seller_id: string | null;
@@ -111,6 +118,7 @@ export type LiquidityRow = {
 
 type Dataset = {
   profiles: LiquidityProfile[];
+  accountStudents: LiquidityAccountStudent[];
   listings: LiquidityListing[];
   searches: LiquiditySearch[];
   needs: LiquidityNeed[];
@@ -190,15 +198,39 @@ function needMatchesFilters(need: LiquidityNeed, filters: LiquidityFilters) {
 
 export function buildLiquidityRows(dataset: Dataset, filters: LiquidityFilters): LiquidityRow[] {
   const listingById = new Map(dataset.listings.map((listing) => [listing.id, listing]));
+  const profileById = new Map(dataset.profiles.map((profile) => [profile.id, profile]));
+  const ownersWithActiveStudentContext = new Set(
+    dataset.accountStudents
+      .filter((student) => student.active)
+      .map((student) => student.owner_user_id)
+  );
   const schoolCandidates = dataset.schools.filter((school) =>
     !filters.schoolId || school.id === filters.schoolId
   );
 
   const rows = schoolCandidates.map((school) => {
-    const linkedParentProfiles = dataset.profiles.filter(
-      (profile) => profile.school_id === school.id && profile.user_type === "parent"
+    // account_students is the canonical educational context. Keep profiles.school_id
+    // only as a compatibility fallback for legacy accounts without an active context.
+    const linkedAccountIds = new Set(
+      dataset.accountStudents
+        .filter((student) => student.active && student.school_id === school.id)
+        .map((student) => student.owner_user_id)
     );
-    const linkedParentIds = new Set(linkedParentProfiles.map((profile) => profile.id));
+    for (const profile of dataset.profiles) {
+      if (
+        profile.school_id === school.id &&
+        !ownersWithActiveStudentContext.has(profile.id)
+      ) {
+        linkedAccountIds.add(profile.id);
+      }
+    }
+
+    const linkedParentIds = new Set(
+      [...linkedAccountIds].filter((userId) => profileById.get(userId)?.user_type === "parent")
+    );
+    const linkedParentProfiles = [...linkedParentIds]
+      .map((userId) => profileById.get(userId))
+      .filter((profile): profile is LiquidityProfile => Boolean(profile));
 
     const schoolListings = dataset.listings.filter(
       (listing) => listing.school_id === school.id && listingMatchesFilters(listing, filters)
@@ -277,8 +309,7 @@ export function buildLiquidityRows(dataset: Dataset, filters: LiquidityFilters):
     const actionsInScope = dataset.actions.filter((action) => {
       if (!inPeriod(action.sent_at || action.created_at, filters.periodStart)) return false;
       if (!action.resulting_listing_id) {
-        const targetProfile = dataset.profiles.find((profile) => profile.id === action.target_user_id);
-        return targetProfile?.school_id === school.id;
+        return Boolean(action.target_user_id && linkedAccountIds.has(action.target_user_id));
       }
       const listing = listingById.get(action.resulting_listing_id);
       return Boolean(listing && listing.school_id === school.id && listingMatchesFilters(listing, filters));
