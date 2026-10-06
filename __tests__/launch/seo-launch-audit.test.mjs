@@ -16,6 +16,8 @@ test("Wetudy global SEO uses its own brand and canonical host", () => {
   assert.match(layout, /\/favicon\.ico/);
   assert.match(layout, /\/icon\.svg/);
   assert.match(layout, /\/apple-icon\.png/);
+  assert.doesNotMatch(layout, /favicon\.ico\?v=/);
+  assert.doesNotMatch(layout, /icon\.svg\?v=/);
   assert.match(icon, /#2563EB/);
   assert.match(icon, /Wetudy/);
   assert.match(nextConfig, /wetudy\.com/);
@@ -41,8 +43,10 @@ test("SEO crawl controls expose only intended public surfaces", () => {
   assert.doesNotMatch(sitemap, /\/checkout/);
   assert.doesNotMatch(sitemap, /\/account/);
   assert.match(sitemap, /seoRefresh/);
+  assert.match(sitemap, /revalidate = 3600/);
   assert.match(manifest, /wetudy-icon-192\.png/);
   assert.match(manifest, /wetudy-icon-512\.png/);
+  assert.doesNotMatch(manifest, /\?v=/);
 });
 
 test("legal pages stay noindex and use page-specific metadata", () => {
