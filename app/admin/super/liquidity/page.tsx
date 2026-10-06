@@ -14,6 +14,7 @@ import {
   combineLiquidityRows,
   type LiquidityAgreement,
   type LiquidityAction,
+  type LiquidityAccountStudent,
   type LiquidityListing,
   type LiquidityNeed,
   type LiquidityProfile,
@@ -79,6 +80,7 @@ export default async function LiquidityDashboard({
   const [
     navbarData,
     profilesResult,
+    accountStudentsResult,
     listingsResult,
     searchesResult,
     needsResult,
@@ -88,6 +90,7 @@ export default async function LiquidityDashboard({
   ] = await Promise.all([
     getNavbarData(supabase),
     admin.from("profiles").select("id,user_type,school_id,created_at").limit(10000).returns<LiquidityProfile[]>(),
+    admin.from("account_students").select("owner_user_id,school_id,relationship,active").eq("active", true).limit(10000).returns<LiquidityAccountStudent[]>(),
     admin.from("listings").select("id,seller_id,school_id,category,grade_level,isbn,status,created_at").limit(10000).returns<LiquidityListing[]>(),
     admin.from("marketplace_search_events").select("id,user_id,school_id,category,grade_level,isbn_query,results_count,created_at").limit(10000).returns<LiquiditySearch[]>(),
     admin.from("demand_requests").select("id,user_id,school_id,category,grade_level,isbn,created_at,first_result_at,first_contact_at,first_agreement_at,resolved_at").limit(10000).returns<LiquidityNeed[]>(),
@@ -97,6 +100,7 @@ export default async function LiquidityDashboard({
   ]);
 
   const profiles = profilesResult.data || [];
+  const accountStudents = accountStudentsResult.data || [];
   const listings = listingsResult.data || [];
   const searches = searchesResult.data || [];
   const needs = needsResult.data || [];
@@ -105,7 +109,7 @@ export default async function LiquidityDashboard({
   const schools = schoolsResult.data || [];
 
   const rows = buildLiquidityRows(
-    { profiles, listings, searches, needs, agreements, actions, schools },
+    { profiles, accountStudents, listings, searches, needs, agreements, actions, schools },
     { periodStart: start, schoolId: schoolId || null, category: category || null, gradeLevel: gradeLevel || null, isbn: isbn || null }
   );
   const total = combineLiquidityRows(rows);
@@ -188,7 +192,7 @@ export default async function LiquidityDashboard({
             <CardHeader>
               <CardTitle className="text-base">Liquidez por centro</CardTitle>
               <CardDescription>
-                “Familia activa” = perfil parent vinculado que buscó, expresó necesidad, publicó o participó en un acuerdo durante el periodo. Los anuncios activos son un snapshot actual. “—” significa denominador cero; n&lt;5 se marca como muestra baja.
+                “Familia vinculada” = cuenta parent con un estudiante activo en ese centro; profiles.school_id solo actúa como compatibilidad para cuentas legacy sin contexto educativo activo. “Familia activa” = una de esas cuentas que buscó, expresó necesidad, publicó o participó en un acuerdo durante el periodo. Los anuncios activos son un snapshot actual. “—” significa denominador cero; n&lt;5 se marca como muestra baja.
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">

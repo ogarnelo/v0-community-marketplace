@@ -70,3 +70,13 @@ test("liquidity cockpit is linked from primary admin surfaces", () => {
   assert.match(superPage, /\/admin\/super\/liquidity/);
   assert.match(demandPage, /\/admin\/super\/liquidity/);
 });
+
+
+test("school liquidity uses account_students as canonical educational context", () => {
+  assert.match(page, /from\("account_students"\)/);
+  assert.match(page, /owner_user_id,school_id,relationship,active/);
+  assert.match(metrics, /accountStudents: LiquidityAccountStudent\[\]/);
+  assert.match(metrics, /ownersWithActiveStudentContext/);
+  assert.match(metrics, /linkedAccountIds/);
+  assert.match(metrics, /!ownersWithActiveStudentContext\.has\(profile\.id\)/);
+});

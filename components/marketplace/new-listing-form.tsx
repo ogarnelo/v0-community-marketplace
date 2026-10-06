@@ -804,7 +804,11 @@ export default function NewListingForm({
       const { data: currentProfile, error: profileError } = await supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle();
       if (profileError) throw profileError;
 
-      const effectiveSchoolId = currentProfile?.school_id && currentProfile.school_id.trim().length > 0 ? currentProfile.school_id : initialSchoolId || null;
+      const effectiveSchoolId =
+        initialSchoolId ||
+        (currentProfile?.school_id && currentProfile.school_id.trim().length > 0
+          ? currentProfile.school_id
+          : null);
       const listingId = crypto.randomUUID();
       const uploadedPhotoRows = await uploadListingPhotos(listingId, currentUserId, photos);
       const photoUrls = uploadedPhotoRows.map((photo) => photo.url);
