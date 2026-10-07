@@ -98,3 +98,14 @@ test("school dashboard community uses account_students as the canonical educatio
   assert.match(page, /!ownersWithActiveEducationalContext\.has\(member\.id\)/);
   assert.match(page, /safeSchoolAdminRoles[\s\S]*schoolContextOwnerIds\.add/);
 });
+
+
+test("school admin identity overrides legacy profile user type on public surfaces", () => {
+  const profile = read("app/profile/[id]/page.tsx");
+  const messages = read("app/messages/[id]/page.tsx");
+
+  assert.match(profile, /isSchoolAdminProfile/);
+  assert.match(profile, /AMPA \/ centro educativo/);
+  assert.match(messages, /schoolAdminUserIds/);
+  assert.match(messages, /AMPA \/ centro educativo/);
+});
