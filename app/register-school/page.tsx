@@ -57,6 +57,10 @@ export default function RegisterSchoolPage() {
 
   const [schoolName, setSchoolName] = useState("");
   const [schoolType, setSchoolType] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactRole, setContactRole] = useState("");
+  const [organizationUrl, setOrganizationUrl] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
@@ -72,6 +76,10 @@ export default function RegisterSchoolPage() {
     try {
       const normalizedSchoolName = schoolName.trim();
       const normalizedSchoolType = schoolType.trim();
+      const normalizedOrganizationName = organizationName.trim();
+      const normalizedContactName = contactName.trim();
+      const normalizedContactRole = contactRole.trim();
+      const normalizedOrganizationUrl = organizationUrl.trim();
       const normalizedAddress = address.trim();
       const normalizedCity = city.trim();
       const normalizedPostalCode = postalCode.trim();
@@ -89,6 +97,18 @@ export default function RegisterSchoolPage() {
 
       if (!SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)) {
         throw new Error("El tipo de centro seleccionado no es válido.");
+      }
+
+      if (!normalizedOrganizationName) {
+        throw new Error("Debes indicar el nombre de la AMPA, AFA o entidad.");
+      }
+
+      if (!normalizedContactName) {
+        throw new Error("Debes indicar una persona de contacto.");
+      }
+
+      if (!normalizedContactRole) {
+        throw new Error("Debes indicar el cargo o función de la persona de contacto.");
       }
 
       if (!normalizedAddress) {
@@ -111,12 +131,20 @@ export default function RegisterSchoolPage() {
         throw new Error("Debes indicar un email de contacto.");
       }
 
+      if (normalizedPhone.length < 6) {
+        throw new Error("Debes indicar un teléfono de contacto válido para poder verificar la solicitud.");
+      }
+
       const response = await fetch("/api/schools/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           schoolName: normalizedSchoolName,
           schoolType: normalizedSchoolType,
+          organizationName: normalizedOrganizationName,
+          contactName: normalizedContactName,
+          contactRole: normalizedContactRole,
+          organizationUrl: normalizedOrganizationUrl,
           address: normalizedAddress,
           city: normalizedCity,
           postalCode: normalizedPostalCode,
@@ -163,7 +191,7 @@ export default function RegisterSchoolPage() {
                 </div>
                 <h2 className="mt-5 text-xl font-bold text-foreground">Solicitud recibida</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Gracias. Hemos registrado tu solicitud y aparecerá en el panel de superadmin para su revisión. Cuando se apruebe, enviaremos una invitación al email del centro para activar el acceso admin.
+                  Gracias. Hemos registrado la solicitud para revisión manual. Verificaremos la identidad con los datos facilitados y, si se aprueba, enviaremos una invitación al email indicado para activar el acceso al centro.
                 </p>
                 <Link href="/" className="mt-6">
                   <Button variant="outline">Volver al inicio</Button>
@@ -176,9 +204,9 @@ export default function RegisterSchoolPage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                   <School className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-2xl text-foreground">Registrar centro educativo</CardTitle>
+                <CardTitle className="text-2xl text-foreground">Acceso para AMPAs y centros</CardTitle>
                 <CardDescription className="leading-relaxed">
-                  Si tu centro o AMPA aun no tiene codigo de acceso, completa este formulario y el superadmin podrá aprobar su alta. Tras la aprobación, el centro recibirá un email de invitación para activar su acceso.
+                  Solicita acceso institucional sin crear una cuenta personal. Revisaremos los datos de contacto y, tras verificar la identidad, enviaremos una invitación para activar el acceso al centro.
                 </CardDescription>
               </CardHeader>
 
@@ -211,6 +239,61 @@ export default function RegisterSchoolPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <Label htmlFor="organizationName">AMPA / AFA / entidad *</Label>
+                    <Input
+                      id="organizationName"
+                      placeholder="ANPA Pardo Bazán"
+                      required
+                      minLength={2}
+                      maxLength={160}
+                      value={organizationName}
+                      onChange={(e) => setOrganizationName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <Label htmlFor="contactName">Persona de contacto *</Label>
+                      <Input
+                        id="contactName"
+                        placeholder="Nombre y apellidos"
+                        required
+                        minLength={2}
+                        maxLength={160}
+                        value={contactName}
+                        onChange={(e) => setContactName(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <Label htmlFor="contactRole">Cargo / función *</Label>
+                      <Input
+                        id="contactRole"
+                        placeholder="Presidencia, secretaría, dirección..."
+                        required
+                        minLength={2}
+                        maxLength={120}
+                        value={contactRole}
+                        onChange={(e) => setContactRole(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <Label htmlFor="organizationUrl">Web o red oficial (opcional)</Label>
+                    <Input
+                      id="organizationUrl"
+                      type="url"
+                      placeholder="https://..."
+                      maxLength={300}
+                      value={organizationUrl}
+                      onChange={(e) => setOrganizationUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Nos ayuda a contrastar la identidad de la AMPA, AFA o centro.
+                    </p>
                   </div>
 
                   <div className="flex min-w-0 flex-col gap-2">
@@ -285,11 +368,13 @@ export default function RegisterSchoolPage() {
                   </div>
 
                   <div className="flex min-w-0 flex-col gap-2">
-                    <Label htmlFor="phone">Telefono (opcional)</Label>
+                    <Label htmlFor="phone">Telefono de contacto *</Label>
                     <Input
                       id="phone"
                       type="tel"
                       placeholder="912 345 678"
+                      required
+                      minLength={6}
                       maxLength={40}
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
