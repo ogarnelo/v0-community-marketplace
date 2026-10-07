@@ -39,6 +39,7 @@ export async function GET(request: Request) {
       .from("schools")
       .select("id, name, city")
       .eq("is_active", true)
+      .eq("is_test", false)
       .order("name", { ascending: true })
       .limit(100);
 
