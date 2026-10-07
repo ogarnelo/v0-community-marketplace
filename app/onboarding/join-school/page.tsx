@@ -41,6 +41,7 @@ export default function JoinSchoolPage() {
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [authChoiceRequired, setAuthChoiceRequired] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [autoJoining, setAutoJoining] = useState(false);
   const autoJoinAttempted = useRef(false);
   const [attributionQuery, setAttributionQuery] = useState("");
@@ -61,6 +62,8 @@ export default function JoinSchoolPage() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        setIsAuthenticated(Boolean(user));
 
         if (user) {
           const { data: profile } = await supabase
@@ -109,6 +112,7 @@ export default function JoinSchoolPage() {
         setFound(payload.school);
         setShowSearch(false);
       } catch (contextError) {
+        setIsAuthenticated(false);
         console.error("Error cargando el contexto del centro:", contextError);
         if (sharedSchoolId) {
           setError("No se pudo abrir el centro compartido. Puedes buscarlo manualmente.");
@@ -123,7 +127,7 @@ export default function JoinSchoolPage() {
 
   useEffect(() => {
     const loadSchools = async () => {
-      if (!showSearch) return;
+      if (!showSearch || isAuthenticated !== true) return;
 
       setSearchLoading(true);
 
@@ -147,7 +151,7 @@ export default function JoinSchoolPage() {
     };
 
     void loadSchools();
-  }, [showSearch]);
+  }, [showSearch, isAuthenticated]);
 
   const skipSchoolLinking = () => {
     router.push("/marketplace");
@@ -319,7 +323,7 @@ export default function JoinSchoolPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        window.location.assign(withAttribution("/auth?mode=signup"));
+        setIsAuthenticated(false);
         return;
       }
 
@@ -450,16 +454,20 @@ export default function JoinSchoolPage() {
           <CardTitle className="text-2xl text-foreground">
             {authChoiceRequired && found
               ? "Únete a tu comunidad educativa"
-              : currentLinkedSchool && !changeSchoolMode && !found
-                ? "Tu centro educativo"
-                : "Añade tu centro"}
+              : isAuthenticated === false && !found
+                ? "Vincula tu centro"
+                : currentLinkedSchool && !changeSchoolMode && !found
+                  ? "Tu centro educativo"
+                  : "Añade tu centro"}
           </CardTitle>
           <CardDescription>
             {authChoiceRequired && found
               ? `Crea una cuenta o inicia sesión para continuar con ${found.name}.`
-              : currentLinkedSchool && !changeSchoolMode && !found
-                ? "Tu cuenta ya pertenece a un centro. Desde aquí puedes cambiarlo o desvincularlo."
-                : "Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio."}
+              : isAuthenticated === false && !found
+                ? "Inicia sesión o crea una cuenta antes de vincular o cambiar tu centro educativo."
+                : currentLinkedSchool && !changeSchoolMode && !found
+                  ? "Tu cuenta ya pertenece a un centro. Desde aquí puedes cambiarlo o desvincularlo."
+                  : "Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio."}
           </CardDescription>
         </CardHeader>
 
@@ -468,6 +476,43 @@ export default function JoinSchoolPage() {
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Preparando el centro...
+            </div>
+          ) : isAuthenticated === false && !found ? (
+            <div className="flex flex-col gap-4">
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <div className="rounded-xl border bg-muted/30 p-4 text-sm leading-relaxed text-muted-foreground">
+                Para vincular un centro necesitas una cuenta de Wetudy. Después podrás añadir tu primer centro o cambiar el que ya tengas vinculado.
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button asChild className="w-full">
+                  <Link
+                    href={withAttribution(`/auth?mode=login&next=${encodeURIComponent(
+                      "/onboarding/join-school"
+                    )}`)}
+                  >
+                    Iniciar sesión
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link
+                    href={withAttribution(`/auth?mode=signup&next=${encodeURIComponent(
+                      "/onboarding/join-school"
+                    )}`)}
+                  >
+                    Crear cuenta
+                  </Link>
+                </Button>
+              </div>
+
+              <Button type="button" variant="ghost" onClick={skipSchoolLinking}>
+                Volver al marketplace
+              </Button>
             </div>
           ) : currentLinkedSchool && !changeSchoolMode && !found ? (
             <div className="flex flex-col gap-4">
@@ -637,7 +682,7 @@ export default function JoinSchoolPage() {
 
                   <Link href="/register-school">
                     <Button variant="outline" className="w-full">
-                      Solicitar acceso para AMPA o centro
+                      Solicitar alta de AMPA o centro
                     </Button>
                   </Link>
                 </div>
