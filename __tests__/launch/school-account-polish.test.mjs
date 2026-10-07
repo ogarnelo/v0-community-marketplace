@@ -109,3 +109,19 @@ test("school admin identity overrides legacy profile user type on public surface
   assert.match(messages, /schoolAdminUserIds/);
   assert.match(messages, /AMPA \/ centro educativo/);
 });
+
+
+test("marketplace keeps canonical school context for viewers and listings", () => {
+  const marketplace = read("app/marketplace/page.tsx");
+
+  assert.match(marketplace, /from\("user_roles"\)[\s\S]*role", "school_admin"/);
+  assert.match(marketplace, /from\("account_students"\)[\s\S]*eq\("active", true\)/);
+  assert.match(
+    marketplace,
+    /viewerSchoolId\s*=\s*[\s\S]*schoolAdminRole\?\.school_id[\s\S]*primaryStudentContext\?\.school_id[\s\S]*typedProfile\?\.school_id/
+  );
+  assert.match(
+    marketplace,
+    /const currentSellerSchoolId = item\.school_id \|\| sellerProfile\?\.schoolId \|\| null/
+  );
+});
