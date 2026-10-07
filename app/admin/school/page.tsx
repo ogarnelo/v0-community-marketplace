@@ -43,6 +43,11 @@ type ProfileRow = {
   grade_level: string | null;
 };
 
+type AccountStudentSchoolContextRow = {
+  owner_user_id: string;
+  school_id: string | null;
+};
+
 type ReportRow = {
   id: string;
   target_type: "listing" | "conversation";
@@ -146,7 +151,8 @@ export default async function SchoolAdminPage() {
   const [
     { data: school },
     { data: listings },
-    { data: members },
+    { data: profilesForCommunity },
+    { data: activeStudentContexts },
     { data: reports },
     { data: accessCodes },
     { data: schoolAdminRoles },
@@ -169,8 +175,14 @@ export default async function SchoolAdminPage() {
     adminSupabase
       .from("profiles")
       .select("id, full_name, school_id, user_type, grade_level")
-      .eq("school_id", effectiveSchoolId)
+      .limit(10000)
       .returns<ProfileRow[]>(),
+    adminSupabase
+      .from("account_students")
+      .select("owner_user_id, school_id")
+      .eq("active", true)
+      .limit(20000)
+      .returns<AccountStudentSchoolContextRow[]>(),
     adminSupabase
       .from("reports")
       .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
@@ -218,9 +230,27 @@ export default async function SchoolAdminPage() {
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
-  const safeMembers = (members || []) as ProfileRow[];
+  const safeProfilesForCommunity = (profilesForCommunity || []) as ProfileRow[];
+  const safeStudentContexts = (activeStudentContexts || []) as AccountStudentSchoolContextRow[];
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
+
+  const ownersWithActiveEducationalContext = new Set(
+    safeStudentContexts.map((context) => context.owner_user_id)
+  );
+  const schoolContextOwnerIds = new Set(
+    safeStudentContexts
+      .filter((context) => context.school_id === effectiveSchoolId)
+      .map((context) => context.owner_user_id)
+  );
+  for (const role of safeSchoolAdminRoles) {
+    schoolContextOwnerIds.add(role.user_id);
+  }
+
+  const safeMembers = safeProfilesForCommunity.filter((member) =>
+    schoolContextOwnerIds.has(member.id) ||
+    (!ownersWithActiveEducationalContext.has(member.id) && member.school_id === effectiveSchoolId)
+  );
   const safeReports = (reports || []) as ReportRow[];
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const safeAgreements = (agreements || []) as AgreementRow[];
