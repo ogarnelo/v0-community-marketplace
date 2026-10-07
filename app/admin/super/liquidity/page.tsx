@@ -96,7 +96,7 @@ export default async function LiquidityDashboard({
     admin.from("demand_requests").select("id,user_id,school_id,category,grade_level,isbn,created_at,first_result_at,first_contact_at,first_agreement_at,resolved_at").limit(10000).returns<LiquidityNeed[]>(),
     admin.from("agreements").select("id,listing_id,buyer_id,seller_id,school_id,status,created_at,confirmed_at").limit(10000).returns<LiquidityAgreement[]>(),
     admin.from("demand_opportunity_actions").select("id,target_user_id,resulting_listing_id,sent_at,responded_at,created_at").eq("action_type","seller_contacted").limit(10000).returns<LiquidityAction[]>(),
-    admin.from("schools").select("id,name,city,is_active").order("name").limit(5000).returns<LiquiditySchool[]>(),
+    admin.from("schools").select("id,name,city,is_active").eq("is_test", false).order("name").limit(5000).returns<LiquiditySchool[]>(),
   ]);
 
   const profiles = profilesResult.data || [];
