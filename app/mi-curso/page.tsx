@@ -32,6 +32,7 @@ type SchoolRow = {
   id: string;
   name: string;
   city: string | null;
+  is_test: boolean | null;
 };
 
 export default async function MyCoursePage({
@@ -82,7 +83,7 @@ export default async function MyCoursePage({
       .order("created_at", { ascending: true }),
     supabase
       .from("schools")
-      .select("id, name, city")
+      .select("id, name, city, is_test")
       .eq("is_active", true)
       .order("name", { ascending: true })
       .limit(500),
@@ -114,8 +115,15 @@ export default async function MyCoursePage({
     redirect("/onboarding/students?next=/mi-curso");
   }
 
+  const linkedSchoolIds = new Set(
+    studentRows
+      .map((student) => student.school_id)
+      .filter((value): value is string => Boolean(value))
+  );
   const schoolById = new Map(
-    ((schools || []) as SchoolRow[]).map((school) => [school.id, school])
+    ((schools || []) as SchoolRow[])
+      .filter((school) => !school.is_test || linkedSchoolIds.has(school.id))
+      .map((school) => [school.id, school])
   );
 
   const courseStudents = studentRows.map((student, index) => {
