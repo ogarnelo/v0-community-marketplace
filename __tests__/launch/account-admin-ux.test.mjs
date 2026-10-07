@@ -41,5 +41,5 @@ test("superadmin exposes complete centres and users directories", () => {
 test("footer explains the two different school actions", () => {
   const footer = read("components/footer.tsx");
   assert.match(footer, /Vincular mi centro/);
-  assert.match(footer, /Solicitar alta de un centro/);
+  assert.match(footer, /Solicitar alta de AMPA o centro/);
 });
