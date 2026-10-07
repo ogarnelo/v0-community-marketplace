@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { categories } from "@/lib/mock-data";
 import MyCourseClient from "@/components/my-course/my-course-client";
+import { Navbar } from "@/components/navbar";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { listCourseNeeds } from "@/lib/my-course/course-needs-server";
 import { listFulfilledCourseNeeds } from "@/lib/my-course/course-need-history-server";
 import { getCourseNeedSearchStates } from "@/lib/my-course/course-need-search-server";
@@ -44,6 +46,12 @@ export default async function MyCoursePage({
 
   if (!user) {
     redirect("/auth?next=/mi-curso");
+  }
+
+  const navbarData = await getNavbarData(supabase);
+
+  if (navbarData.isSchoolAdmin && navbarData.adminHref === "/admin/school") {
+    redirect("/admin/school");
   }
 
   const params = await searchParams;
@@ -216,7 +224,9 @@ export default async function MyCoursePage({
   }));
 
   return (
-    <MyCourseClient
+    <>
+      <Navbar {...navbarData} />
+      <MyCourseClient
       accountType={userType}
       students={courseStudents}
       categories={Array.from(new Set(categories)).filter(Boolean)}
@@ -232,6 +242,7 @@ export default async function MyCoursePage({
             }
           : null
       }
-    />
+      />
+    </>
   );
 }
