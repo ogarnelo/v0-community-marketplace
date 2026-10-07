@@ -46,3 +46,43 @@ test("impact PDF opens separately and adds charts only when data exists", () => 
   assert.match(report, /drawHorizontalBars/);
   assert.match(report, /if \(hasChartData\)/);
 });
+
+
+test("school admins use a centre-first account and navigation", () => {
+  const navbar = read("components/navbar.tsx");
+  const account = read("app/account/page.tsx");
+  const form = read("components/account/account-profile-form.tsx");
+  const roles = read("lib/admin/roles.ts");
+
+  assert.match(navbar, /schoolAdminNavigation[\s\S]*Código del centro/);
+  assert.match(navbar, /schoolAdminNavigation[\s\S]*Panel del centro/);
+  assert.match(navbar, /schoolAdminNavigation[\s\S]*\/marketplace/);
+  assert.match(navbar, /schoolAdminNavigation[\s\S]*\/messages/);
+  assert.match(account, /!managedSchoolId && \(userType === "parent" \|\| userType === "student"\)/);
+  assert.match(account, /managedSchoolId \? "AMPA \/ centro"/);
+  assert.match(form, /AMPA \/ centro educativo/);
+  assert.match(form, /No necesita curso ni estudiantes asociados/);
+  assert.match(roles, /const isSchoolAdmin = Boolean/);
+  assert.match(roles, /schoolAdminRole\?\.school_id/);
+});
+
+test("school admin listings keep the managed centre but make course optional", () => {
+  const page = read("app/marketplace/new/page.tsx");
+  const form = read("components/marketplace/new-listing-form.tsx");
+
+  assert.match(page, /managedSchoolId \|\|[\s\S]*primaryStudentContext\?\.school_id/);
+  assert.match(page, /isSchoolAdmin=\{Boolean\(managedSchoolId\)\}/);
+  assert.match(form, /const courseRequired = !isSchoolAdmin && isCourseRequired/);
+  assert.match(form, /el anuncio queda vinculado a este centro/);
+  assert.match(form, /podrás comprar y contactar con usuarios de cualquier centro/);
+});
+
+test("Mi curso and Commerce Lab keep the shared navigation shell", () => {
+  const myCourse = read("app/mi-curso/page.tsx");
+  const commerceLab = read("app/admin/super/commerce-lab/page.tsx");
+
+  assert.match(myCourse, /<Navbar \{\.\.\.navbarData\} \/>/);
+  assert.match(myCourse, /navbarData\.isSchoolAdmin[\s\S]*redirect\("\/admin\/school"\)/);
+  assert.match(commerceLab, /<Navbar \{\.\.\.navbarData\} \/>/);
+  assert.match(commerceLab, /<Footer \/>/);
+});
