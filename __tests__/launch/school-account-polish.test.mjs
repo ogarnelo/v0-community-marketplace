@@ -97,6 +97,9 @@ test("school dashboard community uses account_students as the canonical educatio
   assert.match(page, /context\.school_id === effectiveSchoolId/);
   assert.match(page, /!ownersWithActiveEducationalContext\.has\(member\.id\)/);
   assert.match(page, /safeSchoolAdminRoles[\s\S]*schoolContextOwnerIds\.add/);
+  assert.match(page, /role === "school_admin" && Boolean\(role\.school_id\)/);
+  assert.match(page, /const effectiveSchoolId = schoolAdminRole\?\.school_id \|\| null/);
+  assert.doesNotMatch(page, /schoolAdminRole\?\.school_id \|\| profile\?\.school_id/);
 });
 
 
