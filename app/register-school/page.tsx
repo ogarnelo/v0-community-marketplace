@@ -254,9 +254,9 @@ export default function RegisterSchoolPage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                   <School className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-2xl text-foreground">Acceso para AMPAs y centros</CardTitle>
+                <CardTitle className="text-2xl text-foreground">Solicitud de alta para AMPAs y centros</CardTitle>
                 <CardDescription className="leading-relaxed">
-                  Solicita acceso institucional sin crear una cuenta personal. Revisaremos los datos de contacto y, tras verificar la identidad, enviaremos una invitación para activar el acceso al centro.
+                  Solicita el alta institucional sin crear una cuenta personal. Revisaremos los datos de contacto y, tras verificar la identidad, enviaremos una invitación para activar el acceso al centro.
                 </CardDescription>
               </CardHeader>
 
