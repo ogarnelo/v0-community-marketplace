@@ -36,6 +36,9 @@ test("school requests go through the hardened server endpoint and stay pending",
   assert.match(requestRoute, /contact_name: contactName/);
   assert.match(requestRoute, /contact_role: contactRole/);
   assert.match(requestRoute, /organization_url: organizationUrl \|\| null/);
+  assert.match(requestRoute, /requested_school_id: requestedSchoolId \|\| null/);
+  assert.match(requestRoute, /eq\("id", requestedSchoolId\)/);
+  assert.match(requestRoute, /eq\("is_active", true\)/);
   assert.match(requestRoute, /contactPhone\.length < 6/);
   assert.match(requestRoute, /recentEmailRequests/);
   assert.match(requestRoute, /recentPhoneRequests/);
@@ -116,4 +119,22 @@ test("AMPA verification fields are additive and stored in migration history", ()
   assert.match(dashboard, /request\.contact_name/);
   assert.match(dashboard, /request\.contact_role/);
   assert.match(dashboard, /Ver web \/ red oficial/);
+});
+
+
+test("existing school access requests reuse the centre instead of duplicating it", () => {
+  const page = read("app/register-school/page.tsx");
+  const migration = read("supabase/migrations/20261007065500_school_access_request_existing_center.sql");
+  const dashboard = read("components/admin/super-admin-dashboard.tsx");
+
+  assert.match(page, /Mi centro ya está en Wetudy/);
+  assert.match(page, /Mi centro todavía no está en Wetudy/);
+  assert.match(page, /existingSchoolId/);
+  assert.match(page, /no se creará un duplicado/);
+  assert.match(migration, /requested_school_id uuid references public\.schools/);
+  assert.match(migration, /if req\.requested_school_id is not null then/);
+  assert.match(migration, /where s\.id = req\.requested_school_id/);
+  assert.match(migration, /insert into public\.schools/);
+  assert.match(dashboard, /Acceso a centro existente/);
+  assert.match(dashboard, /Alta de nuevo centro/);
 });
