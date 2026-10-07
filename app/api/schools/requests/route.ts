@@ -43,25 +43,53 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     const body = await request.json().catch(() => ({}));
-    const schoolName = clean(body?.schoolName, 160);
-    const schoolType = clean(body?.schoolType, 30);
+    const requestedSchoolId = clean(body?.existingSchoolId, 64);
+    let schoolName = clean(body?.schoolName, 160);
+    let schoolType = clean(body?.schoolType, 30);
     const organizationName = clean(body?.organizationName, 160);
     const contactName = clean(body?.contactName, 160);
     const contactRole = clean(body?.contactRole, 120);
     const organizationUrl = clean(body?.organizationUrl, 300);
-    const address = clean(body?.address, 250);
-    const city = clean(body?.city, 100);
-    const postalCode = clean(body?.postalCode, 5);
-    const region = clean(body?.region, 80);
+    let address = clean(body?.address, 250);
+    let city = clean(body?.city, 100);
+    let postalCode = clean(body?.postalCode, 5);
+    let region = clean(body?.region, 80);
     const contactEmail = clean(body?.contactEmail, 320).toLowerCase();
     const contactPhone = clean(body?.contactPhone, 40);
 
-    if (schoolName.length < 2) {
-      return NextResponse.json({ error: "Debes indicar un nombre de centro válido." }, { status: 400 });
+    const admin = createAdminClient();
+
+    if (requestedSchoolId) {
+      const { data: existingSchool, error: existingSchoolError } = await admin
+        .from("schools")
+        .select("id, name, school_type, address, city, postal_code, region")
+        .eq("id", requestedSchoolId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (existingSchoolError) throw existingSchoolError;
+      if (!existingSchool) {
+        return NextResponse.json(
+          { error: "El centro seleccionado no existe o ya no está activo." },
+          { status: 400 }
+        );
+      }
+
+      schoolName = existingSchool.name;
+      schoolType = existingSchool.school_type;
+      address = existingSchool.address || "";
+      city = existingSchool.city || "";
+      postalCode = existingSchool.postal_code || "";
+      region = existingSchool.region || "";
+    } else {
+      if (schoolName.length < 2) {
+        return NextResponse.json({ error: "Debes indicar un nombre de centro válido." }, { status: 400 });
+      }
+      if (!SCHOOL_TYPES.has(schoolType)) {
+        return NextResponse.json({ error: "El tipo de centro seleccionado no es válido." }, { status: 400 });
+      }
     }
-    if (!SCHOOL_TYPES.has(schoolType)) {
-      return NextResponse.json({ error: "El tipo de centro seleccionado no es válido." }, { status: 400 });
-    }
+
     if (organizationName.length < 2) {
       return NextResponse.json({ error: "Debes indicar el nombre de la AMPA, AFA o entidad." }, { status: 400 });
     }
@@ -79,14 +107,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "La web o red oficial no tiene una URL válida." }, { status: 400 });
       }
     }
-    if (address.length < 3 || city.length < 2) {
-      return NextResponse.json({ error: "Revisa la dirección y la ciudad." }, { status: 400 });
-    }
-    if (!/^[0-9]{5}$/.test(postalCode)) {
-      return NextResponse.json({ error: "Debes indicar un código postal válido de 5 dígitos." }, { status: 400 });
-    }
-    if (!REGIONS.has(region)) {
-      return NextResponse.json({ error: "La comunidad autónoma seleccionada no es válida." }, { status: 400 });
+    if (!requestedSchoolId) {
+      if (address.length < 3 || city.length < 2) {
+        return NextResponse.json({ error: "Revisa la dirección y la ciudad." }, { status: 400 });
+      }
+      if (!/^[0-9]{5}$/.test(postalCode)) {
+        return NextResponse.json({ error: "Debes indicar un código postal válido de 5 dígitos." }, { status: 400 });
+      }
+      if (!REGIONS.has(region)) {
+        return NextResponse.json({ error: "La comunidad autónoma seleccionada no es válida." }, { status: 400 });
+      }
     }
     if (!isEmail(contactEmail)) {
       return NextResponse.json({ error: "Debes indicar un email de contacto válido." }, { status: 400 });
@@ -95,7 +125,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Debes indicar un teléfono de contacto válido." }, { status: 400 });
     }
 
-    const admin = createAdminClient();
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [{ count: recentEmailRequests, error: emailRateError }, { count: recentPhoneRequests, error: phoneRateError }] =
       await Promise.all([
@@ -128,6 +157,7 @@ export async function POST(request: Request) {
       .from("school_registration_requests")
       .insert({
         requested_by: user?.id || null,
+        requested_school_id: requestedSchoolId || null,
         school_name: schoolName,
         school_type: schoolType,
         organization_name: organizationName,
