@@ -93,9 +93,14 @@ type SchoolRequestRow = {
   region: string;
   contact_email: string | null;
   contact_phone: string | null;
+  organization_name: string | null;
+  contact_name: string | null;
+  contact_role: string | null;
+  organization_url: string | null;
   status: "pending" | "approved" | "rejected" | "new" | null;
   review_notes: string | null;
   approved_school_id: string | null;
+  requested_school_id: string | null;
   created_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -1678,7 +1683,7 @@ export default function SuperAdminDashboard({
                 Solicitudes de centros
               </CardTitle>
               <CardDescription>
-                Altas enviadas desde el formulario de centros.
+                Solicitudes institucionales pendientes de verificación manual antes de conceder acceso.
               </CardDescription>
             </CardHeader>
 
@@ -1712,6 +1717,9 @@ export default function SuperAdminDashboard({
                                 <Badge variant="outline">
                                   {getSchoolTypeLabel(request.school_type)}
                                 </Badge>
+                                <Badge variant="outline">
+                                  {request.requested_school_id ? "Acceso a centro existente" : "Alta de nuevo centro"}
+                                </Badge>
                               </div>
 
                               <p className="mt-1 text-sm text-muted-foreground">
@@ -1722,10 +1730,30 @@ export default function SuperAdminDashboard({
                                 {request.address}
                               </p>
 
-                              <p className="mt-2 text-sm text-muted-foreground">
-                                Contacto: {request.contact_email || "Sin email"}
-                                {request.contact_phone ? ` • ${request.contact_phone}` : ""}
-                              </p>
+                              <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm">
+                                <p className="font-medium text-foreground">
+                                  {request.organization_name || "Entidad no indicada"}
+                                </p>
+                                <p className="mt-1 text-muted-foreground">
+                                  {request.contact_name || "Persona de contacto no indicada"}
+                                  {request.contact_role ? ` · ${request.contact_role}` : ""}
+                                </p>
+                                <p className="mt-1 text-muted-foreground">
+                                  {request.contact_email || "Sin email"}
+                                  {request.contact_phone ? ` · ${request.contact_phone}` : ""}
+                                </p>
+                                {request.organization_url ? (
+                                  <a
+                                    href={request.organization_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-2 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                                  >
+                                    Ver web / red oficial
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                ) : null}
+                              </div>
 
                               {normalizedStatus === "approved" ? (
                                 <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">

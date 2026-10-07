@@ -46,9 +46,14 @@ type SchoolRequestRow = {
   region: string;
   contact_email: string | null;
   contact_phone: string | null;
+  organization_name: string | null;
+  contact_name: string | null;
+  contact_role: string | null;
+  organization_url: string | null;
   status: "pending" | "approved" | "rejected" | "new" | null;
   review_notes: string | null;
   approved_school_id: string | null;
+  requested_school_id: string | null;
   created_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -165,7 +170,7 @@ export default async function SuperAdminPage() {
     supabase
       .from("school_registration_requests")
       .select(
-        "id, school_name, school_type, address, city, postal_code, region, contact_email, contact_phone, status, review_notes, approved_school_id, created_at, reviewed_at, reviewed_by"
+        "id, school_name, school_type, address, city, postal_code, region, contact_email, contact_phone, organization_name, contact_name, contact_role, organization_url, requested_school_id, status, review_notes, approved_school_id, created_at, reviewed_at, reviewed_by"
       )
       .order("created_at", { ascending: false })
       .returns<SchoolRequestRow[]>(),

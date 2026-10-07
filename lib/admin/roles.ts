@@ -22,7 +22,11 @@ export function getAdminFlags({
     ) || safeRoles.find((role) => role.role === "school_admin") || null;
 
   const isSuperAdmin = hasSuperAdminRole;
-  const isSchoolAdmin = safeRoles.some((role) => role.role === "school_admin");
+  const isSchoolAdmin = Boolean(
+    schoolAdminRole?.school_id &&
+      typeof schoolAdminRole.school_id === "string" &&
+      schoolAdminRole.school_id.length > 0
+  );
 
   return {
     isSuperAdminByEmail: false,
@@ -30,6 +34,6 @@ export function getAdminFlags({
     isSuperAdmin,
     isSchoolAdmin,
     canAccessAdmin: isSuperAdmin || isSchoolAdmin,
-    schoolAdminSchoolId: schoolAdminRole?.school_id || null,
+    schoolAdminSchoolId: isSchoolAdmin ? schoolAdminRole?.school_id || null : null,
   };
 }

@@ -328,28 +328,36 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
 
             <div className="space-y-2">
               <Label>Tipo de usuario</Label>
-              <Select
-                value={userType}
-                onValueChange={(value) => setUserType(value as AccountUserType)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={currentUserTypeLabel} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="parent">Familia / tutor</SelectItem>
-                  <SelectItem value="student">Estudiante</SelectItem>
-                  {initialUserType === "business" ? (
-                    <SelectItem value="business">Negocio</SelectItem>
+              {isSchoolAdmin ? (
+                <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium">
+                  AMPA / centro educativo
+                </div>
+              ) : (
+                <>
+                  <Select
+                    value={userType}
+                    onValueChange={(value) => setUserType(value as AccountUserType)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={currentUserTypeLabel} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="parent">Familia / tutor</SelectItem>
+                      <SelectItem value="student">Estudiante</SelectItem>
+                      {initialUserType === "business" ? (
+                        <SelectItem value="business">Negocio</SelectItem>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                  {initialUserType !== userType &&
+                  isPersonalAccountType(initialUserType) &&
+                  isPersonalAccountType(userType) ? (
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Al guardar, Wetudy adaptará automáticamente tu contexto educativo al nuevo tipo de cuenta.
+                    </p>
                   ) : null}
-                </SelectContent>
-              </Select>
-              {initialUserType !== userType &&
-              isPersonalAccountType(initialUserType) &&
-              isPersonalAccountType(userType) ? (
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Al guardar, Wetudy adaptará automáticamente tu contexto educativo al nuevo tipo de cuenta.
-                </p>
-              ) : null}
+                </>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -397,7 +405,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
                       {managedSchoolName || "Centro"}
                     </p>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      Esta cuenta administra el centro. El contexto educativo personal o de los estudiantes se gestiona en su sección correspondiente.
+                      Esta cuenta representa a una AMPA o centro. No necesita curso ni estudiantes asociados; el centro gestionado es su contexto institucional.
                     </p>
                   </div>
                 </div>

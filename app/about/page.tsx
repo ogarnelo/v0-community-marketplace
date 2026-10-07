@@ -97,6 +97,7 @@ export default async function AboutPage() {
         userName={navbarData.userName}
         isAdmin={navbarData.isAdmin}
         isSuperAdmin={navbarData.isSuperAdmin}
+        isSchoolAdmin={navbarData.isSchoolAdmin}
         adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
         unreadNotificationsCount={navbarData.unreadNotificationsCount}

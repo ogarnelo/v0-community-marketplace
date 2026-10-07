@@ -73,6 +73,11 @@ export async function sendSchoolRegistrationAdminEmail(params: {
   requesterEmail: string;
   schoolName: string;
   schoolType: string;
+  organizationName: string;
+  contactName: string;
+  contactRole: string;
+  contactPhone: string;
+  organizationUrl?: string | null;
   city: string;
   region: string;
   idempotencyKey?: string | null;
@@ -83,7 +88,7 @@ export async function sendSchoolRegistrationAdminEmail(params: {
     to: params.to,
     subject: `Nueva solicitud de centro · ${params.schoolName}`,
     idempotencyKey: params.idempotencyKey,
-    text: `Nueva solicitud de centro: ${params.schoolName}.\n${params.schoolType} · ${params.city} · ${params.region}.\nSolicitado por ${params.requesterEmail}.\n\nEl centro no será público hasta que lo apruebes.\nRevisar: ${url}`,
+    text: `Nueva solicitud de acceso institucional: ${params.schoolName}.\nEntidad: ${params.organizationName}.\n${params.schoolType} · ${params.city} · ${params.region}.\nContacto: ${params.contactName} · ${params.contactRole} · ${params.requesterEmail} · ${params.contactPhone}.${params.organizationUrl ? `\nWeb/red oficial: ${params.organizationUrl}.` : ""}\n\nEl acceso no se concederá hasta revisión manual.\nRevisar: ${url}`,
     html: brandedEmailShell({
       title: "Nueva solicitud de centro",
       preview: `${params.schoolName} ha solicitado alta en Wetudy.`,
@@ -92,7 +97,11 @@ export async function sendSchoolRegistrationAdminEmail(params: {
         <h1 style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;color:${EMAIL_BRAND.text};">Nueva solicitud de centro</h1>
         <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${EMAIL_BRAND.text};"><strong>${escapeEmailHtml(params.schoolName)}</strong></p>
         <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.text};">${escapeEmailHtml(params.schoolType)} · ${escapeEmailHtml(params.city)} · ${escapeEmailHtml(params.region)}</p>
-        <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.muted};">Solicitado por ${escapeEmailHtml(params.requesterEmail)}. El centro no será público hasta que lo apruebes.</p>
+        <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.text};"><strong>Entidad:</strong> ${escapeEmailHtml(params.organizationName)}</p>
+        <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.text};"><strong>Contacto:</strong> ${escapeEmailHtml(params.contactName)} · ${escapeEmailHtml(params.contactRole)}</p>
+        <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.text};"><strong>Email:</strong> ${escapeEmailHtml(params.requesterEmail)} · <strong>Teléfono:</strong> ${escapeEmailHtml(params.contactPhone)}</p>
+        ${params.organizationUrl ? `<p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.text};"><strong>Web/red oficial:</strong> ${escapeEmailHtml(params.organizationUrl)}</p>` : ""}
+        <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:${EMAIL_BRAND.muted};">El acceso no se concederá hasta revisión manual.</p>
         ${emailButton("Revisar solicitud", url)}
       `,
     }),

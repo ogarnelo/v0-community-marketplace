@@ -38,6 +38,7 @@ interface NavbarProps {
   userName?: string;
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
+  isSchoolAdmin?: boolean;
   adminHref?: string;
   unreadMessagesCount?: number;
   unreadNotificationsCount?: number;
@@ -54,6 +55,7 @@ export function Navbar({
   userName = "Mi cuenta",
   isAdmin = false,
   isSuperAdmin = false,
+  isSchoolAdmin = false,
   adminHref,
   unreadMessagesCount = 0,
   unreadNotificationsCount = 0,
@@ -188,19 +190,25 @@ export function Navbar({
   const effectiveAdminHref = adminHref || (isSuperAdmin ? "/admin/super" : isAdmin ? "/admin/school" : undefined);
   const avatarLetter = displayName.trim().charAt(0).toUpperCase() || "U";
   const showMessagesBadge = Boolean(currentUserId);
-  const schoolAdminNavigation = effectiveAdminHref === "/admin/school";
+  const schoolAdminNavigation = isSchoolAdmin && effectiveAdminHref === "/admin/school";
 
   const navItems = useMemo(
-    () => [
-      { href: "/marketplace", label: "Marketplace", icon: BookOpen },
-      { href: "/mi-curso", label: "Mi curso", icon: GraduationCap },
-      { href: "/favorites", label: "Favoritos", icon: Heart },
-      { href: publishHref, label: "Publicar", icon: Plus },
-      { href: "/messages", label: "Mensajes", icon: MessageCircle },
-      ...(schoolAdminNavigation
-        ? [{ href: "/admin/school?tab=access", label: "Código de colegio", icon: QrCode }]
-        : []),
-    ],
+    () =>
+      schoolAdminNavigation
+        ? [
+            { href: "/marketplace", label: "Marketplace", icon: BookOpen },
+            { href: publishHref, label: "Publicar", icon: Plus },
+            { href: "/messages", label: "Mensajes", icon: MessageCircle },
+            { href: "/admin/school?tab=access", label: "Código del centro", icon: QrCode },
+            { href: "/admin/school", label: "Panel del centro", icon: ShieldCheck },
+          ]
+        : [
+            { href: "/marketplace", label: "Marketplace", icon: BookOpen },
+            { href: "/mi-curso", label: "Mi curso", icon: GraduationCap },
+            { href: "/favorites", label: "Favoritos", icon: Heart },
+            { href: publishHref, label: "Publicar", icon: Plus },
+            { href: "/messages", label: "Mensajes", icon: MessageCircle },
+          ],
     [publishHref, schoolAdminNavigation]
   );
 
@@ -250,7 +258,7 @@ export function Navbar({
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-              <p className="text-xs text-muted-foreground">Tu espacio personal</p>
+              <p className="text-xs text-muted-foreground">{schoolAdminNavigation ? "Gestión de tu centro" : "Tu espacio personal"}</p>
             </div>
           </div>
         ) : (
