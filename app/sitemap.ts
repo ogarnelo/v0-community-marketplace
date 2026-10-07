@@ -34,13 +34,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const admin = createAdminClient()
     const { data: listings } = await admin
       .from("listings")
-      .select("id, title, updated_at, created_at")
+      .select("id, title, updated_at, created_at, school_id")
       .eq("status", "available")
       .order("updated_at", { ascending: false })
       .limit(5000)
 
+    const schoolIds = Array.from(
+      new Set(
+        (listings || [])
+          .map((listing) => listing.school_id)
+          .filter((schoolId): schoolId is string => Boolean(schoolId))
+      )
+    )
+
+    const testSchoolIds = new Set<string>()
+    if (schoolIds.length > 0) {
+      const { data: testSchools } = await admin
+        .from("schools")
+        .select("id")
+        .in("id", schoolIds)
+        .eq("is_test", true)
+
+      for (const school of testSchools || []) {
+        testSchoolIds.add(school.id)
+      }
+    }
+
     const listingPages: MetadataRoute.Sitemap = (listings || [])
-      .filter((listing) => !isDemoListing(listing))
+      .filter(
+        (listing) =>
+          !isDemoListing(listing) &&
+          (!listing.school_id || !testSchoolIds.has(listing.school_id))
+      )
       .map((listing) => ({
         url: `${SITE_URL}/marketplace/listing/${listing.id}`,
         lastModified: listing.updated_at || listing.created_at || fallbackNow,
