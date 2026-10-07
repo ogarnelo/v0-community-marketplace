@@ -327,7 +327,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label>Tipo de cuenta</Label>
+              <Label>Tipo de usuario</Label>
               {isSchoolAdmin ? (
                 <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium">
                   AMPA / centro educativo
