@@ -31,12 +31,36 @@ export default async function MarketplacePage() {
   let viewerPostalCode = "";
 
   if (user) {
-    const [{ data: favorites }, { data: profile }] = await Promise.all([
+    const [
+      { data: favorites },
+      { data: profile },
+      { data: schoolAdminRole },
+      { data: primaryStudentContext },
+    ] = await Promise.all([
       supabase.from("favorites").select("listing_id").eq("user_id", user.id),
       supabase
         .from("profiles")
         .select("id, full_name, user_type, school_id, postal_code")
         .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("user_roles")
+        .select("school_id")
+        .eq("user_id", user.id)
+        .eq("role", "school_admin")
+        .not("school_id", "is", null)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("account_students")
+        .select("school_id,is_primary,sort_order,created_at")
+        .eq("owner_user_id", user.id)
+        .eq("active", true)
+        .not("school_id", "is", null)
+        .order("is_primary", { ascending: false })
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(1)
         .maybeSingle(),
     ]);
 
@@ -45,7 +69,11 @@ export default async function MarketplacePage() {
     );
 
     const typedProfile = (profile as ProfileRow | null) ?? null;
-    viewerSchoolId = typedProfile?.school_id?.trim() || "";
+    viewerSchoolId =
+      schoolAdminRole?.school_id?.trim() ||
+      primaryStudentContext?.school_id?.trim() ||
+      typedProfile?.school_id?.trim() ||
+      "";
     viewerPostalCode = typedProfile?.postal_code?.trim() || "";
   }
 
@@ -112,7 +140,7 @@ export default async function MarketplacePage() {
   const initialListings: MarketplaceListing[] = listingRows.map((item) => {
     const sellerId = item.seller_id || item.user_id || null;
     const sellerProfile = sellerId ? sellerProfileMap.get(sellerId) || null : null;
-    const currentSellerSchoolId = sellerProfile?.schoolId || item.school_id || null;
+    const currentSellerSchoolId = item.school_id || sellerProfile?.schoolId || null;
     const currentSellerPostalCode =
       sellerProfile?.postalCode ||
       item.postal_code ||
