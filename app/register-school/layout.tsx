@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 import { createClient } from "@/lib/supabase/server";
@@ -12,14 +11,6 @@ export default async function RegisterSchoolLayout({
   children: React.ReactNode;
 }>) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth?next=/register-school");
-  }
-
   const navbarData = await getNavbarData(supabase);
 
   return (
