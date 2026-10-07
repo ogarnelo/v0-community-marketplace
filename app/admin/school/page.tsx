@@ -287,7 +287,7 @@ export default async function SchoolAdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar isLoggedIn userName={navbarUserName} isAdmin adminHref="/admin/school" currentUserId={user.id} />
+      <Navbar isLoggedIn userName={navbarUserName} isAdmin isSchoolAdmin adminHref="/admin/school" currentUserId={user.id} />
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
