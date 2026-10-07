@@ -52,6 +52,24 @@ export default async function NewListingPage({
 
   const typedProfile = (profile as ProfileRow | null) ?? null;
 
+  const { data: schoolAdminRole, error: schoolAdminRoleError } = await supabase
+    .from("user_roles")
+    .select("school_id")
+    .eq("user_id", user.id)
+    .eq("role", "school_admin")
+    .not("school_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (schoolAdminRoleError) {
+    console.error("Error cargando el centro administrado:", schoolAdminRoleError);
+  }
+
+  const managedSchoolId =
+    typeof schoolAdminRole?.school_id === "string" && schoolAdminRole.school_id.trim()
+      ? schoolAdminRole.school_id
+      : null;
+
   const { data: primaryStudentContext, error: studentContextError } = await supabase
     .from("account_students")
     .select("school_id,is_primary,sort_order,created_at")
@@ -147,6 +165,7 @@ export default async function NewListingPage({
 
   let selectedSchool: SchoolRow | null = null;
   const preferredSchoolId =
+    managedSchoolId ||
     primaryStudentContext?.school_id ||
     (typedProfile?.school_id && typedProfile.school_id.trim().length > 0
       ? typedProfile.school_id
@@ -175,6 +194,7 @@ export default async function NewListingPage({
       initialSchoolCity={selectedSchool?.city || ""}
       initialPrefill={initialPrefill}
       activationOpportunityKey={activationOpportunityKey}
+      isSchoolAdmin={Boolean(managedSchoolId)}
     />
   );
 }
