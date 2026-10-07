@@ -51,7 +51,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const [{ data: listing }, { data: photo }] = await Promise.all([
     supabase
       .from("listings")
-      .select("id, title, description, category, grade_level, price, status, type, listing_type")
+      .select("id, title, description, category, grade_level, price, status, type, listing_type, school_id")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -71,7 +71,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     };
   }
 
-  const demoListing = isDemoListing(listing);
+  const { data: listingSchool } = listing.school_id
+    ? await supabase
+        .from("schools")
+        .select("is_test")
+        .eq("id", listing.school_id)
+        .maybeSingle()
+    : { data: null };
+
+  const suppressPublicSignals =
+    isDemoListing(listing) || listingSchool?.is_test === true;
   const title = listing.title || "Material escolar en Wetudy";
   const contextParts = [listing.category, listing.grade_level].filter(Boolean).join(" · ");
   const fallbackDescription = contextParts
@@ -85,7 +94,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     alternates: { canonical },
-    robots: demoListing
+    robots: suppressPublicSignals
       ? { index: false, follow: false, noarchive: true }
       : listing.status === "available"
         ? { index: true, follow: true }
@@ -134,7 +143,16 @@ export default async function ListingDetailPage({
 
   if (listingError || !listing) notFound();
 
-  const demoListing = isDemoListing(listing);
+  const { data: listingSchool } = listing.school_id
+    ? await supabase
+        .from("schools")
+        .select("is_test")
+        .eq("id", listing.school_id)
+        .maybeSingle()
+    : { data: null };
+
+  const suppressPublicSignals =
+    isDemoListing(listing) || listingSchool?.is_test === true;
   const currentUserId = authData?.user?.id || null;
   const isOwnListing = !!currentUserId && listing.seller_id === currentUserId;
   const isDonation = getListingTypeFromRow(listing as any) === "donation";
@@ -271,8 +289,8 @@ export default async function ListingDetailPage({
 
   return (
     <div className="bg-slate-50/60 pb-28 md:pb-10">
-      {!demoListing ? <JsonLd data={[productJsonLd, breadcrumbJsonLd]} /> : null}
-      {!demoListing ? (
+      {!suppressPublicSignals ? <JsonLd data={[productJsonLd, breadcrumbJsonLd]} /> : null}
+      {!suppressPublicSignals ? (
         <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
       ) : null}
 
