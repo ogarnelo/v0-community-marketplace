@@ -622,12 +622,12 @@ export default function JoinSchoolPage() {
                   </div>
 
                   <p className="text-center text-xs text-muted-foreground">
-                    Si tu centro aparece, tócalo para vincular tu cuenta. Si no existe todavía, puedes registrarlo o continuar y añadirlo después.
+                    Si tu centro aparece, tócalo para vincular tu cuenta. Si no existe todavía, puedes solicitar su alta o continuar y añadirlo después.
                   </p>
 
                   <Link href="/register-school">
                     <Button variant="outline" className="w-full">
-                      Registrar nuevo centro
+                      Solicitar acceso para AMPA o centro
                     </Button>
                   </Link>
                 </div>
