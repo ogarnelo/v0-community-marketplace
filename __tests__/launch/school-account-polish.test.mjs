@@ -142,3 +142,15 @@ test("saved searches and favorites use the same canonical school context", () =>
     );
   }
 });
+
+
+test("school admin profiles can save without a personal user type", () => {
+  const form = read("components/account/account-profile-form.tsx");
+  const trigger = read("supabase/migrations/20260926102510_validate_spanish_postal_on_signup.sql");
+
+  assert.match(trigger, /role_value := nullif\(trim\(new\.raw_user_meta_data ->> 'user_type'\), ''\)/);
+  assert.match(form, /if \(!isSchoolAdmin && !userType\)/);
+  assert.match(form, /const isBusiness = !isSchoolAdmin && userType === "business"/);
+  assert.match(form, /\.\.\.\(isSchoolAdmin[\s\S]*\? \{\}[\s\S]*user_type: userType/);
+  assert.match(form, /!isSchoolAdmin &&[\s\S]*initialUserType !== userType/);
+});

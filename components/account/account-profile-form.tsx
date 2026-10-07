@@ -96,7 +96,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const isBusiness = userType === "business";
+  const isBusiness = !isSchoolAdmin && userType === "business";
   const currentUserTypeLabel = userType
     ? getUserTypeLabel(userType)
     : "Selecciona un tipo de usuario";
@@ -162,7 +162,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
       return;
     }
 
-    if (!userType) {
+    if (!isSchoolAdmin && !userType) {
       setErrorMessage("Debes seleccionar un tipo de usuario antes de guardar.");
       return;
     }
@@ -200,6 +200,7 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
       }
 
       if (
+        !isSchoolAdmin &&
         initialUserType !== userType &&
         isPersonalAccountType(initialUserType) &&
         isPersonalAccountType(userType)
@@ -227,11 +228,15 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
         first_name: normalizedFirstName,
         last_name: normalizedLastName,
         full_name: normalizedFullName,
-        user_type: userType,
         postal_code: normalizedPostalCode || null,
-        business_name: isBusiness ? businessName.trim() || null : null,
-        business_description: isBusiness ? businessDescription.trim() || null : null,
-        website: isBusiness ? website.trim() || null : null,
+        ...(isSchoolAdmin
+          ? {}
+          : {
+              user_type: userType,
+              business_name: isBusiness ? businessName.trim() || null : null,
+              business_description: isBusiness ? businessDescription.trim() || null : null,
+              website: isBusiness ? website.trim() || null : null,
+            }),
         phone: phone.trim() || null,
         shipping_address_line1: contactAddress.trim() || null,
         shipping_address_line2: contactNotes.trim() || null,
@@ -251,13 +256,17 @@ export default function AccountProfileForm(props: AccountProfileFormProps) {
           first_name: normalizedFirstName,
           last_name: normalizedLastName,
           full_name: normalizedFullName,
-          user_type: userType,
           postal_code: normalizedPostalCode || null,
-          business_name: isBusiness ? businessName.trim() || null : null,
-          business_description: isBusiness
-            ? businessDescription.trim() || null
-            : null,
-          website: isBusiness ? website.trim() || null : null,
+          ...(isSchoolAdmin
+            ? {}
+            : {
+                user_type: userType,
+                business_name: isBusiness ? businessName.trim() || null : null,
+                business_description: isBusiness
+                  ? businessDescription.trim() || null
+                  : null,
+                website: isBusiness ? website.trim() || null : null,
+              }),
         },
       });
 
