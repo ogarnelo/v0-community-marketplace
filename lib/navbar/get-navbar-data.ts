@@ -14,6 +14,7 @@ export type NavbarData = {
   userName: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isSchoolAdmin: boolean;
   adminHref?: string;
   unreadMessagesCount: number;
   unreadNotificationsCount: number;
@@ -30,6 +31,7 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
       userName: "Mi cuenta",
       isAdmin: false,
       isSuperAdmin: false,
+      isSchoolAdmin: false,
       adminHref: undefined,
       unreadMessagesCount: 0,
       unreadNotificationsCount: 0,
@@ -66,7 +68,12 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
     userName: profile?.full_name?.trim() || user.user_metadata?.full_name || user.email || "Mi cuenta",
     isAdmin: adminFlags.canAccessAdmin,
     isSuperAdmin: adminFlags.isSuperAdmin,
-    adminHref: adminFlags.isSuperAdmin ? "/admin/super" : adminFlags.canAccessAdmin ? "/admin/school" : undefined,
+    isSchoolAdmin: adminFlags.isSchoolAdmin,
+    adminHref: adminFlags.isSuperAdmin
+      ? "/admin/super"
+      : adminFlags.isSchoolAdmin
+        ? "/admin/school"
+        : undefined,
     unreadMessagesCount,
     unreadNotificationsCount: 0,
     notifications: typedNotifications,
