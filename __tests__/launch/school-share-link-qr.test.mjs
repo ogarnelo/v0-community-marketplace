@@ -55,11 +55,23 @@ test("shared centre links preselect an active school and preserve it through sig
   assert.doesNotMatch(publicSchoolsRoute, /school_access_codes/);
 });
 
-test("school search can link users without requiring a code", () => {
+test("generic school linking requires authentication before showing school controls", () => {
+  const joinPage = read("app/onboarding/join-school/page.tsx");
+
+  assert.match(joinPage, /const \[isAuthenticated, setIsAuthenticated\]/);
+  assert.match(joinPage, /isAuthenticated === false && !found/);
+  assert.match(joinPage, /Inicia sesión o crea una cuenta antes de vincular o cambiar tu centro educativo/);
+  assert.match(joinPage, /\/auth\?mode=login&next=/);
+  assert.match(joinPage, /\/auth\?mode=signup&next=/);
+  assert.match(joinPage, /"\/onboarding\/join-school"/);
+});
+
+test("school search can link authenticated users without requiring a code", () => {
   const joinPage = read("app/onboarding/join-school/page.tsx");
 
   assert.match(joinPage, /tócalo para vincular tu cuenta/);
   assert.match(joinPage, /setFound\(school\)/);
+  assert.match(joinPage, /if \(!showSearch \|\| isAuthenticated !== true\) return/);
   assert.doesNotMatch(joinPage, /Debes validar primero un código de acceso activo/);
 });
 
