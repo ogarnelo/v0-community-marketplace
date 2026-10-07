@@ -10,7 +10,7 @@ test("institutional access requests are public but remain manually approved", ()
 
   assert.match(layout, /getNavbarData/);
   assert.doesNotMatch(layout, /redirect\("\/auth\?next=\/register-school"\)/);
-  assert.match(page, /Acceso para AMPAs y centros/);
+  assert.match(page, /Solicitud de alta para AMPAs y centros/);
   assert.match(page, /Persona de contacto \*/);
   assert.match(page, /Cargo \/ función \*/);
   assert.match(page, /Telefono de contacto \*/);
