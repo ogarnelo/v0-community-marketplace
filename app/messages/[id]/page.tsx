@@ -61,7 +61,17 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const conversationIds = safeConversations.map((c) => c.id);
 
   const { data: listings } = await supabase.from("listings").select("id, title, price, status, listing_type, type").in("id", listingIds);
-  const { data: profiles } = await adminSupabase.from("profiles").select("id, full_name, user_type, business_name").in("id", otherUserIds);
+  const [{ data: profiles }, { data: schoolAdminRoles }] = await Promise.all([
+    adminSupabase.from("profiles").select("id, full_name, user_type, business_name").in("id", otherUserIds),
+    otherUserIds.length > 0
+      ? adminSupabase
+          .from("user_roles")
+          .select("user_id, school_id")
+          .in("user_id", otherUserIds)
+          .eq("role", "school_admin")
+          .not("school_id", "is", null)
+      : Promise.resolve({ data: [] as Array<{ user_id: string; school_id: string }> }),
+  ]);
   const { data: latestMessages } = await supabase.from("messages").select("conversation_id, body, created_at, sender_id, attachment_name").in("conversation_id", conversationIds).order("created_at", { ascending: false });
   const { data: unreadMessages } = await supabase.from("messages").select("conversation_id").in("conversation_id", conversationIds).neq("sender_id", user.id).is("read_at", null);
   const { data: messagesDesc } = await supabase
@@ -96,6 +106,11 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const listingsMap = new Map(((listings || []) as ListingChatRow[]).map((l) => [l.id, l]));
   const profilesMap = new Map(((profiles || []) as ProfileRow[]).map((p) => [p.id, p]));
+  const schoolAdminUserIds = new Set(
+    ((schoolAdminRoles || []) as Array<{ user_id: string; school_id: string | null }>)
+      .filter((role) => Boolean(role.school_id))
+      .map((role) => role.user_id)
+  );
   const latestMessageMap = new Map<string, LatestMessageRow>();
   for (const message of (latestMessages || []) as LatestMessageRow[]) if (!latestMessageMap.has(message.conversation_id)) latestMessageMap.set(message.conversation_id, message);
   const unreadCountMap = new Map<string, number>();
@@ -115,7 +130,15 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const otherProfile = profilesMap.get(otherUserId);
   const listing = listingsMap.get(typedConversation.listing_id);
   const otherName = otherProfile?.business_name || (otherProfile?.full_name && otherProfile.full_name.trim().length > 0 ? otherProfile.full_name.trim() : "Usuario");
-  const otherRole = otherProfile?.user_type === "parent" ? "Familia / Tutor legal" : otherProfile?.user_type === "student" ? "Estudiante" : otherProfile?.user_type === "business" ? "Negocio" : "Miembro de Wetudy";
+  const otherRole = schoolAdminUserIds.has(otherUserId)
+    ? "AMPA / centro educativo"
+    : otherProfile?.user_type === "parent"
+      ? "Familia / Tutor legal"
+      : otherProfile?.user_type === "student"
+        ? "Estudiante"
+        : otherProfile?.user_type === "business"
+          ? "Negocio"
+          : "Miembro de Wetudy";
   const listingStatus = getSafeListingStatus(listing?.status);
   const typedOffers = (offers || []) as ListingOfferRow[];
   const typedDonationRequests = (donationRequests || []) as DonationRequestRow[];
