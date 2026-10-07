@@ -76,7 +76,18 @@ export default async function PublicProfilePage({
     notFound();
   }
 
-  const stats = await getUserProfileStats(supabase, id);
+  const [{ data: schoolAdminRole }, stats] = await Promise.all([
+    admin
+      .from("user_roles")
+      .select("school_id")
+      .eq("user_id", id)
+      .eq("role", "school_admin")
+      .not("school_id", "is", null)
+      .limit(1)
+      .maybeSingle(),
+    getUserProfileStats(supabase, id),
+  ]);
+  const isSchoolAdminProfile = Boolean(schoolAdminRole?.school_id);
   const reviewerIds = Array.from(
     new Set(
       stats.reviews
@@ -146,8 +157,10 @@ export default async function PublicProfilePage({
     typedProfile.business_name?.trim() ||
     typedProfile.full_name?.trim() ||
     "Miembro de Wetudy";
-  const sellerUserType = getUserTypeLabel(typedProfile.user_type);
-  const badges = stats.badgesForUserType(typedProfile.user_type);
+  const sellerUserType = isSchoolAdminProfile
+    ? "AMPA / centro educativo"
+    : getUserTypeLabel(typedProfile.user_type);
+  const badges = stats.badgesForUserType(isSchoolAdminProfile ? null : typedProfile.user_type);
 
   return (
     <>
