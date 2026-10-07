@@ -164,7 +164,9 @@ export default async function AccountPage() {
                   <p className="text-xs font-medium text-primary sm:text-sm">Mi perfil</p>
                   <h1 className="break-words text-xl font-bold tracking-tight sm:truncate sm:text-3xl">{fullName}</h1>
                   <div className="mt-1.5 flex flex-wrap gap-1.5 sm:mt-2 sm:gap-2">
-                    <Badge variant="secondary">{getUserTypeLabel(userType)}</Badge>
+                    <Badge variant="secondary">
+                      {managedSchoolId ? "AMPA / centro" : getUserTypeLabel(userType)}
+                    </Badge>
                     {user.email_confirmed_at ? <Badge>Email verificado</Badge> : null}
                     {contactReady ? <Badge variant="outline">Contacto opcional</Badge> : null}
                   </div>
@@ -208,7 +210,7 @@ export default async function AccountPage() {
           <UserBadgePills badges={badges} />
         </div>
 
-        {userType === "parent" || userType === "student" ? (
+        {!managedSchoolId && (userType === "parent" || userType === "student") ? (
           <div className="mt-5 sm:mt-6">
             <AccountStudentsSection
               key={[
