@@ -41,6 +41,8 @@ test("SEO crawl controls expose only intended public surfaces", () => {
   assert.match(robots, /\/seguridad/);
   assert.match(sitemap, /status", "available"/);
   assert.match(sitemap, /isDemoListing/);
+  assert.match(sitemap, /is_test/);
+  assert.match(sitemap, /testSchoolIds/);
   assert.doesNotMatch(sitemap, /\/checkout/);
   assert.doesNotMatch(sitemap, /\/account/);
   assert.match(sitemap, /seoRefresh/);
@@ -103,8 +105,10 @@ test("listing pages publish canonical metadata and truthful structured product d
   assert.match(page, /SEO_SITE_URL/);
   assert.match(page, /images: image/);
   assert.match(page, /isDemoListing/);
+  assert.match(page, /is_test/);
+  assert.match(page, /suppressPublicSignals/);
   assert.match(page, /index: false, follow: false, noarchive: true/);
-  assert.match(page, /!demoListing \? <JsonLd/);
+  assert.match(page, /!suppressPublicSignals \? <JsonLd/);
 });
 
 test("inactive legacy commerce stays gated during MVP launch", () => {
