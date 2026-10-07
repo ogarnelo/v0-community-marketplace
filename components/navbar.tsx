@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
 import { NavbarNotificationsBell } from "@/components/notifications/navbar-notifications-bell";
@@ -63,6 +63,7 @@ export function Navbar({
   currentUserId,
 }: NavbarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(userName);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -233,6 +234,12 @@ export function Navbar({
 
   const isActive = (href: string) => {
     if (!pathname) return false;
+    if (href === "/admin/school?tab=access") {
+      return pathname === "/admin/school" && searchParams.get("tab") === "access";
+    }
+    if (href === "/admin/school") {
+      return pathname === "/admin/school" && searchParams.get("tab") !== "access";
+    }
     if (href.includes("?")) return false;
     if (href === "/") return pathname === "/";
     if (href === "/marketplace/new") return pathname === "/marketplace/new";
@@ -326,7 +333,7 @@ export function Navbar({
             </Link>
           </Button>
 
-          {effectiveAdminHref ? (
+          {effectiveAdminHref && !schoolAdminNavigation ? (
             <Button asChild variant="ghost" className="min-h-11 w-full justify-start gap-2">
               <Link href={effectiveAdminHref} onClick={() => setOpen(false)}>
                 <ShieldCheck className="h-4 w-4" />
@@ -461,7 +468,7 @@ export function Navbar({
                         Favoritos
                       </Link>
                     </DropdownMenuItem>
-                    {effectiveAdminHref ? (
+                    {effectiveAdminHref && !schoolAdminNavigation ? (
                       <DropdownMenuItem asChild>
                         <Link href={effectiveAdminHref} className="gap-2">
                           <ShieldCheck className="h-4 w-4" />
