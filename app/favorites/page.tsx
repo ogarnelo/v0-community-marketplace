@@ -22,12 +22,36 @@ export default async function FavoritesPage() {
     redirect("/auth?next=/favorites");
   }
 
-  const [{ data: favorites }, { data: currentProfile }] = await Promise.all([
+  const [
+    { data: favorites },
+    { data: currentProfile },
+    { data: schoolAdminRole },
+    { data: primaryStudentContext },
+  ] = await Promise.all([
     supabase.from("favorites").select("listing_id").eq("user_id", user.id),
     supabase
       .from("profiles")
       .select("id, full_name, user_type, school_id")
       .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("user_roles")
+      .select("school_id")
+      .eq("user_id", user.id)
+      .eq("role", "school_admin")
+      .not("school_id", "is", null)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("account_students")
+      .select("school_id,is_primary,sort_order,created_at")
+      .eq("owner_user_id", user.id)
+      .eq("active", true)
+      .not("school_id", "is", null)
+      .order("is_primary", { ascending: false })
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(1)
       .maybeSingle(),
   ]);
 
@@ -86,9 +110,10 @@ export default async function FavoritesPage() {
   const typedProfile = (currentProfile as ProfileRow | null) ?? null;
 
   const currentSchoolId =
-    typedProfile?.school_id && typedProfile.school_id.trim().length > 0
-      ? typedProfile.school_id
-      : "";
+    schoolAdminRole?.school_id?.trim() ||
+    primaryStudentContext?.school_id?.trim() ||
+    typedProfile?.school_id?.trim() ||
+    "";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
