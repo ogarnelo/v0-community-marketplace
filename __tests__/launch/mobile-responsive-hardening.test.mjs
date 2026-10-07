@@ -16,11 +16,12 @@ test("mobile navbar stays inside the header instead of using a portal or body sc
   assert.match(navbar, /className="shrink-0 md:hidden"/);
 });
 
-test("register school keeps the authenticated navbar and avoids a duplicate header", () => {
+test("register school keeps the shared navbar for public and authenticated visitors", () => {
   const layout = read("app/register-school/layout.tsx");
   const page = read("app/register-school/page.tsx");
   assert.match(layout, /getNavbarData/);
   assert.match(layout, /isLoggedIn=\{navbarData\.isLoggedIn\}/);
+  assert.doesNotMatch(layout, /redirect\("\/auth\?next=\/register-school"\)/);
   assert.doesNotMatch(page, /<Navbar/);
 });
 
