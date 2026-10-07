@@ -160,6 +160,7 @@ export default async function PublicProfilePage({
         notifications={navbarData.notifications}
         isAdmin={navbarData.isAdmin}
         isSuperAdmin={navbarData.isSuperAdmin}
+        isSchoolAdmin={navbarData.isSchoolAdmin}
         adminHref={navbarData.adminHref}
       />
 
