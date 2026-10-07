@@ -86,3 +86,15 @@ test("Mi curso and Commerce Lab keep the shared navigation shell", () => {
   assert.match(commerceLab, /<Navbar \{\.\.\.navbarData\} \/>/);
   assert.match(commerceLab, /<Footer \/>/);
 });
+
+
+test("school dashboard community uses account_students as the canonical educational context", () => {
+  const page = read("app/admin/school/page.tsx");
+
+  assert.match(page, /from\("account_students"\)/);
+  assert.match(page, /ownersWithActiveEducationalContext/);
+  assert.match(page, /schoolContextOwnerIds/);
+  assert.match(page, /context\.school_id === effectiveSchoolId/);
+  assert.match(page, /!ownersWithActiveEducationalContext\.has\(member\.id\)/);
+  assert.match(page, /safeSchoolAdminRoles[\s\S]*schoolContextOwnerIds\.add/);
+});
