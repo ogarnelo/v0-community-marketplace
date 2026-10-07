@@ -125,3 +125,17 @@ test("marketplace keeps canonical school context for viewers and listings", () =
     /const currentSellerSchoolId = item\.school_id \|\| sellerProfile\?\.schoolId \|\| null/
   );
 });
+
+test("saved searches and favorites use the same canonical school context", () => {
+  const savedSearches = read("app/api/marketplace/saved-searches/route.ts");
+  const favorites = read("app/favorites/page.tsx");
+
+  for (const source of [savedSearches, favorites]) {
+    assert.match(source, /from\("user_roles"\)[\s\S]*role", "school_admin"/);
+    assert.match(source, /from\("account_students"\)[\s\S]*eq\("active", true\)/);
+    assert.match(
+      source,
+      /schoolAdminRole\?\.school_id[\s\S]*primaryStudentContext\?\.school_id[\s\S]*(?:profile|typedProfile)\?\.school_id/
+    );
+  }
+});
