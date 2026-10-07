@@ -137,8 +137,10 @@ export default async function SchoolAdminPage() {
   ]);
 
   const isSuperAdmin = (roles || []).some((role) => role.role === "super_admin");
-  const schoolAdminRole = (roles || []).find((role) => role.role === "school_admin");
-  const effectiveSchoolId = schoolAdminRole?.school_id || profile?.school_id || null;
+  const schoolAdminRole = (roles || []).find(
+    (role) => role.role === "school_admin" && Boolean(role.school_id)
+  );
+  const effectiveSchoolId = schoolAdminRole?.school_id || null;
 
   if (!effectiveSchoolId) {
     if (isSuperAdmin) {
