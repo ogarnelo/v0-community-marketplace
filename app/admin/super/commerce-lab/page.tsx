@@ -13,6 +13,9 @@ import {
 } from "@/lib/commerce/private-access";
 import { isSendcloudConfigured } from "@/lib/logistics/sendcloud";
 import { RefundPaymentButton, ReleaseTransferButton, SimulateLabelButton } from "@/components/admin/commerce-lab-actions";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { getNavbarData } from "@/lib/navbar/get-navbar-data";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +56,7 @@ export default async function CommerceLabPage() {
 
   if (!roles?.length) redirect("/");
 
+  const navbarData = await getNavbarData(supabase);
   const admin = createAdminClient();
   const [
     { data: payments },
@@ -135,7 +139,9 @@ export default async function CommerceLabPage() {
   const labelCreationEnabled = isPrivateShippingLabelCreationEnabled();
 
   return (
-    <main className="min-h-screen bg-muted/20">
+    <div className="flex min-h-screen flex-col bg-background">
+      <Navbar {...navbarData} />
+      <main className="flex-1 bg-muted/20">
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 lg:px-8">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2">
@@ -432,6 +438,8 @@ export default async function CommerceLabPage() {
           </CardContent>
         </Card>
       </div>
-    </main>
+      </main>
+      <Footer />
+    </div>
   );
 }
