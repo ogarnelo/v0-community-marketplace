@@ -100,6 +100,7 @@ type SchoolRequestRow = {
   status: "pending" | "approved" | "rejected" | "new" | null;
   review_notes: string | null;
   approved_school_id: string | null;
+  requested_school_id: string | null;
   created_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -1715,6 +1716,9 @@ export default function SuperAdminDashboard({
                                 </Badge>
                                 <Badge variant="outline">
                                   {getSchoolTypeLabel(request.school_type)}
+                                </Badge>
+                                <Badge variant="outline">
+                                  {request.requested_school_id ? "Acceso a centro existente" : "Alta de nuevo centro"}
                                 </Badge>
                               </div>
 
