@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
@@ -50,11 +50,21 @@ const SCHOOL_TYPE_OPTIONS = [
   { value: "university", label: "Universidad" },
 ] as const;
 
+type PublicSchoolOption = {
+  id: string;
+  name: string;
+  city: string | null;
+};
+
 export default function RegisterSchoolPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [requestMode, setRequestMode] = useState<"existing" | "new">("existing");
+  const [existingSchools, setExistingSchools] = useState<PublicSchoolOption[]>([]);
+  const [existingSchoolId, setExistingSchoolId] = useState("");
+  const [schoolsLoading, setSchoolsLoading] = useState(true);
   const [schoolName, setSchoolName] = useState("");
   const [schoolType, setSchoolType] = useState("");
   const [organizationName, setOrganizationName] = useState("");
@@ -68,6 +78,36 @@ export default function RegisterSchoolPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSchools = async () => {
+      try {
+        const response = await fetch("/api/schools/public", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload?.error || "No se pudieron cargar los centros.");
+
+        const schools = Array.isArray(payload?.schools) ? payload.schools : [];
+        if (cancelled) return;
+
+        setExistingSchools(schools);
+        if (schools.length === 0) {
+          setRequestMode("new");
+        }
+      } catch (error) {
+        console.error("Error cargando centros para solicitud institucional:", error);
+        if (!cancelled) setRequestMode("new");
+      } finally {
+        if (!cancelled) setSchoolsLoading(false);
+      }
+    };
+
+    void loadSchools();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -76,6 +116,8 @@ export default function RegisterSchoolPage() {
     try {
       const normalizedSchoolName = schoolName.trim();
       const normalizedSchoolType = schoolType.trim();
+      const normalizedExistingSchoolId = existingSchoolId.trim();
+      const isExistingRequest = requestMode === "existing";
       const normalizedOrganizationName = organizationName.trim();
       const normalizedContactName = contactName.trim();
       const normalizedContactRole = contactRole.trim();
@@ -87,15 +129,22 @@ export default function RegisterSchoolPage() {
       const normalizedEmail = contactEmail.trim();
       const normalizedPhone = contactPhone.trim();
 
-      if (!normalizedSchoolName) {
+      if (isExistingRequest && !normalizedExistingSchoolId) {
+        throw new Error("Selecciona el centro al que solicitas acceso.");
+      }
+
+      if (!isExistingRequest && !normalizedSchoolName) {
         throw new Error("Debes indicar el nombre del centro.");
       }
 
-      if (!normalizedSchoolType) {
+      if (!isExistingRequest && !normalizedSchoolType) {
         throw new Error("Debes seleccionar el tipo de centro.");
       }
 
-      if (!SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)) {
+      if (
+        !isExistingRequest &&
+        !SCHOOL_TYPE_OPTIONS.some((option) => option.value === normalizedSchoolType)
+      ) {
         throw new Error("El tipo de centro seleccionado no es válido.");
       }
 
@@ -111,19 +160,19 @@ export default function RegisterSchoolPage() {
         throw new Error("Debes indicar el cargo o función de la persona de contacto.");
       }
 
-      if (!normalizedAddress) {
+      if (!isExistingRequest && !normalizedAddress) {
         throw new Error("Debes indicar la dirección.");
       }
 
-      if (!normalizedCity) {
+      if (!isExistingRequest && !normalizedCity) {
         throw new Error("Debes indicar la ciudad.");
       }
 
-      if (!/^[0-9]{5}$/.test(normalizedPostalCode)) {
+      if (!isExistingRequest && !/^[0-9]{5}$/.test(normalizedPostalCode)) {
         throw new Error("Debes indicar un código postal válido de 5 dígitos.");
       }
 
-      if (!normalizedRegion) {
+      if (!isExistingRequest && !normalizedRegion) {
         throw new Error("Debes seleccionar una comunidad autónoma.");
       }
 
@@ -139,6 +188,7 @@ export default function RegisterSchoolPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          existingSchoolId: isExistingRequest ? normalizedExistingSchoolId : "",
           schoolName: normalizedSchoolName,
           schoolType: normalizedSchoolType,
           organizationName: normalizedOrganizationName,
@@ -213,33 +263,80 @@ export default function RegisterSchoolPage() {
               <CardContent>
                 <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-5">
                   <div className="flex min-w-0 flex-col gap-2">
-                    <Label htmlFor="schoolName">Nombre del centro *</Label>
-                    <Input
-                      id="schoolName"
-                      placeholder="CEIP San Miguel"
-                      required
-                      minLength={2}
-                      maxLength={160}
-                      value={schoolName}
-                      onChange={(e) => setSchoolName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <Label>Tipo de centro *</Label>
-                    <Select value={schoolType} onValueChange={setSchoolType}>
+                    <Label>¿Qué necesitas? *</Label>
+                    <Select
+                      value={requestMode}
+                      onValueChange={(value) => {
+                        const nextMode = value as "existing" | "new";
+                        setRequestMode(nextMode);
+                        setErrorMessage("");
+                      }}
+                    >
                       <SelectTrigger className="w-full min-w-0">
-                        <SelectValue placeholder="Selecciona" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {SCHOOL_TYPE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="existing">Mi centro ya está en Wetudy</SelectItem>
+                        <SelectItem value="new">Mi centro todavía no está en Wetudy</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {requestMode === "existing" ? (
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <Label>Centro educativo *</Label>
+                      <Select
+                        value={existingSchoolId}
+                        onValueChange={setExistingSchoolId}
+                        disabled={schoolsLoading}
+                      >
+                        <SelectTrigger className="w-full min-w-0">
+                          <SelectValue placeholder={schoolsLoading ? "Cargando centros..." : "Selecciona tu centro"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {existingSchools.map((school) => (
+                            <SelectItem key={school.id} value={school.id}>
+                              {school.name}{school.city ? ` · ${school.city}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Solicitarás acceso administrativo al centro existente; no se creará un duplicado.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <Label htmlFor="schoolName">Nombre del centro *</Label>
+                        <Input
+                          id="schoolName"
+                          placeholder="CEIP San Miguel"
+                          required
+                          minLength={2}
+                          maxLength={160}
+                          value={schoolName}
+                          onChange={(e) => setSchoolName(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <Label>Tipo de centro *</Label>
+                        <Select value={schoolType} onValueChange={setSchoolType}>
+                          <SelectTrigger className="w-full min-w-0">
+                            <SelectValue placeholder="Selecciona" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SCHOOL_TYPE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
 
                   <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="organizationName">AMPA / AFA / entidad *</Label>
@@ -296,63 +393,67 @@ export default function RegisterSchoolPage() {
                     </p>
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <Label htmlFor="address">Direccion *</Label>
-                    <Input
-                      id="address"
-                      placeholder="Calle de Alcala, 50"
-                      required
-                      minLength={3}
-                      maxLength={250}
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                    />
-                  </div>
+                  {requestMode === "new" ? (
+                    <>
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <Label htmlFor="address">Direccion *</Label>
+                        <Input
+                          id="address"
+                          placeholder="Calle de Alcala, 50"
+                          required
+                          minLength={3}
+                          maxLength={250}
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                        />
+                      </div>
 
-                  <div className="grid min-w-0 gap-4 sm:grid-cols-3">
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <Label htmlFor="city">Ciudad *</Label>
-                      <Input
-                        id="city"
-                        placeholder="Madrid"
-                        required
-                        minLength={2}
-                        maxLength={100}
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                      />
-                    </div>
+                      <div className="grid min-w-0 gap-4 sm:grid-cols-3">
+                        <div className="flex min-w-0 flex-col gap-2">
+                          <Label htmlFor="city">Ciudad *</Label>
+                          <Input
+                            id="city"
+                            placeholder="Madrid"
+                            required
+                            minLength={2}
+                            maxLength={100}
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                          />
+                        </div>
 
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <Label htmlFor="postalCode">Codigo Postal *</Label>
-                      <Input
-                        id="postalCode"
-                        placeholder="28001"
-                        required
-                        maxLength={5}
-                        pattern="[0-9]{5}"
-                        title="Introduce un codigo postal valido de 5 digitos"
-                        value={postalCode}
-                        onChange={(e) => setPostalCode(e.target.value)}
-                      />
-                    </div>
+                        <div className="flex min-w-0 flex-col gap-2">
+                          <Label htmlFor="postalCode">Codigo Postal *</Label>
+                          <Input
+                            id="postalCode"
+                            placeholder="28001"
+                            required
+                            maxLength={5}
+                            pattern="[0-9]{5}"
+                            title="Introduce un codigo postal valido de 5 digitos"
+                            value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)}
+                          />
+                        </div>
 
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <Label>C. Autonoma *</Label>
-                      <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger className="w-full min-w-0">
-                          <SelectValue placeholder="Selecciona" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {comunidades.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                        <div className="flex min-w-0 flex-col gap-2">
+                          <Label>C. Autonoma *</Label>
+                          <Select value={region} onValueChange={setRegion}>
+                            <SelectTrigger className="w-full min-w-0">
+                              <SelectValue placeholder="Selecciona" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {comunidades.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
 
                   <div className="flex min-w-0 flex-col gap-2">
                     <Label htmlFor="email">Email de contacto *</Label>
