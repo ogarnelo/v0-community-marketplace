@@ -66,7 +66,7 @@ export default async function StudentsOnboardingPage({
       .maybeSingle(),
     supabase
       .from("schools")
-      .select("id, name, city, postal_code")
+      .select("id, name, city, postal_code, is_test")
       .eq("is_active", true)
       .order("name", { ascending: true })
       .limit(500),
@@ -84,6 +84,18 @@ export default async function StudentsOnboardingPage({
   if (studentsError) console.error("Onboarding estudiantes: error cargando estudiantes", studentsError);
 
   const userType = profile?.user_type || metadata.user_type || null;
+  const linkedSchoolIds = new Set(
+    ((students || []) as StudentRow[])
+      .map((student) => student.school_id)
+      .filter((value): value is string => Boolean(value))
+  );
+  const visibleSchools = ((schools || []) as Array<{
+    id: string;
+    name: string;
+    city: string | null;
+    postal_code: string | null;
+    is_test: boolean | null;
+  }>).filter((school) => !school.is_test || linkedSchoolIds.has(school.id));
 
   if (userType === "business") {
     redirect("/account");
@@ -106,7 +118,7 @@ export default async function StudentsOnboardingPage({
       accountType={userType}
       accountHolderName={buildFullName(firstName, lastName)}
       initialStudents={(students || []) as StudentRow[]}
-      schools={(schools || []) as Array<{ id: string; name: string; city: string | null; postal_code: string | null }>}
+      schools={visibleSchools.map(({ is_test: _isTest, ...school }) => school)}
       gradeLevels={Array.from(new Set(gradeLevels)).filter(Boolean)}
       nextPath={safeNext}
     />

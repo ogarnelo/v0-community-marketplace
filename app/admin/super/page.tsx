@@ -79,6 +79,7 @@ type SchoolSummaryRow = {
   region: string | null;
   school_type: string | null;
   is_active: boolean | null;
+  is_test: boolean | null;
 };
 
 type ListingStatsRow = {
@@ -146,7 +147,7 @@ export default async function SuperAdminPage() {
   ] = await Promise.all([
     supabase
       .from("schools")
-      .select("id, name, city, region, school_type, is_active")
+      .select("id, name, city, region, school_type, is_active, is_test")
       .order("name", { ascending: true })
       .returns<SchoolSummaryRow[]>(),
     supabase
@@ -269,7 +270,7 @@ export default async function SuperAdminPage() {
   }));
 
   const stats = {
-    totalSchools: safeSchools.filter((school) => school.is_active !== false).length,
+    totalSchools: safeSchools.filter((school) => school.is_active !== false && !school.is_test).length,
     totalUsers: safeProfiles.length,
     totalListings: safeListings.length,
     totalDonations: safeListings.filter((item) => item.type === "donation").length,

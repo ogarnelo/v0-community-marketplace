@@ -72,3 +72,12 @@ test("Super Admin can subscribe to aggregate reports every 7, 15 or 30 days", ()
   assert.match(page, /Informe periódico por email/);
   assert.match(vercel, /\/api\/cron\/super-admin-reports/);
 });
+
+
+test("QA schools do not inflate real centre KPIs", () => {
+  const superPage = read("app/admin/super/page.tsx");
+  const report = read("lib/reports/super-admin-report.ts");
+
+  assert.match(superPage, /is_active !== false && !school\.is_test/);
+  assert.match(report, /from\("schools"\)[\s\S]*eq\("is_active", true\)[\s\S]*eq\("is_test", false\)/);
+});

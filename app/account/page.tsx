@@ -50,6 +50,10 @@ type UserRoleRow = {
   school_id: string | null;
 };
 
+type SchoolOptionRow = SchoolRow & {
+  is_test?: boolean | null;
+};
+
 const quickActions = [
   { href: "/marketplace/new", label: "Publicar", helper: "Sube material", icon: PlusCircle },
   { href: "/account/listings", label: "Mis anuncios", helper: "Gestiona tu catálogo", icon: NotebookTabs },
@@ -83,7 +87,7 @@ export default async function AccountPage() {
       .select("id, first_name, last_name, full_name, user_type, grade_level, postal_code, school_id, shipping_city, phone, created_at")
       .eq("id", user.id)
       .maybeSingle(),
-    supabase.from("schools").select("id, name, city, postal_code").eq("is_active", true).order("name", { ascending: true }),
+    supabase.from("schools").select("id, name, city, postal_code, is_test").eq("is_active", true).order("name", { ascending: true }),
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<UserRoleRow[]>(),
     supabase
       .from("account_students")
@@ -111,11 +115,26 @@ export default async function AccountPage() {
   if (accountStudentsError) console.error("Error cargando estudiantes de cuenta:", accountStudentsError);
 
   const typedProfile = (profile || null) as AccountProfileWithNames | null;
-  const schoolOptions: SchoolRow[] = Array.isArray(schoolsData) ? (schoolsData as SchoolRow[]) : [];
+  const rawSchoolOptions: SchoolOptionRow[] = Array.isArray(schoolsData)
+    ? (schoolsData as SchoolOptionRow[])
+    : [];
   const schoolAdminRole = ((roles || []) as UserRoleRow[]).find(
     (role) => role.role === "school_admin" && role.school_id
   );
   const managedSchoolId = schoolAdminRole?.school_id || "";
+  const linkedSchoolIds = new Set(
+    ((accountStudents || []) as AccountStudentRow[])
+      .map((student) => student.school_id)
+      .filter((value): value is string => Boolean(value))
+  );
+  const schoolOptions: SchoolRow[] = rawSchoolOptions
+    .filter(
+      (school) =>
+        !school.is_test ||
+        school.id === managedSchoolId ||
+        linkedSchoolIds.has(school.id)
+    )
+    .map(({ is_test: _isTest, ...school }) => school);
   const legacyName = splitLegacyFullName(typedProfile?.full_name || metadata.full_name || null);
   const firstName = normalizeNamePart(typedProfile?.first_name || metadata.first_name || legacyName.firstName);
   const lastName = normalizeNamePart(typedProfile?.last_name || metadata.last_name || legacyName.lastName);

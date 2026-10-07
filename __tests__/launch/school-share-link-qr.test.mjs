@@ -77,3 +77,18 @@ test("school admins get a direct code menu and easy QR sharing", () => {
   assert.match(dashboard, /navigator\.canShare/);
   assert.match(dashboard, /files: \[file\]/);
 });
+
+
+test("QA schools stay usable by direct link/code but hidden from public discovery", () => {
+  const publicSchoolsRoute = read("app/api/schools/public/route.ts");
+  const codeRoute = read("app/api/schools/resolve-code/route.ts");
+  const migration = read("supabase/migrations/20261007070000_school_test_visibility.sql");
+
+  assert.match(migration, /is_test boolean not null default false/);
+  assert.match(migration, /set is_active = true,[\s\S]*is_test = true/);
+  assert.match(publicSchoolsRoute, /if \(id\)[\s\S]*eq\("is_active", true\)[\s\S]*maybeSingle/);
+  assert.match(publicSchoolsRoute, /let builder[\s\S]*eq\("is_active", true\)[\s\S]*eq\("is_test", false\)/);
+  assert.match(codeRoute, /school_access_codes/);
+  assert.match(codeRoute, /eq\("is_active", true\)/);
+  assert.doesNotMatch(codeRoute, /eq\("is_test", false\)/);
+});

@@ -154,7 +154,8 @@ export async function loadSuperAdminReport(
     admin
       .from("schools")
       .select("id", { count: "exact", head: true })
-      .eq("is_active", true),
+      .eq("is_active", true)
+      .eq("is_test", false),
     admin.from("profiles").select("id", { count: "exact", head: true }),
     admin
       .from("listings")

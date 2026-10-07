@@ -80,3 +80,8 @@ test("school liquidity uses account_students as canonical educational context", 
   assert.match(metrics, /linkedAccountIds/);
   assert.match(metrics, /!ownersWithActiveStudentContext\.has\(profile\.id\)/);
 });
+
+
+test("QA schools do not enter launch liquidity metrics", () => {
+  assert.match(page, /from\("schools"\)[\s\S]*eq\("is_test", false\)/);
+});
