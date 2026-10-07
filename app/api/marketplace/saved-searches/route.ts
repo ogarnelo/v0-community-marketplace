@@ -55,15 +55,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "search_intent_required" }, { status: 400 });
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("school_id")
-      .eq("id", user.id)
-      .maybeSingle();
+    const [
+      { data: profile },
+      { data: schoolAdminRole },
+      { data: primaryStudentContext },
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("school_id")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("user_roles")
+        .select("school_id")
+        .eq("user_id", user.id)
+        .eq("role", "school_admin")
+        .not("school_id", "is", null)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("account_students")
+        .select("school_id,is_primary,sort_order,created_at")
+        .eq("owner_user_id", user.id)
+        .eq("active", true)
+        .not("school_id", "is", null)
+        .order("is_primary", { ascending: false })
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    const schoolId = typeof profile?.school_id === "string" && profile.school_id.trim().length > 0
-      ? profile.school_id
-      : null;
+    const schoolId =
+      schoolAdminRole?.school_id?.trim() ||
+      primaryStudentContext?.school_id?.trim() ||
+      profile?.school_id?.trim() ||
+      null;
 
     const { data, error } = await supabase
       .from("saved_searches")
