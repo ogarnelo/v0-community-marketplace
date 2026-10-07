@@ -20,6 +20,7 @@ export default async function MarketplaceLayout({
         userName={navbarData.userName}
         isAdmin={navbarData.isAdmin}
         isSuperAdmin={navbarData.isSuperAdmin}
+        isSchoolAdmin={navbarData.isSchoolAdmin}
         adminHref={navbarData.adminHref}
         unreadMessagesCount={navbarData.unreadMessagesCount}
         unreadNotificationsCount={navbarData.unreadNotificationsCount}
