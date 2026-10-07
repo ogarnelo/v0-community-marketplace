@@ -97,6 +97,9 @@ test("school dashboard community uses account_students as the canonical educatio
   assert.match(page, /context\.school_id === effectiveSchoolId/);
   assert.match(page, /!ownersWithActiveEducationalContext\.has\(member\.id\)/);
   assert.match(page, /safeSchoolAdminRoles[\s\S]*schoolContextOwnerIds\.add/);
+  assert.match(page, /role === "school_admin" && Boolean\(role\.school_id\)/);
+  assert.match(page, /const effectiveSchoolId = schoolAdminRole\?\.school_id \|\| null/);
+  assert.doesNotMatch(page, /schoolAdminRole\?\.school_id \|\| profile\?\.school_id/);
 });
 
 
@@ -108,4 +111,34 @@ test("school admin identity overrides legacy profile user type on public surface
   assert.match(profile, /AMPA \/ centro educativo/);
   assert.match(messages, /schoolAdminUserIds/);
   assert.match(messages, /AMPA \/ centro educativo/);
+});
+
+
+test("marketplace keeps canonical school context for viewers and listings", () => {
+  const marketplace = read("app/marketplace/page.tsx");
+
+  assert.match(marketplace, /from\("user_roles"\)[\s\S]*role", "school_admin"/);
+  assert.match(marketplace, /from\("account_students"\)[\s\S]*eq\("active", true\)/);
+  assert.match(
+    marketplace,
+    /viewerSchoolId\s*=\s*[\s\S]*schoolAdminRole\?\.school_id[\s\S]*primaryStudentContext\?\.school_id[\s\S]*typedProfile\?\.school_id/
+  );
+  assert.match(
+    marketplace,
+    /const currentSellerSchoolId = item\.school_id \|\| sellerProfile\?\.schoolId \|\| null/
+  );
+});
+
+test("saved searches and favorites use the same canonical school context", () => {
+  const savedSearches = read("app/api/marketplace/saved-searches/route.ts");
+  const favorites = read("app/favorites/page.tsx");
+
+  for (const source of [savedSearches, favorites]) {
+    assert.match(source, /from\("user_roles"\)[\s\S]*role", "school_admin"/);
+    assert.match(source, /from\("account_students"\)[\s\S]*eq\("active", true\)/);
+    assert.match(
+      source,
+      /schoolAdminRole\?\.school_id[\s\S]*primaryStudentContext\?\.school_id[\s\S]*(?:profile|typedProfile)\?\.school_id/
+    );
+  }
 });
