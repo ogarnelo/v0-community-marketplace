@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { NavbarMessagesBadge } from "@/components/messages/navbar-messages-badge";
 import { NavbarNotificationsBell } from "@/components/notifications/navbar-notifications-bell";
@@ -63,8 +63,8 @@ export function Navbar({
   currentUserId,
 }: NavbarProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [schoolAdminSection, setSchoolAdminSection] = useState<"access" | "panel" | null>(null);
   const [displayName, setDisplayName] = useState(userName);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -193,6 +193,27 @@ export function Navbar({
   const showMessagesBadge = Boolean(currentUserId);
   const schoolAdminNavigation = isSchoolAdmin && effectiveAdminHref === "/admin/school";
 
+  useEffect(() => {
+    if (!schoolAdminNavigation || typeof window === "undefined") {
+      setSchoolAdminSection(null);
+      return;
+    }
+
+    const syncSchoolAdminSection = () => {
+      if (window.location.pathname !== "/admin/school") {
+        setSchoolAdminSection(null);
+        return;
+      }
+
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      setSchoolAdminSection(tab === "access" ? "access" : "panel");
+    };
+
+    syncSchoolAdminSection();
+    window.addEventListener("popstate", syncSchoolAdminSection);
+    return () => window.removeEventListener("popstate", syncSchoolAdminSection);
+  }, [pathname, schoolAdminNavigation]);
+
   const navItems = useMemo(
     () =>
       schoolAdminNavigation
@@ -212,6 +233,12 @@ export function Navbar({
           ],
     [publishHref, schoolAdminNavigation]
   );
+
+  const handleNavItemClick = (href: string) => {
+    if (href === "/admin/school?tab=access") setSchoolAdminSection("access");
+    if (href === "/admin/school") setSchoolAdminSection("panel");
+    setOpen(false);
+  };
 
   const handleMobileLogout = async () => {
     setIsLoggingOut(true);
@@ -235,10 +262,10 @@ export function Navbar({
   const isActive = (href: string) => {
     if (!pathname) return false;
     if (href === "/admin/school?tab=access") {
-      return pathname === "/admin/school" && searchParams.get("tab") === "access";
+      return pathname === "/admin/school" && schoolAdminSection === "access";
     }
     if (href === "/admin/school") {
-      return pathname === "/admin/school" && searchParams.get("tab") !== "access";
+      return pathname === "/admin/school" && schoolAdminSection !== "access";
     }
     if (href.includes("?")) return false;
     if (href === "/") return pathname === "/";
@@ -292,7 +319,7 @@ export function Navbar({
               variant={isActive(href) ? "secondary" : "ghost"}
               className="min-h-11 w-full justify-start gap-2"
             >
-              <Link href={href} onClick={() => setOpen(false)}>
+              <Link href={href} onClick={() => handleNavItemClick(href)}>
                 <Icon className="h-4 w-4" />
                 {label}
                 {href === "/messages" && showMessagesBadge ? (
@@ -407,7 +434,7 @@ export function Navbar({
                   size="sm"
                   className="gap-1.5"
                 >
-                  <Link href={href} className="relative">
+                  <Link href={href} className="relative" onClick={() => handleNavItemClick(href)}>
                     <Icon className="h-4 w-4" />
                     {label}
                     {href === "/messages" && showMessagesBadge ? (
