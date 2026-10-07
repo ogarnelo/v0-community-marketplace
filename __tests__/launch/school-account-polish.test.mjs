@@ -58,6 +58,9 @@ test("school admins use a centre-first account and navigation", () => {
   assert.match(navbar, /schoolAdminNavigation[\s\S]*Panel del centro/);
   assert.match(navbar, /schoolAdminNavigation[\s\S]*\/marketplace/);
   assert.match(navbar, /schoolAdminNavigation[\s\S]*\/messages/);
+  assert.match(navbar, /schoolAdminSection/);
+  assert.match(navbar, /effectiveAdminHref && !schoolAdminNavigation/);
+  assert.match(navbar, /new URLSearchParams\(window\.location\.search\)\.get\("tab"\)/);
   assert.match(account, /!managedSchoolId && \(userType === "parent" \|\| userType === "student"\)/);
   assert.match(account, /managedSchoolId \? "AMPA \/ centro"/);
   assert.match(form, /AMPA \/ centro educativo/);

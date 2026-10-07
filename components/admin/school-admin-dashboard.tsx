@@ -425,33 +425,38 @@ export default function SchoolAdminDashboard({
         typeof navigator.canShare === "function" &&
         navigator.canShare({ files: [file] })
       ) {
-        await navigator.share({
-          title: `Wetudy · ${school?.name || "Centro"}`,
-          text,
-          files: [file],
-        });
-        setQrShareStatus("QR compartido.");
-        return;
-      }
-
-      if (typeof navigator.share === "function") {
-        await navigator.share({
-          title: `Wetudy · ${school?.name || "Centro"}`,
-          text,
-          url,
-        });
-        setQrShareStatus("Enlace del centro compartido.");
-        return;
+        try {
+          await navigator.share({
+            title: `Wetudy · ${school?.name || "Centro"}`,
+            text,
+            files: [file],
+          });
+          setQrShareStatus("QR compartido.");
+          return;
+        } catch (shareError: any) {
+          if (shareError?.name === "AbortError") {
+            setQrShareStatus("Compartir cancelado. Puedes descargar el QR o copiar el enlace.");
+            return;
+          }
+          console.warn("El navegador no pudo compartir el archivo QR; usamos la descarga.", shareError);
+        }
       }
 
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = downloadUrl;
       anchor.download = file.name;
+      document.body.appendChild(anchor);
       anchor.click();
-      URL.revokeObjectURL(downloadUrl);
-      await navigator.clipboard.writeText(url);
-      setQrShareStatus("QR descargado y enlace copiado.");
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+
+      try {
+        await navigator.clipboard.writeText(url);
+        setQrShareStatus("QR descargado y enlace del centro copiado.");
+      } catch {
+        setQrShareStatus("QR descargado. Usa «Copiar enlace» para compartir también el acceso.");
+      }
     } catch (error: any) {
       if (error?.name === "AbortError") return;
       console.error("Error compartiendo QR:", error);
@@ -549,7 +554,7 @@ export default function SchoolAdminDashboard({
           <TabsTrigger value="impact" className="h-9">Impacto</TabsTrigger>
           <TabsTrigger value="activity" className="h-9">Actividad</TabsTrigger>
           <TabsTrigger value="community" className="h-9">Comunidad</TabsTrigger>
-          <TabsTrigger value="access" className="h-auto min-h-9 px-2 text-xs sm:text-sm">Código de colegio</TabsTrigger>
+          <TabsTrigger value="access" className="h-auto min-h-9 px-2 text-xs sm:text-sm">Código del centro</TabsTrigger>
         </TabsList>
 
         <TabsContent value="impact" className="mt-4 space-y-4">

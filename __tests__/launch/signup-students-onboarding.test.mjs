@@ -75,3 +75,13 @@ test("account holder identity remains separate from student alias", () => {
   assert.match(onboardingClient, /Nombre o alias/);
   assert.doesNotMatch(onboardingClient, /birth_date|date_of_birth|fechaNacimiento/);
 });
+
+
+test("school admins never enter personal student onboarding", () => {
+  assert.match(onboardingPage, /from\("user_roles"\)/);
+  assert.match(onboardingPage, /eq\("role", "school_admin"\)/);
+  assert.match(onboardingPage, /not\("school_id", "is", null\)/);
+  assert.match(onboardingPage, /redirect\("\/admin\/school"\)/);
+  assert.match(authForm, /hasSchoolAdminRole/);
+  assert.match(authForm, /!hasSchoolAdminRole && \(accountType === "parent" \|\| accountType === "student"\)/);
+});

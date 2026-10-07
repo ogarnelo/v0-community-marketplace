@@ -37,6 +37,8 @@ test("shared centre links preselect an active school and preserve it through sig
   assert.match(joinPage, /\/api\/schools\/public\?id=/);
   assert.doesNotMatch(joinPage, /\.from\("schools"\)/);
   assert.match(joinPage, /Preparando el centro/);
+  assert.match(joinPage, /setAuthChoiceRequired\(true\)/);
+  assert.match(joinPage, /Únete a tu comunidad educativa/);
   assert.match(joinPage, /¿Ya tienes cuenta en Wetudy\?/);
   assert.match(joinPage, /Ya tengo cuenta/);
   assert.match(joinPage, /Crear cuenta/);
@@ -66,16 +68,18 @@ test("school admins get a direct code menu and easy QR sharing", () => {
   const navbar = read("components/navbar.tsx");
   const dashboard = read("components/admin/school-admin-dashboard.tsx");
 
-  assert.match(navbar, /Código de colegio/);
+  assert.match(navbar, /Código del centro/);
   assert.match(navbar, /\/admin\/school\?tab=access/);
   assert.match(navbar, /effectiveAdminHref === "\/admin\/school"/);
 
   assert.match(dashboard, /new URLSearchParams\(window\.location\.search\)\.get\("tab"\)/);
-  assert.match(dashboard, /Código de colegio/);
+  assert.match(dashboard, /Código del centro/);
   assert.match(dashboard, /Compartir QR/);
   assert.match(dashboard, /Descargar QR/);
   assert.match(dashboard, /navigator\.canShare/);
   assert.match(dashboard, /files: \[file\]/);
+  assert.match(dashboard, /document\.body\.appendChild\(anchor\)/);
+  assert.match(dashboard, /QR descargado y enlace del centro copiado/);
 });
 
 

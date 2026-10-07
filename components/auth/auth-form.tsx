@@ -249,8 +249,35 @@ export function AuthForm() {
 
       let destination = nextPath || "/account";
       const accountType = data.user?.user_metadata?.user_type;
+      let hasSchoolAdminRole = false;
 
-      if (accountType === "parent" || accountType === "student") {
+      if (data.user?.id) {
+        try {
+          const { data: schoolAdminRole } = await supabase
+            .from("user_roles")
+            .select("school_id")
+            .eq("user_id", data.user.id)
+            .eq("role", "school_admin")
+            .not("school_id", "is", null)
+            .limit(1)
+            .maybeSingle();
+
+          hasSchoolAdminRole = Boolean(schoolAdminRole?.school_id);
+        } catch (roleError) {
+          console.warn("No se pudo comprobar el rol de centro tras login", roleError);
+        }
+      }
+
+      if (
+        hasSchoolAdminRole &&
+        (!nextPath ||
+          nextPath === "/onboarding/students" ||
+          nextPath.startsWith("/onboarding/students?"))
+      ) {
+        destination = "/admin/school";
+      }
+
+      if (!hasSchoolAdminRole && (accountType === "parent" || accountType === "student")) {
         try {
           const response = await fetch("/api/account/students", {
             method: "GET",

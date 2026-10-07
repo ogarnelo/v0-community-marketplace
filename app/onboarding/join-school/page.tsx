@@ -84,6 +84,10 @@ export default function JoinSchoolPage() {
 
         if (!sharedSchoolId) return;
 
+        if (!user) {
+          setAuthChoiceRequired(true);
+        }
+
         const response = await fetch(
           `/api/schools/public?id=${encodeURIComponent(sharedSchoolId)}`,
           { cache: "no-store" }
@@ -444,12 +448,18 @@ export default function JoinSchoolPage() {
       <Card className="w-full max-w-md border-border shadow-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl text-foreground">
-            {currentLinkedSchool && !changeSchoolMode && !found ? "Tu centro educativo" : "Añade tu centro"}
+            {authChoiceRequired && found
+              ? "Únete a tu comunidad educativa"
+              : currentLinkedSchool && !changeSchoolMode && !found
+                ? "Tu centro educativo"
+                : "Añade tu centro"}
           </CardTitle>
           <CardDescription>
-            {currentLinkedSchool && !changeSchoolMode && !found
-              ? "Tu cuenta ya pertenece a un centro. Desde aquí puedes cambiarlo o desvincularlo."
-              : "Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio."}
+            {authChoiceRequired && found
+              ? `Crea una cuenta o inicia sesión para continuar con ${found.name}.`
+              : currentLinkedSchool && !changeSchoolMode && !found
+                ? "Tu cuenta ya pertenece a un centro. Desde aquí puedes cambiarlo o desvincularlo."
+                : "Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio."}
           </CardDescription>
         </CardHeader>
 
@@ -701,38 +711,42 @@ export default function JoinSchoolPage() {
                 </Button>
               )}
 
-              <Button
-                variant="secondary"
-                className="w-full gap-2"
-                onClick={() => {
-                  if (currentLinkedSchool) {
-                    setFound(null);
-                    setChangeSchoolMode(false);
-                    setAuthChoiceRequired(false);
-                    setError("");
-                    return;
-                  }
-                  skipSchoolLinking();
-                }}
-                disabled={autoJoining}
-              >
-                {currentLinkedSchool ? "Mantener mi centro actual" : "Continuar sin centro por ahora"}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              {!authChoiceRequired ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      if (currentLinkedSchool) {
+                        setFound(null);
+                        setChangeSchoolMode(false);
+                        setAuthChoiceRequired(false);
+                        setError("");
+                        return;
+                      }
+                      skipSchoolLinking();
+                    }}
+                    disabled={autoJoining}
+                  >
+                    {currentLinkedSchool ? "Mantener mi centro actual" : "Continuar sin centro por ahora"}
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
 
-              <Button
-                variant="ghost"
-                className="w-full text-sm"
-                onClick={() => {
-                  setFound(null);
-                  setCode("");
-                  setValidatedCode("");
-                  setAuthChoiceRequired(false);
-                  setError("");
-                }}
-              >
-                Buscar otro centro
-              </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-sm"
+                    onClick={() => {
+                      setFound(null);
+                      setCode("");
+                      setValidatedCode("");
+                      setAuthChoiceRequired(false);
+                      setError("");
+                    }}
+                  >
+                    Buscar otro centro
+                  </Button>
+                </>
+              ) : null}
             </div>
           )}
         </CardContent>

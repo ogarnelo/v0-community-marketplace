@@ -52,6 +52,23 @@ export default async function StudentsOnboardingPage({
     typeof requested.next === "string" ? requested.next : null;
   const safeNext = getSafeInternalPath(requestedNext);
 
+  const { data: schoolAdminRole, error: schoolAdminRoleError } = await supabase
+    .from("user_roles")
+    .select("school_id")
+    .eq("user_id", user.id)
+    .eq("role", "school_admin")
+    .not("school_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (schoolAdminRoleError) {
+    console.error("Onboarding estudiantes: error comprobando rol de centro", schoolAdminRoleError);
+  }
+
+  if (schoolAdminRole?.school_id) {
+    redirect("/admin/school");
+  }
+
   const metadata = (user.user_metadata || {}) as SafeMetadata;
 
   const [
