@@ -6,6 +6,7 @@ import { recordAttributedConversion } from "@/lib/growth/server-attribution";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 import { linkAgreementToNeed } from "@/lib/demand/need-attribution";
+import { deferProductEvent } from "@/lib/analytics/product-events.server";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -171,6 +172,10 @@ export async function POST(request: Request) {
       } catch (attributionError) {
         console.error("No se pudo atribuir el acuerdo confirmado", attributionError);
       }
+    }
+
+    if (isConfirmed) {
+      deferProductEvent("agreement_confirmed", { source: "chat_agreement" });
     }
 
     return NextResponse.json({ ok: true, agreement });

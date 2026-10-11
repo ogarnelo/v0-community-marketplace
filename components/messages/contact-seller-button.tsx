@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { track } from "@vercel/analytics";
 import { createClient } from "@/lib/supabase/client";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,8 @@ export function ContactSellerButton({
       if (!newConversation?.id) {
         throw new Error("No se pudo abrir la conversación.");
       }
+
+      track("conversation_started", { source: "contact_seller" });
 
       const { error: updateConversationError } = await supabase
         .from("conversations")

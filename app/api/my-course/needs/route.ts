@@ -6,6 +6,7 @@ import {
   listCourseNeeds,
   parseCourseNeedInput,
 } from "@/lib/my-course/course-needs-server";
+import { deferProductEvent } from "@/lib/analytics/product-events.server";
 
 function errorResponse(error: unknown) {
   if (error instanceof CourseNeedError) {
@@ -59,6 +60,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const input = parseCourseNeedInput(body);
     const need = await createCourseNeed(user.id, input);
+
+    deferProductEvent("course_need_created", { source: "mi_curso" });
 
     return NextResponse.json({ need }, { status: 201 });
   } catch (error) {
