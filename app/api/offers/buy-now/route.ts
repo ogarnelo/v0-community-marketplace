@@ -6,6 +6,7 @@ import { buildOfferChatBody } from "@/lib/offers/chat-message";
 import { createNotifications } from "@/lib/notifications";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
+import { deferProductEvent } from "@/lib/analytics/product-events.server";
 
 function isDeliveryMethod(value: unknown): value is DeliveryMethod {
   return value === "in_person" || value === "shipping";
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
       }
 
       conversationId = newConversation.id;
+      deferProductEvent("conversation_started", { source: "buy_now" });
     }
 
     if (conversationId) {
