@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Inter, DM_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Toaster } from "sonner"
 import { SessionInactivityGuard } from "@/components/auth/session-inactivity-guard"
 import { AcquisitionLandingTracker } from "@/components/growth/acquisition-landing-tracker"
@@ -93,6 +94,7 @@ export default function RootLayout({
         <AcquisitionLandingTracker />
         <Toaster position="top-right" />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
