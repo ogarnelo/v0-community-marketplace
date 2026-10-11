@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { track } from "@vercel/analytics";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,6 +163,8 @@ export default function JoinSchoolPage() {
     attributionQuery ? `${href}&${attributionQuery}` : href;
 
   const recordSchoolJoin = async (schoolId: string) => {
+    track("school_linked", { link_type: "profile" });
+
     await fetch("/api/analytics/acquisition", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
