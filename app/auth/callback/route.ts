@@ -4,6 +4,7 @@ import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/use
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanGrowthLabel, cleanGrowthPath } from "@/lib/growth/attribution";
+import { deferProductEvent } from "@/lib/analytics/product-events.server";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -88,9 +89,27 @@ export async function GET(request: Request) {
 
   }
 
+  const metadata = user.user_metadata || {};
+  const isSignupConfirmation =
+    metadata.wetudy_email_confirmation_required === true &&
+    (!safeNext ||
+      safeNext.startsWith("/onboarding/students") ||
+      safeNext.startsWith("/onboarding/join-school"));
+
+  if (isSignupConfirmation) {
+    const accountType =
+      metadata.user_type === "parent" ||
+      metadata.user_type === "student" ||
+      metadata.user_type === "business"
+        ? metadata.user_type
+        : "unknown";
+
+    deferProductEvent("signup_completed", { account_type: accountType });
+  }
+
   const destination =
     safeNext ||
-    ((user?.user_metadata || {}).user_type === "business"
+    (metadata.user_type === "business"
       ? "/account"
       : "/onboarding/students");
 
