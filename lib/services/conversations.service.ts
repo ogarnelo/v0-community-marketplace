@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { deferProductEvent } from "@/lib/analytics/product-events.server";
 
 export async function getOrCreateConversation(params: {
   supabase: SupabaseClient;
@@ -38,6 +39,7 @@ export async function getOrCreateConversation(params: {
     }
 
     conversationId = newConversation.id;
+    deferProductEvent("conversation_started", { source: "marketplace" });
   }
 
   await supabase
