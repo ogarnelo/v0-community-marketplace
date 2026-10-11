@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { track } from "@vercel/analytics";
 import {
   ArrowLeft,
   BookOpen,
@@ -852,6 +853,11 @@ export default function NewListingForm({
       if (insertError) throw insertError;
       const { error: listingPhotosError } = await supabase.from("listing_photos").insert(uploadedPhotoRows);
       if (listingPhotosError) throw listingPhotosError;
+
+      track("listing_created", {
+        listing_type: isDonation ? "donation" : "sale",
+        source: activationOpportunityKey ? "demand_opportunity" : "direct",
+      });
 
       void fetch("/api/marketplace/listing-draft", {
         method: "DELETE",
