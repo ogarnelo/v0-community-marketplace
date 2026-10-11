@@ -83,5 +83,6 @@ test("school admins never enter personal student onboarding", () => {
   assert.match(onboardingPage, /not\("school_id", "is", null\)/);
   assert.match(onboardingPage, /redirect\("\/admin\/school"\)/);
   assert.match(authForm, /hasSchoolAdminRole/);
-  assert.match(authForm, /!hasSchoolAdminRole && \(accountType === "parent" \|\| accountType === "student"\)/);
+  assert.match(authForm, /const shouldCheckStudents = accountType === "parent" \|\| accountType === "student"/);
+  assert.match(authForm, /!hasSchoolAdminRole && shouldCheckStudents && studentCount === 0/);
 });
