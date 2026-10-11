@@ -51,12 +51,13 @@ async function upsertProfileAfterAuth(params: {
   }
 }
 
-async function triggerWelcomeEmail() {
-  try {
-    await fetch("/api/emails/welcome", { method: "POST" });
-  } catch (error) {
+function triggerWelcomeEmail() {
+  void fetch("/api/emails/welcome", {
+    method: "POST",
+    keepalive: true,
+  }).catch((error) => {
     console.warn("No se pudo solicitar el email de bienvenida", error);
-  }
+  });
 }
 
 export function AuthForm() {
@@ -245,28 +246,54 @@ export function AuthForm() {
         return;
       }
 
-      await triggerWelcomeEmail();
+      triggerWelcomeEmail();
 
       let destination = nextPath || "/account";
       const accountType = data.user?.user_metadata?.user_type;
-      let hasSchoolAdminRole = false;
+      const shouldCheckStudents = accountType === "parent" || accountType === "student";
 
-      if (data.user?.id) {
-        try {
-          const { data: schoolAdminRole } = await supabase
+      const schoolAdminRolePromise = data.user?.id
+        ? supabase
             .from("user_roles")
             .select("school_id")
             .eq("user_id", data.user.id)
             .eq("role", "school_admin")
             .not("school_id", "is", null)
             .limit(1)
-            .maybeSingle();
+            .maybeSingle()
+            .then(({ data: schoolAdminRole, error: roleError }) => {
+              if (roleError) throw roleError;
+              return Boolean(schoolAdminRole?.school_id);
+            })
+            .catch((roleError) => {
+              console.warn("No se pudo comprobar el rol de centro tras login", roleError);
+              return false;
+            })
+        : Promise.resolve(false);
 
-          hasSchoolAdminRole = Boolean(schoolAdminRole?.school_id);
-        } catch (roleError) {
-          console.warn("No se pudo comprobar el rol de centro tras login", roleError);
-        }
-      }
+      const studentCountPromise = shouldCheckStudents
+        ? fetch("/api/account/students", {
+            method: "GET",
+            cache: "no-store",
+          })
+            .then(async (response) => {
+              const payload = await response.json().catch(() => null);
+              const students = Array.isArray(payload?.students) ? payload.students : [];
+              return response.ok ? students.length : null;
+            })
+            .catch((contextError) => {
+              console.warn(
+                "No se pudo comprobar el onboarding educativo tras login",
+                contextError
+              );
+              return null;
+            })
+        : Promise.resolve<number | null>(null);
+
+      const [hasSchoolAdminRole, studentCount] = await Promise.all([
+        schoolAdminRolePromise,
+        studentCountPromise,
+      ]);
 
       if (
         hasSchoolAdminRole &&
@@ -277,27 +304,11 @@ export function AuthForm() {
         destination = "/admin/school";
       }
 
-      if (!hasSchoolAdminRole && (accountType === "parent" || accountType === "student")) {
-        try {
-          const response = await fetch("/api/account/students", {
-            method: "GET",
-            cache: "no-store",
-          });
-          const payload = await response.json().catch(() => null);
-          const students = Array.isArray(payload?.students) ? payload.students : [];
-
-          if (response.ok && students.length === 0) {
-            destination =
-              nextPath && nextPath !== "/onboarding/students"
-                ? `/onboarding/students?next=${encodeURIComponent(nextPath)}`
-                : "/onboarding/students";
-          }
-        } catch (contextError) {
-          console.warn(
-            "No se pudo comprobar el onboarding educativo tras login",
-            contextError
-          );
-        }
+      if (!hasSchoolAdminRole && shouldCheckStudents && studentCount === 0) {
+        destination =
+          nextPath && nextPath !== "/onboarding/students"
+            ? `/onboarding/students?next=${encodeURIComponent(nextPath)}`
+            : "/onboarding/students";
       }
 
       window.location.assign(destination);
