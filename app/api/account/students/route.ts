@@ -6,6 +6,7 @@ import {
   listAccountStudents,
   parseStudentInput,
 } from "@/lib/account-students/server";
+import { deferProductEvent } from "@/lib/analytics/product-events.server";
 
 function errorResponse(error: unknown) {
   if (error instanceof AccountStudentError) {
@@ -59,6 +60,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const input = parseStudentInput(body);
     const student = await createAccountStudent(user.id, input);
+
+    deferProductEvent("school_linked", { link_type: "student_context" });
 
     return NextResponse.json({ student }, { status: 201 });
   } catch (error) {
