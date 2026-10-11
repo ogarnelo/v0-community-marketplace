@@ -79,6 +79,15 @@ test("browser auth callbacks remain on the current host and recover an existing 
   assert.match(authForm, /router\.replace\(nextPath \|\| "\/account"\)/);
 });
 
+test("login completion avoids avoidable mobile network waterfalls", () => {
+  assert.match(authForm, /keepalive: true/);
+  assert.match(authForm, /triggerWelcomeEmail\(\);/);
+  assert.doesNotMatch(authForm, /await triggerWelcomeEmail\(\)/);
+  assert.match(authForm, /Promise\.all\(\[/);
+  assert.match(guard, /supabase\.auth\.getSession\(\)/);
+  assert.doesNotMatch(guard, /supabase\.auth\.getUser\(\)/);
+});
+
 test("protected destinations survive a required login", () => {
   assert.match(messages, /\/auth\?next=\/messages/);
   assert.match(detail, /\/auth\?next=\/messages\//);

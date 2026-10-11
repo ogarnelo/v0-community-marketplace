@@ -69,7 +69,8 @@ test("email confirmation and later login cannot silently skip required education
   assert.match(confirmRoute, /safeNext === "\/onboarding\/join-school"/);
   assert.match(confirmRoute, /"\/onboarding\/students"/);
   assert.match(authForm, /fetch\("\/api\/account\/students"/);
-  assert.match(authForm, /students\.length === 0/);
+  assert.match(authForm, /const students = Array\.isArray\(payload\?\.students\) \? payload\.students : \[\]/);
+  assert.match(authForm, /studentCount === 0/);
   assert.match(authForm, /\/onboarding\/students/);
 });
 

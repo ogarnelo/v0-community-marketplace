@@ -3,9 +3,15 @@ import { AuthForm } from "@/components/auth/auth-form"
 import { BookOpen } from "lucide-react"
 import Link from "next/link"
 
+const TURNSTILE_SCRIPT_SRC =
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+
 export default function AuthPage() {
   return (
     <div className="flex min-h-screen">
+      <link rel="preconnect" href="https://challenges.cloudflare.com" />
+      <link rel="dns-prefetch" href="https://challenges.cloudflare.com" />
+      <link rel="preload" as="script" href={TURNSTILE_SCRIPT_SRC} />
       {/* Left panel - branding */}
       <div className="hidden flex-1 flex-col justify-between bg-primary p-10 lg:flex">
         <Link href="/" className="flex items-center gap-2">
