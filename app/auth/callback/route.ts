@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
 import { getSafeInternalPath } from "@/lib/auth/safe-next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cleanGrowthLabel, cleanGrowthPath } from "@/lib/growth/attribution";
 import { deferProductEvent } from "@/lib/analytics/product-events.server";
+import { notifySuperadminsOfConfirmedSignup } from "@/lib/emails/signup-admin-alert";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -105,6 +106,7 @@ export async function GET(request: Request) {
         : "unknown";
 
     deferProductEvent("signup_completed", { account_type: accountType });
+    after(() => notifySuperadminsOfConfirmedSignup({ userId: user.id, accountType }));
   }
 
   const destination =
