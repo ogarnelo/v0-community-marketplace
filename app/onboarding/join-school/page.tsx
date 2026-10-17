@@ -649,7 +649,7 @@ export default function JoinSchoolPage() {
                       </div>
                     ) : filteredSchools.length === 0 ? (
                       <p className="p-3 text-center text-sm text-muted-foreground">
-                        No se encontraron centros
+                        No encontramos ningún centro con ese nombre. Si tu colegio todavía no figura en Wetudy, puedes pedirnos que lo añadamos.
                       </p>
                     ) : (
                       filteredSchools.map((school) => (
@@ -680,12 +680,12 @@ export default function JoinSchoolPage() {
                   </div>
 
                   <p className="text-center text-xs text-muted-foreground">
-                    Si tu centro aparece, tócalo para vincular tu cuenta. Si no existe todavía, puedes solicitar su alta o continuar y añadirlo después.
+                    Si tu centro aparece, tócalo para vincular tu cuenta. Si no aparece, puedes solicitar su incorporación o continuar sin centro por ahora.
                   </p>
 
-                  <Link href="/register-school">
+                  <Link href="/help">
                     <Button variant="outline" className="w-full">
-                      Solicitar alta de AMPA o centro
+                      Solicitar que añadan mi colegio
                     </Button>
                   </Link>
                 </div>
