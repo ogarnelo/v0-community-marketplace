@@ -13,6 +13,48 @@ export interface BlogPost {
 
 export const posts: BlogPost[] = [
   {
+    id: 12,
+    slug: "donde-comprar-libros-texto-segunda-mano-espana",
+    title: "Dónde comprar libros de texto de segunda mano en España",
+    description:
+      "Opciones para encontrar libros de texto usados en España y comprobar ISBN, edición, estado y condiciones antes de comprar.",
+    category: "Ahorro",
+    readingTime: "5 min lectura",
+    date: "17 Oct 2026",
+    publishedAt: "2026-10-17",
+    content: [
+      "Si necesitas comprar libros de texto de segunda mano en España, empieza por la lista oficial de tu colegio o instituto. Comprueba qué libros son obligatorios, cuáles se entregan en préstamo y cuáles deben comprarse por cuenta de la familia. Las condiciones pueden variar según el centro y la comunidad autónoma.",
+      "Una primera opción es preguntar al AMPA o AFA del centro si organiza un banco de libros, una jornada de intercambio o algún canal entre familias. También puedes consultar librerías de segunda mano, asociaciones locales y plataformas donde otras personas anuncian materiales escolares.",
+      "Al buscar por internet, combina el título con la editorial, el curso y, sobre todo, el ISBN. Dos libros de la misma asignatura pueden parecer iguales y pertenecer a ediciones diferentes. Si el código no coincide con el listado del centro, confirma antes con el profesorado si la edición sirve.",
+      "Revisa las fotos reales del ejemplar, el lomo, las páginas interiores y cualquier anotación. Si se trata de un cuaderno de actividades, pregunta si los ejercicios están escritos. Solicita información sobre posibles materiales complementarios, como cuadernillos o accesos digitales, sin asumir que se pueden transferir.",
+      "Compara el precio junto con los gastos y las condiciones de entrega. Si el intercambio es presencial, acuerda un lugar y horario adecuados; si hay envío, deja claros el estado del libro y los detalles antes de cerrar el trato. Evita pagar por métodos que no comprendas o que no permitan acreditar el acuerdo.",
+      "En Wetudy las familias pueden buscar anuncios de material escolar usado y ponerse en contacto por chat para resolver dudas. La entrega y el pago se acuerdan directamente entre las partes; Wetudy no garantiza que exista un título concreto disponible en cada localidad.",
+      "Por último, guarda la lista del centro hasta haber revisado todo el material recibido. Comprar una edición correcta y en buen estado es más útil que elegir la primera oferta que aparezca.",
+    ],
+  },
+  {
+    id: 13,
+    slug: "organizar-intercambio-libros-colegio-familias-espana",
+    title: "Cómo organizar un intercambio de libros escolares entre familias de un colegio",
+    description:
+      "Guía práctica para AMPAs, AFAs y familias que quieren organizar intercambio o donación de libros escolares en España.",
+    category: "Educación",
+    readingTime: "6 min lectura",
+    date: "17 Oct 2026",
+    publishedAt: "2026-10-17",
+    content: [
+      "Organizar un intercambio de libros de texto entre familias puede ayudar a aprovechar ejemplares que siguen siendo útiles. No hace falta comenzar con una campaña grande: un colegio puede probar primero con unos pocos cursos y reglas sencillas.",
+      "El primer paso es consultar al centro educativo las listas vigentes de libros, las ediciones aceptadas y si existe un programa de préstamo o gratuidad de materiales. En España, estas medidas y los requisitos concretos no son iguales en todas las comunidades autónomas ni centros.",
+      "Con esa información, define qué materiales se admiten. Para libros, pide título, curso, asignatura, editorial, ISBN y una descripción del estado. Indica si se aceptan libros con anotaciones, cuadernos ya utilizados o lotes incompletos. Cuanto más claras sean las reglas, menos dudas surgirán durante el intercambio.",
+      "El AMPA o AFA puede elegir un formato sencillo: una jornada presencial, una lista de anuncios o un espacio digital donde las familias contacten. Conviene explicar si el objetivo es exclusivamente donar, intercambiar o también permitir compraventa entre particulares, porque son acuerdos distintos.",
+      "Si se organiza una jornada, prepara zonas separadas por etapas o cursos y una forma de comprobar el ISBN. Para evitar confusiones, cada libro puede acompañarse de una ficha con su título, edición, estado y persona de contacto. No publiques datos personales o información sobre la situación económica de las familias.",
+      "Si el contacto se realiza mediante una plataforma, recomienda que las familias aclaren las condiciones directamente y que no compartan información innecesaria sobre menores. En Wetudy se pueden publicar materiales y conversar por chat; la entrega y el pago se acuerdan entre las partes.",
+      "Antes de terminar, recoge preguntas frecuentes: qué cursos han tenido más solicitudes, qué libros no sirven por cambios de edición y qué categorías han interesado. Esta información puede ayudar al centro y a la asociación a preparar la siguiente convocatoria.",
+      "Un proyecto pequeño, con información correcta y expectativas realistas, suele ser más fácil de mantener que un sistema complejo desde el primer día. El objetivo es facilitar la reutilización sin sustituir los programas oficiales de préstamo ni las decisiones del centro sobre materiales.",
+    ],
+  },
+
+  {
     id: 11,
     slug: "como-buscar-libros-texto-usados-isbn",
     title: "Cómo buscar libros de texto usados por ISBN y evitar equivocarte",
