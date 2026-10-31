@@ -8,6 +8,7 @@ const route = readFileSync("app/api/marketplace/ai-assist/route.ts", "utf8");
 test("AI assistance is opt-in and never publishes a listing", () => {
   assert.match(form, /Completar con IA/);
   assert.match(form, /onClick={handleAiAssist}/);
+  assert.match(form, /process\.env\.NEXT_PUBLIC_AI_PUBLISH_PILOT === "true"/);
   assert.match(form, /Revisa el resultado antes de publicar/);
   assert.match(route, /No publiques nada/);
   assert.doesNotMatch(route, /\.from\(["']listings["']\)\.insert/);
