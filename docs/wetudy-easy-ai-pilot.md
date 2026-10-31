@@ -6,7 +6,7 @@ La opción **Completar con IA** se muestra dentro del formulario actual de publi
 Tras pulsarla, se envían **como máximo dos fotos nuevas**, JPG/PNG/WEBP de hasta 3 MB cada una, a un endpoint autenticado de Next.js.
 Se solicitan sugerencias de título, descripción, categoría y, cuando son verificables, curso, ISBN, editorial, marca y modelo.
 
-- **No publica anuncios** ni guarda fotos en el proveedor de IA de manera deliberada: `store: false` en la solicitud.
+- **No publica anuncios**. La solicitud envía `store: false` para no almacenar respuestas como datos de aplicación, pero siguen aplicándose las políticas de retención y seguridad del proveedor.
 - **No modifica precio, estado ni venta/donación**.
 - **No sobrescribe campos que la familia ya ha rellenado**.
 - El anuncio sigue publicándose solo por el flujo actual y con sus validaciones.
@@ -20,6 +20,7 @@ Variables **solo de servidor**, configuradas en un entorno de pruebas (Preview) 
 
 | Variable | Valor |
 |---|---|
+| `NEXT_PUBLIC_AI_PUBLISH_PILOT` | `true` para mostrar el botón en Preview (no contiene secretos) |
 | `AI_PUBLISH_ENABLED` | `true` para habilitar pruebas |
 | `OPENAI_API_KEY` | Clave secreta del proyecto API, nunca `NEXT_PUBLIC_` |
 | `AI_PUBLISH_ALLOWED_USER_IDS` | UUID de una o varias cuentas piloto separadas por coma |
