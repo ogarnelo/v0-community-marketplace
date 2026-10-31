@@ -1031,6 +1031,7 @@ export default function NewListingForm({
               })}
             </div>
             {photoError && <p className="mt-3 text-sm text-destructive">{photoError}</p>}
+            {process.env.NEXT_PUBLIC_AI_PUBLISH_PILOT === "true" ? (
             <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
               <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
@@ -1048,6 +1049,7 @@ export default function NewListingForm({
               {aiMessage ? <p role="status" className="mt-3 text-sm text-foreground">{aiMessage}</p> : null}
               {aiError ? <p role="alert" className="mt-3 text-sm text-destructive">{aiError}</p> : null}
             </div>
+            ) : null}
 
           </SectionCard>
 
