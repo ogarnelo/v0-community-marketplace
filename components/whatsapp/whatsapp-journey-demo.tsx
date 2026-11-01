@@ -173,11 +173,23 @@ export default function WhatsappJourneyDemo() {
               <Bubble author="you">{pictureUrl ? <img src={pictureUrl} className="max-h-48 rounded-lg object-contain" alt="Fotografía local" /> : "📷 [Foto de ejemplo]"}</Bubble>
             )}
             {["photo", "details", "review", "complete"].includes(stage) && (
-              <Bubble author="bot">He preparado una propuesta de ejemplo. Primero confirmamos la categoría, el título y la descripción. Después revisamos los filtros propios de ese artículo, su estado y el precio o donación.</Bubble>
+              <Bubble author="bot">
+                <strong>📷 Propuesta de anuncio (ejemplo · sin publicar)</strong>
+                <div className="mt-3 space-y-1">
+                  <p><strong>📦 Título:</strong> {exampleFor("Tecnología y calculadoras").title}</p>
+                  <p><strong>📝 Descripción:</strong> {exampleFor("Tecnología y calculadoras").description}</p>
+                  <p><strong>🏷️ Categoría:</strong> Tecnología y calculadoras</p>
+                  <p><strong>🔎 Tipo:</strong> Calculadora científica</p>
+                  <p><strong>🔎 Marca:</strong> Casio</p>
+                  <p><strong>🔎 Modelo:</strong> fx-82SP CW</p>
+                </div>
+                <p className="mt-3"><strong>¿Te parece correcta esta propuesta?</strong> Responde SI para confirmar categoría, título y descripción juntos, o EDITAR para corregirlos. Después solo faltarán el estado, la venta o donación y el precio si procede.</p>
+              </Bubble>
             )}
             {stage === "photo" && (
-              <div className="flex justify-center">
-                <button onClick={() => setStage("details")} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white">Revisar todos los campos</button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <button onClick={() => setStage("details")} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white">SI · Confirmar propuesta</button>
+                <button onClick={() => setStage("details")} className="rounded-xl border border-emerald-700 bg-white px-5 py-3 text-sm font-semibold text-emerald-800">EDITAR propuesta</button>
               </div>
             )}
 
