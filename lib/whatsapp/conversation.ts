@@ -191,9 +191,27 @@ export function startWhatsappListing(
     if (target.options && !target.options.includes(safe)) continue;
     draft[key] = key === "isbn" ? normalizeIsbn(safe)?.canonicalIsbn || safe : safe;
   }
+  const suggestedDetails = detailFieldsForCategory(category)
+    .filter((field) => Boolean(draft[field.key]))
+    .map((field) => `${field.label}: ${draft[field.key]}`);
   return {
     state: { step: "category", payload: draft, draftPhotoPath: photoPath },
-    response: `📷 Foto recibida. He preparado un BORRADOR, todavía no publicado.\n\n${categoryPrompt(category)}\n\nPuedes escribir CANCELAR en cualquier momento.`,
+    response: [
+      "📷 He preparado esta propuesta de anuncio (BORRADOR, sin publicar):",
+      "",
+      `📦 Título: ${draft.title || "[pendiente]"}`,
+      `📝 Descripción: ${draft.description || "[pendiente]"}`,
+      `🏷️ Categoría: ${category || "[pendiente]"}`,
+      ...(gradeLevel ? [`🎓 Curso sugerido: ${gradeLevel}`] : []),
+      ...suggestedDetails.map((detail) => `🔎 ${detail}`),
+      "",
+      "¿Son correctos la categoría, el título y la descripción?",
+      "SI — aceptar los tres y revisar solo los datos pendientes.",
+      "EDITAR — corregir título o descripción.",
+      "CAMBIAR — elegir otra categoría.",
+      "CANCELAR — descartar.",
+      "Tu respuesta SI no publica nada. El anuncio solo se publicará con una confirmación final PUBLICAR.",
+    ].join("\\n"),
   };
 }
 
@@ -232,17 +250,46 @@ export function advanceWhatsappListing(state: WhatsappState, incoming: string): 
 
   const draft = { ...state.payload };
   if (state.step === "category") {
+    if (upper === "CAMBIAR") {
+      return { state, response: categoryPrompt(draft.category) };
+    }
+    if (upper === "EDITAR") {
+      if (!draft.category) return { state, response: categoryPrompt() };
+      return {
+        state: { ...state, step: "title", payload: draft },
+        response: `Título propuesto: ${draft.title || "(sin título)"}\\n\\n${TITLE_PROMPT}`,
+      };
+    }
+
     const selected = upper === "SI" || upper === "SÍ" ? draft.category : normalizeCategory(input);
     if (!selected) return { state, response: categoryPrompt(draft.category) };
     if (selected !== draft.category) {
       draft.category = selected;
       draft.gradeLevel = undefined;
       for (const key of DETAIL_KEYS) delete draft[key];
+      // Category changes can invalidate AI descriptions: require an explicit
+      // second review instead of silently accepting the old suggestion.
+      return {
+        state: { ...state, step: "title", payload: draft },
+        response: `Categoría actualizada a ${selected}. Revisa el título: ${draft.title || "(sin título)"}\\n\\n${TITLE_PROMPT}`,
+      };
     }
-    return {
-      state: { ...state, step: "title", payload: draft },
-      response: `Título propuesto: ${draft.title || "(sin título)"}\n\n${TITLE_PROMPT}`,
-    };
+    if (!draft.title || draft.title.trim().length < 12) {
+      return {
+        state: { ...state, step: "title", payload: draft },
+        response: `Falta confirmar el título. ${TITLE_PROMPT}`,
+      };
+    }
+    if (!draft.description || draft.description.trim().length < 40) {
+      return {
+        state: { ...state, step: "description", payload: draft },
+        response: descriptionPrompt(draft.description),
+      };
+    }
+    // One SI accepts the proposed category/title/description together.
+    // Specific details and the final explicit PUBLICAR remain separate.
+    draft.detailIndex = 0;
+    return keepPhoto(state, nextDetail(draft));
   }
 
   if (state.step === "title") {
