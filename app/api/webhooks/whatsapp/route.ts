@@ -45,7 +45,7 @@ async function replyToLinkSuccess(to: string) {
         messaging_product: "whatsapp",
         to,
         type: "text",
-        text: { preview_url: false, body: "✅ Tu WhatsApp ya está vinculado a Wetudy. ¡Pronto podrás publicar material escolar desde aquí!" },
+        text: { preview_url: false, body: process.env.WHATSAPP_PUBLISH_ENABLED === "true" && process.env.WHATSAPP_AI_ENABLED === "true" && process.env.OPENAI_API_KEY && process.env.VERCEL_ENV === "preview"\n          ? "✅ WhatsApp vinculado a Wetudy. Envíame una foto para crear un anuncio y te guiaré paso a paso."\n          : "✅ Tu WhatsApp está vinculado a Wetudy. La publicación por chat todavía no está habilitada." },
       }),
       signal: AbortSignal.timeout(8000),
     });
