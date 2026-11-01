@@ -12,7 +12,7 @@ drop policy if exists "WhatsApp drafts accessible to service role only" on stora
 create table if not exists public.whatsapp_listing_sessions (
   user_id uuid primary key references auth.users(id) on delete cascade,
   step text not null default 'idle'
-    check (step in ('idle','title','description','condition','intent','price','grade','review','published')),
+    check (step in ('idle','category','title','description','details','condition','intent','price','originalPrice','grade','review','published')),
   payload jsonb not null default '{}'::jsonb
     check (jsonb_typeof(payload) = 'object'),
   draft_photo_path text,
@@ -104,7 +104,7 @@ create or replace function public.complete_whatsapp_incoming(
 language plpgsql security definer set search_path = ''
 as $$
 begin
-  if p_step not in ('idle','title','description','condition','intent','price','grade','review','published')
+  if p_step not in ('idle','category','title','description','details','condition','intent','price','originalPrice','grade','review','published')
      or jsonb_typeof(p_payload) <> 'object' or pg_catalog.octet_length(p_payload::text) > 12000
      or (p_photo_path is not null and (
        length(p_photo_path) > 300 or
