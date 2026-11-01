@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, ImagePlus, MessageCircle, Send, Sparkles } from "lucide-react";
-import { bookFormats, bookLanguages, categories, conditions, gradeLevels } from "@/lib/mock-data";
+import { bookFormats, categories, conditions, gradeLevels } from "@/lib/mock-data";
+import { isValidIsbn } from "@/lib/books/isbn";
 import {
   detailFieldsForCategory, type WhatsappDetailKey,
 } from "@/lib/whatsapp/category-fields";
@@ -118,9 +119,10 @@ export default function WhatsappJourneyDemo() {
     ...(!categories.includes(form.category) ? ["Categoría"] : []),
     ...(needsCourse(form.category) && !gradeLevels.includes(form.gradeLevel) ? ["Curso o etapa"] : []),
     ...(!conditions.some((condition) => condition.value === form.condition) ? ["Estado"] : []),
-    ...(form.kind === "sale" && (!Number.isFinite(Number(form.price)) || Number(form.price) <= 0) ? ["Precio de venta"] : []),
+    ...(form.kind === "sale" && (!Number.isFinite(Number(form.price)) || Number(form.price) <= 0 || Number(form.price) > 10000) ? ["Precio de venta entre 0,01 y 10.000 €"] : []),
     ...(form.kind === "sale" && form.originalPrice.trim() &&
-      (!Number.isFinite(Number(form.originalPrice)) || Number(form.originalPrice) < 0) ? ["Precio original válido"] : []),
+      (!Number.isFinite(Number(form.originalPrice)) || Number(form.originalPrice) < 0 || Number(form.originalPrice) > 10000) ? ["Precio original válido"] : []),
+    ...(form.details.isbn && !isValidIsbn(form.details.isbn) ? ["ISBN válido o ISBN vacío"] : []),
   ];
 
   return (
