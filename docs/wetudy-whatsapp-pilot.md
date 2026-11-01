@@ -53,3 +53,10 @@ Para cada campo opcional el usuario puede responder SI cuando hay una sugerencia
 Se comprueba ISBN cuando se proporciona; se rechazan predicciones no verificables. El resumen incluye los detalles y se guardan en `listings` (`isbn`, `subject`, `publisher`, `author`, `format`, `language`, `specific_type`, `size_label`, `season`, `brand`, `model`, `original_price`).
 
 La demo visual `/demo/wetudy-whatsapp` deja cambiar de categoría para ver cómo cambian los campos. Utiliza **ejemplos fijos**, no análisis real de la foto elegida. La conversación real se ejecutará con mensajes individuales cuando se configure Meta y una base de pruebas aislada.
+
+### Optimización de mensajes: propuesta compacta
+
+Cuando llega la fotografía, el primer mensaje de Wetudy **incluye directamente** título, descripción, categoría, curso (si se reconoce) y detalles visibles; no envía un mensaje previo anunciando qué va a hacer.
+El usuario contesta **SI** para aceptar categoría, título y descripción de una sola vez y pasar a los detalles pendientes; **EDITAR** para recorrer título y descripción; **CAMBIAR** para pedir el selector de categorías; **CANCELAR** para descartar. Si faltan título, categoría o descripción, SI no los considera aceptados y se solicitan.
+Ninguno de estos comandos publica un anuncio. La publicación sigue requiriendo la revisión final y el comando exacto **PUBLICAR**.
+La demo muestra esa propuesta directamente en una única burbuja del asistente. Es una simulación y no analiza imágenes reales.
