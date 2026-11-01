@@ -33,3 +33,23 @@ La ruta `/demo/wetudy-whatsapp` ofrece una **simulación interactiva** sin neces
 Completar configuración aislada de Meta y Supabase, probar con fotos reales, añadir envío fiable/reintentos de respuestas, automatizar limpieza, integrar métricas de conversión y costes, validar RGPD y unificar la capa de IA con PR #231. Incorporar consultas guiadas sobre ISBN y detalles del centro solo cuando sean necesarios y verificables. Preparar pruebas de extremo a extremo antes de cualquier despliegue público.
 
 Meta limita las respuestas libres a una ventana de 24 horas desde el último mensaje recibido; fuera de ella solo se pueden usar plantillas aprobadas. Los mensajes de servicio pueden generar coste según tarifas vigentes.
+
+## Datos por categoría: paridad con el formulario web (2026-11-01)
+
+La IA sugiere **título, descripción, categoría, curso y detalles verificables**. Antes de publicar el bot exige confirmar la categoría y el título, revisar la **descripción de al menos 40 caracteres**, indicar el **estado real**, decidir **venta o donación** y, para venta, **precio > 0**. El precio original es opcional. Una foto real es obligatoria.
+
+| Categoría | Detalles opcionales de la ficha | Obligación adicional |
+|---|---|---|
+| Libros de texto | ISBN válido, asignatura, editorial, autor, formato, idioma | Curso confirmado |
+| Lectura y literatura | ISBN válido, autor, editorial, formato, idioma | Curso confirmado |
+| Uniformes | Tipo de prenda, talla, temporada | Ninguna |
+| Material escolar | Tipo de material | Ninguna |
+| Tecnología y calculadoras | Tipo de dispositivo, marca, modelo | Ninguna |
+| Mochilas y estuches | Tipo de artículo, marca | Ninguna |
+| Música, deporte, universitario y otros | Detalles en la descripción | Ninguna |
+
+Para cada campo opcional el usuario puede responder SI cuando hay una sugerencia, introducir un valor distinto, OMITIR o OMITIR TODO para saltar el resto. Los valores de los selectores siguen el formulario web. No se fuerza estudiante/curso en artículos transversales como mochilas.
+
+Se comprueba ISBN cuando se proporciona; se rechazan predicciones no verificables. El resumen incluye los detalles y se guardan en `listings` (`isbn`, `subject`, `publisher`, `author`, `format`, `language`, `specific_type`, `size_label`, `season`, `brand`, `model`, `original_price`).
+
+La demo visual `/demo/wetudy-whatsapp` deja cambiar de categoría para ver cómo cambian los campos. Utiliza **ejemplos fijos**, no análisis real de la foto elegida. La conversación real se ejecutará con mensajes individuales cuando se configure Meta y una base de pruebas aislada.
