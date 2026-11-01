@@ -59,10 +59,10 @@ const move = (last, message) => advanceWhatsappListing(last.state, message);
 function throughToDetails(suggestion={}) {
   let step = begin(suggestion);
   assert.equal(step.state.step, "category");
-  step = move(step,"SI");
-  assert.equal(step.state.step, "title");
-  step = move(step,"SI");
-  assert.equal(step.state.step, "description");
+  assert.match(step.response,/Título: /);
+  assert.match(step.response,/Descripción: /);
+  assert.match(step.response,/Categoría: /);
+  assert.match(step.response,/SI — aceptar los tres/);
   step = move(step,"SI");
   assert.equal(step.state.step, "details");
   return step;
@@ -92,10 +92,12 @@ test("technology asks type, brand and model, then requires condition, sale, pric
   assert.equal(confirmed.state.step,"review");
 });
 
-test("user may correct description before proceeding; empty or short descriptions block progress", () => {
+test("user may edit the combined proposal and correct description before proceeding", () => {
   let step = begin();
+  step = move(step,"EDITAR");
+  assert.equal(step.state.step,"title");
   step = move(step,"SI");
-  step = move(step,"SI");
+  assert.equal(step.state.step,"description");
   step = move(step,"muy corto");
   assert.equal(step.state.step,"description");
   const full = "Calculadora con funda protectora y manual de instrucciones, incluye tapa y pilas nuevas.";
@@ -173,4 +175,38 @@ test("no missing category/title/description gets silently accepted", () => {
   step = move(step,"Calculadora científica escolar");
   assert.equal(step.state.step,"description");
   step = move(step,"SI"); assert.equal(step.state.step,"description");
+});
+
+test("one SI accepts complete proposal but still requires condition, kind, price and final PUBLICAR", () => {
+  let step = begin();
+  assert.match(step.response, /📷 He preparado esta propuesta de anuncio/);
+  assert.match(step.response, /Marca: Casio/);
+  assert.match(step.response, /Modelo: fx-82SP CW/);
+  assert.doesNotMatch(step.response, /1\. Libros de texto/);
+  step = move(step, "SI");
+  assert.equal(step.state.step, "details");
+  step = move(step, "OMITIR TODO");
+  assert.equal(step.state.step, "condition");
+  assert.notEqual(step.publish, true);
+  step = move(step, "4");
+  assert.equal(step.state.step, "intent");
+  step = move(step, "1");
+  assert.equal(step.state.step, "price");
+  step = move(step, "12");
+  assert.equal(step.state.step, "originalPrice");
+  step = move(step, "OMITIR");
+  assert.equal(step.state.step, "review");
+  assert.notEqual(move(step, "SI").publish, true);
+  assert.equal(move(step, "PUBLICAR").publish, true);
+});
+
+test("category choice appears only when requested and changes clear incompatible details", () => {
+  let step = begin();
+  step = move(step, "CAMBIAR");
+  assert.equal(step.state.step, "category");
+  assert.match(step.response, /1\. Libros de texto/);
+  step = move(step, "4");
+  assert.equal(step.state.step, "title");
+  assert.equal(step.state.payload.category, "Uniformes");
+  assert.equal(step.state.payload.brand, undefined);
 });
