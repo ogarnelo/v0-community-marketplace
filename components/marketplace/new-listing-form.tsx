@@ -242,6 +242,9 @@ export default function NewListingForm({
   const [season, setSeason] = useState("");
   const [photos, setPhotos] = useState<PreviewFile[]>([]);
   const [photoError, setPhotoError] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
+  const [aiError, setAiError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [draftLoading, setDraftLoading] = useState(true);
@@ -562,6 +565,74 @@ export default function NewListingForm({
       if (target?.file && target.previewUrl) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((_, i) => i !== index);
     });
+  };
+
+
+  const handleAiAssist = async () => {
+    setAiError("");
+    setAiMessage("");
+
+    // Photo files are sent only after the user explicitly presses the AI button.
+    // Previously saved draft photos are not sent through unauthenticated public URLs.
+    const freshPhotos = photos.filter((photo) => photo.file instanceof File).slice(0, 2);
+    if (freshPhotos.length === 0) {
+      setAiError("Selecciona una foto nueva para que la IA pueda analizarla. Los borradores guardados siguen disponibles.");
+      return;
+    }
+    if (freshPhotos.some((photo) => !photo.file || photo.file.size > 3 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(photo.file.type))) {
+      setAiError("Para utilizar la IA, selecciona fotos JPG, PNG o WEBP de hasta 3 MB cada una.");
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const formData = new FormData();
+      for (const photo of freshPhotos) {
+        if (photo.file) formData.append("photos", photo.file);
+      }
+      const response = await fetch("/api/marketplace/ai-assist", {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "No se ha podido analizar el material.");
+
+      const suggestion = result?.suggestion as {
+        title?: string | null;
+        description?: string | null;
+        category?: string | null;
+        gradeLevel?: string | null;
+        isbn?: string | null;
+        publisher?: string | null;
+        brand?: string | null;
+        model?: string | null;
+      } | undefined;
+      if (!suggestion) throw new Error("No se han recibido sugerencias.");
+
+      // Complete empty fields only. Never overwrite prices, condition or entered user data.
+      if (!title.trim() && suggestion.title) setTitle(suggestion.title);
+      if (!description.trim() && suggestion.description) setDescription(suggestion.description);
+      if (!selectedCategory && suggestion.category && categories.includes(suggestion.category)) {
+        suppressCategoryResetRef.current = true;
+        setSelectedCategory(suggestion.category);
+      }
+      if (!selectedGradeLevel && suggestion.gradeLevel && gradeLevels.includes(suggestion.gradeLevel)) {
+        setSelectedGradeLevel(suggestion.gradeLevel);
+      }
+      const matchingCategory = !selectedCategory || !suggestion.category || selectedCategory === suggestion.category;
+      if (matchingCategory) {
+        if (!isbn && suggestion.isbn && isValidIsbn(suggestion.isbn)) setIsbn(suggestion.isbn);
+        if (!publisher && suggestion.publisher) setPublisher(suggestion.publisher);
+        if (!brand && suggestion.brand) setBrand(suggestion.brand);
+        if (!model && suggestion.model) setModel(suggestion.model);
+      }
+      setAiMessage("La IA ha completado los campos que estaban vacíos. Revisa todos los datos, indica el estado y el precio y confirma el anuncio.");
+    } catch (error: unknown) {
+      setAiError(error instanceof Error ? error.message : "No se pudo completar el anuncio con IA.");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const persistDraftPhotos = async (userId: string) => {
@@ -960,6 +1031,26 @@ export default function NewListingForm({
               })}
             </div>
             {photoError && <p className="mt-3 text-sm text-destructive">{photoError}</p>}
+            {process.env.NEXT_PUBLIC_AI_PUBLISH_PILOT === "true" ? (
+            <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Wetudy Easy</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Completar con IA: analiza hasta 2 fotos nuevas y propone título, descripción y categoría.
+                    Solo se envían al proveedor de IA cuando pulsas el botón. Revisa el resultado antes de publicar.
+                  </p>
+                </div>
+                <Button type="button" variant="outline" onClick={handleAiAssist} disabled={aiLoading || photos.length === 0} className="shrink-0 gap-2">
+                  {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {aiLoading ? "Analizando..." : "Completar con IA"}
+                </Button>
+              </div>
+              {aiMessage ? <p role="status" className="mt-3 text-sm text-foreground">{aiMessage}</p> : null}
+              {aiError ? <p role="alert" className="mt-3 text-sm text-destructive">{aiError}</p> : null}
+            </div>
+            ) : null}
+
           </SectionCard>
 
           <SectionCard icon={<Package className="h-5 w-5" />} title="Información básica" description="Explica qué es y el estado real del material.">
