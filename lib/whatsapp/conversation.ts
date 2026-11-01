@@ -211,7 +211,7 @@ export function startWhatsappListing(
       "CAMBIAR — elegir otra categoría.",
       "CANCELAR — descartar.",
       "Tu respuesta SI no publica nada. El anuncio solo se publicará con una confirmación final PUBLICAR.",
-    ].join("\\n"),
+    ].join("\n"),
   };
 }
 
@@ -257,7 +257,7 @@ export function advanceWhatsappListing(state: WhatsappState, incoming: string): 
       if (!draft.category) return { state, response: categoryPrompt() };
       return {
         state: { ...state, step: "title", payload: draft },
-        response: `Título propuesto: ${draft.title || "(sin título)"}\\n\\n${TITLE_PROMPT}`,
+        response: `Título propuesto: ${draft.title || "(sin título)"}\n\n${TITLE_PROMPT}`,
       };
     }
 
@@ -271,7 +271,7 @@ export function advanceWhatsappListing(state: WhatsappState, incoming: string): 
       // second review instead of silently accepting the old suggestion.
       return {
         state: { ...state, step: "title", payload: draft },
-        response: `Categoría actualizada a ${selected}. Revisa el título: ${draft.title || "(sin título)"}\\n\\n${TITLE_PROMPT}`,
+        response: `Categoría actualizada a ${selected}. Revisa el título: ${draft.title || "(sin título)"}\n\n${TITLE_PROMPT}`,
       };
     }
     if (!draft.title || draft.title.trim().length < 12) {
