@@ -47,7 +47,7 @@ export async function processWhatsappPublishMessage(message: IncomingMessage): P
   const sender = message.from;
   const messageId = message.id;
   if (typeof sender !== "string" || !/^[0-9]{8,20}$/.test(sender) ||
-      typeof messageId !== "string" || !/^wamid\.[A-Za-z0-9_.=-]{6,240}$/.test(messageId)) {
+      typeof messageId !== "string" || !/^wamid\.[A-Za-z0-9_.+\/=-]{6,240}$/.test(messageId)) {
     return "ignored";
   }
 
