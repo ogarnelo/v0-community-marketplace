@@ -101,3 +101,13 @@ test("guided publication is explicit, limited, private and does not mutate produ
   assert.match(vision, /MAX_PHOTO = 3 \* 1024 \* 1024/);
   assert.doesNotMatch(flow, /setPrice\(|setSelectedCondition\(/);
 });
+
+test("draft retention cleanup is private, preview only, 24h and not scheduled automatically", () => {
+  const cleaner = read("app/api/cron/whatsapp-draft-cleanup/route.ts");
+  assert.match(cleaner, /process\.env\.VERCEL_ENV !== "preview"/);
+  assert.match(cleaner, /WHATSAPP_CLEANUP_SECRET/);
+  assert.match(cleaner, /secret\.length < 32/);
+  assert.match(cleaner, /24 \* 60 \* 60_000/);
+  assert.match(cleaner, /whatsapp-draft-photos/);
+  assert.match(cleaner, /whatsapp_incoming_events/);
+});
