@@ -1,10 +1,14 @@
 import { createHash, randomBytes, timingSafeEqual, createHmac } from "node:crypto";
 
-const ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i;
+const ID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const WHATSAPP_ID_PATTERN = /^[0-9]{8,20}$/;
 
 export function isWhatsappPilotEnabled() {
-  return process.env.WHATSAPP_PILOT_ENABLED === "true";
+  return (
+    process.env.WHATSAPP_PILOT_ENABLED === "true" &&
+    (process.env.VERCEL_ENV === "preview" ||
+      (process.env.NODE_ENV === "development" && !process.env.VERCEL_ENV))
+  );
 }
 
 export function isWhatsappPilotUserAllowed(userId: string) {
