@@ -86,7 +86,12 @@ test("guided publication is explicit, limited, private and does not mutate produ
   assert.match(flow, /upper !== "PUBLICAR"/);
   assert.match(flow, /isValidWhatsappDraft\(draft, state\.draftPhotoPath\)/);
   assert.match(flow, /state\.step === "review"/);
-  assert.match(flow, /price > 0 && draft\.price <= 10000/);
+  assert.match(flow, /state\.step === "description"/);
+  assert.match(flow, /state\.step === "details"/);
+  assert.match(flow, /detailFieldsForCategory/);
+  assert.match(publisher, /specific_type: draft\.specificType/);
+  assert.match(publisher, /publisher: draft\.publisher/);
+  assert.match(flow, /draft\.price > 0 && draft\.price <= PRICE_LIMIT/);
   assert.match(publisher, /isValidWhatsappDraft\(draft, privatePath\)/);
   assert.match(publisher, /whatsapp-main/);
   assert.match(publisher, /"listing_photos"/);
