@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { processWhatsappPublishMessage } from "@/lib/whatsapp/inbound-listings";
 import {
   hashWhatsappLinkToken,
   isValidLinkMessage,
@@ -10,6 +11,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const MAX_WEBHOOK_BYTES = 128 * 1024;
 
@@ -78,23 +80,32 @@ export async function POST(request: Request) {
       for (const message of (Array.isArray(value.messages) ? value.messages : []).slice(0, 10)) {
         const sender = message?.from;
         const body = message?.type === "text" ? message?.text?.body : null;
-        if (!isValidWhatsappId(sender) || !isValidLinkMessage(body)) continue;
+        if (!isValidWhatsappId(sender)) continue;
 
-        const token = body.trim().slice("VINCULAR WETUDY ".length);
-        const { data, error } = await admin.rpc("link_whatsapp_account_from_token", {
-          p_token_hash: hashWhatsappLinkToken(token),
-          p_wa_id: sender,
-        });
-        if (error) {
-          console.error("WhatsApp pilot: atomic link operation failed");
-          // Do not acknowledge a valid linking request if persistence failed:
-          // Meta may retry, and the token remains available.
+        if (isValidLinkMessage(body)) {
+          const token = body.trim().slice("VINCULAR WETUDY ".length);
+          const { data, error } = await admin.rpc("link_whatsapp_account_from_token", {
+            p_token_hash: hashWhatsappLinkToken(token),
+            p_wa_id: sender,
+          });
+          if (error) {
+            console.error("WhatsApp pilot: atomic link operation failed");
+            return new Response(null, { status: 503 });
+          }
+          if (data === "linked") await replyToLinkSuccess(sender);
+          continue;
+        }
+
+        try {
+          const outcome = await processWhatsappPublishMessage(message);
+          if (outcome === "busy") return new Response(null, { status: 503 });
+        } catch {
+          console.error("WhatsApp pilot: inbound publishing step failed");
           return new Response(null, { status: 503 });
         }
-        if (data === "linked") await replyToLinkSuccess(sender);
       }
     }
   }
-  // Ignore all non-link messages: the publishing/chat bot is NOT enabled.
+  // Messages from unlinked numbers are ignored; the optional publishing flow is gated.
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
