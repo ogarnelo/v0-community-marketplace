@@ -29,6 +29,7 @@ import type { AccountProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { getInitials, getUserTypeLabel } from "@/lib/marketplace/formatters";
 import { getUserProfileStats } from "@/lib/users/get-user-profile-stats";
 import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
+import { isWhatsappPilotConfigured, isWhatsappPilotUserAllowed } from "@/lib/whatsapp/pilot";
 
 type SafeUserMetadata = {
   first_name?: string;
@@ -216,6 +217,13 @@ export default async function AccountPage() {
               </Link>
             );
           })}
+          {isWhatsappPilotConfigured() && isWhatsappPilotUserAllowed(user.id) ? (
+            <Link href="/account/whatsapp" className="min-w-0 rounded-2xl border border-primary/30 bg-primary/5 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4">
+              <Phone className="mb-2 h-5 w-5 text-primary sm:mb-3" />
+              <p className="break-words text-sm font-semibold leading-tight sm:text-base">Vincular WhatsApp</p>
+              <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground sm:text-xs">Piloto privado · Publicación asistida</p>
+            </Link>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
