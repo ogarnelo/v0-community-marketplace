@@ -1,6 +1,6 @@
 # Wetudy por WhatsApp — piloto de vinculación (PR aislado)
 
-Objetivo del journey: el usuario se registra en Wetudy, vincula opcionalmente WhatsApp mediante un mensaje con token de un solo uso y después podrá crear anuncios enviando fotografías. **Esta rama implementa únicamente el primer tramo: vinculación y desvinculación, no publicación desde WhatsApp.**
+La ruta `/demo/wetudy-whatsapp` ofrece una **simulación interactiva** sin necesidad de iniciar sesión, accesible solo desde Vercel Preview: las fotos se previsualizan localmente y no se envía ningún dato ni se crea ningún anuncio. Esta demo no sustituye una prueba real de Meta Cloud API.\n\nObjetivo del journey: el usuario se registra en Wetudy, vincula opcionalmente WhatsApp mediante un mensaje con token de un solo uso y después podrá crear anuncios enviando fotografías. **Esta rama implementa únicamente el primer tramo: vinculación y desvinculación, no publicación desde WhatsApp.**
 
 ## Seguridad y alcance
 
@@ -22,7 +22,7 @@ Objetivo del journey: el usuario se registra en Wetudy, vincula opcionalmente Wh
 
 ## Configuración necesaria solo para entorno de pruebas
 
-- Configurar Meta Business Platform / WhatsApp Cloud API, usando el número de prueba para comenzar, con webhook verificado (GET token) y mensajes entrantes (POST).
+- Configurar Meta Business Platform / WhatsApp Cloud API, usando el número de prueba para comenzar, con webhook verificado (GET token) y mensajes entrantes (POST). Puede especificarse `WHATSAPP_GRAPH_VERSION` (por defecto `v24.0`) según versión admitida por la App.\n- **Vercel Preview está protegido por autenticación.** Meta no puede usar un enlace temporal de navegador basado en cookies para hacer POST al webhook. Para pruebas reales, usar un túnel seguro a un entorno local aislado o un mecanismo de bypass autorizado que no exponga otros servicios. No desproteger el proyecto ni abrir producción por el piloto.
 - En Vercel Preview, nunca en Production por defecto: `WHATSAPP_PILOT_ENABLED=true`, `WHATSAPP_PILOT_ALLOWED_USER_IDS=<UUID usuario de prueba>`, `WHATSAPP_BUSINESS_NUMBER=<número internacional solo dígitos>`, `WHATSAPP_PHONE_NUMBER_ID=<id numérico Meta>`, `WHATSAPP_VERIFY_TOKEN=<secreto aleatorio>`, `WHATSAPP_APP_SECRET=<app secret Meta>`, `WHATSAPP_ACCESS_TOKEN=<token cloud API>`.
 - Aplicar migración `supabase/migrations/20261101130000_whatsapp_account_link_pilot.sql` **solo en una base de datos de pruebas aislada**, tras autorización explícita y comprobación de coste. No aplicar automáticamente en el Supabase de producción.
 - Con base de datos aislada será necesario configurar también autenticación de prueba y sus credenciales en Preview (nunca reutilizar datos o sesiones reales para experimentar). 
