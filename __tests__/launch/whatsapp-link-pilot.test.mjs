@@ -55,3 +55,14 @@ test("WhatsApp pilot does not yet publish listings or receive images", () => {
   assert.match(webhook, /Ignore all non-link messages/);
   assert.match(page, /publicación asistida cuando esté disponible/);
 });
+
+test("Standalone journey demo is preview-only, simulated and never sends or publishes", () => {
+  const demoRoute = read("app/demo/wetudy-whatsapp/page.tsx");
+  const demoClient = read("components/whatsapp/whatsapp-journey-demo.tsx");
+  assert.match(demoRoute, /process\.env\.VERCEL_ENV !== "preview"/);
+  assert.match(demoRoute, /notFound\(\)/);
+  assert.match(demoClient, /Simulación de experiencia/);
+  assert.match(demoClient, /No se conecta a WhatsApp/);
+  assert.match(demoClient, /URL\.createObjectURL\(picture\)/);
+  assert.doesNotMatch(demoClient, /fetch\(|\.from\(["']listings["']\)/);
+});
