@@ -32,3 +32,14 @@ test("AI suggests limited educational data without touching price and condition"
   assert.match(form, /Complete empty fields only|Complete empty fields only/i);
   assert.doesNotMatch(form.slice(form.indexOf("const handleAiAssist"),form.indexOf("const persistDraftPhotos")), /setPrice\(|setSelectedCondition\(|setIsDonation\(/);
 });
+
+test("demo is preview-only and does not call a backend or publish", () => {
+  const demoRoute = readFileSync("app/demo/wetudy-easy/page.tsx", "utf8");
+  const demoClient = readFileSync("components/marketplace/wetudy-easy-demo.tsx", "utf8");
+  assert.match(demoRoute, /process\.env\.VERCEL_ENV !== "preview"/);
+  assert.match(demoRoute, /notFound\(\)/);
+  assert.match(demoClient, /Esta pantalla es una simulación/);
+  assert.match(demoClient, /URL\.createObjectURL\(file\)/);
+  assert.match(demoClient, /disabled className=/);
+  assert.doesNotMatch(demoClient, /fetch\(|\.from\(["']listings["']\)/);
+});
