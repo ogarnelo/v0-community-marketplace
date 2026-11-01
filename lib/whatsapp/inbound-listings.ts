@@ -25,7 +25,7 @@ function publishEnabled() {
 }
 
 function extractState(value: any): WhatsappState {
-  const steps: WhatsappStep[] = ["idle", "title", "description", "condition", "intent", "price", "grade", "review", "published"];
+  const steps: WhatsappStep[] = ["idle", "category", "title", "description", "details", "condition", "intent", "price", "originalPrice", "grade", "review", "published"];
   const payload = value?.payload && typeof value.payload === "object" && !Array.isArray(value.payload)
     ? value.payload as WhatsappDraft : {};
   return {
