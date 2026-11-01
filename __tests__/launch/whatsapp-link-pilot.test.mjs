@@ -52,7 +52,7 @@ test("Provider-verified identity, 10 minute expiry, one-time hashed token and at
 test("WhatsApp pilot does not yet publish listings or receive images", () => {
   assert.doesNotMatch(webhook, /\.from\(["']listings["']\)|\.from\(["']listing_photos["']\)/);
   assert.doesNotMatch(api, /\.from\(["']listings["']\)/);
-  assert.match(webhook, /Ignore all non-link messages/);
+  assert.match(webhook, /processWhatsappPublishMessage\(message\)/);
   assert.match(page, /publicación asistida cuando esté disponible/);
 });
 
@@ -65,4 +65,39 @@ test("Standalone journey demo is preview-only, simulated and never sends or publ
   assert.match(demoClient, /No se conecta a WhatsApp/);
   assert.match(demoClient, /URL\.createObjectURL\(picture\)/);
   assert.doesNotMatch(demoClient, /fetch\(|\.from\(["']listings["']\)/);
+});
+
+test("guided publication is explicit, limited, private and does not mutate production", () => {
+  const flow = read("lib/whatsapp/conversation.ts");
+  const runner = read("lib/whatsapp/inbound-listings.ts");
+  const vision = read("lib/whatsapp/vision-and-meta.ts");
+  const publisher = read("lib/whatsapp/publish.ts");
+  const migration = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
+
+  assert.match(runner, /WHATSAPP_PUBLISH_ENABLED === "true"/);
+  assert.match(runner, /WHATSAPP_AI_ENABLED === "true"/);
+  assert.match(runner, /VERCEL_ENV === "preview"/);
+  assert.match(runner, /reserve_whatsapp_ai_request/);
+  assert.match(runner, /claim_whatsapp_incoming/);
+  assert.match(runner, /complete_whatsapp_incoming/);
+  assert.match(runner, /release_whatsapp_incoming/);
+  assert.match(runner, /processWhatsappPublishMessage/);
+  assert.match(runner, /if \(next\.publish\)/);
+  assert.match(flow, /upper !== "PUBLICAR"/);
+  assert.match(flow, /isValidWhatsappDraft\(draft, state\.draftPhotoPath\)/);
+  assert.match(flow, /state\.step === "review"/);
+  assert.match(flow, /price > 0 && draft\.price <= 10000/);
+  assert.match(publisher, /isValidWhatsappDraft\(draft, privatePath\)/);
+  assert.match(publisher, /whatsapp-main/);
+  assert.match(publisher, /"listing_photos"/);
+  assert.match(migration, /whatsapp-draft-photos', false/);
+  assert.match(migration, /whatsapp_ai_daily_usage/);
+  assert.match(migration, /v_total >= 100/);
+  assert.match(migration, /coalesce\(v_current,0\) >= 5/);
+  assert.match(vision, /"gpt-5\.6-luna"/);
+  assert.match(vision, /detail: "low"/);
+  assert.match(vision, /store: false/);
+  assert.match(vision, /redirect: "error"/);
+  assert.match(vision, /MAX_PHOTO = 3 \* 1024 \* 1024/);
+  assert.doesNotMatch(flow, /setPrice\(|setSelectedCondition\(/);
 });
