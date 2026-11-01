@@ -29,3 +29,69 @@ grant all on public.whatsapp_link_requests to service_role;
 -- authenticated server endpoint, validated Meta signature, and service role.
 comment on table public.whatsapp_account_links is 'Private opt-in WhatsApp identity mapping for pilot accounts. Not a user profile phone number.';
 comment on table public.whatsapp_link_requests is 'One-time hashed tokens for linking; never store plaintext token.';
+
+-- Atomic link: consume the one-time token and bind the provider-verified WA ID
+-- in one transaction. Only the service role may invoke this SECURITY DEFINER.
+create or replace function public.link_whatsapp_account_from_token(
+  p_token_hash text,
+  p_wa_id text
+) returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid;
+  v_existing_wa text;
+begin
+  if p_token_hash !~ '^[a-f0-9]{64}$' or p_wa_id !~ '^[0-9]{8,20}$' then
+    return 'invalid';
+  end if;
+
+  select req.user_id into v_user_id
+  from public.whatsapp_link_requests req
+  where req.token_hash = p_token_hash
+    and req.consumed_at is null
+    and req.expires_at > now()
+  for update;
+
+  if v_user_id is null then
+    return 'expired';
+  end if;
+
+  select link.wa_id into v_existing_wa
+  from public.whatsapp_account_links link
+  where link.user_id = v_user_id
+  for update;
+
+  if v_existing_wa is not null and v_existing_wa <> p_wa_id then
+    return 'already_linked';
+  end if;
+
+  if exists(
+    select 1 from public.whatsapp_account_links link
+    where link.wa_id = p_wa_id and link.user_id <> v_user_id
+  ) then
+    return 'wa_in_use';
+  end if;
+
+  insert into public.whatsapp_account_links (user_id, wa_id)
+  values (v_user_id, p_wa_id)
+  on conflict (user_id) do update
+  set linked_at = now();
+
+  update public.whatsapp_link_requests
+  set consumed_at = now()
+  where user_id = v_user_id;
+
+  return 'linked';
+exception
+  when unique_violation then
+    return 'wa_in_use';
+end;
+$$;
+
+revoke all on function public.link_whatsapp_account_from_token(text, text)
+  from public, anon, authenticated;
+grant execute on function public.link_whatsapp_account_from_token(text, text)
+  to service_role;
