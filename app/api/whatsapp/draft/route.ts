@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -95,46 +96,89 @@ export async function POST(request: Request) {
   const found = await findDraft(owner.admin, owner.user.id, draftId);
   if (!found.session) return failed(404, found.error || "Borrador no disponible.");
 
-  const { draft, errors } = normalizeWhatsappForm(body.draft, draftId, found.session.draft_photo_path);
-  if (body.action === "save") {
-    // Save may be incomplete; invalid optional values are discarded by normalization.
-    const { data: updated, error } = await owner.admin.from("whatsapp_listing_sessions")
-      .update({ payload: draft, updated_at: new Date().toISOString() })
-      .eq("user_id", owner.user.id).eq("step", "form")
-      .eq("updated_at", found.session.updated_at)
-      .select("user_id").maybeSingle();
-    if (error || !updated) return failed(409, "El borrador cambió. Recarga para revisarlo.");
-    return NextResponse.json({ saved: true }, { headers: noStore });
+  const leaseId = randomUUID();
+  const { data: claim, error: claimError } = await owner.admin.rpc("claim_whatsapp_form", {
+    p_user_id: owner.user.id,
+    p_listing_id: draftId,
+    p_lease_id: leaseId,
+  });
+  if (claimError) return failed(503, "No se pudo bloquear el borrador.");
+  if (claim === "already_published") {
+    return body.action === "publish"
+      ? NextResponse.json({
+          published: true,
+          listingId: draftId,
+          url: `/marketplace/listing/${draftId}`,
+        }, { headers: noStore })
+      : failed(409, "Este anuncio ya está publicado.");
+  }
+  if (claim !== "claimed") {
+    return failed(claim === "busy" ? 409 : 404,
+      claim === "busy" ? "El borrador se está procesando. Espera y vuelve a intentarlo." :
+      "El borrador ya no está disponible.");
   }
 
-  if (Object.keys(errors).length) return failed(422, "Completa los campos obligatorios.", errors);
-  // Explicit button action is the only publication trigger for this form.
-  const listingId = await publishWhatsappConfirmedListing(
-    owner.user.id, draft, found.session.draft_photo_path
-  ).catch(() => null);
-  if (!listingId) return failed(503, "No se pudo publicar. Revisa y vuelve a intentarlo.");
+  try {
+    const { data: current, error: currentError } = await owner.admin
+      .from("whatsapp_listing_sessions")
+      .select("draft_photo_path,payload")
+      .eq("user_id", owner.user.id).eq("lease_id", leaseId)
+      .eq("step", "form").maybeSingle();
+    if (currentError || !current || current.payload?.listingId !== draftId) {
+      return failed(409, "El borrador ha cambiado. Recarga la página.");
+    }
+    const photoPath = current.draft_photo_path as string | null;
+    const { draft, errors } = normalizeWhatsappForm(body.draft, draftId, photoPath);
+    if (body.action === "publish" && Object.keys(errors).length > 0) {
+      return failed(422, "Completa los campos obligatorios.", errors);
+    }
 
-  const { data: updated, error: updateError } = await owner.admin.from("whatsapp_listing_sessions")
-    .update({
-      step: "published", payload: { listingId },
-      draft_photo_path: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", owner.user.id).eq("step", "form")
-    .eq("updated_at", found.session.updated_at)
-    .select("user_id").maybeSingle();
-  if (updateError || !updated) {
-    // The listing UUID is stable and publishWhatsappConfirmedListing is retry-safe.
-    return failed(409, "El anuncio puede estar publicado; comprueba tu cuenta antes de reintentar.");
+    if (body.action === "publish") {
+      // The user explicitly pressed Confirmar y publicar. All remote writes
+      // happen under a per-user SQL lease; retry uses the stable listing UUID.
+      const listingId = await publishWhatsappConfirmedListing(
+        owner.user.id, draft, photoPath
+      ).catch(() => null);
+      if (!listingId) return failed(503, "No se pudo publicar. Revisa y vuelve a intentarlo.");
+
+      const { data: completed, error: completeError } = await owner.admin.rpc("complete_whatsapp_form", {
+        p_user_id: owner.user.id,
+        p_listing_id: draftId,
+        p_lease_id: leaseId,
+        p_action: "publish",
+        p_payload: { listingId },
+      });
+      if (completeError || completed !== true) {
+        return failed(409, "El anuncio puede estar publicado. Comprueba tu cuenta antes de reintentar.");
+      }
+      if (photoPath) {
+        const { error: removalError } = await owner.admin.storage
+          .from("whatsapp-draft-photos").remove([photoPath]);
+        if (removalError) console.error("WhatsApp form: could not remove private draft photo");
+      }
+      return NextResponse.json({
+        published: true,
+        listingId,
+        url: `/marketplace/listing/${listingId}`,
+      }, { headers: noStore });
+    }
+
+    // An incomplete draft is allowed; only the final publish requires all
+    // obligatory fields to be valid.
+    const { data: saved, error: saveError } = await owner.admin.rpc("complete_whatsapp_form", {
+      p_user_id: owner.user.id,
+      p_listing_id: draftId,
+      p_lease_id: leaseId,
+      p_action: "save",
+      p_payload: draft,
+    });
+    if (saveError || saved !== true) return failed(409, "No se pudo guardar. Vuelve a intentarlo.");
+    return NextResponse.json({ saved: true, draft }, { headers: noStore });
+  } finally {
+    // If a validation or external service fails, the next attempt is free to retry.
+    await owner.admin.rpc("release_whatsapp_form", {
+      p_user_id: owner.user.id,
+      p_lease_id: leaseId,
+    }).catch(() => undefined);
   }
-
-  const { error: removalError } = await owner.admin.storage
-    .from("whatsapp-draft-photos").remove([found.session.draft_photo_path!]);
-  if (removalError) console.error("WhatsApp form: could not remove private draft photo");
-
-  return NextResponse.json({
-    published: true,
-    listingId,
-    url: `/marketplace/listing/${listingId}`,
-  }, { headers: noStore });
 }
