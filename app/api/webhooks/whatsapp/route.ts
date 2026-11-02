@@ -45,9 +45,7 @@ async function replyToLinkSuccess(to: string) {
         messaging_product: "whatsapp",
         to,
         type: "text",
-        text: { preview_url: false, body: process.env.WHATSAPP_PUBLISH_ENABLED === "true" && process.env.WHATSAPP_AI_ENABLED === "true" && process.env.OPENAI_API_KEY && process.env.VERCEL_ENV === "preview"
-          ? "✅ WhatsApp vinculado a Wetudy. Envíame una foto para crear un anuncio y te guiaré paso a paso."
-          : "✅ Tu WhatsApp está vinculado a Wetudy. La publicación por chat todavía no está habilitada." },
+        text: { preview_url: false, body: "Hemos reconocido tu WhatsApp. Para completar la vinculación, vuelve a tu cuenta de Wetudy y confirma los últimos cuatro dígitos de tu número. Todavía no está vinculado." },
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -94,7 +92,7 @@ export async function POST(request: Request) {
             console.error("WhatsApp pilot: atomic link operation failed");
             return new Response(null, { status: 503 });
           }
-          if (data === "linked") await replyToLinkSuccess(sender);
+          if (data === "pending_confirmation") await replyToLinkSuccess(sender);
           continue;
         }
 
