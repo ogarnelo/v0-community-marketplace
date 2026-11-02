@@ -94,3 +94,22 @@ La demo `/demo/wetudy-whatsapp` ahora enseña un solo bloque de detalles y permi
 **Guardado/publicación atómicos por borrador:** la migración agrega RPC privadas `claim_whatsapp_form`, `complete_whatsapp_form` y `release_whatsapp_form`, accesibles solo con `service_role`. Los webhooks y los formularios comparten el mismo bloqueo por sesión para evitar carreras al subir una foto, guardar o publicar. La publicación conserva UUID estable para reintentos y el formulario gestiona explícitamente `already_published` cuando un usuario hace doble clic.
 
 **IMPORTANTE:** estas funciones son código de la rama. La migración no se ha aplicado; las pruebas de contrato no sustituyen una ejecución real contra una base Supabase aislada.
+
+## 02/11/2026 — Auditoría de seguridad previa a conectar proveedores reales
+
+### Journey definitivo (bloqueante para el piloto)
+
+1. Vinculación en dos fases: código aleatorio de 32 bytes/10 minutos enviado desde Meta, identidad del remitente verificada por firma, y **confirmación explícita en Wetudy de los últimos cuatro dígitos** antes de asociar el número. Copiar el código no crea por sí solo un vínculo efectivo.
+2. Al recibir una foto, el webhook la descarga y guarda en un **bucket privado** ligado al usuario. **NO llama a OpenAI** y envía enlace para revisión.
+3. La familia abre la revisión autenticada, ve la fotografía solo a través de una ruta same-origin protegida y puede arrastrar para cubrir zonas con rectángulos negros. El navegador re-encodea un JPEG, eliminando metadatos habituales; el usuario marca una casilla expresa de revisión/autorización. El sistema **no identifica automáticamente todas las personas ni los datos personales**.
+4. Solo el endpoint `/api/whatsapp/analyze` puede pasar **el JPEG revisado** a la API de OpenAI, con sesión, vínculo, propiedad del borrador, protección de origen, tipo/tamaño de archivo y cuota de IA. No se le pasan credenciales, sesiones ni acceso a la base de datos. La imagen original se borra y se usa una **cola privada de eliminación** para reintentar si falla el storage.
+5. Al recibir la propuesta, la familia completa un formulario Wetudy con filtros por categoría. La **única publicación válida** se realiza en `/api/whatsapp/draft` mediante el botón autenticado «Confirmar y publicar»; el SQL exige `privacy_approved_at` y bloquea el borrador frente a operaciones concurrentes. Se eliminó el antiguo procesamiento de comandos `PUBLICAR` en WhatsApp (también del módulo de conversación).
+6. Se mantiene la limitación a Preview, allowlist y un Supabase aislado distinto del proyecto de producción, incluso para desvinculación y mantenimiento.
+
+### Evidencias de pruebas automatizadas
+
+- Pruebas de contrato: webhook con firma, única vinculación confirmada, paso previo de privacidad, selección de imagen revisada para OpenAI, publicación mediante endpoint de usuario autenticado y limpieza.
+- Pruebas conductuales del formulario: campos obligatorios, cursos para libros, ISBN, donación y filtros exclusivos de cada categoría.
+- Pruebas aisladas con dos usuarios ficticios: intentar cargar y publicar el borrador ajeno da 404, el endpoint de fotografía no entrega la imagen ajena y un POST cross-origin da 403.
+
+**Limitaciones y condiciones sin completar:** no es un escáner automático de datos personales; las fotos originales ya fueron recibidas por Meta a través de WhatsApp; no se garantizan cero fallos ni se han probado webhooks reales. La retención y cola de borrado requieren cron operativo y una base de prueba con migraciones ejecutadas. Debemos hacer un test real con dos cuentas separadas, un número Meta de pruebas, manipulación del webhook, reintentos/concurrencia y auditoría GDPR antes de abrirlo a familias. No subir fotografías de menores a la prueba inicial. Ninguna migración aplicada ni flags de Meta/IA activados.
