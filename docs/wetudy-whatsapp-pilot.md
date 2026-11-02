@@ -70,3 +70,19 @@ Opciones: **SI** conserva lo propuesto, **OMITIR TODO** vacía todos los filtros
 Para eliminar un campo concreto: `Marca: -`. Las modificaciones son **atómicas**: un valor inválido, ISBN incorrecto, campo de otra categoría o filtro duplicado rechaza el mensaje entero y conserva intacto el borrador. Los selectores solo admiten opciones existentes en Wetudy. Las categorías sin filtros específicos omiten este turno.
 
 La demo `/demo/wetudy-whatsapp` ahora enseña un solo bloque de detalles y permite escribir varias correcciones en una respuesta, con la misma validación determinista del flujo real. La demo no envía mensajes ni persiste cambios.
+
+## Decisión UX vigente (02/11/2026): formulario móvil en lugar de comandos por WhatsApp
+
+**Esta sección sustituye las instrucciones anteriores de corrección de filtros por texto y el chat paso a paso.** La familia **no escribe** `Marca: ...; Modelo: ...`, ni contesta preguntas separadas sobre ISBN o talla. El flujo real del piloto queda:
+
+1. El usuario vinculado envía una foto a Wetudy por WhatsApp. La IA genera la propuesta y los campos específicos que consiga reconocer; los valores inciertos quedan vacíos. Nunca infiere el estado real, si es venta/donación ni el precio.
+2. Wetudy responde con un único mensaje breve y un enlace privado a `/account/whatsapp/draft?draft=<uuid>` (en el mismo entorno Preview). Abrirlo puede requerir iniciar sesión en Wetudy, incluso si el usuario ya había iniciado sesión en otro navegador. WhatsApp abre una página web móvil, **no un WhatsApp Flow nativo**.
+3. La página consulta `/api/whatsapp/draft` autenticando al usuario, comprobando vinculación con el número y titularidad del borrador, y crea una URL firmada de cinco minutos para visualizar la foto privada. Se usa `service_role` únicamente en servidor.
+4. El formulario responsivo muestra todos los campos con sus valores sugeridos, obligatorios y opcionales; varía por categoría y valida los mismos datos que el marketplace web. Hay botones **Guardar borrador** y **Confirmar y publicar**. No se publica sin la acción explícita del usuario.
+5. El endpoint guarda correcciones en el borrador privado y, al publicar, reutiliza el publicador de anuncios idempotente de Wetudy, marca la sesión como publicada y elimina la foto temporal. `CANCELAR` desde WhatsApp sigue descartando el borrador.
+
+**Campos obligatorios:** fotografía, categoría, título (mínimo 12 caracteres), descripción (mínimo 40), estado, venta o donación, precio si es venta y curso para libros de texto y literatura. **Campos opcionales:** curso para categorías transversales, ISBN, autor, asignatura, editorial, tipo, talla, temporada, marca, modelo, formato, idioma, precio original. ISBN debe ser válido si se aporta. La IA solo rellena lo que reconoce con evidencia.
+
+**Seguridad y límites:** solo usuarios explícitamente permitidos en Preview, sesión Wetudy verificada, email confirmado, número previamente vinculado, expiración del borrador a las 24 horas, validación del body en servidor y protección de origen en peticiones POST. Sin entorno Meta/Supabase de pruebas configurado ni cambios en producción; la ruta real permanece desactivada. La vista `/demo/wetudy-whatsapp` ofrece el mismo formulario con ejemplos fijos sin almacenamiento ni análisis real.
+
+**Antes del piloto real:** hacer pruebas completas de sesión en navegadores embebidos de WhatsApp, subida/descarga y publicación, validación de accesibilidad móvil, límites y reintentos de errores, colas y limpieza periódica, y revisar consentimiento y RGPD. No aplicar migraciones ni compartir credenciales en producción sin autorización.
