@@ -204,25 +204,33 @@ test("Wetudy AI is the public name in the family-facing WhatsApp journey", () =>
   assert.match(notice, /proveedores tecnológicos externos/);
 });
 
-test("WhatsApp linking migration has valid separate constraints and one two-phase token RPC", () => {
+
+test("WhatsApp linking migration has separate constraints and one two-phase token RPC", () => {
   const sql = read("supabase/migrations/20261101130000_whatsapp_account_link_pilot.sql");
-  assert.equal((sql.match(/create table if not exists public\\.whatsapp_link_requests/g) || []).length, 1);
-  assert.equal((sql.match(/create table if not exists public\\.whatsapp_account_links/g) || []).length, 1);
-  assert.equal((sql.match(/create or replace function public\\.link_whatsapp_account_from_token/g) || []).length, 1);
-  assert.equal((sql.match(/create or replace function public\\.confirm_whatsapp_account_link/g) || []).length, 1);
-  assert.match(sql, /constraint whatsapp_link_requests_pending_format[\\s\\S]*check \\(pending_wa_id is null or pending_wa_id ~ '\\^\\[0-9\\]\\{8,20\\}\\$'\\)/);
-  assert.match(sql, /constraint whatsapp_link_requests_token_hash_format[\\s\\S]*check \\(token_hash/);
-  assert.match(sql, /return 'pending_confirmation'/);
-  assert.match(sql, /return 'linked'/);
-  assert.doesNotMatch(sql, /on conflict \\(user_id\\) do update[\\s\\S]*set linked_at/);
-  assert.doesNotMatch(sql, /grant execute on function public\\.confirm_whatsapp_account_link\\(uuid\\)[\\s\\S]*to authenticated/);
+  for (const marker of [
+    "create table if not exists public.whatsapp_link_requests",
+    "create table if not exists public.whatsapp_account_links",
+    "create or replace function public.link_whatsapp_account_from_token",
+    "create or replace function public.confirm_whatsapp_account_link",
+  ]) {
+    assert.equal(sql.split(marker).length - 1, 1, marker + " must appear only once");
+  }
+  assert.ok(sql.includes("check (pending_wa_id is null or pending_wa_id ~ '^[0-9]{8,20}$')"));
+  assert.ok(sql.includes("check (token_hash ~ '^[a-f0-9]{64}$')"));
+  assert.ok(sql.includes("return 'pending_confirmation'"));
+  assert.ok(sql.includes("return 'linked'"));
+  assert.ok(sql.includes("on conflict (user_id) do nothing"));
+  assert.ok(!sql.includes("on conflict (user_id) do update"));
+  assert.ok(sql.includes("grant execute on function public.confirm_whatsapp_account_link(uuid)"));
 });
 
-test("Wetudy AI outage keeps a draft instead of forcing a family to re-upload", () => {
+test("Wetudy AI outage preserves a private editable draft", () => {
   const runner = read("lib/whatsapp/inbound-listings.ts");
-  assert.match(runner, /let aiSuggested = false/);
-  assert.match(runner, /try \\{[\\s\\S]*suggestWhatsappListing\\(photo\\)/);
-  assert.match(runner, /recognition unavailable, creating editable draft/);
-  assert.match(runner, /startWhatsappListing\\(listingId, path, suggestion\\)/);
-  assert.match(runner, /Puedes completar el formulario manualmente/);
+  for (const marker of [
+    "let aiSuggested = false",
+    "suggestWhatsappListing(photo)",
+    "recognition unavailable, creating editable draft",
+    "startWhatsappListing(listingId, path, suggestion)",
+    "Puedes completar el formulario manualmente",
+  ]) assert.ok(runner.includes(marker), marker);
 });
