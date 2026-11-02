@@ -77,12 +77,14 @@ test("guided publication is explicit, limited, private and does not mutate produ
   assert.match(runner, /WHATSAPP_PUBLISH_ENABLED === "true"/);
   assert.match(runner, /WHATSAPP_AI_ENABLED === "true"/);
   assert.match(runner, /VERCEL_ENV === "preview"/);
-  assert.match(runner, /reserve_whatsapp_ai_request/);
+  assert.doesNotMatch(runner, /reserve_whatsapp_ai_request/);
+  assert.match(read("app/api/whatsapp/analyze/route.ts"), /reserve_whatsapp_ai_request/);
   assert.match(runner, /claim_whatsapp_incoming/);
   assert.match(runner, /complete_whatsapp_incoming/);
   assert.match(runner, /release_whatsapp_incoming/);
   assert.match(runner, /processWhatsappPublishMessage/);
-  assert.match(runner, /if \(next\.publish\)/);
+  assert.doesNotMatch(runner, /publishWhatsappConfirmedListing|advanceWhatsappListing/);
+  assert.match(runner, /step: "review_photo"/);
   assert.match(flow, /upper !== "PUBLICAR"/);
   assert.match(flow, /isValidWhatsappDraft\(draft, state\.draftPhotoPath\)/);
   assert.match(flow, /state\.step === "review"/);
@@ -125,9 +127,9 @@ test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form ra
   const page = read("app/account/whatsapp/draft/page.tsx");
   const migration = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
 
-  assert.match(runner, /step: "form"/);
+  assert.match(runner, /step: "review_photo"/);
   assert.match(runner, /\/account\/whatsapp\/draft\?draft=/);
-  assert.match(runner, /Tu propuesta está lista/);
+  assert.match(runner, /Por privacidad, revisa primero la imagen/);
   assert.match(migration, /'form'/);
   assert.match(page, /isWhatsappPilotConfigured\(\)/);
   assert.match(page, /WHATSAPP_PUBLISH_ENABLED !== "true"/);
@@ -136,7 +138,10 @@ test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form ra
   assert.match(api, /isWhatsappPilotUserAllowed\(user\.id\)/);
   assert.match(api, /whatsapp_account_links/);
   assert.match(api, /session\.payload\?\.listingId !== draftId/);
-  assert.match(api, /createSignedUrl/);
+  assert.match(api, /\/api\/whatsapp\/photo\?draft=/);
+  assert.match(read("app/api/whatsapp/photo/route.ts"), /whatsapp_account_links/);
+  assert.match(read("app/api/whatsapp/analyze/route.ts"), /privacyConfirmed !== "yes"/);
+  assert.match(read("app/api/whatsapp/analyze/route.ts"), /suggestWhatsappListing\(sanitized\)/);
   assert.match(api, /p_action: "save"/);
   assert.match(api, /claim_whatsapp_form/);
   assert.match(api, /complete_whatsapp_form/);
@@ -165,4 +170,25 @@ test("Preview cannot point the WhatsApp pilot at Wetudy production Supabase", ()
   assert.match(migration, /function public\.release_whatsapp_form/);
   assert.match(migration, /v_session\.in_flight_until > now\(\)/);
   assert.match(migration, /grant execute on function public\.claim_whatsapp_form[\s\S]*to service_role/);
+});
+
+test("WhatsApp text cannot call OpenAI or publish; photo passes through manual approval", () => {
+  const runner = read("lib/whatsapp/inbound-listings.ts");
+  const analyze = read("app/api/whatsapp/analyze/route.ts");
+  const review = read("components/whatsapp/whatsapp-photo-privacy-review.tsx");
+  const photo = read("app/api/whatsapp/photo/route.ts");
+  const linkSql = read("supabase/migrations/20261101130000_whatsapp_account_link_pilot.sql");
+  assert.doesNotMatch(runner, /advanceWhatsappListing|publishWhatsappConfirmedListing|suggestWhatsappListing/);
+  assert.match(runner, /"No es un chat general de IA\."/);
+  assert.match(analyze, /privacyConfirmed !== "yes"/);
+  assert.match(analyze, /suggestWhatsappListing\(sanitized\)/);
+  assert.match(analyze, /file\.type !== "image\/jpeg"/);
+  assert.match(review, /canvasRef\.current\?\.toBlob/);
+  assert.match(review, /He revisado la foto y ocultado los datos personales/);
+  assert.match(review, /La fotografía original ya se envió por WhatsApp a Meta/);
+  assert.match(photo, /\.eq\("user_id", user\.id\)/);
+  assert.match(photo, /whatsapp_account_links/);
+  assert.match(linkSql, /pending_wa_id/);
+  assert.match(linkSql, /confirm_whatsapp_account_link/);
+  assert.match(read("app/api/webhooks/whatsapp/route.ts"), /data === "pending_confirmation"/);
 });
