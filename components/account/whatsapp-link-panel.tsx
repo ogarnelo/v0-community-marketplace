@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Status = { linked: boolean; linkedAt: string | null };
+type Status = { linked: boolean; linkedAt: string | null; pendingNumber: string | null };
 export default function WhatsappLinkPanel() {
   const [status, setStatus] = useState<Status | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
@@ -17,7 +17,7 @@ export default function WhatsappLinkPanel() {
     const response = await fetch("/api/whatsapp/link", { method: "GET", cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || "No se pudo consultar la vinculación.");
-    setStatus({ linked: Boolean(body.linked), linkedAt: body.linkedAt || null });
+    setStatus({ linked: Boolean(body.linked), linkedAt: body.linkedAt || null, pendingNumber: body.pendingNumber || null });
     if (body.linked) setLinkUrl("");
   }, []);
 
@@ -44,11 +44,29 @@ export default function WhatsappLinkPanel() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "No se pudo generar el enlace.");
-      if (body.linked) { setStatus({ linked: true, linkedAt: body.linkedAt || null }); setLinkUrl(""); }
+      if (body.linked) { setStatus({ linked: true, linkedAt: body.linkedAt || null, pendingNumber: null }); setLinkUrl(""); }
       else { setLinkUrl(body.url || ""); }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo generar el enlace.");
     } finally { setLoading(false); }
+  };
+
+  const confirmNumber = async () => {
+    if (!accepted || !status?.pendingNumber) return;
+    setLoading(true); setError("");
+    try {
+      const response = await fetch("/api/whatsapp/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consent: true, confirm: true }),
+        cache: "no-store",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.linked) throw new Error(body.error || "No se pudo confirmar el número.");
+      setStatus({ linked: true, linkedAt: null, pendingNumber: null });
+      setLinkUrl("");
+    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo confirmar el número."); }
+    finally { setLoading(false); }
   };
 
   const unlink = async () => {
@@ -58,7 +76,7 @@ export default function WhatsappLinkPanel() {
       const response = await fetch("/api/whatsapp/link", { method: "DELETE", cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "No se pudo desvincular.");
-      setStatus({ linked: false, linkedAt: null });
+      setStatus({ linked: false, linkedAt: null, pendingNumber: null });
       setLinkUrl("");
       setAccepted(false);
     } catch (e) { setError(e instanceof Error ? e.message : "No se pudo desvincular."); }
@@ -85,7 +103,14 @@ export default function WhatsappLinkPanel() {
               <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 size-4" />
               <span>Quiero vincular mi WhatsApp voluntariamente a mi cuenta de Wetudy. Puedo desvincularlo cuando quiera.</span>
             </label>
-            <Button onClick={connect} disabled={!accepted || loading} className="w-full sm:w-auto">
+            {status?.pendingNumber ? (
+              <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+                <p className="font-semibold">Confirma que este es tu número de WhatsApp: {status.pendingNumber}</p>
+                <p>Comprueba los últimos cuatro dígitos con tu teléfono antes de asociarlo a Wetudy. Si no coinciden, NO confirmes.</p>
+                <Button onClick={confirmNumber} disabled={!accepted || loading}>Sí, es mi número · Confirmar vinculación</Button>
+              </div>
+            ) : null}
+            <Button onClick={connect} disabled={!accepted || loading || Boolean(status?.pendingNumber)} className="w-full sm:w-auto">
               {loading ? "Preparando enlace…" : "Generar enlace seguro"}
             </Button>
             {linkUrl && (
