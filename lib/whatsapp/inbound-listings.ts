@@ -25,7 +25,7 @@ function publishEnabled() {
 }
 
 function extractState(value: any): WhatsappState {
-  const steps: WhatsappStep[] = ["idle", "category", "title", "description", "details", "condition", "intent", "price", "originalPrice", "grade", "review", "published"];
+  const steps: WhatsappStep[] = ["idle", "form", "category", "title", "description", "details", "condition", "intent", "price", "originalPrice", "grade", "review", "published"];
   const payload = value?.payload && typeof value.payload === "object" && !Array.isArray(value.payload)
     ? value.payload as WhatsappDraft : {};
   return {
@@ -107,11 +107,32 @@ export async function processWhatsappPublishMessage(message: IncomingMessage): P
         if (uploadError) throw new Error("Could not store private WhatsApp draft photo");
         if (!oldPhotoToDiscard) oldPhotoToDiscard = state.draftPhotoPath;
         const next = startWhatsappListing(randomUUID(), privatePath, suggestion);
-        state = next.state;
-        reply = next.response;
+        // The user receives a secure link to a mobile web form instead of
+        // responding with machine-formatted chat commands.
+        state = { ...next.state, step: "form" };
+        const previewOrigin = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "";
+        if (!previewOrigin) throw new Error("Preview origin is not configured");
+        const formUrl = `${previewOrigin}/account/whatsapp/draft?draft=${state.payload.listingId}`;
+        reply = [
+          "📸 He preparado tu anuncio en Wetudy.",
+          `📦 ${state.payload.title || "Artículo sin título"}`,
+          `🏷️ ${state.payload.category || "Categoría por confirmar"}`,
+          "Revisa el formulario: he rellenado los campos que pude identificar y dejé los demás vacíos.",
+          "Completa los obligatorios, revisa los opcionales y confirma al final.",
+          formUrl,
+          "",
+          "Si no quieres continuar, responde CANCELAR.",
+        ].join("\\n");
       }
     } else if (message.type === "text" && typeof message.text?.body === "string") {
-      const next = advanceWhatsappListing(state, message.text.body);
+      const next = state.step === "form" && message.text.body.trim().toLocaleUpperCase("es-ES") !== "CANCELAR"
+        ? {
+            state,
+            response: `Tu propuesta está lista. Ábrela aquí para revisar el formulario y publicarla: https://${process.env.VERCEL_URL}/account/whatsapp/draft?draft=${state.payload.listingId}\\nSi quieres descartarla, responde CANCELAR.`,
+          }
+        : advanceWhatsappListing(state, message.text.body);
       if (next.publish) {
         // The only publish path: an explicit, verified 'PUBLICAR' reply in review state.
         const publishedId = await publishWhatsappConfirmedListing(
