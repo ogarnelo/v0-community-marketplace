@@ -6,7 +6,7 @@ import { bookFormats, categories } from "@/lib/mock-data";
 import WhatsappListingForm from "@/components/whatsapp/whatsapp-listing-form";
 import type { WhatsappDraft } from "@/lib/whatsapp/conversation";
 
-type Stage = "unlinked" | "linked" | "photo" | "form" | "complete";
+type Stage = "unlinked" | "linked" | "photo" | "privacy" | "form" | "complete";
 
 const examples: Record<string, Partial<WhatsappDraft>> = {
   "Libros de texto": {
@@ -81,6 +81,7 @@ export default function WhatsappJourneyDemo() {
   const [category, setCategory] = useState("Tecnología y calculadoras");
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
 
   useEffect(() => {
     if (!photo) { setPhotoUrl(""); return; }
@@ -92,6 +93,7 @@ export default function WhatsappJourneyDemo() {
   const startOver = () => {
     setCategory("Tecnología y calculadoras");
     setPhoto(null);
+    setPrivacyConfirmed(false);
     setStage("unlinked");
   };
 
@@ -158,24 +160,47 @@ export default function WhatsappJourneyDemo() {
                 </button>
               </div>
             )}
-            {(stage === "photo" || stage === "form" || stage === "complete") && (
+            {(stage === "photo" || stage === "privacy" || stage === "form" || stage === "complete") && (
               <>
                 <Bubble author="family">
                   {photoUrl ? <img src={photoUrl} alt="Foto simulada en el chat" className="max-h-44 rounded-lg object-contain" />
                     : "📸 Fotografía de ejemplo"}
                 </Bubble>
+                {(stage === "photo" || stage === "privacy") ? (
+                  <Bubble author="wetudy">
+                    <strong>🔒 Revisa la privacidad antes de usar IA.</strong>
+                    <p className="mt-2">En Wetudy podrás tapar nombres, rostros y etiquetas escolares antes de autorizar el análisis de tu fotografía.</p>
+                  </Bubble>
+                ) : (
                 <Bubble author="wetudy">
                   <strong>📦 ¡Tu propuesta está lista!</strong>
                   <p className="mt-2">{getExample(category).title}</p>
                   <p className="mt-2">He rellenado el formulario con los datos que se pueden identificar. Revisa los campos obligatorios y corrige lo que necesites.</p>
                   <p className="mt-2 text-emerald-800"><strong>👉 Abrir formulario de anuncio</strong></p>
                 </Bubble>
+                )}
               </>
             )}
             {stage === "photo" && (
               <div className="flex justify-center">
-                <button onClick={() => setStage("form")} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white">
-                  Abrir formulario de anuncio
+                <button onClick={() => setStage("privacy")} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white">
+                  Revisar privacidad de la foto
+                </button>
+              </div>
+            )}
+            {stage === "privacy" && (
+              <div className="space-y-3 rounded-xl bg-white p-4 text-sm">
+                <h3 className="font-semibold text-slate-900">Revisión de privacidad · Simulación</h3>
+                {photoUrl && <img src={photoUrl} alt="Fotografía privada local de ejemplo" className="mx-auto max-h-52 rounded-lg object-contain" />}
+                <p className="text-slate-600">En el flujo real, esta pantalla permite dibujar rectángulos negros sobre datos personales. En la demo no se edita ni envía la imagen: los valores de IA son siempre ejemplos fijos.</p>
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" className="mt-1" checked={privacyConfirmed}
+                    onChange={(event) => setPrivacyConfirmed(event.target.checked)} />
+                  <span>He revisado esta fotografía y comprendo que antes del análisis real debo ocultar nombres, rostros y datos escolares.</span>
+                </label>
+                <button onClick={() => setStage("form")} disabled={!privacyConfirmed}
+                  className="w-full rounded-xl bg-emerald-700 p-3 font-semibold text-white disabled:opacity-50">
+                  Simular autorización y abrir formulario
                 </button>
               </div>
             )}
