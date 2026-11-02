@@ -266,3 +266,89 @@ test("categories without defined optional filters skip grouped question", () => 
   step = move(step,"SI");
   assert.equal(step.state.step,"condition");
 });
+
+const { normalizeWhatsappForm } = loadModule("lib/whatsapp/form.ts", {
+  "@/lib/mock-data": mockData,
+  "@/lib/books/isbn": isbnHelpers,
+  "@/lib/whatsapp/category-fields": catalog,
+  "@/lib/whatsapp/conversation": { isValidWhatsappDraft },
+});
+
+test("prefilled mobile form requires state and intent, not invented by AI", () => {
+  const input = { ...defaultSuggestion, listingId: id, condition: "", kind: "" };
+  const result = normalizeWhatsappForm(input, id, path);
+  assert.equal(result.draft.title, defaultSuggestion.title);
+  assert.equal(result.draft.brand, "Casio");
+  assert.equal(result.draft.model, "fx-82SP CW");
+  assert.ok(result.errors.condition);
+  assert.ok(result.errors.kind);
+  assert.equal(result.errors.price, undefined);
+});
+
+test("form accepts AI suggested optional details, user-supplied sale price and explicit category", () => {
+  const result = normalizeWhatsappForm({
+    ...defaultSuggestion, condition: "good", kind: "sale", price: "12,50",
+    originalPrice: "", brand: "Casio", model: "fx-82SP CW",
+  }, id, path);
+  assert.deepEqual(Object.keys(result.errors), []);
+  assert.equal(result.draft.price, 12.5);
+  assert.equal(result.draft.originalPrice, null);
+  assert.equal(result.draft.brand, "Casio");
+  assert.equal(result.draft.model, "fx-82SP CW");
+  assert.equal(result.draft.listingId, id);
+});
+
+test("form requires grade for school books, but not backpacks or electronics", () => {
+  const book = normalizeWhatsappForm({
+    category: "Libros de texto",
+    title: "Libro de Matemáticas para estudiantes",
+    description: description,
+    gradeLevel: "",
+    condition: "good",
+    kind: "donation",
+  }, id, path);
+  assert.ok(book.errors.gradeLevel);
+  const backpack = normalizeWhatsappForm({
+    category: "Mochilas y estuches",
+    title: "Mochila para estudiantes de primaria",
+    description,
+    gradeLevel: "",
+    condition: "good",
+    kind: "donation",
+    brand: "Eastpak",
+  }, id, path);
+  assert.deepEqual(Object.keys(backpack.errors), []);
+  assert.equal(backpack.draft.price, null);
+  assert.equal(backpack.draft.brand, "Eastpak");
+});
+
+test("form only retains optional fields matching the chosen category and rejects invalid ISBN", () => {
+  const wrongCategory = normalizeWhatsappForm({
+    category: "Uniformes",
+    title: "Jersey de uniforme escolar talla diez",
+    description,
+    condition: "good", kind: "donation",
+    brand: "Ignored", model: "Ignored",
+    specificType: "Sudadera o jersey",
+    sizeLabel: "10",
+  }, id, path);
+  assert.equal(wrongCategory.draft.brand, undefined);
+  assert.equal(wrongCategory.draft.model, undefined);
+  assert.deepEqual(Object.keys(wrongCategory.errors), []);
+  const badIsbn = normalizeWhatsappForm({
+    category: "Libros de texto",
+    title: "Libro de Matemáticas para estudiantes",
+    description,
+    condition: "good", kind: "donation",
+    gradeLevel: "3o ESO", isbn: "9789999999999",
+  }, id, path);
+  assert.ok(badIsbn.errors.isbn);
+});
+
+test("form cannot publish without a photo; donation ignores a forged price", () => {
+  const donated = normalizeWhatsappForm({
+    ...defaultSuggestion, condition: "good", kind: "donation", price: 500,
+  }, id, null);
+  assert.equal(donated.draft.price, null);
+  assert.ok(donated.errors.photo);
+});
