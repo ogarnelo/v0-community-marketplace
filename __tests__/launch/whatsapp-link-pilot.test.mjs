@@ -75,7 +75,7 @@ test("guided publication is explicit, limited, private and does not mutate produ
   const migration = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
 
   assert.match(runner, /WHATSAPP_PUBLISH_ENABLED === "true"/);
-  assert.match(read("app/api/whatsapp/analyze/route.ts"), /WHATSAPP_AI_ENABLED !== "true"/);
+  assert.match(runner, /WHATSAPP_AI_ENABLED === "true"/);
   assert.match(runner, /VERCEL_ENV === "preview"/);
   assert.match(runner, /reserve_whatsapp_ai_request/);
   assert.match(runner, /suggestWhatsappListing\(photo\)/);
@@ -176,8 +176,8 @@ test("WhatsApp uses automatic photo analysis but never opens general AI chat or 
   const photo = read("app/api/whatsapp/photo/route.ts");
   const linkSql = read("supabase/migrations/20261101130000_whatsapp_account_link_pilot.sql");
   const flowSql = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
-  assert.match(runner, /suggestWhatsappListing\\(photo\\)/);
-  assert.match(runner, /startWhatsappListing\\(listingId, path, suggestion\\)/);
+  assert.match(runner, /suggestWhatsappListing\(photo\)/);
+  assert.match(runner, /startWhatsappListing\(listingId, path, suggestion\)/);
   assert.doesNotMatch(runner, /advanceWhatsappListing|publishWhatsappConfirmedListing/);
   assert.doesNotMatch(runner, /review_photo|privacyConfirmed|onApproved/);
   assert.match(runner, /No soy un chat general de IA/);
@@ -186,5 +186,5 @@ test("WhatsApp uses automatic photo analysis but never opens general AI chat or 
   assert.match(linkSql, /confirm_whatsapp_account_link/);
   assert.match(read("components/account/whatsapp-link-panel.tsx"), /analizará automáticamente mediante OpenAI/);
   assert.doesNotMatch(flowSql, /review_photo|privacy_approved_at/);
-  assert.match(flowSql, /p_action not in \\('save','publish'\\)/);
+  assert.match(flowSql, /p_action not in \('save','publish'\)/);
 });
