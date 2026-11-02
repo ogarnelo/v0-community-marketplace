@@ -45,7 +45,7 @@ async function findDraft(admin: ReturnType<typeof createAdminClient>, userId: st
     .eq("user_id", userId)
     .maybeSingle();
   if (error) return { error: "No se pudo consultar el borrador." };
-  if (!session || !["review_photo", "form"].includes(session.step) ||
+  if (!session || session.step !== "form" ||
       session.payload?.listingId !== draftId ||
       typeof session.draft_photo_path !== "string" ||
       !session.draft_photo_path.startsWith(`${userId}/`)) return { error: "Borrador no disponible." };
