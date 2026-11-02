@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     .select("step,payload,draft_photo_path,updated_at")
     .eq("user_id", user.id).maybeSingle();
   if (error || !session ||
-      !["review_photo", "form"].includes(session.step) ||
+      session.step !== "form" ||
       session.payload?.listingId !== draftId ||
       typeof session.draft_photo_path !== "string" ||
       !session.draft_photo_path.startsWith(`${user.id}/`) ||
