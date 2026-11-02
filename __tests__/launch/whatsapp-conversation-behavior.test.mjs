@@ -71,8 +71,8 @@ function throughToDetails(suggestion={}) {
 test("technology asks type, brand and model, then requires condition, sale, price, optional original price and confirmation", () => {
   let step = throughToDetails();
   assert.match(step.response,/Tipo de dispositivo/);
-  step = move(step,"SI"); assert.match(step.response,/Marca/);
-  step = move(step,"SI"); assert.match(step.response,/Modelo/);
+  assert.match(step.response,/Marca/);
+  assert.match(step.response,/Modelo/);
   step = move(step,"SI"); assert.equal(step.state.step,"condition");
   step = move(step,"4");
   assert.equal(step.state.payload.condition,"good");
@@ -115,11 +115,10 @@ test("books require grade and validate ISBN; optional details can be skipped", (
     gradeLevel: null,
   });
   assert.match(step.response,/ISBN/);
-  step = move(step,"9999999999999");
+  step = move(step,"ISBN: 9999999999999");
   assert.equal(step.state.step,"details");
-  assert.match(step.response,/no supera la validación/);
-  step = move(step,"SI"); // use validated suggested ISBN
-  step = move(step,"OMITIR TODO");
+  assert.match(step.response,/ISBN no es válido/);
+  step = move(step,"SI"); // accept the valid suggested ISBN and other details
   assert.equal(step.state.step,"grade");
   step = move(step,"OMITIR"); // grade required
   assert.equal(step.state.step,"grade");
@@ -139,7 +138,7 @@ test("uniform asks garment size and season; donation omits price", () => {
     specificType: "Sudadera o jersey", sizeLabel: "10", season: "Invierno",
   });
   assert.match(step.response,/Prenda/);
-  step = move(step,"SI"); step = move(step,"SI"); step = move(step,"SI");
+  step = move(step,"SI");
   assert.equal(step.state.step,"condition");
   step = move(step,"3"); step = move(step,"2");
   assert.equal(step.state.step,"review");
@@ -187,6 +186,8 @@ test("one SI accepts complete proposal but still requires condition, kind, price
   assert.equal(step.state.step, "details");
   step = move(step, "OMITIR TODO");
   assert.equal(step.state.step, "condition");
+  assert.equal(step.state.payload.brand, undefined);
+  assert.equal(step.state.payload.model, undefined);
   assert.notEqual(step.publish, true);
   step = move(step, "4");
   assert.equal(step.state.step, "intent");
@@ -209,4 +210,59 @@ test("category choice appears only when requested and changes clear incompatible
   assert.equal(step.state.step, "title");
   assert.equal(step.state.payload.category, "Uniformes");
   assert.equal(step.state.payload.brand, undefined);
+});
+
+test("several optional filters can be corrected in ONE WhatsApp message", () => {
+  let step = throughToDetails();
+  const before = { ...step.state.payload };
+  step = move(step, "Marca: Texas Instruments; Modelo: TI-36X Pro; Tipo: Calculadora científica");
+  assert.equal(step.state.step, "condition");
+  assert.equal(step.state.payload.brand, "Texas Instruments");
+  assert.equal(step.state.payload.model, "TI-36X Pro");
+  assert.equal(step.state.payload.specificType, "Calculadora científica");
+  assert.equal(before.brand, "Casio");
+});
+
+test("a partial batch preserves other suggested fields, removes '-' fields and is atomic on error", () => {
+  let step = throughToDetails();
+  const bad = move(step, "Marca: Otra marca; Modelo: TI-36X Pro; Talla: 9");
+  assert.equal(bad.state.step, "details");
+  assert.equal(bad.state.payload.brand, "Casio");
+  assert.match(bad.response, /No reconozco el filtro/);
+  const invalid = move(step, "Marca: Sharp; Tipo: Una opción inventada");
+  assert.equal(invalid.state.step, "details");
+  assert.equal(invalid.state.payload.brand, "Casio");
+  const changed = move(step, "Marca: -; Modelo: Nueva versión");
+  assert.equal(changed.state.step, "condition");
+  assert.equal(changed.state.payload.brand, undefined);
+  assert.equal(changed.state.payload.model, "Nueva versión");
+  assert.equal(changed.state.payload.specificType, "Calculadora científica");
+});
+
+test("groups optional book data and validates ISBN before advancing", () => {
+  let step = throughToDetails({
+    category: "Libros de texto",
+    title: "Matemáticas para estudiantes ESO",
+    gradeLevel: null,
+    isbn: "9780306406157",
+    subject: "Matemáticas",
+  });
+  assert.match(step.response,/Asignatura/);
+  assert.match(step.response,/Editorial/);
+  assert.match(step.response,/Idioma/);
+  const invalid = move(step,"ISBN: 9789999999999; Editorial: Anaya");
+  assert.equal(invalid.state.step,"details");
+  assert.equal(invalid.state.payload.publisher,undefined);
+  step = move(step,"Editorial: Anaya; Asignatura: Matemáticas");
+  assert.equal(step.state.step,"grade");
+  assert.equal(step.state.payload.publisher,"Anaya");
+  assert.equal(step.state.payload.isbn,"9780306406157");
+});
+
+test("categories without defined optional filters skip grouped question", () => {
+  let step = begin({ category: "Deporte escolar", title: "Raqueta para uso escolar",
+    description: "Raqueta para clase de deporte escolar, revisa sus características antes de publicar.",
+  });
+  step = move(step,"SI");
+  assert.equal(step.state.step,"condition");
 });
