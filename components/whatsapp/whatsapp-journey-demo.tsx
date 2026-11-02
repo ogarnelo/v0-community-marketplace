@@ -106,7 +106,7 @@ export default function WhatsappJourneyDemo() {
         </div>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">Publicar una foto. Revisar un formulario. Listo.</h1>
         <p className="mt-3 text-slate-600">
-          Simula cómo Wetudy identifica el material y prepara un formulario móvil para que la familia solo revise lo que falta.
+          Simula cómo Wetudy AI identifica el material y prepara un formulario móvil para que la familia solo revise lo que falta.
         </p>
         <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <strong>Simulación sin conexión real.</strong> Los valores son ejemplos fijos: la imagen que elijas no se analiza, no se guarda ni se envía. Tampoco se publica ningún anuncio.
@@ -166,7 +166,7 @@ export default function WhatsappJourneyDemo() {
                 <Bubble author="wetudy">
                   <strong>📦 ¡Tu propuesta está lista!</strong>
                   <p className="mt-2">{getExample(category).title}</p>
-                  <p className="mt-2">He rellenado el formulario con los datos que pude identificar. Revisa la fotografía, completa lo obligatorio y confirma.</p>
+                  <p className="mt-2">Wetudy AI ha rellenado el formulario con los datos que pudo identificar. Revisa la fotografía, completa lo obligatorio y confirma.</p>
                   <p className="mt-2 text-emerald-800"><strong>👉 Abrir formulario de anuncio</strong></p>
                 </Bubble>
               </>
@@ -203,7 +203,7 @@ export default function WhatsappJourneyDemo() {
           </div>
         )}
         <p className="mt-4 text-center text-xs text-slate-500">
-          Simulación: no hay mensajes enviados ni llamadas a la IA, Meta o Supabase.
+          Simulación: no hay mensajes enviados ni llamadas a Wetudy AI, Meta o Supabase.
         </p>
       </div>
     </main>
