@@ -16,6 +16,7 @@ create table if not exists public.whatsapp_listing_sessions (
   payload jsonb not null default '{}'::jsonb
     check (jsonb_typeof(payload) = 'object'),
   draft_photo_path text,
+  privacy_approved_at timestamptz,
   last_message_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   lease_id uuid,
@@ -113,6 +114,7 @@ begin
 
   update public.whatsapp_listing_sessions
     set step=p_step, payload=p_payload, draft_photo_path=p_photo_path,
+        privacy_approved_at=case when p_step in ('idle','review_photo') then null else privacy_approved_at end,
         updated_at=now(), last_message_at=now(),
         lease_id=null, in_flight_until=null
     where user_id=p_user_id and lease_id=p_lease_id
@@ -230,11 +232,12 @@ begin
                           when p_action='analyze' then p_photo_path
                           else draft_photo_path end,
       updated_at=now(),
+      privacy_approved_at=case when p_action='analyze' then now() else privacy_approved_at end,
       lease_id=null, in_flight_until=null
   where user_id=p_user_id
     and payload->>'listingId'=p_listing_id::text
     and ((p_action='analyze' and step='review_photo') or
-         (p_action in ('save','publish') and step='form'))
+         (p_action in ('save','publish') and step='form' and privacy_approved_at is not null))
     and lease_id=p_lease_id and in_flight_until > now();
   return found;
 end;
