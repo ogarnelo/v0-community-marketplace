@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import WhatsappListingForm from "@/components/whatsapp/whatsapp-listing-form";
+import WhatsappPhotoPrivacyReview from "@/components/whatsapp/whatsapp-photo-privacy-review";
 import type { WhatsappDraft } from "@/lib/whatsapp/conversation";
 
-type DraftResponse = { draft: WhatsappDraft; photoUrl: string; error?: string };
+type DraftResponse = { step: "review_photo" | "form"; draft: WhatsappDraft; photoUrl: string; error?: string };
 type PublishResponse = { published: boolean; url: string; error?: string; fields?: Record<string, string> };
 
 export default function WhatsappDraftEditor({ draftId }: { draftId: string }) {
@@ -70,6 +71,20 @@ export default function WhatsappDraftEditor({ draftId }: { draftId: string }) {
   }
   if (!data) {
     return <div role="status" className="rounded-2xl bg-white p-6 text-sm text-slate-600">Cargando propuesta de anuncio…</div>;
+  }
+  if (data.step === "review_photo") {
+    return (
+      <WhatsappPhotoPrivacyReview
+        draftId={draftId}
+        onApproved={(draft) => {
+          setData({
+            step: "form",
+            draft: draft as WhatsappDraft,
+            photoUrl: `/api/whatsapp/photo?draft=${encodeURIComponent(draftId)}`,
+          });
+        }}
+      />
+    );
   }
   return (
     <WhatsappListingForm
