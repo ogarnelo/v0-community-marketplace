@@ -86,3 +86,11 @@ La demo `/demo/wetudy-whatsapp` ahora enseña un solo bloque de detalles y permi
 **Seguridad y límites:** solo usuarios explícitamente permitidos en Preview, sesión Wetudy verificada, email confirmado, número previamente vinculado, expiración del borrador a las 24 horas, validación del body en servidor y protección de origen en peticiones POST. Sin entorno Meta/Supabase de pruebas configurado ni cambios en producción; la ruta real permanece desactivada. La vista `/demo/wetudy-whatsapp` ofrece el mismo formulario con ejemplos fijos sin almacenamiento ni análisis real.
 
 **Antes del piloto real:** hacer pruebas completas de sesión en navegadores embebidos de WhatsApp, subida/descarga y publicación, validación de accesibilidad móvil, límites y reintentos de errores, colas y limpieza periódica, y revisar consentimiento y RGPD. No aplicar migraciones ni compartir credenciales en producción sin autorización.
+
+### Refuerzo de seguridad y reintentos (02/11/2026)
+
+**Entorno aislado obligatorio:** `isWhatsappPilotConfigured()` ahora exige `WHATSAPP_PILOT_SUPABASE_PROJECT_REF` y comprueba que coincide exactamente con `NEXT_PUBLIC_SUPABASE_URL`, además de que no coincida con el proyecto de producción (`WHATSAPP_PRODUCTION_SUPABASE_PROJECT_REF`, con respaldo a la referencia productiva actual). Sin esa configuración no se activa ninguna ruta de Meta, ni la vinculación, ni el formulario privado.
+
+**Guardado/publicación atómicos por borrador:** la migración agrega RPC privadas `claim_whatsapp_form`, `complete_whatsapp_form` y `release_whatsapp_form`, accesibles solo con `service_role`. Los webhooks y los formularios comparten el mismo bloqueo por sesión para evitar carreras al subir una foto, guardar o publicar. La publicación conserva UUID estable para reintentos y el formulario gestiona explícitamente `already_published` cuando un usuario hace doble clic.
+
+**IMPORTANTE:** estas funciones son código de la rama. La migración no se ha aplicado; las pruebas de contrato no sustituyen una ejecución real contra una base Supabase aislada.
