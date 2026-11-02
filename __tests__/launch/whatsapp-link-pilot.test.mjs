@@ -142,7 +142,7 @@ test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form ra
   assert.match(api, /complete_whatsapp_form/);
   assert.match(api, /release_whatsapp_form/);
   assert.match(api, /publishWhatsappConfirmedListing/);
-  assert.match(api, /step: "published"/);
+  assert.match(api, /p_action: "publish"/);
   assert.match(client, /WhatsappListingForm/);
   assert.match(form, /Obligatorio/);
   assert.match(form, /Opcional/);
