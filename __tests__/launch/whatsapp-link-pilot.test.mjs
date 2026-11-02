@@ -137,7 +137,10 @@ test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form ra
   assert.match(api, /whatsapp_account_links/);
   assert.match(api, /session\.payload\?\.listingId !== draftId/);
   assert.match(api, /createSignedUrl/);
-  assert.match(api, /body\.action === "save"/);
+  assert.match(api, /p_action: "save"/);
+  assert.match(api, /claim_whatsapp_form/);
+  assert.match(api, /complete_whatsapp_form/);
+  assert.match(api, /release_whatsapp_form/);
   assert.match(api, /publishWhatsappConfirmedListing/);
   assert.match(api, /step: "published"/);
   assert.match(client, /WhatsappListingForm/);
@@ -147,4 +150,19 @@ test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form ra
   assert.match(form, /Confirmar y publicar/);
   assert.doesNotMatch(form, /Marca: Casio; Modelo: fx-/);
   assert.match(read("components/whatsapp/whatsapp-journey-demo.tsx"), /WhatsappListingForm/);
+});
+
+test("Preview cannot point the WhatsApp pilot at Wetudy production Supabase", () => {
+  const migration = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
+  const pilot = read("lib/whatsapp/pilot.ts");
+  assert.match(pilot, /WHATSAPP_PILOT_SUPABASE_PROJECT_REF/);
+  assert.match(pilot, /WHATSAPP_PRODUCTION_SUPABASE_PROJECT_REF/);
+  assert.match(pilot, /isWhatsappPilotSandboxSafe\(\)/);
+  assert.match(pilot, /testRef === productionRef/);
+  assert.match(pilot, /parsed\.hostname ===/);
+  assert.match(migration, /function public\.claim_whatsapp_form/);
+  assert.match(migration, /function public\.complete_whatsapp_form/);
+  assert.match(migration, /function public\.release_whatsapp_form/);
+  assert.match(migration, /v_session\.in_flight_until > now\(\)/);
+  assert.match(migration, /grant execute on function public\.claim_whatsapp_form[\s\S]*to service_role/);
 });
