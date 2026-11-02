@@ -61,9 +61,9 @@ test("Standalone journey demo is preview-only, simulated and never sends or publ
   const demoClient = read("components/whatsapp/whatsapp-journey-demo.tsx");
   assert.match(demoRoute, /process\.env\.VERCEL_ENV !== "preview"/);
   assert.match(demoRoute, /notFound\(\)/);
-  assert.match(demoClient, /Simulación de experiencia/);
-  assert.match(demoClient, /No se conecta a WhatsApp/);
-  assert.match(demoClient, /URL\.createObjectURL\(picture\)/);
+  assert.match(demoClient, /Simulación sin conexión real/);
+  assert.match(demoClient, /no se analiza, no se guarda ni se envía/);
+  assert.match(demoClient, /URL\.createObjectURL\(photo\)/);
   assert.doesNotMatch(demoClient, /fetch\(|\.from\(["']listings["']\)/);
 });
 
@@ -115,4 +115,36 @@ test("draft retention cleanup is private, preview only, 24h and not scheduled au
   assert.match(cleaner, /24 \* 60 \* 60_000/);
   assert.match(cleaner, /whatsapp-draft-photos/);
   assert.match(cleaner, /whatsapp_incoming_events/);
+});
+
+test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form rather than text commands", () => {
+  const runner = read("lib/whatsapp/inbound-listings.ts");
+  const form = read("components/whatsapp/whatsapp-listing-form.tsx");
+  const client = read("components/whatsapp/whatsapp-draft-editor.tsx");
+  const api = read("app/api/whatsapp/draft/route.ts");
+  const page = read("app/account/whatsapp/draft/page.tsx");
+  const migration = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
+
+  assert.match(runner, /step: "form"/);
+  assert.match(runner, /\/account\/whatsapp\/draft\?draft=/);
+  assert.match(runner, /Tu propuesta está lista/);
+  assert.match(migration, /'form'/);
+  assert.match(page, /isWhatsappPilotConfigured\(\)/);
+  assert.match(page, /WHATSAPP_PUBLISH_ENABLED !== "true"/);
+  assert.match(page, /supabase\.auth\.getUser\(\)/);
+  assert.match(api, /isSameOriginPost\(request\)/);
+  assert.match(api, /isWhatsappPilotUserAllowed\(user\.id\)/);
+  assert.match(api, /whatsapp_account_links/);
+  assert.match(api, /session\.payload\?\.listingId !== draftId/);
+  assert.match(api, /createSignedUrl/);
+  assert.match(api, /body\.action === "save"/);
+  assert.match(api, /publishWhatsappConfirmedListing/);
+  assert.match(api, /step: "published"/);
+  assert.match(client, /WhatsappListingForm/);
+  assert.match(form, /Obligatorio/);
+  assert.match(form, /Opcional/);
+  assert.match(form, /normalizeWhatsappForm/);
+  assert.match(form, /Confirmar y publicar/);
+  assert.doesNotMatch(form, /Marca: Casio; Modelo: fx-/);
+  assert.match(read("components/whatsapp/whatsapp-journey-demo.tsx"), /WhatsappListingForm/);
 });
