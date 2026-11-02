@@ -137,7 +137,7 @@ test("uniform asks garment size and season; donation omits price", () => {
     category: "Uniformes", title: "Jersey del uniforme escolar",
     specificType: "Sudadera o jersey", sizeLabel: "10", season: "Invierno",
   });
-  assert.match(step.response,/Prenda/);
+  assert.match(step.response,/Tipo de prenda/);
   step = move(step,"SI");
   assert.equal(step.state.step,"condition");
   step = move(step,"3"); step = move(step,"2");
