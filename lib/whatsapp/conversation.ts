@@ -1,7 +1,7 @@
 import { categories, conditions, gradeLevels } from "@/lib/mock-data";
 import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
 import {
-  detailFieldsForCategory, normalizeDetailChoice, promptForDetail,
+  detailFieldsForCategory, normalizeDetailChoice,
   type WhatsappDetailKey,
 } from "@/lib/whatsapp/category-fields";
 
@@ -20,7 +20,6 @@ export type WhatsappDraft = {
   kind?: "sale" | "donation";
   price?: number | null;
   originalPrice?: number | null;
-  detailIndex?: number;
   isbn?: string;
   subject?: string;
   author?: string;
@@ -124,18 +123,98 @@ function nextAfterDetails(draft: WhatsappDraft): WhatsappNext {
   return { state: { step: "condition", payload: draft, draftPhotoPath: "" }, response: CONDITION_PROMPT };
 }
 
-function nextDetail(draft: WhatsappDraft): WhatsappNext {
+function groupedDetailsPrompt(draft: WhatsappDraft) {
   const fields = detailFieldsForCategory(draft.category);
-  const index = draft.detailIndex ?? 0;
-  if (index < fields.length) {
-    const current = fields[index];
-    const value = draft[current.key];
-    return {
-      state: { step: "details", payload: draft, draftPhotoPath: "" },
-      response: promptForDetail(current, typeof value === "string" ? value : undefined),
-    };
+  const current = fields.map((field) =>
+    `• ${field.label}: ${draft[field.key] || "(sin especificar)"}`
+  );
+  const example = fields.filter((field) => Boolean(draft[field.key])).slice(0, 2)
+    .map((field) => `${field.label}: ${draft[field.key]}`).join("; ");
+  return [
+    "🔎 Detalles recomendados para las búsquedas:",
+    ...current,
+    "",
+    "¿Son correctos? Puedes resolverlos TODOS en un solo mensaje:",
+    "SI — conservar estos datos y continuar.",
+    "OMITIR TODO — dejar vacíos los filtros opcionales.",
+    "Para añadir o corregir, escribe varios campos en el mismo mensaje:",
+    example || `${fields[0]?.label || "Marca"}: valor`,
+    "Separa campos con punto y coma (;) o saltos de línea.",
+    "Para borrar uno: Marca: -",
+    "No hacen falta más respuestas individuales.",
+  ].join("\n");
+}
+
+function nextDetail(draft: WhatsappDraft): WhatsappNext {
+  if (detailFieldsForCategory(draft.category).length === 0) {
+    return nextAfterDetails(draft);
   }
-  return nextAfterDetails(draft);
+  return {
+    state: { step: "details", payload: draft, draftPhotoPath: "" },
+    response: groupedDetailsPrompt(draft),
+  };
+}
+
+function normalizedDetailLabel(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function updateGroupedDetails(
+  draft: WhatsappDraft,
+  input: string
+): { ok: true; draft: WhatsappDraft } | { ok: false; error: string } {
+  const fields = detailFieldsForCategory(draft.category);
+  const aliases: Record<string, WhatsappDetailKey> = {
+    tipo: "specificType",
+    prenda: "specificType",
+    dispositivo: "specificType",
+    material: "specificType",
+    talla: "sizeLabel",
+  };
+  const mapped = new Map<string, (typeof fields)[number]>();
+  for (const field of fields) {
+    mapped.set(normalizedDetailLabel(field.label), field);
+    mapped.set(normalizedDetailLabel(field.key), field);
+  }
+  for (const [label, key] of Object.entries(aliases)) {
+    const field = fields.find((item) => item.key === key);
+    if (field) mapped.set(label, field);
+  }
+
+  const entries = input.split(/[;\n]+/).map((part) => part.trim()).filter(Boolean);
+  if (!entries.length || entries.length > fields.length || input.length > 1000) {
+    return { ok: false, error: "Escribe los campos en una sola respuesta (máximo uno por filtro)." };
+  }
+
+  const changed = { ...draft };
+  const seen = new Set<WhatsappDetailKey>();
+  for (const entry of entries) {
+    const separator = entry.indexOf(":");
+    if (separator <= 0) {
+      return { ok: false, error: "Utiliza el formato Marca: Casio; Modelo: fx-82, con dos puntos." };
+    }
+    const key = normalizedDetailLabel(entry.slice(0, separator));
+    const field = mapped.get(key);
+    if (!field) {
+      return { ok: false, error: `No reconozco el filtro «${entry.slice(0, separator).trim().slice(0, 50)}». Usa los nombres mostrados.` };
+    }
+    if (seen.has(field.key)) return { ok: false, error: `El filtro ${field.label} aparece dos veces.` };
+    seen.add(field.key);
+    const raw = entry.slice(separator + 1).trim();
+    if (raw === "-" || normalizedDetailLabel(raw) === "omitir") {
+      delete changed[field.key];
+      continue;
+    }
+    const value = normalizeDetailChoice(field, raw);
+    if (!value) return { ok: false, error: `Valor no válido para ${field.label}. Comprueba las opciones de Wetudy.` };
+    if (field.key === "isbn") {
+      if (!isValidIsbn(value)) return { ok: false, error: "El ISBN no es válido. Revisa los dígitos de control." };
+      changed.isbn = normalizeIsbn(value)?.canonicalIsbn || value;
+    } else {
+      changed[field.key] = value;
+    }
+  }
+  return { ok: true, draft: changed };
 }
 
 function keepPhoto(previous: WhatsappState, next: WhatsappNext): WhatsappNext {
@@ -180,7 +259,7 @@ export function startWhatsappListing(
   const draft: WhatsappDraft = {
     listingId, title: safeText(suggestion.title, 110),
     description: safeText(suggestion.description, DESCRIPTION_LIMIT),
-    category, gradeLevel, detailIndex: 0,
+    category, gradeLevel, 
   };
   for (const key of DETAIL_KEYS) {
     const value = suggestion[key];
@@ -288,7 +367,6 @@ export function advanceWhatsappListing(state: WhatsappState, incoming: string): 
     }
     // One SI accepts the proposed category/title/description together.
     // Specific details and the final explicit PUBLICAR remain separate.
-    draft.detailIndex = 0;
     return keepPhoto(state, nextDetail(draft));
   }
 
@@ -303,36 +381,23 @@ export function advanceWhatsappListing(state: WhatsappState, incoming: string): 
     if (!draft.description || draft.description.trim().length < 40) {
       return { state, response: `La descripción necesita al menos 40 caracteres.\n\n${descriptionPrompt(draft.description)}` };
     }
-    draft.detailIndex = 0;
     return keepPhoto(state, nextDetail(draft));
   }
 
   if (state.step === "details") {
-    const fields = detailFieldsForCategory(draft.category);
-    const index = draft.detailIndex ?? 0;
-    const field = fields[index];
-    if (!field) return keepPhoto(state, nextAfterDetails(draft));
-    if (upper === "OMITIR TODO") {
-      for (const remaining of fields.slice(index)) delete draft[remaining.key];
-      draft.detailIndex = fields.length;
+    if (upper === "SI" || upper === "SÍ") {
       return keepPhoto(state, nextAfterDetails(draft));
     }
-    if (upper === "OMITIR") {
-      delete draft[field.key];
-    } else if (upper === "SI" || upper === "SÍ") {
-      if (!draft[field.key]) return { state, response: promptForDetail(field) };
-    } else {
-      const value = normalizeDetailChoice(field, input);
-      if (!value) return { state, response: `No reconozco ese valor.\n${promptForDetail(field, draft[field.key])}` };
-      if (field.key === "isbn") {
-        if (!isValidIsbn(value)) return { state, response: "El ISBN no supera la validación. Escribe uno válido o responde OMITIR." };
-        draft.isbn = normalizeIsbn(value)?.canonicalIsbn || value;
-      } else {
-        draft[field.key] = value;
-      }
+    if (upper === "OMITIR" || upper === "OMITIR TODO") {
+      for (const field of detailFieldsForCategory(draft.category)) delete draft[field.key];
+      return keepPhoto(state, nextAfterDetails(draft));
     }
-    draft.detailIndex = index + 1;
-    return keepPhoto(state, nextDetail(draft));
+    if (upper === "EDITAR" || upper === "AYUDA") {
+      return { state, response: groupedDetailsPrompt(draft) };
+    }
+    const parsed = updateGroupedDetails(draft, input);
+    if (!parsed.ok) return { state, response: `${parsed.error}\n\n${groupedDetailsPrompt(draft)}` };
+    return keepPhoto(state, nextAfterDetails(parsed.draft));
   }
 
   if (state.step === "grade") {
