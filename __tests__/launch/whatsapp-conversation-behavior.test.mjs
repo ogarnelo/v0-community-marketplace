@@ -8,347 +8,136 @@ const mockData = {
   categories: ["Libros de texto","Lectura y literatura","Material escolar","Uniformes","Tecnología y calculadoras","Mochilas y estuches","Música","Deporte escolar","Material universitario","Otros"],
   gradeLevels: ["Infantil","1o Primaria","2o Primaria","3o Primaria","1o ESO","2o ESO","3o ESO","4o ESO","Universidad","Otros"],
   conditions: [
-    { value: "new_with_tags", label: "Nuevo con etiquetas" },
-    { value: "new_without_tags", label: "Nuevo sin etiquetas" },
-    { value: "very_good", label: "Muy bueno" },
-    { value: "good", label: "Bueno" },
-    { value: "satisfactory", label: "Satisfactorio" },
+    { value:"new_with_tags", label:"Nuevo con etiquetas" },
+    { value:"new_without_tags", label:"Nuevo sin etiquetas" },
+    { value:"very_good", label:"Muy bueno" },
+    { value:"good", label:"Bueno" },
+    { value:"satisfactory", label:"Satisfactorio" },
   ],
   bookFormats: ["Tapa blanda","Tapa dura","Cuaderno de actividades","Libro digital con código","Lote de libros","Otros"],
   bookLanguages: ["Español","Inglés","Francés","Alemán","Italiano","Portugués","Catalán","Euskera","Gallego","Valenciano","Árabe","Chino","Japonés","Ruso","Hindi"],
 };
 
-function loadModule(path, deps) {
-  const output = ts.transpileModule(readFileSync(path, "utf8"), {
+function load(path, dependencies) {
+  const js = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     fileName: path,
   }).outputText;
-  const module = { exports: {} };
-  vm.runInNewContext(`(function(require, module, exports) { ${output}\n})`)(
+  const mod = { exports: {} };
+  vm.runInNewContext(`(function(require, module, exports){ ${js}\n})`)(
     (name) => {
-      if (!(name in deps)) throw Error(`Unexpected dependency: ${name}`);
-      return deps[name];
-    }, module, module.exports,
+      if (!(name in dependencies)) throw Error("Unexpected dependency " + name);
+      return dependencies[name];
+    }, mod, mod.exports
   );
-  return module.exports;
+  return mod.exports;
 }
-const catalog = loadModule("lib/whatsapp/category-fields.ts", {
-  "@/lib/mock-data": mockData,
-});
-const isbnHelpers = {
-  isValidIsbn: (value) => value.replace(/[^0-9X]/gi,"") === "9780306406157",
-  normalizeIsbn: (value) => ({ canonicalIsbn: value.replace(/[^0-9X]/gi,"") }),
+const isbn = {
+  isValidIsbn: (x) => x.replace(/[^0-9X]/gi,"") === "9780306406157",
+  normalizeIsbn: (x) => ({ canonicalIsbn: x.replace(/[^0-9X]/gi,"") }),
 };
-const { startWhatsappListing, advanceWhatsappListing, isValidWhatsappDraft } =
-  loadModule("lib/whatsapp/conversation.ts", {
-    "@/lib/mock-data": mockData,
-    "@/lib/books/isbn": isbnHelpers,
-    "@/lib/whatsapp/category-fields": catalog,
-  });
-const id = "12345678-1234-4123-8123-123456789abc";
-const path = `${id}/demo.jpg`;
-const description = "Calculadora escolar con pantalla digital, carcasa rígida y teclas para operaciones matemáticas.";
-const defaultSuggestion = {
-  category: "Tecnología y calculadoras", gradeLevel: null,
-  title: "Calculadora científica escolar", description,
-  specificType: "Calculadora científica", brand: "Casio", model: "fx-82SP CW",
-};
-const begin = (overrides={}) => startWhatsappListing(id, path, { ...defaultSuggestion, ...overrides });
-const move = (last, message) => advanceWhatsappListing(last.state, message);
-
-function throughToDetails(suggestion={}) {
-  let step = begin(suggestion);
-  assert.equal(step.state.step, "category");
-  assert.match(step.response,/Título: /);
-  assert.match(step.response,/Descripción: /);
-  assert.match(step.response,/Categoría: /);
-  assert.match(step.response,/SI — aceptar los tres/);
-  step = move(step,"SI");
-  assert.equal(step.state.step, "details");
-  return step;
-}
-
-test("technology asks type, brand and model, then requires condition, sale, price, optional original price and confirmation", () => {
-  let step = throughToDetails();
-  assert.match(step.response,/Tipo de dispositivo/);
-  assert.match(step.response,/Marca/);
-  assert.match(step.response,/Modelo/);
-  step = move(step,"SI"); assert.equal(step.state.step,"condition");
-  step = move(step,"4");
-  assert.equal(step.state.payload.condition,"good");
-  step = move(step,"1"); assert.equal(step.state.step,"price");
-  step = move(step,"12,50");
-  assert.equal(step.state.step,"originalPrice");
-  step = move(step,"OMITIR");
-  assert.equal(step.state.step,"review");
-  assert.equal(step.state.payload.price,12.5);
-  assert.match(step.response,/Descripción:/);
-  assert.match(step.response,/Marca: Casio/);
-  assert.match(step.response,/Modelo: fx-82SP CW/);
-  assert.equal(isValidWhatsappDraft(step.state.payload, step.state.draftPhotoPath),true);
-  assert.notEqual(move(step,"publicar ahora").publish,true);
-  const confirmed = move(step,"PUBLICAR");
-  assert.equal(confirmed.publish,true);
-  assert.equal(confirmed.state.step,"review");
-});
-
-test("user may edit the combined proposal and correct description before proceeding", () => {
-  let step = begin();
-  step = move(step,"EDITAR");
-  assert.equal(step.state.step,"title");
-  step = move(step,"SI");
-  assert.equal(step.state.step,"description");
-  step = move(step,"muy corto");
-  assert.equal(step.state.step,"description");
-  const full = "Calculadora con funda protectora y manual de instrucciones, incluye tapa y pilas nuevas.";
-  step = move(step,full);
-  assert.equal(step.state.step,"details");
-  assert.equal(step.state.payload.description,full);
-});
-
-test("books require grade and validate ISBN; optional details can be skipped", () => {
-  let step = throughToDetails({
-    category: "Libros de texto",
-    title: "Libro de Matemáticas de secundaria",
-    isbn: "9780306406157",
-    subject: "Matemáticas",
-    gradeLevel: null,
-  });
-  assert.match(step.response,/ISBN/);
-  step = move(step,"ISBN: 9999999999999");
-  assert.equal(step.state.step,"details");
-  assert.match(step.response,/ISBN no es válido/);
-  step = move(step,"SI"); // accept the valid suggested ISBN and other details
-  assert.equal(step.state.step,"grade");
-  step = move(step,"OMITIR"); // grade required
-  assert.equal(step.state.step,"grade");
-  step = move(step,"3º ESO");
-  assert.equal(step.state.payload.gradeLevel,"3o ESO");
-  step = move(step,"4"); step = move(step,"1"); step = move(step,"8");
-  assert.equal(step.state.step,"originalPrice");
-  step = move(step,"18");
-  assert.equal(step.state.step,"review");
-  assert.match(step.response,/ISBN: 9780306406157/);
-  assert.equal(move(step,"PUBLICAR").publish,true);
-});
-
-test("uniform asks garment size and season; donation omits price", () => {
-  let step = throughToDetails({
-    category: "Uniformes", title: "Jersey del uniforme escolar",
-    specificType: "Sudadera o jersey", sizeLabel: "10", season: "Invierno",
-  });
-  assert.match(step.response,/Tipo de prenda/);
-  step = move(step,"SI");
-  assert.equal(step.state.step,"condition");
-  step = move(step,"3"); step = move(step,"2");
-  assert.equal(step.state.step,"review");
-  assert.match(step.response,/Talla: 10/);
-  assert.match(step.response,/Temporada: Invierno/);
-  assert.equal(step.state.payload.price,null);
-  assert.equal(move(step,"PUBLICAR").publish,true);
-  const cancel = move(step,"CANCELAR");
-  assert.equal(cancel.state.step,"idle"); assert.equal(cancel.cleanup,true);
-});
-
-test("changing category clears incompatible AI filter suggestions", () => {
-  let step = begin();
-  step = move(step,"4"); // Uniformes
-  assert.equal(step.state.payload.category,"Uniformes");
-  assert.equal(step.state.payload.brand,undefined);
-  assert.equal(step.state.payload.model,undefined);
-  assert.equal(step.state.payload.specificType,undefined);
-});
-
-test("category-specific mapping supports bags, supplies, and other products without unnecessary fields", () => {
-  assert.deepEqual(Array.from(catalog.detailFieldsForCategory("Mochilas y estuches").map(x=>x.key)),["specificType","brand"]);
-  assert.deepEqual(Array.from(catalog.detailFieldsForCategory("Material escolar").map(x=>x.key)),["specificType"]);
-  assert.equal(catalog.detailFieldsForCategory("Deporte escolar").length,0);
-});
-
-test("no missing category/title/description gets silently accepted", () => {
-  let step = begin({ category: null, title: null, description: null });
-  step = move(step,"SI");
-  assert.equal(step.state.step,"category");
-  step = move(step,"5"); assert.equal(step.state.step,"title");
-  step = move(step,"SI"); assert.equal(step.state.step,"title");
-  step = move(step,"Calculadora científica escolar");
-  assert.equal(step.state.step,"description");
-  step = move(step,"SI"); assert.equal(step.state.step,"description");
-});
-
-test("one SI accepts complete proposal but still requires condition, kind, price and final PUBLICAR", () => {
-  let step = begin();
-  assert.match(step.response, /📷 He preparado esta propuesta de anuncio/);
-  assert.match(step.response, /Marca: Casio/);
-  assert.match(step.response, /Modelo: fx-82SP CW/);
-  assert.doesNotMatch(step.response, /1\. Libros de texto/);
-  step = move(step, "SI");
-  assert.equal(step.state.step, "details");
-  step = move(step, "OMITIR TODO");
-  assert.equal(step.state.step, "condition");
-  assert.equal(step.state.payload.brand, undefined);
-  assert.equal(step.state.payload.model, undefined);
-  assert.notEqual(step.publish, true);
-  step = move(step, "4");
-  assert.equal(step.state.step, "intent");
-  step = move(step, "1");
-  assert.equal(step.state.step, "price");
-  step = move(step, "12");
-  assert.equal(step.state.step, "originalPrice");
-  step = move(step, "OMITIR");
-  assert.equal(step.state.step, "review");
-  assert.notEqual(move(step, "SI").publish, true);
-  assert.equal(move(step, "PUBLICAR").publish, true);
-});
-
-test("category choice appears only when requested and changes clear incompatible details", () => {
-  let step = begin();
-  step = move(step, "CAMBIAR");
-  assert.equal(step.state.step, "category");
-  assert.match(step.response, /1\. Libros de texto/);
-  step = move(step, "4");
-  assert.equal(step.state.step, "title");
-  assert.equal(step.state.payload.category, "Uniformes");
-  assert.equal(step.state.payload.brand, undefined);
-});
-
-test("several optional filters can be corrected in ONE WhatsApp message", () => {
-  let step = throughToDetails();
-  const before = { ...step.state.payload };
-  step = move(step, "Marca: Texas Instruments; Modelo: TI-36X Pro; Tipo: Calculadora científica");
-  assert.equal(step.state.step, "condition");
-  assert.equal(step.state.payload.brand, "Texas Instruments");
-  assert.equal(step.state.payload.model, "TI-36X Pro");
-  assert.equal(step.state.payload.specificType, "Calculadora científica");
-  assert.equal(before.brand, "Casio");
-});
-
-test("a partial batch preserves other suggested fields, removes '-' fields and is atomic on error", () => {
-  let step = throughToDetails();
-  const bad = move(step, "Marca: Otra marca; Modelo: TI-36X Pro; Talla: 9");
-  assert.equal(bad.state.step, "details");
-  assert.equal(bad.state.payload.brand, "Casio");
-  assert.match(bad.response, /No reconozco el filtro/);
-  const invalid = move(step, "Marca: Sharp; Tipo: Una opción inventada");
-  assert.equal(invalid.state.step, "details");
-  assert.equal(invalid.state.payload.brand, "Casio");
-  const changed = move(step, "Marca: -; Modelo: Nueva versión");
-  assert.equal(changed.state.step, "condition");
-  assert.equal(changed.state.payload.brand, undefined);
-  assert.equal(changed.state.payload.model, "Nueva versión");
-  assert.equal(changed.state.payload.specificType, "Calculadora científica");
-});
-
-test("groups optional book data and validates ISBN before advancing", () => {
-  let step = throughToDetails({
-    category: "Libros de texto",
-    title: "Matemáticas para estudiantes ESO",
-    gradeLevel: null,
-    isbn: "9780306406157",
-    subject: "Matemáticas",
-  });
-  assert.match(step.response,/Asignatura/);
-  assert.match(step.response,/Editorial/);
-  assert.match(step.response,/Idioma/);
-  const invalid = move(step,"ISBN: 9789999999999; Editorial: Anaya");
-  assert.equal(invalid.state.step,"details");
-  assert.equal(invalid.state.payload.publisher,undefined);
-  step = move(step,"Editorial: Anaya; Asignatura: Matemáticas");
-  assert.equal(step.state.step,"grade");
-  assert.equal(step.state.payload.publisher,"Anaya");
-  assert.equal(step.state.payload.isbn,"9780306406157");
-});
-
-test("categories without defined optional filters skip grouped question", () => {
-  let step = begin({ category: "Deporte escolar", title: "Raqueta para uso escolar",
-    description: "Raqueta para clase de deporte escolar, revisa sus características antes de publicar.",
-  });
-  step = move(step,"SI");
-  assert.equal(step.state.step,"condition");
-});
-
-const { normalizeWhatsappForm } = loadModule("lib/whatsapp/form.ts", {
+const category = load("lib/whatsapp/category-fields.ts", { "@/lib/mock-data": mockData });
+const conversation = load("lib/whatsapp/conversation.ts", {
   "@/lib/mock-data": mockData,
-  "@/lib/books/isbn": isbnHelpers,
-  "@/lib/whatsapp/category-fields": catalog,
-  "@/lib/whatsapp/conversation": { isValidWhatsappDraft },
+  "@/lib/books/isbn": isbn,
+  "@/lib/whatsapp/category-fields": category,
+});
+const form = load("lib/whatsapp/form.ts", {
+  "@/lib/mock-data": mockData,
+  "@/lib/books/isbn": isbn,
+  "@/lib/whatsapp/category-fields": category,
+  "@/lib/whatsapp/conversation": conversation,
+});
+const ID = "12345678-1234-4123-8123-123456789abc";
+const PRIVATE = `${ID}/approved.jpg`;
+const DESC = "Calculadora escolar con carcasa resistente, pantalla y teclas para operaciones matemáticas.";
+const suggest = {
+  category: "Tecnología y calculadoras",
+  title: "Calculadora científica escolar",
+  description: DESC,
+  gradeLevel: null,
+  specificType: "Calculadora científica",
+  brand: "Casio",
+  model: "fx-82SP CW",
+};
+
+test("AI prepares form values only; no free-text publication functions remain", () => {
+  assert.equal(conversation.advanceWhatsappListing, undefined);
+  assert.equal(conversation.updateGroupedDetails, undefined);
+  assert.equal(conversation.formatWhatsappReview, undefined);
+  const prepared = conversation.startWhatsappListing(ID, PRIVATE, suggest);
+  assert.equal(prepared.state.step, "form");
+  assert.equal(prepared.state.payload.brand, "Casio");
+  assert.equal(prepared.state.payload.model, "fx-82SP CW");
+  assert.equal(prepared.state.payload.condition, undefined);
+  assert.equal(prepared.state.payload.kind, undefined);
+  assert.equal(prepared.state.payload.price, undefined);
 });
 
-test("prefilled mobile form requires state and intent, not invented by AI", () => {
-  const input = { ...defaultSuggestion, listingId: id, condition: "", kind: "" };
-  const result = normalizeWhatsappForm(input, id, path);
-  assert.equal(result.draft.title, defaultSuggestion.title);
-  assert.equal(result.draft.brand, "Casio");
-  assert.equal(result.draft.model, "fx-82SP CW");
+test("form rejects missing state and selling intent instead of inventing them", () => {
+  const result = form.normalizeWhatsappForm(suggest, ID, PRIVATE);
   assert.ok(result.errors.condition);
   assert.ok(result.errors.kind);
   assert.equal(result.errors.price, undefined);
 });
 
-test("form accepts AI suggested optional details, user-supplied sale price and explicit category", () => {
-  const result = normalizeWhatsappForm({
-    ...defaultSuggestion, condition: "good", kind: "sale", price: "12,50",
-    originalPrice: "", brand: "Casio", model: "fx-82SP CW",
-  }, id, path);
+test("valid selling form requires positive price, optional original price", () => {
+  const result = form.normalizeWhatsappForm({
+    ...suggest, condition: "good", kind: "sale", price: "12,50",
+  }, ID, PRIVATE);
   assert.deepEqual(Object.keys(result.errors), []);
   assert.equal(result.draft.price, 12.5);
   assert.equal(result.draft.originalPrice, null);
-  assert.equal(result.draft.brand, "Casio");
-  assert.equal(result.draft.model, "fx-82SP CW");
-  assert.equal(result.draft.listingId, id);
+  assert.equal(conversation.isValidWhatsappDraft(result.draft, PRIVATE), true);
 });
 
-test("form requires grade for school books, but not backpacks or electronics", () => {
-  const book = normalizeWhatsappForm({
+test("books require course, optional ISBN must pass checksum", () => {
+  const book = {
     category: "Libros de texto",
-    title: "Libro de Matemáticas para estudiantes",
-    description: description,
-    gradeLevel: "",
-    condition: "good",
-    kind: "donation",
-  }, id, path);
-  assert.ok(book.errors.gradeLevel);
-  const backpack = normalizeWhatsappForm({
-    category: "Mochilas y estuches",
-    title: "Mochila para estudiantes de primaria",
-    description,
-    gradeLevel: "",
-    condition: "good",
-    kind: "donation",
-    brand: "Eastpak",
-  }, id, path);
-  assert.deepEqual(Object.keys(backpack.errors), []);
-  assert.equal(backpack.draft.price, null);
-  assert.equal(backpack.draft.brand, "Eastpak");
+    title: "Libro de matemáticas de secundaria",
+    description: DESC,
+    condition: "good", kind: "donation",
+    subject: "Matemáticas",
+  };
+  const noCourse = form.normalizeWhatsappForm(book, ID, PRIVATE);
+  assert.ok(noCourse.errors.gradeLevel);
+  const invalid = form.normalizeWhatsappForm({
+    ...book, gradeLevel: "3o ESO", isbn: "9789999999999",
+  }, ID, PRIVATE);
+  assert.ok(invalid.errors.isbn);
+  const valid = form.normalizeWhatsappForm({
+    ...book, gradeLevel: "3o ESO", isbn: "9780306406157",
+  }, ID, PRIVATE);
+  assert.deepEqual(Object.keys(valid.errors), []);
 });
 
-test("form only retains optional fields matching the chosen category and rejects invalid ISBN", () => {
-  const wrongCategory = normalizeWhatsappForm({
+test("uniform's fields never inherit calculator details from untrusted input", () => {
+  const uniform = form.normalizeWhatsappForm({
+    ...suggest,
     category: "Uniformes",
-    title: "Jersey de uniforme escolar talla diez",
-    description,
+    title: "Jersey para uniforme escolar",
     condition: "good", kind: "donation",
-    brand: "Ignored", model: "Ignored",
-    specificType: "Sudadera o jersey",
-    sizeLabel: "10",
-  }, id, path);
-  assert.equal(wrongCategory.draft.brand, undefined);
-  assert.equal(wrongCategory.draft.model, undefined);
-  assert.deepEqual(Object.keys(wrongCategory.errors), []);
-  const badIsbn = normalizeWhatsappForm({
-    category: "Libros de texto",
-    title: "Libro de Matemáticas para estudiantes",
-    description,
-    condition: "good", kind: "donation",
-    gradeLevel: "3o ESO", isbn: "9789999999999",
-  }, id, path);
-  assert.ok(badIsbn.errors.isbn);
+    specificType: "Sudadera o jersey", sizeLabel: "10", season: "Invierno",
+  }, ID, PRIVATE);
+  assert.deepEqual(Object.keys(uniform.errors), []);
+  assert.equal(uniform.draft.brand, undefined);
+  assert.equal(uniform.draft.model, undefined);
+  assert.equal(uniform.draft.sizeLabel, "10");
 });
 
-test("form cannot publish without a photo; donation ignores a forged price", () => {
-  const donated = normalizeWhatsappForm({
-    ...defaultSuggestion, condition: "good", kind: "donation", price: 500,
-  }, id, null);
-  assert.equal(donated.draft.price, null);
-  assert.ok(donated.errors.photo);
+test("no photo or a forged donation price cannot bypass publication rules", () => {
+  const result = form.normalizeWhatsappForm({
+    ...suggest, condition: "good", kind: "donation", price: 100,
+  }, ID, null);
+  assert.ok(result.errors.photo);
+  assert.equal(result.draft.price, null);
+});
+
+test("AI prefill never guesses category details after a category mismatch", () => {
+  const prepared = conversation.startWhatsappListing(ID, PRIVATE, {
+    ...suggest, category: "Uniformes",
+  });
+  assert.equal(prepared.state.payload.brand, undefined);
+  assert.equal(prepared.state.payload.model, undefined);
+  assert.equal(prepared.state.payload.specificType, undefined);
 });
