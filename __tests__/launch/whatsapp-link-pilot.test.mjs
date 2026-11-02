@@ -127,7 +127,7 @@ test("real WhatsApp photo becomes a private, authenticated, AI-prefilled form ra
 
   assert.match(runner, /state = startWhatsappListing\(listingId, path, suggestion\)\.state/);
   assert.match(runner, /\/account\/whatsapp\/draft\?draft=/);
-  assert.match(runner, /La IA ha rellenado los datos/);
+  assert.match(runner, /Wetudy AI ha rellenado los datos/);
   assert.match(migration, /'form'/);
   assert.match(page, /isWhatsappPilotConfigured\(\)/);
   assert.match(page, /WHATSAPP_PUBLISH_ENABLED !== "true"/);
@@ -184,7 +184,22 @@ test("WhatsApp uses automatic photo analysis but never opens general AI chat or 
   assert.match(form, /Antes de publicar, revisa también la fotografía/);
   assert.match(photo, /whatsapp_account_links/);
   assert.match(linkSql, /confirm_whatsapp_account_link/);
-  assert.match(read("components/account/whatsapp-link-panel.tsx"), /analizará automáticamente mediante OpenAI/);
+  assert.match(read("components/account/whatsapp-link-panel.tsx"), /Wetudy AI la analizará automáticamente/);
+  assert.doesNotMatch(read("components/account/whatsapp-link-panel.tsx"), /OpenAI/);
+  assert.match(read("components/account/whatsapp-link-panel.tsx"), /proveedores tecnológicos externos/);
   assert.doesNotMatch(flowSql, /review_photo|privacy_approved_at/);
   assert.match(flowSql, /p_action not in \('save','publish'\)/);
+});
+
+test("Wetudy AI is the public name in the family-facing WhatsApp journey", () => {
+  const notice = read("components/account/whatsapp-link-panel.tsx");
+  const form = read("components/whatsapp/whatsapp-listing-form.tsx");
+  const demo = read("components/whatsapp/whatsapp-journey-demo.tsx");
+  const runner = read("lib/whatsapp/inbound-listings.ts");
+  for (const source of [notice, form, demo]) {
+    assert.doesNotMatch(source, /OpenAI/);
+    assert.match(source, /Wetudy AI|WETUDY AI/);
+  }
+  assert.match(runner, /Wetudy AI ha rellenado los datos/);
+  assert.match(notice, /proveedores tecnológicos externos/);
 });
