@@ -139,8 +139,7 @@ export default function WhatsappPhotoPrivacyReview({
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={() => { originRef.current = null; draw(); }}
-          className="mx-auto block h-auto max-h-[65vh] max-w-full touch-none cursor-crosshair rounded-xl bg-white"
-          style={{ width: "100%", objectFit: "contain" }}
+          className="mx-auto block h-auto w-full touch-none cursor-crosshair rounded-xl bg-white"
         />
         {!ready && !error && <p role="status" className="p-5 text-center text-sm">Preparando imagen…</p>}
       </div>
