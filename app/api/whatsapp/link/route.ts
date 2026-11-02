@@ -7,13 +7,14 @@ import {
   isSameOriginPost,
   isWhatsappPilotConfigured,
   isWhatsappPilotEnabled,
+  isWhatsappPilotSandboxSafe,
   isWhatsappPilotUserAllowed,
 } from "@/lib/whatsapp/pilot";
 
 export const dynamic = "force-dynamic";
 
 async function requirePilotUser(allowUnlink = false) {
-  if (!isWhatsappPilotEnabled()) return { error: "not_found" as const, status: 404 };
+  if (!isWhatsappPilotEnabled() || !isWhatsappPilotSandboxSafe()) return { error: "not_found" as const, status: 404 };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "unauthorized" as const, status: 401 };
