@@ -12,7 +12,7 @@ drop policy if exists "WhatsApp drafts accessible to service role only" on stora
 create table if not exists public.whatsapp_listing_sessions (
   user_id uuid primary key references auth.users(id) on delete cascade,
   step text not null default 'idle'
-    check (step in ('idle','form','category','title','description','details','condition','intent','price','originalPrice','grade','review','published')),
+    check (step in ('idle','review_photo','form','published')),
   payload jsonb not null default '{}'::jsonb
     check (jsonb_typeof(payload) = 'object'),
   draft_photo_path text,
@@ -104,7 +104,7 @@ create or replace function public.complete_whatsapp_incoming(
 language plpgsql security definer set search_path = ''
 as $$
 begin
-  if p_step not in ('idle','form','category','title','description','details','condition','intent','price','originalPrice','grade','review','published')
+  if p_step not in ('idle','review_photo','form','published')
      or jsonb_typeof(p_payload) <> 'object' or pg_catalog.octet_length(p_payload::text) > 12000
      or (p_photo_path is not null and (
        length(p_photo_path) > 300 or
@@ -189,7 +189,7 @@ begin
   if v_session.user_id is null then return 'missing'; end if;
   if v_session.step = 'published' and
      v_session.payload->>'listingId' = p_listing_id::text then return 'already_published'; end if;
-  if v_session.step <> 'form' or
+  if v_session.step not in ('review_photo','form') or
      v_session.payload->>'listingId' <> p_listing_id::text or
      v_session.draft_photo_path is null or
      v_session.draft_photo_path not like p_user_id::text || '/%'
@@ -206,28 +206,35 @@ $$;
 
 create or replace function public.complete_whatsapp_form(
   p_user_id uuid, p_listing_id uuid, p_lease_id uuid,
-  p_action text, p_payload jsonb
+  p_action text, p_payload jsonb, p_photo_path text default null
 ) returns boolean
 language plpgsql security definer set search_path = ''
 as $$
 begin
   if p_user_id is null or p_listing_id is null or p_lease_id is null or
-     p_action not in ('save','publish') or jsonb_typeof(p_payload) <> 'object' or
-     pg_catalog.octet_length(p_payload::text) > 12000
-  then return false; end if;
-  if p_action = 'save' and p_payload->>'listingId' <> p_listing_id::text
+     p_action not in ('analyze','save','publish') or jsonb_typeof(p_payload) <> 'object' or
+     p_payload->>'listingId' <> p_listing_id::text or
+     pg_catalog.octet_length(p_payload::text) > 12000 or
+     (p_action = 'analyze' and (
+       p_photo_path is null or length(p_photo_path)>300 or
+       p_photo_path not like p_user_id::text || '/%'))
   then return false; end if;
 
   update public.whatsapp_listing_sessions
-  set step=case when p_action='publish' then 'published' else 'form' end,
+  set step=case when p_action='publish' then 'published'
+                when p_action='analyze' then 'form' else 'form' end,
       payload=case when p_action='publish'
         then pg_catalog.jsonb_build_object('listingId',p_listing_id::text)
         else p_payload end,
-      draft_photo_path=case when p_action='publish' then null else draft_photo_path end,
+      draft_photo_path=case when p_action='publish' then null
+                          when p_action='analyze' then p_photo_path
+                          else draft_photo_path end,
       updated_at=now(),
       lease_id=null, in_flight_until=null
-  where user_id=p_user_id and step='form'
+  where user_id=p_user_id
     and payload->>'listingId'=p_listing_id::text
+    and ((p_action='analyze' and step='review_photo') or
+         (p_action in ('save','publish') and step='form'))
     and lease_id=p_lease_id and in_flight_until > now();
   return found;
 end;
@@ -245,8 +252,8 @@ as $$
 $$;
 
 revoke all on function public.claim_whatsapp_form(uuid,uuid,uuid) from public,anon,authenticated;
-revoke all on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb,text) from public,anon,authenticated;
 revoke all on function public.release_whatsapp_form(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.claim_whatsapp_form(uuid,uuid,uuid) to service_role;
-grant execute on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb) to service_role;
+grant execute on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb,text) to service_role;
 grant execute on function public.release_whatsapp_form(uuid,uuid) to service_role;
