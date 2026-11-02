@@ -11,7 +11,7 @@ const db = {
   whatsapp_account_links: [{ user_id: A }, { user_id: B }],
   whatsapp_listing_sessions: [{
     user_id: B,
-    step: "review_photo",
+    step: "form",
     payload: { listingId: DRAFT_B },
     draft_photo_path: `${B}/photo.jpg`,
     updated_at: new Date().toISOString(),
@@ -126,7 +126,7 @@ test("account B can reach its own photo and draft, without cross-account data", 
   const draft = await formRoute.GET(new Request(`https://preview.example/api/whatsapp/draft?draft=${DRAFT_B}`));
   assert.equal(draft.status, 200);
   const doc = await draft.json();
-  assert.equal(doc.step, "review_photo");
+  assert.equal(doc.step, "form");
   assert.equal(doc.draft.listingId, DRAFT_B);
   assert.equal(doc.photoUrl, `/api/whatsapp/photo?draft=${DRAFT_B}`);
   const image = await photoRoute.GET(new Request(`https://preview.example/api/whatsapp/photo?draft=${DRAFT_B}`));
