@@ -40,7 +40,8 @@ export async function GET() {
   if (!("user" in result) || !result.user) return failure(result.status ?? 404);
   if (!isWhatsappPilotConfigured()) return failure(503);
 
-  const { data, error } = await createAdminClient()
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from("whatsapp_account_links")
     .select("linked_at")
     .eq("user_id", result.user.id)
@@ -50,8 +51,14 @@ export async function GET() {
     console.error("WhatsApp pilot: error reading link status");
     return failure(503);
   }
+  const { data: pending, error: pendingError } = await admin.from("whatsapp_link_requests")
+    .select("pending_wa_id,verified_at").eq("user_id", result.user.id).maybeSingle();
+  if (pendingError) return failure(503);
+  const awaiting = !data && pending?.pending_wa_id && pending?.verified_at &&
+    Date.now() - new Date(pending.verified_at).getTime() < 10 * 60_000;
+  const maskedNumber = awaiting ? `••••${pending.pending_wa_id.slice(-4)}` : null;
   return NextResponse.json(
-    { linked: Boolean(data), linkedAt: data?.linked_at || null },
+    { linked: Boolean(data), linkedAt: data?.linked_at || null, pendingNumber: maskedNumber },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
@@ -66,6 +73,22 @@ export async function POST(request: Request) {
   if (body?.consent !== true) return failure(400);
   const admin = createAdminClient();
 
+  if (body?.confirm === true) {
+    const { data: confirmed, error: confirmError } = await admin.rpc(
+      "confirm_whatsapp_account_link", { p_user_id: result.user.id }
+    );
+    if (confirmError || confirmed !== "linked") {
+      return NextResponse.json(
+        { error: "El código ha caducado, el número está vinculado a otra cuenta o no hay ninguna confirmación pendiente." },
+        { status: 409, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    return NextResponse.json(
+      { linked: true, pendingNumber: null },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   const { data: existingLink, error: linkError } = await admin
     .from("whatsapp_account_links")
     .select("linked_at")
@@ -79,7 +102,7 @@ export async function POST(request: Request) {
 
   const { data: pending, error: pendingError } = await admin
     .from("whatsapp_link_requests")
-    .select("created_at, consumed_at")
+    .select("created_at, consumed_at, pending_wa_id")
     .eq("user_id", result.user.id)
     .maybeSingle();
   if (pendingError) return failure(503);
@@ -102,6 +125,8 @@ export async function POST(request: Request) {
       expires_at: new Date(now + 10 * 60_000).toISOString(),
       created_at: new Date(now).toISOString(),
       consumed_at: null,
+      pending_wa_id: null,
+      verified_at: null,
     }, { onConflict: "user_id" });
   if (error) {
     console.error("WhatsApp pilot: error creating link request");
