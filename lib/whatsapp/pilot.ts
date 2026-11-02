@@ -19,9 +19,28 @@ export function isWhatsappPilotUserAllowed(userId: string) {
   return ID_PATTERN.test(userId) && allowed.includes(userId.toLowerCase());
 }
 
+// Fail closed: a Preview deployment must explicitly use a distinct test
+// Supabase project. This prevents accidental writes to Wetudy production even
+// if the developer configures all Meta tokens in Preview.
+export function isWhatsappPilotSandboxSafe() {
+  const testRef = (process.env.WHATSAPP_PILOT_SUPABASE_PROJECT_REF || "").trim();
+  const productionRef = (process.env.WHATSAPP_PRODUCTION_SUPABASE_PROJECT_REF || "jpsljmakoscqevssimtk").trim();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!/^[a-z0-9]{20}$/.test(testRef) || !productionRef ||
+      testRef === productionRef || !url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" &&
+      parsed.hostname === `${testRef}.supabase.co`;
+  } catch {
+    return false;
+  }
+}
+
 export function isWhatsappPilotConfigured() {
   return (
     isWhatsappPilotEnabled() &&
+    isWhatsappPilotSandboxSafe() &&
     Boolean(
       process.env.WHATSAPP_BUSINESS_NUMBER?.match(WHATSAPP_ID_PATTERN) &&
       process.env.WHATSAPP_VERIFY_TOKEN &&
