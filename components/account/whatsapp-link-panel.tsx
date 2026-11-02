@@ -101,7 +101,7 @@ export default function WhatsappLinkPanel() {
             <p className="text-sm text-muted-foreground">Wetudy asociará el identificador de WhatsApp desde el que envíes el mensaje con tu cuenta. Solo se utiliza para la vinculación y para las funciones del piloto que autorices. No compartas el enlace con otra persona.</p>
             <label className="flex items-start gap-3 text-sm">
               <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 size-4" />
-              <span>Quiero vincular mi WhatsApp voluntariamente a mi cuenta de Wetudy. Puedo desvincularlo cuando quiera.</span>
+              <span>Quiero vincular mi WhatsApp voluntariamente a mi cuenta de Wetudy. Sé que los mensajes y fotografías enviados a WhatsApp son tratados por Meta y Wetudy y que el análisis mediante OpenAI solo se realizará cuando apruebe una fotografía revisada en Wetudy. Puedo desvincular el número cuando quiera.</span>
             </label>
             {status?.pendingNumber ? (
               <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
