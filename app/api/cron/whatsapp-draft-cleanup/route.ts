@@ -43,21 +43,6 @@ export async function POST(request: Request) {
     if (!resetError) reset++;
   }
 
-  // Retry raw Meta photo deletion after a successful sanitized-image review.
-  const { data: pendingDeletes, error: pendingError } = await admin
-    .from("whatsapp_pending_deletions")
-    .select("photo_path,user_id").limit(50);
-  if (pendingError) return Response.json({ error: "deletion queue unavailable" }, { status: 503 });
-  let rawPhotosDeleted = 0;
-  for (const item of pendingDeletes || []) {
-    const { error: storageError } = await admin.storage
-      .from("whatsapp-draft-photos").remove([item.photo_path]);
-    if (storageError) continue;
-    const { error: queueError } = await admin.from("whatsapp_pending_deletions")
-      .delete().eq("photo_path", item.photo_path).eq("user_id", item.user_id);
-    if (!queueError) rawPhotosDeleted++;
-  }
-
   const { error: oldEventsError } = await admin.from("whatsapp_incoming_events")
     .delete().lt("created_at", new Date(Date.now() - 14 * 86400_000).toISOString());
   const { error: oldQuotasError } = await admin.from("whatsapp_ai_daily_usage")
@@ -67,8 +52,7 @@ export async function POST(request: Request) {
     ok: !oldEventsError && !oldQuotasError,
     sessionsChecked: sessions?.length || 0,
     reset,
-    rawPhotosDeleted,
-    requiresAnotherBatch: (sessions?.length || 0) === 50 || (pendingDeletes?.length || 0) === 50,
+    requiresAnotherBatch: (sessions?.length || 0) === 50,
   }, {
     status: oldEventsError || oldQuotasError ? 503 : 200,
     headers: { "Cache-Control": "no-store" },
