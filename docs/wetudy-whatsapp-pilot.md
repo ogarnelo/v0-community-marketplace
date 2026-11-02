@@ -105,3 +105,9 @@ La demo `/demo/wetudy-whatsapp` ahora enseña un solo bloque de detalles y permi
 **Límites legales:** la obligación del usuario de subir contenido autorizado no elimina automáticamente las obligaciones de Wetudy al tratar imágenes de terceros; la política de privacidad y los términos deberán explicar el envío a Meta/OpenAI, base jurídica y retención. El consentimiento de quien envía la foto no sustituye automáticamente los derechos de otras personas que puedan aparecer. Es necesario un mecanismo de retirada/reporte y atención a menores. AEPD: https://www.aepd.es/preguntas-frecuentes/2-tus-obligaciones-como-responsable-del-tratamiento/8-responsable-y-encargado-del-tratamiento/FAQ-0251-como-se-si-soy-responsable-o-encargado
 
 **Prueba real todavía pendiente:** no se han configurado Meta ni entorno Supabase aislado, no se han aplicado migraciones, no se ha ejecutado IA facturable ni se han realizado pruebas E2E contra las API reales. Hasta completar estas pruebas no activar el piloto con familias.
+
+## Marca visible para familias: Wetudy AI (02/11/2026)
+
+En la vinculación de WhatsApp, la demo y el formulario, la funcionalidad se presenta públicamente como **Wetudy AI**. Los textos visibles a las familias no muestran el nombre del proveedor del modelo, pero informan que el tratamiento puede incluir proveedores tecnológicos externos.
+
+**Transparencia obligatoria:** esta decisión de marca no modifica al proveedor técnico ni elimina los requisitos de informar de los encargados/subencargados de tratamiento aplicables. La política de privacidad y documentación legal deberán identificar de forma adecuada a los proveedores reales que procesen los datos (incluido OpenAI si continúa siendo el proveedor) antes del piloto.
