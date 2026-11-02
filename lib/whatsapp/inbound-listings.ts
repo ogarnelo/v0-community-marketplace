@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   advanceWhatsappListing, startWhatsappListing,
-  type WhatsappDraft, type WhatsappState, type WhatsappStep,
+  type WhatsappDraft, type WhatsappState, type WhatsappStep, type WhatsappNext,
 } from "@/lib/whatsapp/conversation";
 import { downloadWhatsappPhoto, sendWhatsappPilotMessage, suggestWhatsappListing } from "@/lib/whatsapp/vision-and-meta";
 import { publishWhatsappConfirmedListing } from "@/lib/whatsapp/publish";
@@ -124,13 +124,13 @@ export async function processWhatsappPublishMessage(message: IncomingMessage): P
           formUrl,
           "",
           "Si no quieres continuar, responde CANCELAR.",
-        ].join("\\n");
+        ].join("\n");
       }
     } else if (message.type === "text" && typeof message.text?.body === "string") {
-      const next = state.step === "form" && message.text.body.trim().toLocaleUpperCase("es-ES") !== "CANCELAR"
+      const next: WhatsappNext = state.step === "form" && message.text.body.trim().toLocaleUpperCase("es-ES") !== "CANCELAR"
         ? {
             state,
-            response: `Tu propuesta está lista. Ábrela aquí para revisar el formulario y publicarla: https://${process.env.VERCEL_URL}/account/whatsapp/draft?draft=${state.payload.listingId}\\nSi quieres descartarla, responde CANCELAR.`,
+            response: `Tu propuesta está lista. Ábrela aquí para revisar el formulario y publicarla: https://${process.env.VERCEL_URL}/account/whatsapp/draft?draft=${state.payload.listingId}\nSi quieres descartarla, responde CANCELAR.`,
           }
         : advanceWhatsappListing(state, message.text.body);
       if (next.publish) {
