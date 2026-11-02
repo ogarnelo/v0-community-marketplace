@@ -159,7 +159,7 @@ function normalizedDetailLabel(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function updateGroupedDetails(
+export function updateGroupedDetails(
   draft: WhatsappDraft,
   input: string
 ): { ok: true; draft: WhatsappDraft } | { ok: false; error: string } {
