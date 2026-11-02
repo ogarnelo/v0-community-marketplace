@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isWhatsappPilotSandboxSafe } from "@/lib/whatsapp/pilot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const maxDuration = 30;
  */
 export async function POST(request: Request) {
   const secret = process.env.WHATSAPP_CLEANUP_SECRET;
-  if (process.env.VERCEL_ENV !== "preview" ||
+  if (!isWhatsappPilotSandboxSafe() || process.env.VERCEL_ENV !== "preview" ||
       process.env.WHATSAPP_PILOT_ENABLED !== "true" ||
       !secret || secret.length < 32 ||
       request.headers.get("authorization") !== `Bearer ${secret}`) {
