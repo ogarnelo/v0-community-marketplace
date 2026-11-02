@@ -89,6 +89,9 @@ export default function WhatsappListingForm({ initialDraft, photoUrl, onPublish,
         <p className="text-sm leading-relaxed text-slate-600">
           Hemos rellenado lo que hemos podido reconocer. Comprueba los datos, completa los campos obligatorios y publica cuando esté listo.
         </p>
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
+          Antes de publicar, revisa también la fotografía. No incluyas datos personales de otras personas, especialmente de menores. Puedes cancelar el anuncio si la imagen no es adecuada.
+        </p>
         {isDemo && <p className="text-xs font-medium text-amber-800">Ejemplo simulado: los valores no proceden de analizar tu fotografía.</p>}
       </div>
 
