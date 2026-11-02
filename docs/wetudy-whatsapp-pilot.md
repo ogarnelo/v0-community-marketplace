@@ -1,113 +1,42 @@
-> **DECISIÓN VIGENTE (02/11/2026):** La fotografía recibida por WhatsApp se analiza automáticamente con OpenAI, después de la vinculación voluntaria e informada del número. **No hay pantalla obligatoria para ocultar rostros o etiquetas antes del análisis.** El usuario confirma el anuncio únicamente desde el formulario de Wetudy. Los apartados históricos sobre `review_photo`, `privacy_approved_at`, redacción por canvas, permiso por fotografía y ruta `/api/whatsapp/analyze` están **obsoletos** y no se deben usar como guía de implementación.\n\n# Wetudy por WhatsApp — piloto de vinculación (PR aislado)
+# Wetudy AI por WhatsApp — piloto aislado
 
-La ruta `/demo/wetudy-whatsapp` ofrece una **simulación interactiva** sin necesidad de iniciar sesión, accesible solo desde Vercel Preview: las fotos se previsualizan localmente y no se envía ningún dato ni se crea ningún anuncio. Esta demo no sustituye una prueba real de Meta Cloud API.\n\nObjetivo del journey: el usuario se registra en Wetudy, vincula opcionalmente WhatsApp mediante un mensaje con token de un solo uso y después podrá crear anuncios enviando fotografías. **Esta rama ya contiene el flujo completo bajo flags privados, sin activar:** vinculación, análisis de foto, preguntas, revisión, confirmación explícita y publicación. No está conectado a Meta ni probado con mensajes reales; no está listo para producción.
+> **Estado: PR #232 en borrador, sin fusionar ni activar.** Estas instrucciones sustituyen a todos los flujos de conversación y revisiones de fotografía descartados. Ninguna migración ha sido aplicada a la base de datos de producción.
 
-## Seguridad y alcance
+## Experiencia aprobada por Wetudy
 
-- Nada se habilita sin `WHATSAPP_PILOT_ENABLED=true`, lista de usuarios piloto y variables Meta completas.
-- Solicitud de vinculación desde sesión Supabase validada y email confirmado. Token criptográfico de 32 bytes, SHA-256 en base de datos, máximo 10 minutos, consumo de un solo uso. La app no se autentica por el número de teléfono escrito en el perfil.
-- El webhook verifica `X-Hub-Signature-256` con `WHATSAPP_APP_SECRET`, además del identificador del número configurado. Sin firma correcta no toca la base de datos.
-- Vinculación requiere que el dueño de la cuenta pulse `Vincular` e inicie el mensaje desde su WhatsApp. El identificador del remitente lo determina Meta.
-- Un WhatsApp solo puede vincularse a una cuenta; para cambiarlo se debe desvincular la anterior. Los tokens se anulan tras el primer consumo.
-- La publicación guiada solo se activa adicionalmente con \`WHATSAPP_PUBLISH_ENABLED=true\` y \`WHATSAPP_AI_ENABLED=true\`, además de \`OPENAI_API_KEY\`. Las fotografías se almacenan temporalmente en un bucket **privado** y el anuncio se crea únicamente cuando la familia responde con la palabra exacta \`PUBLICAR\`. Por defecto, no se guardan fotos, no se llama a la IA y no se crean anuncios.
-- La migración SQL de esta rama no se ha aplicado a ningún entorno. Vercel Preview puede compilar sin las variables; la página del piloto devolverá 404 y el webhook estará deshabilitado. No tocar producción.
+1. La familia inicia sesión en Wetudy, vincula voluntariamente WhatsApp mediante un código temporal enviado desde ese número y confirma sus **cuatro últimos dígitos** dentro de Wetudy.
+2. Tras la información clara sobre el tratamiento mediante **Wetudy AI**, envía una fotografía JPG, PNG o WEBP al número de WhatsApp de Wetudy.
+3. El webhook valida la firma de Meta y el número vinculado. **Solo una foto inicia el análisis de IA**, con un límite de 3 MB, 5 solicitudes por familia/día y 100 globales/día. El texto arbitrario del chat no se envía al modelo. La IA propone únicamente campos estructurados; nunca decide precio, estado, venta/donación ni permisos.
+4. Wetudy contesta con **un único mensaje** y un enlace al formulario móvil privado, precompletado con los datos que pudo reconocer. Si el proveedor de IA falla, conserva la foto como borrador y muestra el formulario vacío para que la familia pueda terminarlo.
+5. El formulario permite corregir todos los campos. Es obligatorio aportar fotografía, categoría, título, descripción, estado, venta/donación, precio si es venta y curso en libros de texto o literatura. Los filtros específicos de cada categoría, el precio original y el curso en otras categorías son opcionales.
+6. **Solo el botón «Confirmar y publicar» del formulario autenticado puede publicar en la cuenta propietaria.** No hay comandos de chat para publicar, mensajes de confirmación por cada filtro, ni revisión obligatoria adicional de la fotografía. El formulario recomienda comprobar la imagen antes de hacerla pública. `CANCELAR` desde WhatsApp descarta el borrador.
 
-## Flujo que implementa esta rama
+La demo `/demo/wetudy-whatsapp` tiene **valores predefinidos**: no analiza fotos, no envía mensajes a Meta, no llama a Wetudy AI ni publica anuncios.
 
-1. Usuario piloto accede a `/account/whatsapp`, lee consentimiento y selecciona `Generar enlace seguro`.
-2. Se crea petición privada de vinculación y se genera un enlace `wa.me` con texto `VINCULAR WETUDY <token>`.
-3. El usuario envía ese mensaje a Wetudy; Meta lo entrega al webhook `/api/webhooks/whatsapp`.
-4. El webhook verifica la firma, revisa token y remitente, crea la vinculación y responde con confirmación.
-5. El usuario puede consultar su estado de vinculación y desvincularse desde Wetudy.
+## Controles y limitaciones
 
-## Configuración necesaria solo para entorno de pruebas
+- **Entorno:** solo Vercel Preview, usuario en `WHATSAPP_PILOT_ALLOWED_USER_IDS`, WhatsApp firmado y vinculado. El código exige un **proyecto Supabase distinto al productivo**, verificado mediante `WHATSAPP_PILOT_SUPABASE_PROJECT_REF` y `NEXT_PUBLIC_SUPABASE_URL`.
+- **Cuenta:** vínculo por token aleatorio de 32 bytes y SHA-256, duración máxima de 10 minutos, consumo de un solo uso, confirmación posterior del número desde sesión Wetudy y un único usuario por número.
+- **Datos:** fotografías de borrador en bucket privado, URLs de imagen a través de endpoint autenticado ligado al propietario, caducidad de borrador a las 24 horas; limpieza mediante endpoint autenticado `/api/cron/whatsapp-draft-cleanup`, **pendiente de programar y probar**.
+- **Publicación:** las RPC de Supabase bloquean operaciones simultáneas, verifican el borrador y permiten la operación solo con `service_role` en servidor. Identificador UUID estable para reintentos. La validación de los campos y la autorización siempre se hacen del lado del servidor.
+- **IA:** el proveedor recibe la foto original cuando la familia envía una imagen a un WhatsApp vinculado, tras la información y aceptación en la vinculación. No se usa para responder preguntas generales ni tiene acceso directo a las cuentas o a SQL. En la experiencia visible se presenta como **Wetudy AI**; la documentación legal debe identificar adecuadamente al proveedor real y el tratamiento asociado.
+- **Privacidad:** el usuario debe tener derecho a compartir el contenido; esa obligación no elimina las responsabilidades de Wetudy por el tratamiento de datos y las solicitudes de retirada. No hay redacción obligatoria de fotos ni revisión extra entre la foto y el formulario. Antes de abrirlo a familias, revisar los textos legales y las obligaciones específicas cuando aparezcan menores.
 
-- Configurar Meta Business Platform / WhatsApp Cloud API, usando el número de prueba para comenzar, con webhook verificado (GET token) y mensajes entrantes (POST). Puede especificarse `WHATSAPP_GRAPH_VERSION` (por defecto `v24.0`) según versión admitida por la App.\n- **Vercel Preview está protegido por autenticación.** Meta no puede usar un enlace temporal de navegador basado en cookies para hacer POST al webhook. Para pruebas reales, usar un túnel seguro a un entorno local aislado o un mecanismo de bypass autorizado que no exponga otros servicios. No desproteger el proyecto ni abrir producción por el piloto.
-- En Vercel Preview, nunca en Production por defecto: `WHATSAPP_PILOT_ENABLED=true`, `WHATSAPP_PILOT_ALLOWED_USER_IDS=<UUID usuario de prueba>`, `WHATSAPP_BUSINESS_NUMBER=<número internacional solo dígitos>`, `WHATSAPP_PHONE_NUMBER_ID=<id numérico Meta>`, `WHATSAPP_VERIFY_TOKEN=<secreto aleatorio>`, `WHATSAPP_APP_SECRET=<app secret Meta>`, `WHATSAPP_ACCESS_TOKEN=<token cloud API>`.
-- Aplicar migración `supabase/migrations/20261101130000_whatsapp_account_link_pilot.sql` **solo en una base de datos de pruebas aislada**, tras autorización explícita y comprobación de coste. No aplicar automáticamente en el Supabase de producción.
-- Con base de datos aislada será necesario configurar también autenticación de prueba y sus credenciales en Preview (nunca reutilizar datos o sesiones reales para experimentar). 
-- No usar esta rama para permitir el login desde cualquier número, ni para automatizar publicaciones. Configurar límites de gasto y supervisión antes de activar mensajes de salida.
+## Preparación del ensayo real — aún pendiente
 
-## Publicación guiada implementada, pero desactivada\n\n1. Un usuario ya vinculado envía una foto JPG/PNG/WEBP (hasta 3 MB). El webhook firmado de Meta identifica el \`wa_id\`, exige usuario en allowlist y mensaje reciente.\n2. Se reserva atomicamente el ID de mensaje para evitar duplicados y una de las 5 llamadas máximas diarias de IA por cuenta (100 globales entre usuarios).\n3. La foto se descarga desde la URL temporal de Meta, validando protocolo/host/formato/tamaño; GPT-5.6 Luna propone título, descripción, categoría y curso sin suponer el estado ni el precio.\n4. La foto se guarda de forma temporal en el bucket privado \`whatsapp-draft-photos\`. El bot confirma el título y pregunta estado, venta o donación, precio cuando corresponda y curso para libros.\n5. El usuario revisa la ficha y confirma escribiendo \`PUBLICAR\`. El backend comprueba reglas y escribe en las mismas tablas \`listings\` / \`listing_photos\` que el formulario web. El UUID por borrador reduce duplicados de reintentos.\n6. \`CANCELAR\` descarta; \`EDITAR\` permite corregir título y seguir el flujo. La fotografía privada se elimina al publicar, cancelar o reemplazar el borrador.\n\n**NO se ha ejecutado ninguna migración, se ha registrado ningún webhook ni se ha enviado contenido a OpenAI o Meta.**\n\nVariables adicionales SOLO de Preview: \`WHATSAPP_PUBLISH_ENABLED=true\`, \`WHATSAPP_AI_ENABLED=true\`, \`OPENAI_API_KEY\`, \`OPENAI_LISTING_MODEL=gpt-5.6-luna\`, \`WHATSAPP_CLEANUP_SECRET\` (mínimo 32 caracteres). Nunca usar la service role key ni la base de datos de producción para ensayos.\n\nLa migración \`supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql\` crea estado de conversación y deduplicación privados, bucket privado y cuotas. **No está aplicada.**\n\n### Retención, fallos y requisitos pendientes\n\n- La ruta protegida \`POST /api/cron/whatsapp-draft-cleanup\` permite eliminar fotografías de borradores abandonados después de 24 horas y metadatos antiguos. **No está programada automáticamente**: será imprescindible configurar un ejecutor autenticado y verificar sus ejecuciones antes de probar con familias reales.\n- Los mensajes salientes pueden fallar después de completar el estado. Para un piloto más amplio hace falta una cola/reintentos de mensajes salientes y monitorización, sin duplicar anuncios.\n- Los webhooks procesan actualmente una foto cada vez con un tiempo acotado, pero Meta puede reintentar si la ejecución excede su ventana de respuesta. Es necesario probar latencia de punta a punta y valorar cola asíncrona antes de abrir a más usuarios.\n- El PR #231 contiene una mejora separada del formulario web. Esta rama replica únicamente la llamada barata de análisis y no necesita fusionar el PR #231 para compilar. Antes de integrar ambas opciones debemos unificar módulos, métricas y políticas de costes.\n- Debemos validar consentimiento, política de privacidad y retención de WhatsApp, así como limitación de usuarios de prueba de Meta y obligaciones empresariales antes del uso abierto.\n\n## Próximo desarrollo (no implementado)
+**Sin usar proyectos productivos ni contratar servicios sin autorización:**
 
-Completar configuración aislada de Meta y Supabase, probar con fotos reales, añadir envío fiable/reintentos de respuestas, automatizar limpieza, integrar métricas de conversión y costes, validar RGPD y unificar la capa de IA con PR #231. Incorporar consultas guiadas sobre ISBN y detalles del centro solo cuando sean necesarios y verificables. Preparar pruebas de extremo a extremo antes de cualquier despliegue público.
+1. Disponer de un **Supabase aislado** para el piloto; confirmar su ID antes de introducir credenciales. No reutilizar `Education Marketplace` ni `VM Copilot` sin comprobación explícita.
+2. Solo en ese proyecto de pruebas, y tras autorización: ejecutar **en este orden** las migraciones no aplicadas `20261101130000_whatsapp_account_link_pilot.sql` (vinculación) y `20261101141000_whatsapp_guided_listing_pilot.sql` (borradores). La migración de vinculación se reparó tras detectar una definición duplicada y una restricción SQL rota.
+3. Preparar Meta WhatsApp Cloud API con número de prueba, token y secreto de aplicación, ID del número y webhook firmado. Atención: el webhook requiere una URL pública verificable; una Preview protegida con contraseña/cookies puede bloquear a Meta.
+4. Configurar exclusivamente en Preview los flags y secretos: `WHATSAPP_PILOT_ENABLED`, `WHATSAPP_PUBLISH_ENABLED`, `WHATSAPP_AI_ENABLED`, `WHATSAPP_PILOT_ALLOWED_USER_IDS`, `WHATSAPP_PILOT_SUPABASE_PROJECT_REF`, `WHATSAPP_PRODUCTION_SUPABASE_PROJECT_REF`, `WHATSAPP_BUSINESS_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`, `OPENAI_API_KEY` y `WHATSAPP_CLEANUP_SECRET`. **No copiar tokens ni secretos en chats, commits o documentación.**
+5. Hacer pruebas E2E con dos cuentas ficticias: vínculo/cambio de número, foto de libro y calculadora, IA no disponible, campo obligatorio vacío, donación/venta, rechazo de URLs privadas ajenas, clic doble, reintento, cancelación, limpieza y sesiones caducadas. Usar objetos sin datos personales.
+6. Verificar coste, retención, comportamiento de Meta en el navegador integrado, bloqueo de producción y política de privacidad antes de invitar a familias.
 
-Meta limita las respuestas libres a una ventana de 24 horas desde el último mensaje recibido; fuera de ella solo se pueden usar plantillas aprobadas. Los mensajes de servicio pueden generar coste según tarifas vigentes.
+## Verificación disponible
 
-## Datos por categoría: paridad con el formulario web (2026-11-01)
+- Compilación y pruebas automatizadas en Vercel Preview, incluidas pruebas de propietario A/B simulado, CSRF, formulario y validaciones.
+- Comprobación estática adicional de que la migración de vínculo contiene exactamente una definición de cada tabla y RPC y conserva ambas restricciones. **No sustituye ejecutar PostgreSQL en una base de pruebas.**
+- No hay pruebas de webhook Meta real, IA con credenciales reales, datos reales ni migraciones aplicadas.
 
-La IA sugiere **título, descripción, categoría, curso y detalles verificables**. Antes de publicar el bot exige confirmar la categoría y el título, revisar la **descripción de al menos 40 caracteres**, indicar el **estado real**, decidir **venta o donación** y, para venta, **precio > 0**. El precio original es opcional. Una foto real es obligatoria.
-
-| Categoría | Detalles opcionales de la ficha | Obligación adicional |
-|---|---|---|
-| Libros de texto | ISBN válido, asignatura, editorial, autor, formato, idioma | Curso confirmado |
-| Lectura y literatura | ISBN válido, autor, editorial, formato, idioma | Curso confirmado |
-| Uniformes | Tipo de prenda, talla, temporada | Ninguna |
-| Material escolar | Tipo de material | Ninguna |
-| Tecnología y calculadoras | Tipo de dispositivo, marca, modelo | Ninguna |
-| Mochilas y estuches | Tipo de artículo, marca | Ninguna |
-| Música, deporte, universitario y otros | Detalles en la descripción | Ninguna |
-
-Para cada campo opcional el usuario puede responder SI cuando hay una sugerencia, introducir un valor distinto, OMITIR o OMITIR TODO para saltar el resto. Los valores de los selectores siguen el formulario web. No se fuerza estudiante/curso en artículos transversales como mochilas.
-
-Se comprueba ISBN cuando se proporciona; se rechazan predicciones no verificables. El resumen incluye los detalles y se guardan en `listings` (`isbn`, `subject`, `publisher`, `author`, `format`, `language`, `specific_type`, `size_label`, `season`, `brand`, `model`, `original_price`).
-
-La demo visual `/demo/wetudy-whatsapp` deja cambiar de categoría para ver cómo cambian los campos. Utiliza **ejemplos fijos**, no análisis real de la foto elegida. La conversación real se ejecutará con mensajes individuales cuando se configure Meta y una base de pruebas aislada.
-
-### Optimización de mensajes: propuesta compacta
-
-Cuando llega la fotografía, el primer mensaje de Wetudy **incluye directamente** título, descripción, categoría, curso (si se reconoce) y detalles visibles; no envía un mensaje previo anunciando qué va a hacer.
-El usuario contesta **SI** para aceptar categoría, título y descripción de una sola vez y pasar a los detalles pendientes; **EDITAR** para recorrer título y descripción; **CAMBIAR** para pedir el selector de categorías; **CANCELAR** para descartar. Si faltan título, categoría o descripción, SI no los considera aceptados y se solicitan.
-Ninguno de estos comandos publica un anuncio. La publicación sigue requiriendo la revisión final y el comando exacto **PUBLICAR**.
-La demo muestra esa propuesta directamente en una única burbuja del asistente. Es una simulación y no analiza imágenes reales.
-
-### Optimización adicional — detalles opcionales en un solo turno
-
-En el paso de filtros opcionales ya **no se pregunta por cada campo por separado**. Se envía una sola burbuja con todos los campos apropiados para la categoría, mostrando sugerencias y los que faltan.
-
-Opciones: **SI** conserva lo propuesto, **OMITIR TODO** vacía todos los filtros opcionales, **EDITAR/AYUDA** repite las instrucciones. También se pueden corregir varios datos directamente en un único mensaje, por ejemplo `Marca: Casio; Modelo: fx-82SP CW; Tipo de dispositivo: Calculadora científica`. Se aceptan saltos de línea en lugar de `;`.
-
-Para eliminar un campo concreto: `Marca: -`. Las modificaciones son **atómicas**: un valor inválido, ISBN incorrecto, campo de otra categoría o filtro duplicado rechaza el mensaje entero y conserva intacto el borrador. Los selectores solo admiten opciones existentes en Wetudy. Las categorías sin filtros específicos omiten este turno.
-
-La demo `/demo/wetudy-whatsapp` ahora enseña un solo bloque de detalles y permite escribir varias correcciones en una respuesta, con la misma validación determinista del flujo real. La demo no envía mensajes ni persiste cambios.
-
-## Decisión UX vigente (02/11/2026): formulario móvil en lugar de comandos por WhatsApp
-
-**Esta sección sustituye las instrucciones anteriores de corrección de filtros por texto y el chat paso a paso.** La familia **no escribe** `Marca: ...; Modelo: ...`, ni contesta preguntas separadas sobre ISBN o talla. El flujo real del piloto queda:
-
-1. El usuario vinculado envía una foto a Wetudy por WhatsApp. La IA genera la propuesta y los campos específicos que consiga reconocer; los valores inciertos quedan vacíos. Nunca infiere el estado real, si es venta/donación ni el precio.
-2. Wetudy responde con un único mensaje breve y un enlace privado a `/account/whatsapp/draft?draft=<uuid>` (en el mismo entorno Preview). Abrirlo puede requerir iniciar sesión en Wetudy, incluso si el usuario ya había iniciado sesión en otro navegador. WhatsApp abre una página web móvil, **no un WhatsApp Flow nativo**.
-3. La página consulta `/api/whatsapp/draft` autenticando al usuario, comprobando vinculación con el número y titularidad del borrador, y crea una URL firmada de cinco minutos para visualizar la foto privada. Se usa `service_role` únicamente en servidor.
-4. El formulario responsivo muestra todos los campos con sus valores sugeridos, obligatorios y opcionales; varía por categoría y valida los mismos datos que el marketplace web. Hay botones **Guardar borrador** y **Confirmar y publicar**. No se publica sin la acción explícita del usuario.
-5. El endpoint guarda correcciones en el borrador privado y, al publicar, reutiliza el publicador de anuncios idempotente de Wetudy, marca la sesión como publicada y elimina la foto temporal. `CANCELAR` desde WhatsApp sigue descartando el borrador.
-
-**Campos obligatorios:** fotografía, categoría, título (mínimo 12 caracteres), descripción (mínimo 40), estado, venta o donación, precio si es venta y curso para libros de texto y literatura. **Campos opcionales:** curso para categorías transversales, ISBN, autor, asignatura, editorial, tipo, talla, temporada, marca, modelo, formato, idioma, precio original. ISBN debe ser válido si se aporta. La IA solo rellena lo que reconoce con evidencia.
-
-**Seguridad y límites:** solo usuarios explícitamente permitidos en Preview, sesión Wetudy verificada, email confirmado, número previamente vinculado, expiración del borrador a las 24 horas, validación del body en servidor y protección de origen en peticiones POST. Sin entorno Meta/Supabase de pruebas configurado ni cambios en producción; la ruta real permanece desactivada. La vista `/demo/wetudy-whatsapp` ofrece el mismo formulario con ejemplos fijos sin almacenamiento ni análisis real.
-
-**Antes del piloto real:** hacer pruebas completas de sesión en navegadores embebidos de WhatsApp, subida/descarga y publicación, validación de accesibilidad móvil, límites y reintentos de errores, colas y limpieza periódica, y revisar consentimiento y RGPD. No aplicar migraciones ni compartir credenciales en producción sin autorización.
-
-### Refuerzo de seguridad y reintentos (02/11/2026)
-
-**Entorno aislado obligatorio:** `isWhatsappPilotConfigured()` ahora exige `WHATSAPP_PILOT_SUPABASE_PROJECT_REF` y comprueba que coincide exactamente con `NEXT_PUBLIC_SUPABASE_URL`, además de que no coincida con el proyecto de producción (`WHATSAPP_PRODUCTION_SUPABASE_PROJECT_REF`, con respaldo a la referencia productiva actual). Sin esa configuración no se activa ninguna ruta de Meta, ni la vinculación, ni el formulario privado.
-
-**Guardado/publicación atómicos por borrador:** la migración agrega RPC privadas `claim_whatsapp_form`, `complete_whatsapp_form` y `release_whatsapp_form`, accesibles solo con `service_role`. Los webhooks y los formularios comparten el mismo bloqueo por sesión para evitar carreras al subir una foto, guardar o publicar. La publicación conserva UUID estable para reintentos y el formulario gestiona explícitamente `already_published` cuando un usuario hace doble clic.
-
-**IMPORTANTE:** estas funciones son código de la rama. La migración no se ha aplicado; las pruebas de contrato no sustituyen una ejecución real contra una base Supabase aislada.
-
-
-## 02/11/2026 — Decisión final sobre fotos y tratamiento por IA
-
-**Experiencia:** el usuario autorizado vincula su WhatsApp y acepta información clara sobre que cada fotografía enviada al número de Wetudy será transmitida a la API de OpenAI para generar sugerencias de un anuncio. La fotografía se limita a JPG, PNG o WEBP de 3 MB, sin permitir preguntas generales por texto. Tras analizarla, se guarda en un bucket privado y se devuelve enlace al formulario precompletado; el artículo no se publica hasta que el usuario pulse **Confirmar y publicar**. El formulario recuerda revisar que la foto no contenga datos personales ajenos, especialmente de menores.
-
-**Controles que se mantienen:** vinculación en dos fases (mensaje de Meta firmado y confirmación de número desde cuenta); allowlist; piloto solo Preview; proyecto Supabase aislado; cuotas por usuario y globales; validación de imagen, MIME, tamaño, origen multimedia y firma del webhook; acceso al borrador y a la foto solo para propietario vinculado; protección de origen de las operaciones de escritura; bloqueo SQL e idempotencia; eliminación temporal de fotos vía limpieza autenticada (todavía sin programar), y comando CANCELAR. OpenAI no recibe cuentas, contraseñas ni credenciales del servidor, solo el mensaje de análisis y la imagen.
-
-**Límites legales:** la obligación del usuario de subir contenido autorizado no elimina automáticamente las obligaciones de Wetudy al tratar imágenes de terceros; la política de privacidad y los términos deberán explicar el envío a Meta/OpenAI, base jurídica y retención. El consentimiento de quien envía la foto no sustituye automáticamente los derechos de otras personas que puedan aparecer. Es necesario un mecanismo de retirada/reporte y atención a menores. AEPD: https://www.aepd.es/preguntas-frecuentes/2-tus-obligaciones-como-responsable-del-tratamiento/8-responsable-y-encargado-del-tratamiento/FAQ-0251-como-se-si-soy-responsable-o-encargado
-
-**Prueba real todavía pendiente:** no se han configurado Meta ni entorno Supabase aislado, no se han aplicado migraciones, no se ha ejecutado IA facturable ni se han realizado pruebas E2E contra las API reales. Hasta completar estas pruebas no activar el piloto con familias.
-
-## Marca visible para familias: Wetudy AI (02/11/2026)
-
-En la vinculación de WhatsApp, la demo y el formulario, la funcionalidad se presenta públicamente como **Wetudy AI**. Los textos visibles a las familias no muestran el nombre del proveedor del modelo, pero informan que el tratamiento puede incluir proveedores tecnológicos externos.
-
-**Transparencia obligatoria:** esta decisión de marca no modifica al proveedor técnico ni elimina los requisitos de informar de los encargados/subencargados de tratamiento aplicables. La política de privacidad y documentación legal deberán identificar de forma adecuada a los proveedores reales que procesen los datos (incluido OpenAI si continúa siendo el proveedor) antes del piloto.
+**Regla de lanzamiento:** mientras falte Supabase aislado, webhook de Meta de prueba, pruebas E2E o revisión legal, el PR debe seguir en borrador y **Wetudy producción no se modifica**.
