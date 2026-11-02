@@ -75,7 +75,7 @@ test("guided publication is explicit, limited, private and does not mutate produ
   const migration = read("supabase/migrations/20261101141000_whatsapp_guided_listing_pilot.sql");
 
   assert.match(runner, /WHATSAPP_PUBLISH_ENABLED === "true"/);
-  assert.match(runner, /WHATSAPP_AI_ENABLED === "true"/);
+  assert.match(read("app/api/whatsapp/analyze/route.ts"), /WHATSAPP_AI_ENABLED !== "true"/);
   assert.match(runner, /VERCEL_ENV === "preview"/);
   assert.doesNotMatch(runner, /reserve_whatsapp_ai_request/);
   assert.match(read("app/api/whatsapp/analyze/route.ts"), /reserve_whatsapp_ai_request/);
@@ -179,7 +179,7 @@ test("WhatsApp text cannot call OpenAI or publish; photo passes through manual a
   const photo = read("app/api/whatsapp/photo/route.ts");
   const linkSql = read("supabase/migrations/20261101130000_whatsapp_account_link_pilot.sql");
   assert.doesNotMatch(runner, /advanceWhatsappListing|publishWhatsappConfirmedListing|suggestWhatsappListing/);
-  assert.match(runner, /"No es un chat general de IA\."/);
+  assert.match(runner, /No soy un chat general de IA/);
   assert.match(analyze, /privacyConfirmed !== "yes"/);
   assert.match(analyze, /suggestWhatsappListing\(sanitized\)/);
   assert.match(analyze, /file\.type !== "image\/jpeg"/);
