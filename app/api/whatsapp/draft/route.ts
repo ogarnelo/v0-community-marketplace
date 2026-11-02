@@ -45,7 +45,7 @@ async function findDraft(admin: ReturnType<typeof createAdminClient>, userId: st
     .eq("user_id", userId)
     .maybeSingle();
   if (error) return { error: "No se pudo consultar el borrador." };
-  if (!session || session.step !== "form" ||
+  if (!session || !["review_photo", "form"].includes(session.step) ||
       session.payload?.listingId !== draftId ||
       typeof session.draft_photo_path !== "string" ||
       !session.draft_photo_path.startsWith(`${userId}/`)) return { error: "Borrador no disponible." };
@@ -67,13 +67,12 @@ export async function GET(request: Request) {
   if (!draftIdPattern.test(draftId)) return failed(400, "Identificador de borrador incorrecto.");
   const result = await findDraft(owner.admin, owner.user.id, draftId);
   if (!result.session) return failed(404, result.error || "Borrador no disponible.");
-  const { data: signed, error: signingError } = await owner.admin.storage
-    .from("whatsapp-draft-photos").createSignedUrl(result.session.draft_photo_path!, 300);
-  if (signingError || !signed?.signedUrl) return failed(503, "No se pudo mostrar la fotografía.");
   return NextResponse.json({
+    step: result.session.step,
     draft: result.session.payload,
-    photoUrl: signed.signedUrl,
-    expiresInSeconds: 300,
+    // This photo is served by a same-origin authenticated endpoint, not via
+    // a bearer-style signed storage URL that could leak from browser history.
+    photoUrl: `/api/whatsapp/photo?draft=${draftId}`,
   }, { headers: noStore });
 }
 
@@ -121,10 +120,10 @@ export async function POST(request: Request) {
   try {
     const { data: current, error: currentError } = await owner.admin
       .from("whatsapp_listing_sessions")
-      .select("draft_photo_path,payload")
+      .select("step,draft_photo_path,payload")
       .eq("user_id", owner.user.id).eq("lease_id", leaseId)
       .eq("step", "form").maybeSingle();
-    if (currentError || !current || current.payload?.listingId !== draftId) {
+    if (currentError || !current || current.step !== "form" || current.payload?.listingId !== draftId) {
       return failed(409, "El borrador ha cambiado. Recarga la página.");
     }
     const photoPath = current.draft_photo_path as string | null;
