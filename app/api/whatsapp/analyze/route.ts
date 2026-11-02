@@ -95,6 +95,16 @@ export async function POST(request: Request) {
       .upload(safePath, bytes, { contentType: "image/jpeg", upsert: true });
     if (uploadError) return errorResponse(503, "No se pudo guardar la foto revisada.");
 
+    // Register original for deletion BEFORE committing the state transition.
+    // If cleanup fails, the scheduler can still remove these bytes.
+    const { error: queueError } = await admin
+      .from("whatsapp_pending_deletions")
+      .upsert({ user_id: user.id, photo_path: session.draft_photo_path },
+              { onConflict: "photo_path" });
+    if (queueError) {
+      await admin.storage.from("whatsapp-draft-photos").remove([safePath]);
+      return errorResponse(503, "No se pudo registrar la eliminación segura de la fotografía.");
+    }
     const prepared = startWhatsappListing(draftId, safePath, suggestion);
     const { data: complete, error: completeError } = await admin.rpc("complete_whatsapp_form", {
       p_user_id: user.id,
@@ -107,13 +117,20 @@ export async function POST(request: Request) {
     if (completeError || complete !== true) {
       // Keep raw original and drop any newly prepared safe media on failure.
       await admin.storage.from("whatsapp-draft-photos").remove([safePath]);
+      await admin.from("whatsapp_pending_deletions").delete()
+        .eq("photo_path", session.draft_photo_path).eq("user_id", user.id);
       return errorResponse(409, "La revisión ha caducado. Vuelve a abrir el enlace.");
     }
 
     // Remove the original WhatsApp photo once a sanitized copy was committed.
     const { error: removalError } = await admin.storage
       .from("whatsapp-draft-photos").remove([session.draft_photo_path]);
-    if (removalError) console.error("WhatsApp privacy: original photo deletion failed; requires retention sweep");
+    if (removalError) {
+      console.error("WhatsApp privacy: original photo deletion deferred to private retention queue");
+    } else {
+      await admin.from("whatsapp_pending_deletions").delete()
+        .eq("photo_path", session.draft_photo_path).eq("user_id", user.id);
+    }
 
     return NextResponse.json({ step: "form", draft: prepared.state.payload }, { headers: noStore });
   } catch {
