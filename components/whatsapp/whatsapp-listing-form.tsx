@@ -84,7 +84,7 @@ export default function WhatsappListingForm({ initialDraft, photoUrl, onPublish,
   return (
     <section className="space-y-5 rounded-3xl bg-white p-4 text-slate-900 shadow-sm sm:p-6" aria-labelledby="wetudy-form-heading">
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-emerald-700">WETUDY EASY · Propuesta asistida</p>
+        <p className="text-sm font-semibold text-emerald-700">WETUDY AI · Propuesta de anuncio</p>
         <h2 id="wetudy-form-heading" className="text-2xl font-bold tracking-tight">Revisa tu anuncio</h2>
         <p className="text-sm leading-relaxed text-slate-600">
           Hemos rellenado lo que hemos podido reconocer. Comprueba los datos, completa los campos obligatorios y publica cuando esté listo.
