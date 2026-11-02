@@ -116,7 +116,7 @@ export async function processWhatsappPublishMessage(
           "📸 ¡Tu propuesta de anuncio está lista!",
           `📦 ${state.payload.title || "Título pendiente"}`,
           `🏷️ ${state.payload.category || "Categoría por confirmar"}`,
-          "La IA ha rellenado los datos que ha podido identificar.",
+          "Wetudy AI ha rellenado los datos que ha podido identificar.",
           "Abre el formulario, comprueba la fotografía y completa los campos obligatorios antes de publicar.",
           `${origin}/account/whatsapp/draft?draft=${listingId}`,
           "Para descartar responde CANCELAR.",
