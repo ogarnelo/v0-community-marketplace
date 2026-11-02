@@ -60,3 +60,13 @@ Cuando llega la fotografía, el primer mensaje de Wetudy **incluye directamente*
 El usuario contesta **SI** para aceptar categoría, título y descripción de una sola vez y pasar a los detalles pendientes; **EDITAR** para recorrer título y descripción; **CAMBIAR** para pedir el selector de categorías; **CANCELAR** para descartar. Si faltan título, categoría o descripción, SI no los considera aceptados y se solicitan.
 Ninguno de estos comandos publica un anuncio. La publicación sigue requiriendo la revisión final y el comando exacto **PUBLICAR**.
 La demo muestra esa propuesta directamente en una única burbuja del asistente. Es una simulación y no analiza imágenes reales.
+
+### Optimización adicional — detalles opcionales en un solo turno
+
+En el paso de filtros opcionales ya **no se pregunta por cada campo por separado**. Se envía una sola burbuja con todos los campos apropiados para la categoría, mostrando sugerencias y los que faltan.
+
+Opciones: **SI** conserva lo propuesto, **OMITIR TODO** vacía todos los filtros opcionales, **EDITAR/AYUDA** repite las instrucciones. También se pueden corregir varios datos directamente en un único mensaje, por ejemplo `Marca: Casio; Modelo: fx-82SP CW; Tipo de dispositivo: Calculadora científica`. Se aceptan saltos de línea en lugar de `;`.
+
+Para eliminar un campo concreto: `Marca: -`. Las modificaciones son **atómicas**: un valor inválido, ISBN incorrecto, campo de otra categoría o filtro duplicado rechaza el mensaje entero y conserva intacto el borrador. Los selectores solo admiten opciones existentes en Wetudy. Las categorías sin filtros específicos omiten este turno.
+
+La demo `/demo/wetudy-whatsapp` ahora enseña un solo bloque de detalles y permite escribir varias correcciones en una respuesta, con la misma validación determinista del flujo real. La demo no envía mensajes ni persiste cambios.
