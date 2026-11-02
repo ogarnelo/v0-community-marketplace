@@ -170,3 +170,83 @@ grant execute on function public.claim_whatsapp_incoming(uuid,text,uuid) to serv
 grant execute on function public.complete_whatsapp_incoming(uuid,text,uuid,text,jsonb,text) to service_role;
 grant execute on function public.release_whatsapp_incoming(uuid,uuid) to service_role;
 grant execute on function public.reserve_whatsapp_ai_request(uuid) to service_role;
+
+
+-- Atomically lock form editing/publishing. The original webhook locks use the
+-- same session row; form operations cannot overwrite a concurrently arriving photo.
+create or replace function public.claim_whatsapp_form(
+  p_user_id uuid, p_listing_id uuid, p_lease_id uuid
+) returns text
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_session public.whatsapp_listing_sessions%rowtype;
+begin
+  if p_user_id is null or p_listing_id is null or p_lease_id is null then return 'invalid'; end if;
+  select * into v_session from public.whatsapp_listing_sessions
+    where user_id=p_user_id for update;
+
+  if v_session.user_id is null then return 'missing'; end if;
+  if v_session.step = 'published' and
+     v_session.payload->>'listingId' = p_listing_id::text then return 'already_published'; end if;
+  if v_session.step <> 'form' or
+     v_session.payload->>'listingId' <> p_listing_id::text or
+     v_session.draft_photo_path is null or
+     v_session.draft_photo_path not like p_user_id::text || '/%'
+  then return 'missing'; end if;
+  if v_session.updated_at < now() - interval '24 hours' then return 'expired'; end if;
+  if v_session.in_flight_until is not null and v_session.in_flight_until > now() then return 'busy'; end if;
+
+  update public.whatsapp_listing_sessions
+    set lease_id=p_lease_id, in_flight_until=now()+interval '2 minutes'
+    where user_id=p_user_id;
+  return 'claimed';
+end;
+$$;
+
+create or replace function public.complete_whatsapp_form(
+  p_user_id uuid, p_listing_id uuid, p_lease_id uuid,
+  p_action text, p_payload jsonb
+) returns boolean
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if p_user_id is null or p_listing_id is null or p_lease_id is null or
+     p_action not in ('save','publish') or jsonb_typeof(p_payload) <> 'object' or
+     pg_catalog.octet_length(p_payload::text) > 12000
+  then return false; end if;
+  if p_action = 'save' and p_payload->>'listingId' <> p_listing_id::text
+  then return false; end if;
+
+  update public.whatsapp_listing_sessions
+  set step=case when p_action='publish' then 'published' else 'form' end,
+      payload=case when p_action='publish'
+        then pg_catalog.jsonb_build_object('listingId',p_listing_id::text)
+        else p_payload end,
+      draft_photo_path=case when p_action='publish' then null else draft_photo_path end,
+      updated_at=now(),
+      lease_id=null, in_flight_until=null
+  where user_id=p_user_id and step='form'
+    and payload->>'listingId'=p_listing_id::text
+    and lease_id=p_lease_id and in_flight_until > now();
+  return found;
+end;
+$$;
+
+create or replace function public.release_whatsapp_form(
+  p_user_id uuid,p_lease_id uuid
+) returns boolean
+language sql security definer set search_path = ''
+as $$
+  update public.whatsapp_listing_sessions
+  set lease_id=null,in_flight_until=null
+  where user_id=p_user_id and lease_id=p_lease_id
+  returning true;
+$$;
+
+revoke all on function public.claim_whatsapp_form(uuid,uuid,uuid) from public,anon,authenticated;
+revoke all on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.release_whatsapp_form(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.claim_whatsapp_form(uuid,uuid,uuid) to service_role;
+grant execute on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb) to service_role;
+grant execute on function public.release_whatsapp_form(uuid,uuid) to service_role;
