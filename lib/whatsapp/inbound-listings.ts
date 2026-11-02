@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { startWhatsappListing, type WhatsappDraft, type WhatsappState } from "@/lib/whatsapp/conversation";
+import { startWhatsappListing, type WhatsappDraft, type WhatsappState, type WhatsappSuggestion } from "@/lib/whatsapp/conversation";
 import { downloadWhatsappPhoto, sendWhatsappPilotMessage, suggestWhatsappListing } from "@/lib/whatsapp/vision-and-meta";
 import { isWhatsappPilotConfigured, isWhatsappPilotUserAllowed } from "@/lib/whatsapp/pilot";
 
@@ -99,7 +99,18 @@ export async function processWhatsappPublishMessage(
         reply = "Has llegado al límite de análisis de fotos de hoy. Puedes volver a intentarlo mañana.";
       } else {
         const photo = await downloadWhatsappPhoto(message.image.id);
-        const suggestion = await suggestWhatsappListing(photo);
+        let suggestion: WhatsappSuggestion = {
+          title: null, description: null, category: null, gradeLevel: null,
+        };
+        let aiSuggested = false;
+        try {
+          suggestion = await suggestWhatsappListing(photo);
+          aiSuggested = true;
+        } catch {
+          // Provider outage: preserve the photo privately and let the family
+          // complete a blank listing form instead of uploading it again.
+          console.error("Wetudy AI: recognition unavailable, creating editable draft");
+        }
         const hash = createHash("sha256").update(messageId).digest("hex");
         const path = `${userId}/${hash}.${photo.extension}`;
         const { error: uploadError } = await admin.storage
@@ -116,7 +127,9 @@ export async function processWhatsappPublishMessage(
           "📸 ¡Tu propuesta de anuncio está lista!",
           `📦 ${state.payload.title || "Título pendiente"}`,
           `🏷️ ${state.payload.category || "Categoría por confirmar"}`,
-          "Wetudy AI ha rellenado los datos que ha podido identificar.",
+          aiSuggested
+            ? "Wetudy AI ha rellenado los datos que ha podido identificar."
+            : "Wetudy AI no ha podido analizar la foto esta vez. Puedes completar el formulario manualmente.",
           "Abre el formulario, comprueba la fotografía y completa los campos obligatorios antes de publicar.",
           `${origin}/account/whatsapp/draft?draft=${listingId}`,
           "Para descartar responde CANCELAR.",
