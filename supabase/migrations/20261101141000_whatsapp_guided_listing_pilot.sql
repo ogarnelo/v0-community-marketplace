@@ -257,3 +257,17 @@ revoke all on function public.release_whatsapp_form(uuid,uuid) from public,anon,
 grant execute on function public.claim_whatsapp_form(uuid,uuid,uuid) to service_role;
 grant execute on function public.complete_whatsapp_form(uuid,uuid,uuid,text,jsonb,text) to service_role;
 grant execute on function public.release_whatsapp_form(uuid,uuid) to service_role;
+
+-- Durable deletion queue: prevent orphaned raw photos if storage cleanup fails
+-- after transitioning from original WhatsApp image to approved sanitized copy.
+create table if not exists public.whatsapp_pending_deletions(
+  photo_path text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint whatsapp_pending_deletions_path_check check (
+    length(photo_path) <= 300 and photo_path like user_id::text || '/%'
+  )
+);
+alter table public.whatsapp_pending_deletions enable row level security;
+revoke all on public.whatsapp_pending_deletions from public,anon,authenticated;
+grant all on public.whatsapp_pending_deletions to service_role;
