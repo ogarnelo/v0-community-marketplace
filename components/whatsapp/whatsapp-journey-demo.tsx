@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, ImagePlus, MessageCircle, Send, Sparkles } from "lucide-react";
 import { bookFormats, categories, conditions, gradeLevels } from "@/lib/mock-data";
 import { isValidIsbn } from "@/lib/books/isbn";
+import { updateGroupedDetails } from "@/lib/whatsapp/conversation";
 import {
   detailFieldsForCategory, type WhatsappDetailKey,
 } from "@/lib/whatsapp/category-fields";
 
-type Stage = "unlinked" | "linked" | "photo" | "details" | "review" | "complete";
+type Stage = "unlinked" | "linked" | "photo" | "filters" | "details" | "review" | "complete";
 type Kind = "sale" | "donation";
 type DemoForm = {
   category: string;
@@ -92,6 +93,8 @@ export default function WhatsappJourneyDemo() {
   const [picture, setPicture] = useState<File | null>(null);
   const [pictureUrl, setPictureUrl] = useState("");
   const [form, setForm] = useState<DemoForm>(() => makeForm("Tecnología y calculadoras"));
+  const [filterEdits, setFilterEdits] = useState("");
+  const [filterError, setFilterError] = useState("");
 
   useEffect(() => {
     if (!picture) { setPictureUrl(""); return; }
@@ -104,6 +107,8 @@ export default function WhatsappJourneyDemo() {
     setStage("unlinked");
     setPicture(null);
     setForm(makeForm("Tecnología y calculadoras"));
+    setFilterEdits("");
+    setFilterError("");
   };
 
   const update = <K extends keyof DemoForm>(key: K, value: DemoForm[K]) => {
@@ -113,6 +118,31 @@ export default function WhatsappJourneyDemo() {
     setForm((current) => ({ ...current, details: { ...current.details, [key]: value } }));
   };
   const details = detailFieldsForCategory(form.category);
+  const proceedWithFilters = (message: string) => {
+    setFilterError("");
+    const normalized = message.trim().toLocaleUpperCase("es-ES");
+    if (normalized === "SI" || normalized === "SÍ") {
+      setStage("details");
+      return;
+    }
+    if (normalized === "OMITIR TODO") {
+      setForm((current) => ({ ...current, details: {} }));
+      setStage("details");
+      return;
+    }
+    const result = updateGroupedDetails({ category: form.category, ...form.details }, message);
+    if (!result.ok) {
+      setFilterError(result.error);
+      return;
+    }
+    const changed: DemoForm["details"] = {};
+    for (const field of details) {
+      const updated = result.draft[field.key];
+      if (updated) changed[field.key] = updated;
+    }
+    setForm((current) => ({ ...current, details: changed }));
+    setStage("details");
+  };
   const missing = [
     ...(form.title.trim().length < 12 ? ["Título de al menos 12 caracteres"] : []),
     ...(form.description.trim().length < 40 ? ["Descripción de al menos 40 caracteres"] : []),
@@ -169,10 +199,10 @@ export default function WhatsappJourneyDemo() {
                 </button>
               </div>
             )}
-            {["photo", "details", "review", "complete"].includes(stage) && (
+            {["photo", "filters", "details", "review", "complete"].includes(stage) && (
               <Bubble author="you">{pictureUrl ? <img src={pictureUrl} className="max-h-48 rounded-lg object-contain" alt="Fotografía local" /> : "📷 [Foto de ejemplo]"}</Bubble>
             )}
-            {["photo", "details", "review", "complete"].includes(stage) && (
+            {["photo", "filters", "details", "review", "complete"].includes(stage) && (
               <Bubble author="bot">
                 <strong>📷 Propuesta de anuncio (ejemplo · sin publicar)</strong>
                 <div className="mt-3 space-y-1">
@@ -188,15 +218,44 @@ export default function WhatsappJourneyDemo() {
             )}
             {stage === "photo" && (
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-                <button onClick={() => setStage("details")} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white">SI · Confirmar propuesta</button>
+                <button onClick={() => setStage("filters")} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white">SI · Confirmar propuesta</button>
                 <button onClick={() => setStage("details")} className="rounded-xl border border-emerald-700 bg-white px-5 py-3 text-sm font-semibold text-emerald-800">EDITAR propuesta</button>
               </div>
+            )}
+
+            {stage === "filters" && (
+              <>
+                <Bubble author="bot">
+                  <strong>🔎 Detalles para mejorar la búsqueda</strong>
+                  <p className="mt-2">Podemos revisar todos los filtros opcionales en un solo mensaje:</p>
+                  <div className="mt-2 space-y-1">
+                    {details.map((field) => (
+                      <p key={field.key}><strong>{field.label}:</strong> {form.details[field.key] || "Sin especificar"}</p>
+                    ))}
+                  </div>
+                  <p className="mt-3"><strong>SI</strong> para mantenerlos · <strong>OMITIR TODO</strong> para saltarlos · o escribe varios cambios juntos: <em>Marca: Casio; Modelo: fx-82SP CW</em>.</p>
+                </Bubble>
+                <div className="space-y-3 rounded-xl bg-white/90 p-4">
+                  <label className="block text-sm font-medium">
+                    Cambiar varios datos en un mensaje (opcional)
+                    <textarea value={filterEdits} onChange={(event) => setFilterEdits(event.target.value)}
+                      placeholder="Marca: Casio; Modelo: fx-82SP CW"
+                      rows={2} maxLength={1000} className="mt-2 w-full rounded-lg border p-3 text-sm font-normal" />
+                  </label>
+                  {filterError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{filterError}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => proceedWithFilters("SI")} className="rounded-lg bg-emerald-700 px-4 py-3 text-sm font-semibold text-white">SI · Mantener</button>
+                    <button onClick={() => proceedWithFilters("OMITIR TODO")} className="rounded-lg border bg-white px-4 py-3 text-sm font-semibold">OMITIR TODO</button>
+                    <button onClick={() => proceedWithFilters(filterEdits)} disabled={!filterEdits.trim()} className="rounded-lg border border-emerald-700 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 disabled:opacity-40">Enviar cambios juntos</button>
+                  </div>
+                </div>
+              </>
             )}
 
             {stage === "details" && (
               <div className="space-y-4 rounded-xl bg-white p-4 text-sm">
                 <p className="font-semibold text-emerald-800">📝 Propuesta de anuncio · Revisión de datos</p>
-                <p className="text-xs text-slate-500">En WhatsApp real el asistente preguntará estos datos en mensajes sucesivos y permitirá contestar OMITIR en los campos opcionales. Aquí puedes cambiar de categoría para explorar qué filtros aparecen.</p>
+                <p className="text-xs text-slate-500">En WhatsApp real los filtros opcionales se revisan juntos en un solo mensaje (SI, OMITIR TODO o varios cambios). Aquí puedes explorar y ajustar todos los campos del anuncio antes de confirmar.</p>
                 <label className="block font-medium">Categoría *
                   <select className="mt-1 w-full rounded-md border p-2 font-normal" value={form.category}
                     onChange={(event) => setForm(makeForm(event.target.value))}>
