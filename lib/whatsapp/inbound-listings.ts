@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { WhatsappDraft, WhatsappState } from "@/lib/whatsapp/conversation";
-import { downloadWhatsappPhoto, sendWhatsappPilotMessage } from "@/lib/whatsapp/vision-and-meta";
+import { startWhatsappListing, type WhatsappDraft, type WhatsappState } from "@/lib/whatsapp/conversation";
+import { downloadWhatsappPhoto, sendWhatsappPilotMessage, suggestWhatsappListing } from "@/lib/whatsapp/vision-and-meta";
 import { isWhatsappPilotConfigured, isWhatsappPilotUserAllowed } from "@/lib/whatsapp/pilot";
 
 type IncomingMessage = {
@@ -16,13 +16,14 @@ type IncomingMessage = {
 function publishEnabled() {
   return isWhatsappPilotConfigured() &&
     process.env.WHATSAPP_PUBLISH_ENABLED === "true" &&
+    process.env.WHATSAPP_AI_ENABLED === "true" &&
+    Boolean(process.env.OPENAI_API_KEY) &&
     process.env.VERCEL_ENV === "preview";
 }
 
 function extractState(session: any): WhatsappState {
   const step = session?.step;
-  const valid = step === "idle" || step === "review_photo" ||
-                step === "form" || step === "published";
+  const valid = step === "idle" || step === "form" || step === "published";
   return {
     step: valid ? step : "idle",
     payload: session?.payload && typeof session.payload === "object" &&
@@ -88,34 +89,46 @@ export async function processWhatsappPublishMessage(
 
     let reply = "";
     if (message.type === "image" && typeof message.image?.id === "string") {
-      // Critical privacy guarantee: original photo is never sent to OpenAI.
-      const photo = await downloadWhatsappPhoto(message.image.id);
-      const hash = createHash("sha256").update(messageId).digest("hex");
-      const path = `${userId}/${hash}.${photo.extension}`;
-      const { error: uploadError } = await admin.storage
-        .from("whatsapp-draft-photos")
-        .upload(path, photo.bytes, { contentType: photo.mime, upsert: true });
-      if (uploadError) throw new Error("Private photo upload failed");
-      uploadedPhotoToDiscardOnFailure = path;
-      if (!oldPhotoToDiscard) oldPhotoToDiscard = state.draftPhotoPath;
-      const listingId = randomUUID();
-      state = { step: "review_photo", payload: { listingId }, draftPhotoPath: path };
-      const origin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
-      if (!origin) throw new Error("Preview origin is missing");
-      reply = [
-        "📸 Fotografía recibida.",
-        "Por privacidad, revisa primero la imagen en Wetudy. Tapa nombres, rostros o etiquetas antes de continuar.",
-        "La IA no recibirá la foto hasta que autorices el análisis de la imagen revisada.",
-        `${origin}/account/whatsapp/draft?draft=${listingId}`,
-        "Puedes responder CANCELAR para descartar.",
-      ].join("\n");
+      // The linked account holder opted in to AI-assisted photo processing.
+      // Text messages are never forwarded to OpenAI. No auto-publication.
+      const { data: allowed, error: quotaError } = await admin.rpc("reserve_whatsapp_ai_request", {
+        p_user_id: userId,
+      });
+      if (quotaError) throw new Error("WhatsApp AI quota unavailable");
+      if (allowed !== true) {
+        reply = "Has llegado al límite de análisis de fotos de hoy. Puedes volver a intentarlo mañana.";
+      } else {
+        const photo = await downloadWhatsappPhoto(message.image.id);
+        const suggestion = await suggestWhatsappListing(photo);
+        const hash = createHash("sha256").update(messageId).digest("hex");
+        const path = `${userId}/${hash}.${photo.extension}`;
+        const { error: uploadError } = await admin.storage
+          .from("whatsapp-draft-photos")
+          .upload(path, photo.bytes, { contentType: photo.mime, upsert: true });
+        if (uploadError) throw new Error("Private WhatsApp draft upload failed");
+        uploadedPhotoToDiscardOnFailure = path;
+        if (!oldPhotoToDiscard) oldPhotoToDiscard = state.draftPhotoPath;
+        const listingId = randomUUID();
+        state = startWhatsappListing(listingId, path, suggestion).state;
+        const origin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
+        if (!origin) throw new Error("Preview origin missing");
+        reply = [
+          "📸 ¡Tu propuesta de anuncio está lista!",
+          `📦 ${state.payload.title || "Título pendiente"}`,
+          `🏷️ ${state.payload.category || "Categoría por confirmar"}`,
+          "La IA ha rellenado los datos que ha podido identificar.",
+          "Abre el formulario, comprueba la fotografía y completa los campos obligatorios antes de publicar.",
+          `${origin}/account/whatsapp/draft?draft=${listingId}`,
+          "Para descartar responde CANCELAR.",
+        ].join("\n");
+      }
     } else if (message.type === "text" && typeof message.text?.body === "string") {
       const command = message.text.body.trim().toLocaleUpperCase("es-ES");
       if (command === "CANCELAR") {
         oldPhotoToDiscard = state.draftPhotoPath;
         state = { step: "idle", payload: {}, draftPhotoPath: null };
         reply = "Borrador descartado. Envía otra foto cuando quieras.";
-      } else if ((state.step === "review_photo" || state.step === "form") &&
+      } else if (state.step === "form" &&
                  state.payload.listingId) {
         const origin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
         reply = `Tu borrador es privado y se revisa en Wetudy: ${origin}/account/whatsapp/draft?draft=${state.payload.listingId}\nPara descartarlo responde CANCELAR.`;
