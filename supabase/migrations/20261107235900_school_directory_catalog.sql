@@ -1,7 +1,7 @@
 -- Independent informational catalog of educational centres.
 -- This table does NOT grant school membership, AMPA rights, access codes,
 -- FANPA roles, or imply any institutional partnership.
--- Do not import/enable the supplied 1,624 records until the owner approves.
+-- Do not import/enable the supplied 34,845 records until the owner approves.
 CREATE TABLE IF NOT EXISTS public.school_directory (
   official_code text PRIMARY KEY
     CHECK (official_code ~ '^[0-9]{8}$'),
@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS public.school_directory (
     ON DELETE SET NULL,
   -- Inserting a catalog entry does not publish it.
   is_listed boolean NOT NULL DEFAULT false,
+  -- Indexing is a separate manual editorial approval, never granted by import.
+  -- A page is indexable only when also linked to a verified active community.
+  seo_indexable boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   search_text text GENERATED ALWAYS AS (
@@ -54,3 +57,6 @@ COMMENT ON COLUMN public.school_directory.is_listed IS
   'Explicit publication approval required; independent of public.schools.is_active.';
 COMMENT ON COLUMN public.school_directory.linked_school_id IS
   'Only manually verified operational school association; never infer from name.';
+
+COMMENT ON COLUMN public.school_directory.seo_indexable IS
+  'Manual SEO approval. Application additionally requires a verified linked school; not automatically indexed on import.';
