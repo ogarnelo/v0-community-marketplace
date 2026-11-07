@@ -1,5 +1,6 @@
-import { prepareListingImage, MAX_LISTING_IMAGE_BYTES, ACCEPTED_LISTING_IMAGE_TYPES } from "@/lib/marketplace/photo-sanitizer";
 "use client";
+
+import { prepareListingImage, MAX_LISTING_IMAGE_BYTES, ACCEPTED_LISTING_IMAGE_TYPES } from "@/lib/marketplace/photo-sanitizer";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
