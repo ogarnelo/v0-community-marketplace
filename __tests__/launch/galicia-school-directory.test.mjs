@@ -65,6 +65,9 @@ test("directory page does not claim membership or use an unbounded drop-down", (
   const page = read("app/centros/page.tsx");
   assert.match(page, /no significa/);
   assert.match(page, /adhesión a Wetudy no confirmada/);
+  assert.match(page, /Ministerio de Educación/);
+  assert.match(page, /seis códigos de Galicia/i);
+  assert.match(page, /independiente/);
   assert.match(page, /api\/school-directory/);
   assert.match(page, /DIRECTORY_COMMUNITIES/);
   assert.match(page, /setPage\(1\)/);
