@@ -141,6 +141,26 @@ test("allowed chat uploads use private bucket and no public URL", async () => {
   assert.equal(app.uploads[0].path,
     CONVERSATION + "/" + USER + "/55555555-5555-4555-8555-555555555555.webp");
 });
+test("new listing photos are staged before row insertion; listing-only uploads require an existing owner", async () => {
+  const form = readFileSync(
+    new URL("../../components/marketplace/new-listing-form.tsx", import.meta.url),
+    "utf8"
+  );
+  const uploadFn = form.slice(
+    form.indexOf("const uploadListingPhotos = async"),
+    form.indexOf("const handleSubmit = async")
+  );
+  assert.ok(uploadFn.includes('uploadSanitizedPhoto(photo.file, "draft")'));
+  assert.ok(!uploadFn.includes('uploadSanitizedPhoto(photo.file, "listing"'));
+  assert.ok(form.indexOf("const uploadedPhotoRows = await uploadListingPhotos") <
+    form.indexOf('supabase.from("listings").insert(payload)'));
+  const staged = fixture({ destination: "draft", resourceId: "" });
+  assert.equal((await staged.post()).status, 200);
+  assert.equal(staged.uploads.length, 1);
+  const notCreatedYet = fixture({ destination: "listing", listingOwner: null });
+  assert.equal((await notCreatedYet.post()).status, 403);
+  assert.equal(notCreatedYet.uploads.length, 0);
+});
 test("draft uploads stay in the authenticated owner's private folder", async () => {
   const app = fixture({ destination: "draft", resourceId: "" });
   const response = await app.post();
