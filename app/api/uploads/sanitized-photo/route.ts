@@ -6,7 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
+// Vercel Functions have a 4.5 MB total request-body limit; allow margin for multipart encoding.
+const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Solo se admiten imágenes JPG, PNG y WEBP." }, { status: 400 });
     }
     if (!file.size || file.size > MAX_SOURCE_BYTES) {
-      return NextResponse.json({ error: "La imagen original no puede superar 20 MB." }, { status: 413 });
+      return NextResponse.json({ error: "La fotografía supera 4 MB para el envío. Vuelve a seleccionarla." }, { status: 413 });
     }
     if (!["draft", "listing", "chat"].includes(destination)) {
       return NextResponse.json({ error: "Destino de imagen no permitido." }, { status: 400 });
@@ -52,8 +53,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Reserve one upload attempt before running expensive image decoding.
-    // An atomic database claim prevents concurrent uploads bypassing quotas.
+    // Reserve a per-account upload slot atomically before decoding pixels.
+    // The RPC is executable by service_role only, never by browser clients.
     const { data: mayUpload, error: quotaError } = await admin.rpc(
       "claim_photo_upload_slot",
       { p_user_id: user.id }
@@ -66,9 +67,9 @@ export async function POST(request: Request) {
       );
     }
 
-    let bytes: Buffer;
+    let optimized: Awaited<ReturnType<typeof normalizePhoto>>;
     try {
-      bytes = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
+      optimized = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
     } catch (imageError) {
       return NextResponse.json({
         error: imageError instanceof Error ? imageError.message : "No se pudo procesar la imagen.",
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     }
 
     const bucket = destination === "chat" ? "chat-attachments" : "listing-photos";
-    const filename = `${randomUUID()}.jpg`;
+    const filename = `${randomUUID()}.${optimized.extension}`;
     const path = destination === "draft"
       ? `${user.id}/drafts/current/${filename}`
       : destination === "chat"
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
         : `${user.id}/${resourceId}/${filename}`;
 
     const { error: uploadError } = await admin.storage.from(bucket)
-      .upload(path, bytes, { contentType: "image/jpeg", cacheControl: "3600", upsert: false });
+      .upload(path, optimized.bytes, { contentType: optimized.contentType, cacheControl: "3600", upsert: false });
     if (uploadError) throw uploadError;
 
     const publicUrl = destination === "chat"
@@ -95,8 +96,9 @@ export async function POST(request: Request) {
       path,
       publicUrl,
       name: filename,
-      contentType: "image/jpeg",
-      size: bytes.byteLength,
+      contentType: optimized.contentType,
+      size: optimized.bytes.byteLength,
+      sourceBytes: optimized.sourceBytes,
     });
   } catch (error) {
     console.error("No se pudo almacenar la imagen saneada", error);
