@@ -18,6 +18,7 @@ function makeApp({
   newPhotos = [photo(ownPath("new"))],
   upsertFailure = false,
   deleteFailure = false,
+  readFailure = false,
   cleanupFailure = false,
   preservePhotoPaths = [],
   publishedPhotoUrls = [],
@@ -52,7 +53,10 @@ function makeApp({
         eq() { return this; },
         upsert(data) { this.operation = "upsert"; this.newData = data; return this; },
         delete() { this.operation = "delete"; return this; },
-        async maybeSingle() { return { data: { photos: draft }, error: null }; },
+        async maybeSingle() {
+          return { data: readFailure ? null : { photos: draft },
+            error: readFailure ? { message: "simulated draft read error" } : null };
+        },
         async single() {
           events.push("db.upsert");
           if (upsertFailure) return { data: null, error: { message: "Simulated DB error" } };
@@ -188,4 +192,20 @@ test("lookup failure preserves photographs rather than risking broken listings",
   const app = makeApp({ publishedLookupError: true });
   assert.equal((await app.remove()).status, 200);
   assert.deepEqual(app.events, ["db.delete", "listing.lookup"]);
+});
+
+test("a failed draft read stops update and preserves referenced photos", async () => {
+  const app = makeApp({ readFailure: true });
+  const result = await app.put();
+  assert.equal(result.status, 503);
+  assert.deepEqual(app.events, []);
+  assert.equal(app.getDraft()[0].path, ownPath("old"));
+});
+
+test("a failed draft read stops discard and preserves referenced photos", async () => {
+  const app = makeApp({ readFailure: true });
+  const result = await app.remove();
+  assert.equal(result.status, 503);
+  assert.deepEqual(app.events, []);
+  assert.equal(app.getDraft()[0].path, ownPath("old"));
 });
