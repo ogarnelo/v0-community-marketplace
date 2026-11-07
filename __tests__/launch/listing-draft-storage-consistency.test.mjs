@@ -20,11 +20,31 @@ function makeApp({
   deleteFailure = false,
   cleanupFailure = false,
   preservePhotoPaths = [],
+  publishedPhotoUrls = [],
+  publishedLookupError = false,
 } = {}) {
   const events = [];
   let draft = oldPhotos.map((entry) => ({ ...entry }));
   const admin = {
     from(table) {
+      if (table === "listings") {
+        return {
+          select() { return this; },
+          contains(column, urls) {
+            assert.equal(column, "photos");
+            this.urls = urls;
+            return this;
+          },
+          limit() { return this; },
+          async maybeSingle() {
+            events.push("listing.lookup");
+            return {
+              data: publishedPhotoUrls.some((url) => this.urls.includes(url)) ? { id: "published" } : null,
+              error: publishedLookupError ? { message: "Lookup failure" } : null,
+            };
+          },
+        };
+      }
       assert.equal(table, "listing_drafts");
       return {
         operation: null,
@@ -107,8 +127,9 @@ test("successful draft update deletes old photographs only after saving", async 
   const response = await app.put();
   assert.equal(response.status, 200);
   assert.equal(app.events[0], "db.upsert");
-  assert.equal(app.events[1], "storage.remove");
-  assert.deepEqual(app.events[2].removed, [ownPath("old")]);
+  assert.equal(app.events[1], "listing.lookup");
+  assert.equal(app.events[2], "storage.remove");
+  assert.deepEqual(app.events[3].removed, [ownPath("old")]);
   assert.equal(app.getDraft()[0].path, ownPath("new"));
 });
 
@@ -132,8 +153,9 @@ test("successful draft deletion removes unused files after database commit", asy
   const response = await app.remove();
   assert.equal(response.status, 200);
   assert.equal(app.events[0], "db.delete");
-  assert.equal(app.events[1], "storage.remove");
-  assert.deepEqual(app.events[2].removed, [ownPath("old")]);
+  assert.equal(app.events[1], "listing.lookup");
+  assert.equal(app.events[2], "storage.remove");
+  assert.deepEqual(app.events[3].removed, [ownPath("old")]);
 });
 
 test("published photo paths are preserved when discarding draft", async () => {
@@ -148,4 +170,22 @@ test("unauthenticated requests do not modify drafts or files", async () => {
   assert.equal((await app.put()).status, 401);
   assert.equal((await app.remove()).status, 401);
   assert.deepEqual(app.events, []);
+});
+
+test("updating a draft keeps photos already referenced by a published listing", async () => {
+  const app = makeApp({ publishedPhotoUrls: [photo(ownPath("old")).url] });
+  assert.equal((await app.put()).status, 200);
+  assert.deepEqual(app.events, ["db.upsert", "listing.lookup"]);
+});
+
+test("discarding a draft keeps published listing photos even if preserve paths are missing", async () => {
+  const app = makeApp({ publishedPhotoUrls: [photo(ownPath("old")).url] });
+  assert.equal((await app.remove()).status, 200);
+  assert.deepEqual(app.events, ["db.delete", "listing.lookup"]);
+});
+
+test("lookup failure preserves photographs rather than risking broken listings", async () => {
+  const app = makeApp({ publishedLookupError: true });
+  assert.equal((await app.remove()).status, 200);
+  assert.deepEqual(app.events, ["db.delete", "listing.lookup"]);
 });
