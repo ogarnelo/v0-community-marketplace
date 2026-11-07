@@ -131,13 +131,22 @@ export async function POST(request: Request) {
       ...(photoRows || []).map((row) => row.url),
     ].filter((url): url is string => typeof url === "string");
 
-    const { error: deleteError } = await admin
+    const { data: deletedRow, error: deleteError } = await admin
       .from("listings")
       .delete()
       .eq("id", listingId)
-      .eq("seller_id", user.id);
+      .eq("seller_id", user.id)
+      .select("id")
+      .maybeSingle();
 
-    if (!deleteError) {
+    if (!deleteError && !deletedRow) {
+      return NextResponse.json(
+        { error: "El anuncio ha cambiado. Actualiza la página antes de intentarlo de nuevo." },
+        { status: 409 }
+      );
+    }
+
+    if (!deleteError && deletedRow) {
       if (candidatePhotoUrls.length > 0) {
         await cleanupDeletedListingPhotos(admin, {
           ownerId: user.id,
