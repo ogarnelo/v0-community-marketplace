@@ -55,3 +55,22 @@ test("re-encoding strips source metadata and filename", () => {
   assert.match(image, /crypto.randomUUID/);
   assert.doesNotMatch(image, /return file;/);
 });
+
+test("educational notifications reject inactive or changed student contexts", () => {
+  const dispatcher = read("app/api/marketplace/listings/match-saved-searches/route.ts");
+  const eligibility = read("lib/demand/course-alert-eligibility.ts");
+  assert.match(dispatcher, /validEducationalSearchIds/);
+  assert.match(dispatcher, /isCurrentCourseAlert/);
+  assert.match(dispatcher, /eligibleSavedSearches/);
+  assert.match(eligibility, /student.active/);
+  assert.match(eligibility, /student.school_id === demand.school_id/);
+  assert.match(eligibility, /student.grade_level === demand.grade_level/);
+});
+test("student edits and deactivation pause existing educational alerts", () => {
+  const students = read("lib/account-students/server.ts");
+  const needs = read("lib/my-course/course-need-search-server.ts");
+  assert.match(students, /pauseCourseAlertsForStudent/);
+  assert.match(needs, /export async function pauseCourseAlertsForStudent/);
+  assert.match(needs, /existingDemand.school_id !== need.student.school_id/);
+  assert.match(needs, /student_context_changed/);
+});
