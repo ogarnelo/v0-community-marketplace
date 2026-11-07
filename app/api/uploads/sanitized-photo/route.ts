@@ -52,9 +52,9 @@ export async function POST(request: Request) {
       }
     }
 
-    let bytes: Buffer;
+    let optimized: Awaited<ReturnType<typeof normalizePhoto>>;
     try {
-      bytes = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
+      optimized = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
     } catch (imageError) {
       return NextResponse.json({
         error: imageError instanceof Error ? imageError.message : "No se pudo procesar la imagen.",
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     }
 
     const bucket = destination === "chat" ? "chat-attachments" : "listing-photos";
-    const filename = `${randomUUID()}.jpg`;
+    const filename = `${randomUUID()}.${optimized.extension}`;
     const path = destination === "draft"
       ? `${user.id}/drafts/current/${filename}`
       : destination === "chat"
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
         : `${user.id}/${resourceId}/${filename}`;
 
     const { error: uploadError } = await admin.storage.from(bucket)
-      .upload(path, bytes, { contentType: "image/jpeg", cacheControl: "3600", upsert: false });
+      .upload(path, optimized.bytes, { contentType: optimized.contentType, cacheControl: "3600", upsert: false });
     if (uploadError) throw uploadError;
 
     const publicUrl = destination === "chat"
@@ -81,8 +81,9 @@ export async function POST(request: Request) {
       path,
       publicUrl,
       name: filename,
-      contentType: "image/jpeg",
-      size: bytes.byteLength,
+      contentType: optimized.contentType,
+      size: optimized.bytes.byteLength,
+      sourceBytes: optimized.sourceBytes,
     });
   } catch (error) {
     console.error("No se pudo almacenar la imagen saneada", error);
