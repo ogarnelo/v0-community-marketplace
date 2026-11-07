@@ -73,7 +73,9 @@ export async function getNavbarData(supabase: SupabaseLike): Promise<NavbarData>
       ? "/admin/super"
       : adminFlags.isSchoolAdmin
         ? "/admin/school"
-        : undefined,
+        : adminFlags.isFanpaAdmin
+          ? "/admin/fanpa"
+          : undefined,
     unreadMessagesCount,
     unreadNotificationsCount: 0,
     notifications: typedNotifications,
