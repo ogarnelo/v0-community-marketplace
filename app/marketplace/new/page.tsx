@@ -70,17 +70,15 @@ export default async function NewListingPage({
       ? schoolAdminRole.school_id
       : null;
 
-  const { data: primaryStudentContext, error: studentContextError } = await supabase
+  const { data: activeStudentContexts, error: studentContextError } = await supabase
     .from("account_students")
     .select("school_id,is_primary,sort_order,created_at")
     .eq("owner_user_id", user.id)
     .eq("active", true)
-    .not("school_id", "is", null)
     .order("is_primary", { ascending: false })
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(100);
 
   if (studentContextError) {
     console.error("Error cargando el contexto educativo principal:", studentContextError);
@@ -163,28 +161,29 @@ export default async function NewListingPage({
     );
   }
 
-  let selectedSchool: SchoolRow | null = null;
-  const preferredSchoolId =
-    managedSchoolId ||
-    primaryStudentContext?.school_id ||
-    (typedProfile?.school_id && typedProfile.school_id.trim().length > 0
-      ? typedProfile.school_id
-      : null);
+  // A family may be linked to several schools through different active students.
+  // The legacy profile school is valid only when the account has no active students.
+  const activeContexts = activeStudentContexts || [];
+  const legacySchool = !activeContexts.length && typedProfile?.school_id ? typedProfile.school_id : null;
+  const schoolIds = managedSchoolId
+    ? [managedSchoolId]
+    : Array.from(new Set(
+        (activeContexts.length > 0
+          ? activeContexts.map((student) => student.school_id)
+          : [legacySchool]
+        ).filter((id): id is string => Boolean(id))
+      ));
+  const { data: permittedSchools, error: permittedSchoolsError } = schoolIds.length
+    ? await supabase.from("schools").select("id,name,city")
+        .in("id", schoolIds).eq("is_active", true)
+    : { data: [], error: null };
+  if (permittedSchoolsError) throw permittedSchoolsError;
 
-  if (preferredSchoolId) {
-    const { data: school, error: schoolError } = await supabase
-      .from("schools")
-      .select("id, name, city")
-      .eq("id", preferredSchoolId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (schoolError) {
-      console.error("Error cargando school real:", schoolError);
-    }
-
-    selectedSchool = (school as SchoolRow | null) ?? null;
-  }
+  const availableSchools = (permittedSchools || []) as SchoolRow[];
+  const preferredSchoolId = managedSchoolId ||
+    activeContexts.find((context) => context.school_id)?.school_id ||
+    legacySchool;
+  const selectedSchool = availableSchools.find((school) => school.id === preferredSchoolId) || null;
 
   return (
     <NewListingForm
@@ -192,6 +191,7 @@ export default async function NewListingPage({
       initialSchoolId={selectedSchool?.id || ""}
       initialSchoolName={selectedSchool?.name || "Centro no asignado"}
       initialSchoolCity={selectedSchool?.city || ""}
+      availableSchools={availableSchools.map(({ id, name, city }) => ({ id, name, city }))}
       initialPrefill={initialPrefill}
       activationOpportunityKey={activationOpportunityKey}
       isSchoolAdmin={Boolean(managedSchoolId)}
