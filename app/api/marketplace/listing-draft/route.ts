@@ -27,6 +27,31 @@ function cleanPhotos(value: unknown, userId: string): ListingDraftPhoto[] {
     .filter((item): item is ListingDraftPhoto => Boolean(item));
 }
 
+// Some published listings retain their photo in the owner's former draft
+// folder. A draft must never delete a photo that a live listing still uses.
+// Fail closed on lookup errors: leave a harmless unused object rather than
+// risk breaking an existing publication.
+async function unusedDraftPhotoPaths(
+  admin: ReturnType<typeof createAdminClient>,
+  candidatePhotos: ListingDraftPhoto[]
+): Promise<string[]> {
+  const unused: string[] = [];
+  for (const photo of candidatePhotos) {
+    const { data: linkedListing, error } = await admin
+      .from("listings")
+      .select("id")
+      .contains("photos", [photo.url])
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.error("No se pudo verificar si la foto del borrador sigue publicada", error);
+      continue;
+    }
+    if (!linkedListing) unused.push(photo.path);
+  }
+  return [...new Set(unused)];
+}
+
 async function getAuthenticatedUser() {
   const supabase = await createClient();
   const {
@@ -82,16 +107,8 @@ export async function PUT(request: Request) {
 
   const previousPhotos = cleanPhotos(existing?.photos, user.id);
   const nextPaths = new Set(photos.map((photo) => photo.path));
-  const removedPaths = previousPhotos
-    .map((photo) => photo.path)
-    .filter((path) => !nextPaths.has(path));
-
-  if (removedPaths.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
-    if (storageError) {
-      console.error("No se pudieron limpiar fotos retiradas del borrador", storageError);
-    }
-  }
+  const removedPhotos = previousPhotos
+    .filter((photo) => !nextPaths.has(photo.path));
 
   const { data, error } = await admin
     .from("listing_drafts")
@@ -109,6 +126,18 @@ export async function PUT(request: Request) {
 
   if (error || !data) {
     return NextResponse.json({ error: error?.message || "No se pudo guardar el borrador." }, { status: 500 });
+  }
+
+  // Delete obsolete photos only after the new draft is durably saved.
+  // A failed upsert must never leave the existing draft pointing to deleted files.
+  if (removedPhotos.length > 0) {
+    const safePaths = await unusedDraftPhotoPaths(admin, removedPhotos);
+    if (safePaths.length > 0) {
+      const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(safePaths);
+      if (storageError) {
+        console.error("No se pudieron limpiar fotos retiradas del borrador", storageError);
+      }
+    }
   }
 
   return NextResponse.json({ draft: data });
@@ -138,23 +167,25 @@ export async function DELETE(request: Request) {
     .maybeSingle();
 
   const existingPhotos = cleanPhotos(existing?.photos, user.id);
-  const pathsToRemove = existingPhotos
-    .map((photo) => photo.path)
-    .filter((path) => !preservePaths.has(path));
+  const photosToRemove = existingPhotos
+    .filter((photo) => !preservePaths.has(photo.path));
 
-  if (pathsToRemove.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
-    if (storageError) {
-      return NextResponse.json(
-        { error: storageError.message || "No se pudieron limpiar las fotos del borrador." },
-        { status: 500 }
-      );
-    }
-  }
-
+  // Delete the record first; otherwise an unsuccessful DB delete would leave
+  // a saved draft whose referenced photos were already destroyed.
   const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
   if (error) {
     return NextResponse.json({ error: error.message || "No se pudo descartar el borrador." }, { status: 500 });
+  }
+
+  if (photosToRemove.length > 0) {
+    const safePaths = await unusedDraftPhotoPaths(admin, photosToRemove);
+    if (safePaths.length > 0) {
+      const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(safePaths);
+      if (storageError) {
+        // Keep the successful draft deletion; log any unused objects left.
+        console.error("No se pudieron limpiar las fotos del borrador descartado", storageError);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });
