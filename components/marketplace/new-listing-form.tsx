@@ -770,7 +770,9 @@ export default function NewListingForm({
 
       if (!photo.file) continue;
 
-      const { publicUrl } = await uploadSanitizedPhoto(photo.file, "listing", listingId);
+      // New listings do not exist yet, so the owner-only "listing" endpoint
+      // would reject uploads before insert. Stage within the user's draft area.
+      const { publicUrl } = await uploadSanitizedPhoto(photo.file, "draft");
       if (!publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
       uploadedPhotoRows.push({ listing_id: listingId, url: publicUrl, sort_order: index });
     }
