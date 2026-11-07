@@ -67,6 +67,9 @@ test("FANPA page requires both role and explicit federation membership", () => {
   assert.match(page, /\.in\("school_id",validIds\)/);
   assert.match(page, /metrics.schools.find\(\(school\) => school.id === selectedSchool\)/);
   assert.doesNotMatch(page, /select\(".*full_name/);
+  assert.match(page, /MIN_PRIVATE_KPI_COHORT = 5/);
+  assert.match(page, /hideSensitive/);
+  assert.match(page, /safeSensitiveKpi\(row.openDemands,row.users\)/);
 });
 
 test("FANPA tables are service-only with strict scoped role", () => {
