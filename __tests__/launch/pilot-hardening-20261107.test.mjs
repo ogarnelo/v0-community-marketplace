@@ -21,11 +21,20 @@ test("scheduled reports recheck school role and verified recipient", () => {
   assert.match(cron, /verifiedEmail !== subscription.email/);
   assert.match(cron, /enabled: false/);
 });
-test("manual sends use account email and cap daily sends", () => {
+test("manual sends use account email and atomic database claims", () => {
   assert.match(manual, /email !== user.email.trim\(\).toLowerCase\(\)/);
-  assert.match(manual, /count: "exact"/);
-  assert.match(manual, /sentToday \|\| 0\) >= 2/);
+  assert.match(manual, /claim_school_manual_report_slot/);
+  assert.match(manual, /p_school_id: schoolRole.school_id/);
+  assert.match(manual, /p_user_id: user.id/);
   assert.match(manual, /status: 429/);
+});
+test("atomic quota function cannot be called by client roles", () => {
+  const sql = read("supabase/migrations/20261107222000_school_manual_report_atomic_quota.sql");
+  assert.match(sql, /PRIMARY KEY \(school_id,user_id,utc_day,slot\)/);
+  assert.match(sql, /SECURITY INVOKER/);
+  assert.match(sql, /ON CONFLICT DO NOTHING/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public.claim_school_manual_report_slot/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public.claim_school_manual_report_slot/);
 });
 test("subscriptions use only the authenticated administrator email", () => {
   assert.match(subscription, /email !== user.email.trim\(\).toLowerCase\(\)/);
