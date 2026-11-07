@@ -1,4 +1,4 @@
-export type AdminRoleName = "super_admin" | "school_admin";
+export type AdminRoleName = "super_admin" | "school_admin" | "fanpa_admin";
 
 export type AdminRoleRow = {
   role: AdminRoleName | string;
@@ -22,6 +22,7 @@ export function getAdminFlags({
     ) || safeRoles.find((role) => role.role === "school_admin") || null;
 
   const isSuperAdmin = hasSuperAdminRole;
+  const isFanpaAdmin = safeRoles.some((role) => role.role === "fanpa_admin");
   const isSchoolAdmin = Boolean(
     schoolAdminRole?.school_id &&
       typeof schoolAdminRole.school_id === "string" &&
@@ -33,7 +34,8 @@ export function getAdminFlags({
     hasSuperAdminRole,
     isSuperAdmin,
     isSchoolAdmin,
-    canAccessAdmin: isSuperAdmin || isSchoolAdmin,
+    isFanpaAdmin,
+    canAccessAdmin: isSuperAdmin || isSchoolAdmin || isFanpaAdmin,
     schoolAdminSchoolId: isSchoolAdmin ? schoolAdminRole?.school_id || null : null,
   };
 }
