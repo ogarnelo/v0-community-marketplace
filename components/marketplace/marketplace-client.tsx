@@ -53,7 +53,7 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialPostalCode?: string };
+type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialSchoolIds: string[]; initialPostalCode?: string };
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
 type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 
@@ -78,9 +78,10 @@ function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   return createdAt >= start.getTime();
 }
 
-export function MarketplaceClient({ initialListings, initialSchoolId, initialPostalCode = "" }: MarketplaceClientProps) {
+export function MarketplaceClient({ initialListings, initialSchoolId, initialSchoolIds, initialPostalCode = "" }: MarketplaceClientProps) {
   const [dbListings] = useState<MarketplaceListing[]>(initialListings);
   const [currentUserSchoolId] = useState(initialSchoolId);
+  const [currentUserSchoolIds] = useState(initialSchoolIds);
   const [viewerPostalCode] = useState(initialPostalCode);
   const [onlyMyCommunity, setOnlyMyCommunity] = useState(false);
   const [category, setCategory] = useState("all");
@@ -127,7 +128,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
     const normalizedSearch = normalizeText(searchQuery);
     const filtered = listingsWithDistance.filter((l) => {
       if (l.status !== "available") return false;
-      if (onlyMyCommunity && currentUserSchoolId && l.schoolId !== currentUserSchoolId) return false;
+      if (onlyMyCommunity && (!l.schoolId || !currentUserSchoolIds.includes(l.schoolId))) return false;
       if (category !== "all" && l.category !== category) return false; if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false; if (listingType !== "all" && l.type !== listingType) return false; if (condition !== "all" && l.condition !== condition) return false; if (!isAfterDate(l.createdAt, publishedDateFilter)) return false;
       if (!onlyMyCommunity && maxDistanceKm !== Infinity && (l.distance === undefined || l.distance > maxDistanceKm)) return false;
       if (normalizedSearch) { const matchesSearch = [l.title, l.description, l.category, l.gradeLevel, l.isbn, l.author, l.publisher, l.format, l.language, l.subject, l.specificType, l.sizeLabel, l.brand, l.model, l.season].some((value) => normalizeText(value || "").includes(normalizedSearch)); if (!matchesSearch) return false; }
@@ -136,7 +137,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
       return true;
     });
     return filtered.sort((a, b) => { switch (sortBy) { case "distance": return (a.distance ?? Number.MAX_SAFE_INTEGER) - (b.distance ?? Number.MAX_SAFE_INTEGER); case "price_asc": return (a.price ?? 0) - (b.price ?? 0); case "price_desc": return (b.price ?? 0) - (a.price ?? 0); case "discount": return ((b.originalPrice ?? 0) - (b.price ?? 0)) - ((a.originalPrice ?? 0) - (a.price ?? 0)); case "newest": default: return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); } });
-  }, [listingsWithDistance, onlyMyCommunity, currentUserSchoolId, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
+  }, [listingsWithDistance, onlyMyCommunity, currentUserSchoolIds, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
 
   useEffect(() => {
     if (!hasSearchIntent) return;
