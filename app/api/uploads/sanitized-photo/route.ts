@@ -1,40 +1,15 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
+import { normalizePhoto } from "@/lib/marketplace/server-photo-sanitizer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
-const MAX_STORED_BYTES = 5 * 1024 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-async function normalizePhoto(bytes: Buffer): Promise<Buffer> {
-  // Always decode and re-encode pixels in the trusted server. No EXIF, GPS,
-  // comments or original filenames are preserved in the encoded JPEG.
-  const image = sharp(bytes, { failOn: "error", limitInputPixels: 40_000_000, animated: false });
-  const metadata = await image.metadata();
-  if (!metadata.width || !metadata.height ||
-      !["jpeg", "png", "webp"].includes(metadata.format || "")) {
-    throw new Error("La imagen no tiene un formato válido.");
-  }
-  for (const config of [
-    { maxSide: 2400, quality: 82 },
-    { maxSide: 1800, quality: 74 },
-    { maxSide: 1400, quality: 66 },
-  ]) {
-    const normalized = await sharp(bytes, { failOn: "error", limitInputPixels: 40_000_000, animated: false })
-      .rotate()
-      .resize({ width: config.maxSide, height: config.maxSide, fit: "inside", withoutEnlargement: true })
-      .flatten({ background: "#ffffff" })
-      .jpeg({ quality: config.quality, mozjpeg: true })
-      .toBuffer();
-    if (normalized.byteLength <= MAX_STORED_BYTES) return normalized;
-  }
-  throw new Error("La fotografía supera 5 MB incluso después de optimizarla.");
-}
 
 export async function POST(request: Request) {
   try {
