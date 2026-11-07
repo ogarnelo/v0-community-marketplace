@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { getWetudyDirectoryCode } from "@/lib/schools/directory-identity";
 import { DIRECTORY_COMMUNITIES } from "@/lib/schools/directory-search";
 
 type Centre = {
@@ -111,13 +113,14 @@ export default function CentresDirectoryPage() {
       <ul className="space-y-3">
         {centres.map((centre) => (
           <li key={centre.official_code} className="space-y-2 rounded-lg border p-5">
-            <h2 className="font-semibold">{centre.name}</h2>
+            <h2 className="font-semibold"><Link href={`/centros/${centre.official_code}`} className="underline-offset-2 hover:underline">{centre.name}</Link></h2>
             <p className="text-sm text-muted-foreground">
               {centre.municipality} · {centre.province} ({centre.autonomous_community}) · CP {centre.postal_code}
             </p>
             <p className="text-sm">
-              {centre.category} · Código oficial: {centre.official_code}
+              {centre.category} · Código Wetudy: {getWetudyDirectoryCode(centre.official_code)}
             </p>
+            <Link href={`/centros/${centre.official_code}`} className="text-sm underline underline-offset-2">Ver ficha y QR del centro</Link>
             <span className="inline-flex rounded-full bg-muted px-3 py-1 text-xs">
               Centro en directorio · adhesión a Wetudy no confirmada
             </span>
