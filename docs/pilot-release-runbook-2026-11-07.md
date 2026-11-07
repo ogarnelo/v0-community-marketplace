@@ -101,3 +101,20 @@ Los contratos estáticos, las pruebas unitarias y los PostgreSQL temporales no e
 ## Condiciones de GO/NO-GO
 
 **NO-GO** si no han pasado los flujos E2E autenticados, si falta una RPC, si las políticas Storage no se han validado, si aparecen permisos cruzados entre colegios o si no existe plan de reversión probado. No afirmar que el piloto está listo por el simple éxito de CI.
+
+## Ampliación: limpieza de fotografías al borrar anuncios (PR #241)
+
+**Estado:** propuesta en rama apilada sobre #240. No fusionada, no desplegada.
+
+- Las filas de `listing_photos`, `favorites` y `listing_views` tienen claves foráneas con `ON DELETE CASCADE` respecto a `listings` en el esquema consultado; no es necesario eliminarlas previamente de forma no atómica.
+- La ruta captura las URLs de `listings.photos` y `listing_photos.url`, borra el anuncio con filtro de propietario, y verifica que PostgreSQL haya devuelto una fila realmente eliminada.
+- **Solo después** intenta eliminar los objetos de Supabase Storage cuyo origen, bucket, carpeta de propietario y nombre coinciden con los formatos generados por Wetudy.
+- Antes del borrado físico consulta `listings.photos`, `listing_photos.url` y `listing_drafts.photos` por URL y por ruta. Ante una referencia vigente o una consulta fallida **conserva el archivo**.
+- Nunca limpia objetos al archivar un anuncio con conversaciones, denuncias u operaciones, al fallar el DELETE ni ante una cuenta sin permisos.
+- La limpieza es *best-effort*: un fallo de Storage no revierte la eliminación de base de datos; se registra para revisión.
+
+**Pruebas aisladas:** `__tests__/launch/listing-deletion-photo-cleanup.test.mjs`, integrada en `prebuild`. Verifica reutilización, errores de consulta, error de Storage, URL de otro propietario, archivos de rutas no reconocidas, borrado confirmado, archivado e intentos no autorizados. GitHub CI y Vercel Preview superados para la primera versión de #241.
+
+**Riesgo residual:** el chequeo de referencias y la eliminación en Storage no forman una transacción conjunta con nuevas publicaciones concurrentes. Por ello, para volúmenes elevados debe evolucionarse hacia borrado diferido con cola, doble verificación y retención temporal. Antes del piloto se exige prueba E2E de borrar un anuncio ficticio, editar, recuperar borradores y publicar el mismo archivo desde otro anuncio. **No borrar fotografías de los cinco anuncios demo.**
+
+**Orden de despliegue:** una vez integrada y validada #240, incorporar #241 y verificar la limpieza en un entorno controlado. No activar ni programar limpiezas masivas de fotos antiguas.
