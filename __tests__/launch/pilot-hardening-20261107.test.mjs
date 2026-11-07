@@ -64,6 +64,7 @@ test("educational notifications reject inactive or changed student contexts", ()
   assert.match(dispatcher, /eligibleSavedSearches/);
   assert.match(eligibility, /student.active/);
   assert.match(eligibility, /student.school_id === demand.school_id/);
+  assert.match(eligibility, /search.school_id === student.school_id/);
   assert.match(eligibility, /student.grade_level === demand.grade_level/);
 });
 test("student edits and deactivation pause existing educational alerts", () => {
@@ -73,4 +74,5 @@ test("student edits and deactivation pause existing educational alerts", () => {
   assert.match(needs, /export async function pauseCourseAlertsForStudent/);
   assert.match(needs, /existingDemand.school_id !== need.student.school_id/);
   assert.match(needs, /student_context_changed/);
+  assert.match(needs, /in\("demand_request_id", demandIds\)/);
 });
