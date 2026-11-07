@@ -1,30 +1,47 @@
-const PROVINCES = ["A Coruña", "Lugo", "Ourense", "Pontevedra"] as const;
 export const SCHOOL_DIRECTORY_PAGE_SIZE = 24;
-export type DirectoryProvince = typeof PROVINCES[number];
+export const DIRECTORY_COMMUNITIES = [
+  "Andalucía", "Aragón", "Principado de Asturias", "Illes Balears",
+  "Canarias", "Cantabria", "Castilla y León", "Castilla-La Mancha",
+  "Cataluña", "Comunitat Valenciana", "Extremadura", "Galicia",
+  "Comunidad de Madrid", "Región de Murcia", "Comunidad Foral de Navarra",
+  "País Vasco", "La Rioja", "Ceuta", "Melilla",
+] as const;
+export type DirectoryCommunity = typeof DIRECTORY_COMMUNITIES[number];
 
 export function getDirectorySearch(params: URLSearchParams):
-  | { ok: true; query: string; province: DirectoryProvince | null; page: number; pattern: string | null }
+  | {
+      ok: true;
+      query: string;
+      community: DirectoryCommunity | null;
+      province: string | null;
+      page: number;
+      pattern: string | null;
+    }
   | { ok: false; error: string } {
   const query = (params.get("q") || "").trim();
-  const provinceText = (params.get("province") || "").trim();
+  const communityRaw = (params.get("community") || "").trim();
+  const provinceRaw = (params.get("province") || "").trim();
   const pageValue = (params.get("page") || "1").trim();
 
   if (query.length > 80 || /[\x00-\x1F]/.test(query)) {
     return { ok: false, error: "La búsqueda no puede superar 80 caracteres ni contener caracteres de control." };
   }
-  if (provinceText && !PROVINCES.includes(provinceText as DirectoryProvince)) {
+  if (communityRaw && !DIRECTORY_COMMUNITIES.includes(communityRaw as DirectoryCommunity)) {
+    return { ok: false, error: "Comunidad autónoma no válida." };
+  }
+  if (provinceRaw && (provinceRaw.length > 60 || !/^[\p{L} .()/\-]{2,60}$/u.test(provinceRaw))) {
     return { ok: false, error: "Provincia no válida." };
   }
-  if (!/^[1-9][0-9]{0,2}$/.test(pageValue) || Number(pageValue) > 100) {
+  // 34,845 entries require more than the 100-page cap used for Galicia.
+  if (!/^[1-9][0-9]{0,3}$/.test(pageValue) || Number(pageValue) > 2000) {
     return { ok: false, error: "Página no válida." };
   }
-  // Escape SQL LIKE wildcards even though PostgREST parameterizes the filter:
-  // searches should match literal user text, not wildcard patterns.
   const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
   return {
     ok: true,
     query,
-    province: provinceText ? provinceText as DirectoryProvince : null,
+    community: communityRaw ? communityRaw as DirectoryCommunity : null,
+    province: provinceRaw || null,
     page: Number(pageValue),
     pattern: query ? `%${escaped.toLowerCase()}%` : null,
   };
