@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { cleanupDeletedListingPhotos } from "@/lib/marketplace/cleanup-deleted-listing-photos";
 
 const BLOCKING_PAYMENT_STATUSES = [
   "draft",
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
 
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, status")
+      .select("id, seller_id, status, photos")
       .eq("id", listingId)
       .maybeSingle();
 
@@ -115,15 +116,35 @@ export async function POST(request: Request) {
       });
     }
 
-    await Promise.allSettled([
-      admin.from("favorites").delete().eq("listing_id", listingId),
-      admin.from("listing_photos").delete().eq("listing_id", listingId),
-      admin.from("listing_views").delete().eq("listing_id", listingId),
-    ]);
+    // Collect database-owned URLs before deleting the parent. The existing FK
+    // ON DELETE CASCADE removes listing_photos, favorites and listing_views.
+    // Physical Storage objects are cleaned separately only after success.
+    const { data: photoRows, error: photoQueryError } = await admin
+      .from("listing_photos")
+      .select("url")
+      .eq("listing_id", listingId);
+    if (photoQueryError) {
+      console.error("No se pudieron recopilar todas las fotos del anuncio", photoQueryError);
+    }
+    const candidatePhotoUrls = photoQueryError ? [] : [
+      ...(Array.isArray(listing.photos) ? listing.photos : []),
+      ...(photoRows || []).map((row) => row.url),
+    ].filter((url): url is string => typeof url === "string");
 
-    const { error: deleteError } = await admin.from("listings").delete().eq("id", listingId);
+    const { error: deleteError } = await admin
+      .from("listings")
+      .delete()
+      .eq("id", listingId)
+      .eq("seller_id", user.id);
 
     if (!deleteError) {
+      if (candidatePhotoUrls.length > 0) {
+        await cleanupDeletedListingPhotos(admin, {
+          ownerId: user.id,
+          listingId,
+          urls: candidatePhotoUrls,
+        });
+      }
       return NextResponse.json({ ok: true, mode: "deleted" });
     }
 
