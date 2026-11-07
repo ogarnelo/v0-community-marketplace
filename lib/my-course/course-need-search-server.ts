@@ -666,14 +666,35 @@ export async function pauseCourseAlertsForStudent(userId: string, studentId: str
   const admin = createAdminClient();
   const { data: linkedNeeds, error } = await admin
     .from("course_needs")
-    .select("id,demand_request_id")
+    .select("demand_request_id")
     .eq("owner_user_id", userId)
     .eq("student_id", studentId)
     .eq("status", "active");
   if (error) throw error;
-  for (const need of linkedNeeds || []) {
-    if (need.demand_request_id) {
-      await pauseCourseNeedSearch(userId, need.id);
-    }
-  }
+
+  const demandIds = Array.from(new Set((linkedNeeds || [])
+    .map((need) => need.demand_request_id)
+    .filter((id): id is string => Boolean(id))));
+  if (demandIds.length === 0) return;
+
+  // Pause even if the linked demand has already been deleted or closed:
+  // a stale relationship must not prevent editing/removing a student.
+  const { error: searchError } = await admin
+    .from("saved_searches")
+    .update({ notifications_enabled: false, updated_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("intent_source", "course_need")
+    .eq("notifications_enabled", true)
+    .in("demand_request_id", demandIds);
+  if (searchError) throw searchError;
+
+  // Preserve the educational history, but deactivate unresolved demands.
+  const { error: demandError } = await admin
+    .from("demand_requests")
+    .update({ status: "dismissed" })
+    .eq("user_id", userId)
+    .eq("source", "course_need")
+    .in("status", ["open", "matched"])
+    .in("id", demandIds);
+  if (demandError) throw demandError;
 }
