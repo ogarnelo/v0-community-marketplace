@@ -28,6 +28,7 @@ export default async function MarketplacePage() {
 
   let favoriteIds = new Set<string>();
   let viewerSchoolId = "";
+  let viewerSchoolIds: string[] = [];
   let viewerPostalCode = "";
 
   if (user) {
@@ -35,7 +36,7 @@ export default async function MarketplacePage() {
       { data: favorites },
       { data: profile },
       { data: schoolAdminRole },
-      { data: primaryStudentContext },
+      { data: activeStudentContexts },
     ] = await Promise.all([
       supabase.from("favorites").select("listing_id").eq("user_id", user.id),
       supabase
@@ -56,12 +57,10 @@ export default async function MarketplacePage() {
         .select("school_id,is_primary,sort_order,created_at")
         .eq("owner_user_id", user.id)
         .eq("active", true)
-        .not("school_id", "is", null)
         .order("is_primary", { ascending: false })
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
+        .limit(100),
     ]);
 
     favoriteIds = new Set(
@@ -69,6 +68,12 @@ export default async function MarketplacePage() {
     );
 
     const typedProfile = (profile as ProfileRow | null) ?? null;
+    const primaryStudentContext = (activeStudentContexts || []).find((context) => context.school_id) || null;
+    viewerSchoolIds = schoolAdminRole?.school_id
+      ? [schoolAdminRole.school_id]
+      : (activeStudentContexts || []).length > 0
+        ? Array.from(new Set((activeStudentContexts || []).map((context) => context.school_id).filter((id): id is string => Boolean(id))))
+        : typedProfile?.school_id ? [typedProfile.school_id] : [];
     viewerSchoolId =
       schoolAdminRole?.school_id?.trim() ||
       primaryStudentContext?.school_id?.trim() ||
@@ -182,6 +187,7 @@ export default async function MarketplacePage() {
     <MarketplaceClient
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
+      initialSchoolIds={viewerSchoolIds}
       initialPostalCode={viewerPostalCode}
     />
   );
