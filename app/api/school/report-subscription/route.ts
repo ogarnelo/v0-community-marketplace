@@ -38,6 +38,9 @@ export async function POST(request: Request) {
 
     const enabled = body?.enabled === true;
     const email = (body?.email || user.email || "").trim().toLowerCase();
+    if (!user.email || email !== user.email.trim().toLowerCase()) {
+      return NextResponse.json({ error: "Utiliza el correo de tu cuenta para recibir los informes." }, { status: 403 });
+    }
     const dayOfMonth = Number(body?.dayOfMonth || 1);
 
     if (!isEmail(email)) {
