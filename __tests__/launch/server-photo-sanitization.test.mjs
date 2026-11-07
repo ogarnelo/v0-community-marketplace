@@ -37,6 +37,9 @@ test("upload API authenticates and authorizes destination before writing",()=>{
   assert.match(route,/normalizePhoto\(Buffer.from\(await file.arrayBuffer\(\)\)\)/);
   assert.match(route,/admin.storage.from\(bucket\)/);
   assert.match(route,/randomUUID\(\)/);
+  assert.match(route,/claim_photo_upload_slot/);
+  assert.match(route,/p_user_id: user.id/);
+  assert.match(route,/status: 429/);
   assert.doesNotMatch(route,/file.name\.split/);
 });
 test("all image upload UI paths go through server (documents may stay direct)",()=>{
@@ -53,4 +56,13 @@ test("all image upload UI paths go through server (documents may stay direct)",(
   assert.match(photoPolicy,/conversation participants may upload documents only/);
   assert.match(photoPolicy,/lower\(storage.extension\(name\)\) IN \('pdf','doc','docx'\)/);
   assert.match(photoPolicy,/COALESCE\(metadata ->> 'mimetype'/);
+});
+
+test("quota limits are atomic and cannot be invoked by clients", () => {
+  const sql = read("supabase/migrations/20261107235000_photo_upload_rate_limit.sql");
+  assert.match(sql, /pg_advisory_xact_lock/);
+  assert.match(sql, /recent_10_minutes >= 12/);
+  assert.match(sql, /recent_24_hours >= 60/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public.claim_photo_upload_slot/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public.claim_photo_upload_slot/);
 });
