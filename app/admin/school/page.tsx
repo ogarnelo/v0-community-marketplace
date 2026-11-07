@@ -1,3 +1,4 @@
+import { getSchoolMemberIds } from "@/lib/reports/school-membership";
 import { redirect } from "next/navigation";
 import { Shield } from "lucide-react";
 import { Navbar } from "@/components/navbar";
@@ -237,22 +238,13 @@ export default async function SchoolAdminPage() {
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
 
-  const ownersWithActiveEducationalContext = new Set(
-    safeStudentContexts.map((context) => context.owner_user_id)
-  );
-  const schoolContextOwnerIds = new Set(
-    safeStudentContexts
-      .filter((context) => context.school_id === effectiveSchoolId)
-      .map((context) => context.owner_user_id)
-  );
-  for (const role of safeSchoolAdminRoles) {
-    schoolContextOwnerIds.add(role.user_id);
-  }
-
-  const safeMembers = safeProfilesForCommunity.filter((member) =>
-    schoolContextOwnerIds.has(member.id) ||
-    (!ownersWithActiveEducationalContext.has(member.id) && member.school_id === effectiveSchoolId)
-  );
+  const schoolContextOwnerIds = getSchoolMemberIds({
+    schoolId: effectiveSchoolId,
+    profiles: safeProfilesForCommunity,
+    activeStudents: safeStudentContexts,
+    schoolAdmins: safeSchoolAdminRoles,
+  });
+  const safeMembers = safeProfilesForCommunity.filter((member) => schoolContextOwnerIds.has(member.id));
   const safeReports = (reports || []) as ReportRow[];
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const safeAgreements = (agreements || []) as AgreementRow[];
