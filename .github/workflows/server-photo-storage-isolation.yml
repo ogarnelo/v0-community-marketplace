@@ -42,9 +42,9 @@ jobs:
           CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE SQL STABLE AS
             'SELECT NULLIF(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
           CREATE FUNCTION storage.foldername(text) RETURNS text[] LANGUAGE SQL IMMUTABLE AS
-            'SELECT string_to_array($1,''/'') [1:array_length(string_to_array($1,''/''),1)-1]';
+            $$ SELECT (string_to_array($1,'/'))[1:(array_length(string_to_array($1,'/'),1)-1)] $$;
           CREATE FUNCTION storage.extension(text) RETURNS text LANGUAGE SQL IMMUTABLE AS
-            'SELECT substring($1 from ''\\.([^./]+)$'')';
+            $$ SELECT lower(reverse(split_part(reverse($1),'.',1))) $$;
           CREATE TABLE public.conversations(id uuid PRIMARY KEY,buyer_id uuid,seller_id uuid);
           CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text NOT NULL,name text NOT NULL,metadata jsonb NOT NULL DEFAULT '{}'::jsonb);
           INSERT INTO public.conversations VALUES(
