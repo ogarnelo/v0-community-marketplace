@@ -94,3 +94,51 @@ test("browser and server enforce a request size below Vercel's 4.5 MB limit", ()
   assert.match(server, /file.size > MAX_SOURCE_BYTES/);
   assert.match(browser, /MAX_LISTING_IMAGE_BYTES = 5 \* 1024 \* 1024/);
 });
+
+test("JPEG with EXIF orientation is rotated correctly before metadata removal", async () => {
+  const original = await sharp({
+    create: { width: 300, height: 200, channels: 3, background: "#f2f0e9" }
+  }).jpeg().withMetadata({ orientation: 6 }).toBuffer();
+  assert.equal((await sharp(original).metadata()).orientation, 6);
+  const optimized = await normalizePhoto(original);
+  const metadata = await sharp(optimized.bytes).metadata();
+  assert.equal(metadata.width, 200);
+  assert.equal(metadata.height, 300);
+  assert.equal(metadata.orientation, undefined);
+  assert.equal(metadata.exif, undefined);
+});
+
+test("ISBN and small educational text remain legible in a generated textbook image", async () => {
+  const svg = Buffer.from([
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200">',
+    '<rect width="100%" height="100%" fill="#fff"/>',
+    '<text x="120" y="300" font-family="sans-serif" font-size="21" fill="#111">ISBN 978-84-123456-7-8</text>',
+    '<text x="120" y="348" font-family="sans-serif" font-size="18" fill="#111">MATEMATICAS · 5 PRIMARIA</text>',
+    '<text x="120" y="396" font-family="sans-serif" font-size="19" fill="#111">EDITORIAL DE PRUEBAS · EDICION 2026</text>',
+    '</svg>',
+  ].join(""));
+  const original = await sharp(svg).png().toBuffer();
+  const optimized = await normalizePhoto(original);
+  async function inkPixels(bytes) {
+    const image = await sharp(bytes)
+      .extract({ left: 110, top: 265, width: 1000, height: 160 })
+      .greyscale().raw().toBuffer();
+    return [...image].filter((value) => value < 100).length;
+  }
+  const before = await inkPixels(original);
+  const after = await inkPixels(optimized.bytes);
+  assert.ok(before > 250, "synthetic textbook must contain readable source text");
+  assert.ok(after >= before * 0.65,
+    "small ISBN and textbook labels should retain most high-contrast text pixels");
+  assert.equal((await sharp(optimized.bytes).metadata()).width, 1600);
+  assert.ok(optimized.bytes.byteLength <= 5 * 1024 * 1024);
+});
+
+test("image pickers no longer offer unsupported GIF files", () => {
+  for (const path of [
+    "components/marketplace/new-listing-form.tsx",
+    "components/marketplace/edit-listing-form.tsx",
+  ]) {
+    assert.doesNotMatch(read(path), /accept="[^"]*\.gif/);
+  }
+});
