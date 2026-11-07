@@ -74,19 +74,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Pilot safety limit: max two manual deliveries per admin, school and UTC day.
-    const utcDayStart = new Date();
-    utcDayStart.setUTCHours(0, 0, 0, 0);
-    const { count: sentToday, error: countError } = await admin
-      .from("school_impact_report_deliveries")
-      .select("id", { count: "exact", head: true })
-      .eq("school_id", schoolRole.school_id)
-      .eq("user_id", user.id)
-      .eq("source", "manual")
-      .gte("sent_at", utcDayStart.toISOString());
-    if (countError) throw countError;
-    if ((sentToday || 0) >= 2) {
-      return NextResponse.json({ error: "Has alcanzado el límite diario de envíos de informes." }, { status: 429 });
+    // Reserve a slot atomically. Count-then-send is racy under concurrent requests.
+    // Claims are not refunded on email errors to avoid retry amplification.
+    const { data: permitted, error: quotaError } = await admin.rpc(
+      "claim_school_manual_report_slot",
+      { p_school_id: schoolRole.school_id, p_user_id: user.id }
+    );
+    if (quotaError) throw quotaError;
+    if (!permitted) {
+      return NextResponse.json(
+        { error: "Has alcanzado el límite diario de envíos de informes." },
+        { status: 429 }
+      );
     }
 
     const period = previousCalendarMonth();
