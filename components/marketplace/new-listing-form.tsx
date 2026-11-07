@@ -924,7 +924,7 @@ export default function NewListingForm({
         ) : null}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif" multiple className="hidden" onChange={handleFilesSelected} />
+          <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp" multiple className="hidden" onChange={handleFilesSelected} />
 
           <SectionCard icon={<ImagePlus className="h-5 w-5" />} title="Fotos" description="Sube hasta 8 fotos. La primera será la principal y es obligatoria.">
             <button type="button" onClick={handlePickPhoto} className="flex min-h-36 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background p-5 text-center transition hover:bg-muted/40 sm:min-h-44">
