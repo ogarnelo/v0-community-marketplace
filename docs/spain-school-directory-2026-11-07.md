@@ -59,3 +59,47 @@
 - GitHub Actions en PostgreSQL temporal: inserción sintética de 34.845 filas, PK, RLS, publicación desactivada y medida de **14 MB**.
 - GitHub Critical Contracts y Vercel Preview verificados para el commit de pruebas de la PR #242.
 - **No hay prueba E2E autenticada ni importación en producción.**
+
+## 8. Confirmación del origen por el promotor (7/11/2026)
+
+El promotor confirma expresamente que `listado_centros.xls` **procede del Ministerio de Educación** y está **vigente**. La procedencia y la vigencia se consignan como declaraciones del promotor: el XLS no incluye enlace específico de descarga ni sello temporal de extracción. No deben inventarse una fecha de publicación, un número de versión o una licencia. El Ministerio mantiene el Registro estatal de centros docentes no universitarios: https://www.educacionfpydeportes.gob.es/servicios-al-ciudadano/catalogo/estudiantes/donde-estudiar/registro-centros-no-universitarios.html. La atribución de la fuente será visible cuando se publique el directorio.
+
+Se ha generado un segundo CSV, derivado del archivo normalizado anterior, que refleja la información confirmada sin descartar incidencias de calidad:
+
+- **29.210** entradas nacionales con vigencia declarada por el promotor.
+- **5.552** entradas vigentes, pero con la tipología sin especificar.
+- **77** entradas vigentes con denominación específica ausente (denominación genérica provisional).
+- **6** entradas disponibles únicamente en la fuente gallega: conservar y contrastar por separado, sin afirmar su presencia en el extracto ministerial.
+- **Total: 34.845 códigos oficiales únicos.** Las cuatro categorías son mutuamente excluyentes.
+
+El CSV de importación actualizado se encuentra en el paquete descargable del promotor, **no en GitHub ni en Supabase**:
+`10_importacion_ministerio_confirmada_34845_NO_PUBLICAR.csv`.
+
+**SHA-256 del archivo exacto:** `7e499aa52ee5742dedbff51d596dd6c5ef3e706ae3e59ae775205083ad50a777`.
+
+## 9. Importación controlada y reanudable (PREPARADA; NO EJECUTADA)
+
+El importador `scripts/import_school_directory.py` utiliza exclusivamente la biblioteca estándar de Python. Sin argumentos especiales ejecuta **solo una validación local** (dry-run, sin acceso a la red ni a Supabase). Comprueba:
+
+1. SHA-256 exacto, 34.845 filas, cabeceras aprobadas sin teléfonos, códigos únicos de ocho dígitos y CP de cinco dígitos.
+2. Comunidades reconocidas, campos obligatorios y coordenadas verificables cuando existan.
+3. El recorrido de solo lectura se completa sin necesidad de credenciales.
+
+Ejemplo de validación **segura y local**:
+
+```bash
+python3 scripts/import_school_directory.py \\
+  10_importacion_ministerio_confirmada_34845_NO_PUBLICAR.csv \\
+  --sha256 7e499aa52ee5742dedbff51d596dd6c5ef3e706ae3e59ae775205083ad50a777
+```
+
+Solo cuando el propietario **autorice específicamente crear la tabla e importar en la base real**, y después de comprobar copia de seguridad, se permitirá `--apply`. El programa exige simultáneamente la referencia del proyecto Wetudy, la variable de aprobación `WETUDY_DIRECTORY_IMPORT_APPROVED=SI_AUTORIZO_IMPORTACION_NACIONAL`, `SUPABASE_URL` con el proyecto esperado y `SUPABASE_SERVICE_ROLE_KEY` exclusivamente en un entorno seguro. Nunca introducir estas credenciales en GitHub, en el navegador, en un archivo compartido ni en los logs.
+
+- **175 lotes de hasta 200 centros**, sin subidas masivas en una única petición.
+- Estrategia idempotente: `on_conflict=official_code` y `resolution=ignore-duplicates`; los centros existentes no se sobrescriben ni se duplican.
+- Los datos enviados **no incluyen** `is_listed` ni `linked_school_id`; la DB aplica sus valores por defecto `false` y `null`.
+- La herramienta rechaza importaciones si detecta centros ya publicados; verifica recuentos finales y que las entradas publicadas siguen siendo **cero**.
+- Error de lote → se detiene la carga. Repetir el mismo archivo y huella es seguro para registros ya importados. No activa comunidades escolares ni cuentas.
+- Batería `scripts/test_import_school_directory.py`: pruebas unitarias de validación, duplicados, aprobación, secreto, idempotencia y ausencia de publicación, ejecutadas en GitHub Actions sin conexión externa.
+
+**IMPORTANTE:** esta preparación **no constituye autorización para escribir en producción**. La PR #242 permanece en borrador y el selector de colegios para alumnos todavía requiere integración específica.
