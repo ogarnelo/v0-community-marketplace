@@ -11,6 +11,7 @@ type DirectoryRow = {
   category: string;
   municipality: string;
   province: string;
+  autonomous_community: string;
   postal_code: string;
   address: string | null;
 };
@@ -27,13 +28,14 @@ export async function GET(request: Request) {
     let query = admin
       .from("school_directory")
       .select(
-        "official_code,name,school_type,category,municipality,province,postal_code,address",
+        "official_code,name,school_type,category,municipality,province,autonomous_community,postal_code,address",
         { count: "exact" },
       )
       // Only records separately approved for publication are discoverable.
       // Importing an institution NEVER creates an operational school or AMPA.
       .eq("is_listed", true);
 
+    if (parsed.community) query = query.eq("autonomous_community", parsed.community);
     if (parsed.province) query = query.eq("province", parsed.province);
     if (parsed.pattern) query = query.ilike("search_text", parsed.pattern);
 
