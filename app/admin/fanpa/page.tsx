@@ -19,10 +19,14 @@ function requireQuery<T>(result: { data: T[] | null; error: { message: string } 
   return result.data || [];
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+const MIN_PRIVATE_KPI_COHORT = 5;
+function safeSensitiveKpi(value: number, members: number) {
+  return members >= MIN_PRIVATE_KPI_COHORT ? value.toLocaleString("es-ES") : "—";
+}
+function Stat({ label, value, suppress = false }: { label: string; value: number; suppress?: boolean }) {
   return <div className="rounded-xl border bg-white p-4 shadow-sm">
     <div className="text-sm text-slate-600">{label}</div>
-    <div className="mt-1 text-2xl font-semibold text-slate-900">{value.toLocaleString("es-ES")}</div>
+    <div className="mt-1 text-2xl font-semibold text-slate-900" title={suppress ? "Dato oculto por privacidad en comunidades pequeñas" : undefined}>{suppress ? "—" : value.toLocaleString("es-ES")}</div>
   </div>;
 }
 
@@ -89,6 +93,10 @@ export default async function FanpaPage({ searchParams }: { searchParams: Promis
   });
 
   const specific = selectedSchool ? metrics.schools.find((school) => school.id === selectedSchool) : null;
+  // Hide sensitive demand/interchange counts in tiny cohorts. Avoid total-minus-row inference.
+  const hideSensitive = specific
+    ? specific.users < MIN_PRIVATE_KPI_COHORT
+    : metrics.schools.some((item) => item.users < MIN_PRIVATE_KPI_COHORT);
   const displayed = specific ? {
     totalSchools: 1,
     uniqueUsers: specific.users,
@@ -120,8 +128,8 @@ export default async function FanpaPage({ searchParams }: { searchParams: Promis
       <Stat label="Estudiantes" value={displayed.students}/>
       <Stat label="Anuncios activos" value={displayed.activeListings}/>
       <Stat label="Anuncios totales" value={displayed.totalListings}/>
-      <Stat label="Necesidades abiertas" value={displayed.openDemands}/>
-      <Stat label="Intercambios confirmados" value={displayed.confirmedExchanges}/>
+      <Stat label="Necesidades abiertas" value={displayed.openDemands} suppress={hideSensitive}/>
+      <Stat label="Intercambios confirmados" value={displayed.confirmedExchanges} suppress={hideSensitive}/>
     </section>
 
     {!specific && <section className="mt-10">
@@ -135,11 +143,11 @@ export default async function FanpaPage({ searchParams }: { searchParams: Promis
           <tbody>{metrics.schools.map((row) => <tr key={row.id} className="border-b last:border-0">
             <td className="p-3"><Link className="font-medium text-emerald-700 underline" href={`/admin/fanpa?federation=${encodeURIComponent(federation.id)}&school=${encodeURIComponent(row.id)}`}>{row.name}</Link></td>
             <td className="p-3">{row.users}</td><td className="p-3">{row.students}</td><td className="p-3">{row.activeListings}</td>
-            <td className="p-3">{row.openDemands}</td><td className="p-3">{row.confirmedExchanges}</td>
+            <td className="p-3">{safeSensitiveKpi(row.openDemands,row.users)}</td><td className="p-3">{safeSensitiveKpi(row.confirmedExchanges,row.users)}</td>
           </tr>)}</tbody>
         </table>
       </div>
     </section>}
-    <p className="mt-8 text-xs text-slate-500">Solo se incluyen colegios reales activos. Las cuentas se deduplican en el total FANPA. Estos valores no incluyen información demo y no sustituyen a indicadores de necesidades resueltas.</p>
+    <p className="mt-8 text-xs text-slate-500">Solo se incluyen colegios reales activos. Las cuentas se deduplican en el total FANPA. Los datos de demanda e intercambio se ocultan cuando algún centro tiene menos de cinco cuentas vinculadas para proteger comunidades pequeñas. Estos valores no incluyen información demo y no sustituyen a indicadores de necesidades resueltas.</p>
   </main>;
 }
