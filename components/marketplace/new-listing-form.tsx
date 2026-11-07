@@ -1,3 +1,4 @@
+import { prepareListingImage, MAX_LISTING_IMAGE_BYTES, ACCEPTED_LISTING_IMAGE_TYPES } from "@/lib/marketplace/photo-sanitizer";
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -42,8 +43,8 @@ import {
 
 const STORAGE_BUCKET = "listing-photos";
 const MAX_FILES = 8;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_FILE_SIZE = MAX_LISTING_IMAGE_BYTES;
+const ALLOWED_IMAGE_TYPES: readonly string[] = ACCEPTED_LISTING_IMAGE_TYPES;
 
 const UNIFORM_ITEMS = ["Polo o camiseta", "Pantalón", "Falda o pichi", "Chándal", "Sudadera o jersey", "Abrigo", "Calzado", "Ropa deportiva", "Lote completo", "Otros"];
 const UNIFORM_SEASONS = ["Todo el año", "Verano", "Invierno", "Deporte", "No aplica"];
@@ -526,7 +527,7 @@ export default function NewListingForm({
 
   const handlePickPhoto = () => fileInputRef.current?.click();
 
-  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const incomingFiles = Array.from(event.target.files || []);
     setPhotoError("");
     setSubmitError("");
@@ -542,14 +543,16 @@ export default function NewListingForm({
     const accepted: PreviewFile[] = [];
     for (const file of incomingFiles.slice(0, availableSlots)) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        setPhotoError("Solo se permiten imágenes JPG, PNG, WEBP o GIF.");
+        setPhotoError("Solo se permiten imágenes JPG, PNG o WEBP. Los GIF no son compatibles con la eliminación de metadatos.");
         continue;
       }
-      if (file.size > MAX_FILE_SIZE) {
-        setPhotoError("Cada imagen debe pesar menos de 10 MB.");
-        continue;
+      try {
+        const cleanFile = await prepareListingImage(file);
+        if (cleanFile.size > MAX_FILE_SIZE) throw new Error("Cada imagen debe ocupar menos de 5 MB.");
+        accepted.push({ file: cleanFile, previewUrl: URL.createObjectURL(cleanFile), storagePath: undefined });
+      } catch (error) {
+        setPhotoError(error instanceof Error ? error.message : "No se pudo preparar la fotografía.");
       }
-      accepted.push({ file, previewUrl: URL.createObjectURL(file), storagePath: undefined });
     }
 
     if (accepted.length > 0) setPhotos((prev) => [...prev, ...accepted]);
