@@ -470,7 +470,7 @@ export default function EditListingForm({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.webp,.gif"
+            accept=".jpg,.jpeg,.png,.webp"
             multiple
             className="hidden"
             onChange={handleFilesSelected}
