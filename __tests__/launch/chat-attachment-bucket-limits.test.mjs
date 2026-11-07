@@ -15,7 +15,6 @@ test("chat attachment bucket mirrors client size and MIME restrictions", () => {
     "image/jpeg",
     "image/png",
     "image/webp",
-    "image/gif",
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -27,4 +26,7 @@ test("chat attachment bucket mirrors client size and MIME restrictions", () => {
   }
 
   assert.match(form, /MAX_FILE_SIZE = 10 \* 1024 \* 1024/);
+  assert.match(form, /await prepareListingImage\(file\)/);
+  assert.match(form, /MAX_LISTING_IMAGE_BYTES/);
+  assert.doesNotMatch(form, /"image\/gif"/);
 });
