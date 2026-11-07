@@ -20,6 +20,7 @@ function makeApp({
   deleteFailure = false,
   readFailure = false,
   cleanupFailure = false,
+  concurrentRestoredPhotos = null,
   preservePhotoPaths = [],
   publishedPhotoUrls = [],
   publishedLookupError = false,
@@ -61,11 +62,12 @@ function makeApp({
           events.push("db.upsert");
           if (upsertFailure) return { data: null, error: { message: "Simulated DB error" } };
           draft = this.newData.photos;
-          return { data: { id: "draft", photos: draft }, error: null };
+          if (concurrentRestoredPhotos) draft = concurrentRestoredPhotos;
+          return { data: { id: "draft", photos: this.newData.photos }, error: null };
         },
         then(resolve, reject) {
           events.push("db.delete");
-          if (!deleteFailure) draft = [];
+          if (!deleteFailure) draft = concurrentRestoredPhotos || [];
           return Promise.resolve({
             error: deleteFailure ? { message: "Simulated DB delete failure" } : null,
           }).then(resolve, reject);
@@ -207,5 +209,23 @@ test("a failed draft read stops discard and preserves referenced photos", async 
   const result = await app.remove();
   assert.equal(result.status, 503);
   assert.deepEqual(app.events, []);
+  assert.equal(app.getDraft()[0].path, ownPath("old"));
+});
+
+test("concurrent draft update cannot delete a photo restored by another tab", async () => {
+  const app = makeApp({
+    concurrentRestoredPhotos: [photo(ownPath("old"))],
+  });
+  assert.equal((await app.put()).status, 200);
+  assert.ok(!app.events.includes("storage.remove"));
+  assert.equal(app.getDraft()[0].path, ownPath("old"));
+});
+
+test("concurrent newly created draft prevents stale discard request deleting its photo", async () => {
+  const app = makeApp({
+    concurrentRestoredPhotos: [photo(ownPath("old"))],
+  });
+  assert.equal((await app.remove()).status, 200);
+  assert.ok(!app.events.includes("storage.remove"));
   assert.equal(app.getDraft()[0].path, ownPath("old"));
 });
