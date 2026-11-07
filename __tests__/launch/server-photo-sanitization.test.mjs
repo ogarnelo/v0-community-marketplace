@@ -84,3 +84,13 @@ test("forms use the server sanitizer, while chat documents retain direct storage
   assert.match(policy, /conversation participants may upload documents only/);
   assert.match(policy, /lower\(storage.extension\(name\)\) IN \('pdf','doc','docx'\)/);
 });
+
+test("browser and server enforce a request size below Vercel's 4.5 MB limit", () => {
+  const browser = read("lib/marketplace/photo-sanitizer.ts");
+  const server = read("app/api/uploads/sanitized-photo/route.ts");
+  assert.match(browser, /MAX_UPLOAD_TRANSFER_BYTES = 4 \* 1024 \* 1024/);
+  assert.match(browser, /encoded.size <= MAX_UPLOAD_TRANSFER_BYTES/);
+  assert.match(server, /MAX_SOURCE_BYTES = 4 \* 1024 \* 1024/);
+  assert.match(server, /file.size > MAX_SOURCE_BYTES/);
+  assert.match(browser, /MAX_LISTING_IMAGE_BYTES = 5 \* 1024 \* 1024/);
+});
