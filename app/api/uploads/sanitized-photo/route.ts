@@ -6,7 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
+// Vercel Functions have a 4.5 MB total request-body limit; allow margin for multipart encoding.
+const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Solo se admiten imágenes JPG, PNG y WEBP." }, { status: 400 });
     }
     if (!file.size || file.size > MAX_SOURCE_BYTES) {
-      return NextResponse.json({ error: "La imagen original no puede superar 20 MB." }, { status: 413 });
+      return NextResponse.json({ error: "La fotografía supera 4 MB para el envío. Vuelve a seleccionarla." }, { status: 413 });
     }
     if (!["draft", "listing", "chat"].includes(destination)) {
       return NextResponse.json({ error: "Destino de imagen no permitido." }, { status: 400 });
