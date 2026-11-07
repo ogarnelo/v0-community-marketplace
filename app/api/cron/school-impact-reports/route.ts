@@ -54,6 +54,29 @@ export async function GET(request: Request) {
     }
 
     try {
+      // Scheduled delivery must not outlive the administrator's access.
+      const { data: role, error: roleError } = await admin
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", subscription.user_id)
+        .eq("school_id", subscription.school_id)
+        .eq("role", "school_admin")
+        .maybeSingle();
+      if (roleError) throw roleError;
+
+      const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(subscription.user_id);
+      if (recipientError) throw recipientError;
+      const verifiedEmail = recipient.user?.email?.trim().toLowerCase();
+      if (!role || !verifiedEmail || verifiedEmail !== subscription.email.trim().toLowerCase()) {
+        const { error: disableError } = await admin
+          .from("school_impact_report_subscriptions")
+          .update({ enabled: false, updated_at: new Date().toISOString() })
+          .eq("id", subscription.id);
+        if (disableError) throw disableError;
+        skipped += 1;
+        continue;
+      }
+
       const report = await loadSchoolImpactReport({
         schoolId: subscription.school_id,
         start: period.start,
