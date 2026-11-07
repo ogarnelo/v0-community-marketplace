@@ -12,7 +12,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     const centre = await getPublicDirectorySchool(code);
     if (!centre) return new NextResponse("Centro no disponible.", { status: 404 });
 
-    // QR is a public discovery link and MUST NOT embed school_access_codes,
+    // QR is a public discovery link and MUST NOT embed any private invite code,
     // session secrets, student data, or a direct authenticated join URL.
     const url = getSchoolDirectoryUrl(centre.official_code);
     const search = new URL(request.url).searchParams;
