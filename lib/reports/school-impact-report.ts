@@ -1,3 +1,4 @@
+import { countSchoolStudents, getSchoolMemberIds } from "@/lib/reports/school-membership";
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -47,6 +48,7 @@ export type SchoolImpactReport = {
   estimatedAvoidedCo2: number;
   unquantifiedItems: number;
   members: number;
+  students: number;
   administrators: number;
   activeListings: number;
   listingViews: number;
@@ -125,6 +127,7 @@ export async function loadSchoolImpactReport(params: {
     schoolResult,
     listingsResult,
     membersResult,
+    studentContextsResult,
     adminsResult,
     agreementsResult,
     reportsResult,
@@ -141,8 +144,13 @@ export async function loadSchoolImpactReport(params: {
       .returns<ListingRow[]>(),
     admin
       .from("profiles")
-      .select("id")
-      .eq("school_id", schoolId),
+      .select("id, school_id")
+      .limit(10000),
+    admin
+      .from("account_students")
+      .select("owner_user_id, school_id")
+      .eq("active", true)
+      .limit(20000),
     admin
       .from("user_roles")
       .select("user_id")
@@ -170,6 +178,7 @@ export async function loadSchoolImpactReport(params: {
   if (!schoolResult.data) throw new Error("Centro no encontrado.");
   if (listingsResult.error) throw listingsResult.error;
   if (membersResult.error) throw membersResult.error;
+  if (studentContextsResult.error) throw studentContextsResult.error;
   if (adminsResult.error) throw adminsResult.error;
   if (agreementsResult.error) throw agreementsResult.error;
   if (reportsResult.error) throw reportsResult.error;
@@ -177,6 +186,13 @@ export async function loadSchoolImpactReport(params: {
   const listings = (listingsResult.data || []) as ListingRow[];
   const listingById = new Map(listings.map((listing) => [listing.id, listing]));
   const agreements = (agreementsResult.data || []) as AgreementRow[];
+  const activeStudentContexts = (studentContextsResult.data || []) as Array<{ owner_user_id: string; school_id: string | null }>;
+  const schoolMemberIds = getSchoolMemberIds({
+    schoolId,
+    profiles: (membersResult.data || []) as Array<{ id: string; school_id: string | null }>,
+    activeStudents: activeStudentContexts,
+    schoolAdmins: (adminsResult.data || []) as Array<{ user_id: string }>,
+  });
 
   const reusedItems = agreements.length;
   const donatedItems = agreements.filter(
@@ -227,7 +243,8 @@ export async function loadSchoolImpactReport(params: {
     reusedBooks,
     estimatedAvoidedCo2: reusedBooks * SCHOOL_BOOK_CO2E_KG,
     unquantifiedItems: Math.max(0, reusedItems - reusedBooks),
-    members: membersResult.data?.length || 0,
+    members: schoolMemberIds.size,
+    students: countSchoolStudents(schoolId, activeStudentContexts),
     administrators: adminsResult.data?.length || 0,
     activeListings: listings.filter((listing) =>
       ["available", "reserved"].includes(listing.status || "")
@@ -285,7 +302,8 @@ export function renderSchoolImpactPdf(report: SchoolImpactReport) {
     { text: `Ventas confirmadas: ${report.soldItems}` },
     { text: `Donaciones confirmadas: ${report.donatedItems}` },
     { text: `Valor circular acordado: ${report.circularValue.toFixed(2)} EUR` },
-    { text: `Miembros vinculados: ${report.members}` },
+    { text: `Cuentas vinculadas: ${report.members}` },
+    { text: `Estudiantes vinculados: ${report.students}` },
     { text: `Administradores del centro: ${report.administrators}` },
     { text: `Anuncios activos: ${report.activeListings}` },
     { text: `Visitas a anuncios en el periodo: ${report.listingViews}` },
