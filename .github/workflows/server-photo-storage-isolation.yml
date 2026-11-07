@@ -1,0 +1,109 @@
+name: Server-only photo storage policies
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261107233000_server_photo_upload_policies.sql"
+      - ".github/workflows/server-photo-storage-isolation.yml"
+  workflow_dispatch:
+
+jobs:
+  photo-policies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wetudy_photo_policy_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_photo_policy_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: wetudy_photo_policy_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build minimal RLS policy replica
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN BYPASSRLS;
+          CREATE SCHEMA auth;
+          CREATE SCHEMA storage;
+          CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE SQL STABLE AS
+            'SELECT NULLIF(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+          CREATE FUNCTION storage.foldername(text) RETURNS text[] LANGUAGE SQL IMMUTABLE AS
+            $$ SELECT (string_to_array($1,'/'))[1:(array_length(string_to_array($1,'/'),1)-1)] $$;
+          CREATE FUNCTION storage.extension(text) RETURNS text LANGUAGE SQL IMMUTABLE AS
+            $$ SELECT lower(reverse(split_part(reverse($1),'.',1))) $$;
+          CREATE TABLE public.conversations(id uuid PRIMARY KEY,buyer_id uuid,seller_id uuid);
+          CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text NOT NULL,name text NOT NULL,metadata jsonb NOT NULL DEFAULT '{}'::jsonb);
+          INSERT INTO public.conversations VALUES(
+            '11111111-1111-4111-8111-111111111111',
+            '22222222-2222-4222-8222-222222222222',
+            '33333333-3333-4333-8333-333333333333'
+          );
+          ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+          GRANT USAGE ON SCHEMA storage,auth TO authenticated,service_role;
+          GRANT INSERT, SELECT ON storage.objects TO authenticated,service_role;
+          GRANT SELECT ON public.conversations TO authenticated,service_role;
+          GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage,auth TO authenticated,service_role;
+          CREATE POLICY "listing photo uploads stay in own user folder" ON storage.objects
+            FOR INSERT TO authenticated WITH CHECK (bucket_id='listing-photos');
+          CREATE POLICY "conversation participants can upload own chat attachments" ON storage.objects
+            FOR INSERT TO authenticated WITH CHECK (bucket_id='chat-attachments');
+          SQL
+      - name: Apply revised policy to temporary PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107233000_server_photo_upload_policies.sql
+      - name: Verify no browser image upload and legitimate document upload
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          SET ROLE authenticated;
+          SELECT set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',false);
+          INSERT INTO storage.objects(bucket_id,name,metadata) VALUES(
+            'chat-attachments',
+            '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/report.pdf',
+            '{"mimetype":"application/pdf"}'::jsonb
+          );
+          DO $checks$
+          BEGIN
+            BEGIN
+              INSERT INTO storage.objects(bucket_id,name,metadata) VALUES(
+                'listing-photos','22222222-2222-4222-8222-222222222222/photo.jpg',
+                '{"mimetype":"image/jpeg"}');
+              RAISE EXCEPTION 'Direct listing photo was permitted';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+            BEGIN
+              INSERT INTO storage.objects(bucket_id,name,metadata) VALUES(
+                'chat-attachments',
+                '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/photo.jpg',
+                '{"mimetype":"image/jpeg"}');
+              RAISE EXCEPTION 'Direct chat image was permitted';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+            BEGIN
+              INSERT INTO storage.objects(bucket_id,name,metadata) VALUES(
+                'chat-attachments',
+                '11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/private.pdf',
+                '{"mimetype":"application/pdf"}');
+              RAISE EXCEPTION 'Document upload to another member folder was permitted';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+          END $checks$;
+          RESET ROLE;
+          DO $checks$
+          BEGIN
+            IF (SELECT count(*) FROM storage.objects) <> 1
+            THEN RAISE EXCEPTION 'Unexpected objects after policy checks'; END IF;
+          END $checks$;
+          SQL

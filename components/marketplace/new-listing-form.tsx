@@ -1,6 +1,7 @@
 "use client";
 
 import { prepareListingImage, MAX_LISTING_IMAGE_BYTES, ACCEPTED_LISTING_IMAGE_TYPES } from "@/lib/marketplace/photo-sanitizer";
+import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -584,16 +585,7 @@ export default function NewListingForm({
 
       if (!photo.file) continue;
 
-      const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(photo.file.name);
-      const filePath = `${userId}/drafts/current/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      const publicUrl = publicUrlData?.publicUrl;
+      const { path: filePath, publicUrl } = await uploadSanitizedPhoto(photo.file, "draft");
       if (!publicUrl) throw new Error("No se pudo guardar una foto del borrador.");
 
       nextPreviewFiles.push({ file: null, previewUrl: publicUrl, storagePath: filePath });
@@ -778,14 +770,7 @@ export default function NewListingForm({
 
       if (!photo.file) continue;
 
-      const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(photo.file.name);
-      const filePath = `${userId}/${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      const publicUrl = publicUrlData?.publicUrl;
+      const { publicUrl } = await uploadSanitizedPhoto(photo.file, "listing", listingId);
       if (!publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
       uploadedPhotoRows.push({ listing_id: listingId, url: publicUrl, sort_order: index });
     }

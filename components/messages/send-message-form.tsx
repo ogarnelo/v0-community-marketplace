@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { prepareListingImage, MAX_LISTING_IMAGE_BYTES } from "@/lib/marketplace/photo-sanitizer";
+import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
 import { Paperclip, X, Image as ImageIcon, FileText, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,31 @@ export function SendMessageForm({ conversationId, currentUserId, disabled = fals
       const { data: conversation, error: conversationError } = await supabase.from("conversations").select("id, listing_id, buyer_id, seller_id").eq("id", conversationId).maybeSingle(); if (conversationError) throw conversationError; if (!conversation) throw new Error("La conversación ya no existe."); if (conversation.buyer_id !== currentUserId && conversation.seller_id !== currentUserId) throw new Error("No tienes permisos para enviar mensajes aquí.");
       const { data: listing, error: listingError } = await supabase.from("listings").select("id, status").eq("id", conversation.listing_id).maybeSingle(); if (listingError) throw listingError; if (!listing) throw new Error("El anuncio asociado ya no existe."); const safeStatus = getSafeListingStatus(listing.status); if (!canSendNewMessageToListing(safeStatus) && !allowUnavailableConversationMessaging) throw new Error("Este anuncio ya no permite enviar mensajes nuevos.");
       const messageText = body.trim(); let attachmentUrl: string | null = null; let attachmentPath: string | null = null; let attachmentName: string | null = null; let attachmentType: string | null = null; let attachmentSize: number | null = null;
-      if (selectedFile) { const fileExt = selectedFile.name.split(".").pop()?.toLowerCase() || "file"; const safeFileName = selectedFile.name.replace(/\s+/g, "-"); const filePath = `${conversationId}/${currentUserId}/${Date.now()}-${safeFileName}`; const { error: uploadError } = await supabase.storage.from("chat-attachments").upload(filePath, selectedFile, { cacheControl: "3600", upsert: false }); if (uploadError) throw uploadError; const { data: signedUrlData, error: signedUrlError } = await supabase.storage.from("chat-attachments").createSignedUrl(filePath, 60 * 60 * 24 * 7); if (signedUrlError) throw signedUrlError; attachmentUrl = signedUrlData.signedUrl; attachmentPath = filePath; attachmentName = selectedFile.name; attachmentType = selectedFile.type || `application/${fileExt}`; attachmentSize = selectedFile.size; }
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split(".").pop()?.toLowerCase() || "file";
+        let path: string;
+        if (isImageFile(selectedFile)) {
+          const uploaded = await uploadSanitizedPhoto(selectedFile, "chat", conversationId);
+          path = uploaded.path;
+          attachmentName = uploaded.name;
+          attachmentType = uploaded.contentType;
+          attachmentSize = uploaded.size;
+        } else {
+          const safeFileName = selectedFile.name.replace(/\s+/g, "-");
+          path = `${conversationId}/${currentUserId}/${Date.now()}-${safeFileName}`;
+          const { error: uploadError } = await supabase.storage.from("chat-attachments")
+            .upload(path, selectedFile, { cacheControl: "3600", upsert: false });
+          if (uploadError) throw uploadError;
+          attachmentName = selectedFile.name;
+          attachmentType = selectedFile.type || `application/${fileExt}`;
+          attachmentSize = selectedFile.size;
+        }
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage.from("chat-attachments")
+          .createSignedUrl(path, 60 * 60 * 24 * 7);
+        if (signedUrlError) throw signedUrlError;
+        attachmentUrl = signedUrlData.signedUrl;
+        attachmentPath = path;
+      }
       const { data: insertedMessage, error: insertError } = await supabase.from("messages").insert({ conversation_id: conversationId, sender_id: currentUserId, body: messageText || null, read_at: null, attachment_url: attachmentUrl, attachment_path: attachmentPath, attachment_name: attachmentName, attachment_type: attachmentType, attachment_size: attachmentSize }).select("id").single(); if (insertError || !insertedMessage) throw insertError || new Error("No se pudo crear el mensaje.");
       const { error: updateError } = await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId); if (updateError) throw updateError;
       fetch("/api/messages/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId, messageId: insertedMessage.id }) }).catch((emailHookError) => console.error("No se pudo procesar el aviso del primer mensaje", emailHookError));
