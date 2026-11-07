@@ -72,6 +72,7 @@ type NewListingFormProps = {
   initialSchoolId: string;
   initialSchoolName: string;
   initialSchoolCity: string;
+  availableSchools: Array<{ id: string; name: string; city: string | null }>;
   initialPrefill?: DemandListingPrefill | null;
   activationOpportunityKey?: string | null;
   isSchoolAdmin?: boolean;
@@ -212,6 +213,7 @@ export default function NewListingForm({
   initialSchoolId,
   initialSchoolName,
   initialSchoolCity,
+  availableSchools,
   initialPrefill = null,
   activationOpportunityKey = null,
   isSchoolAdmin = false,
@@ -222,6 +224,7 @@ export default function NewListingForm({
   const categoryEffectReadyRef = useRef(false);
 
   const [loading, setLoading] = useState(false);
+  const [selectedSchoolId, setSelectedSchoolId] = useState(initialSchoolId || "no-school");
   const [isDonation, setIsDonation] = useState(false);
   const [title, setTitle] = useState(initialPrefill?.title || "");
   const [description, setDescription] = useState("");
@@ -407,10 +410,11 @@ export default function NewListingForm({
   }, [selectedCategory]);
 
   const schoolLabel = useMemo(() => {
-    if (!initialSchoolId) return "Sin centro asignado";
-    if (initialSchoolCity?.trim()) return `${initialSchoolName}, ${initialSchoolCity}`;
-    return initialSchoolName;
-  }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
+    if (selectedSchoolId === "no-school") return "Sin centro asignado";
+    const choice = availableSchools.find((school) => school.id === selectedSchoolId);
+    if (!choice) return "Centro no disponible";
+    return choice.city ? `${choice.name}, ${choice.city}` : choice.name;
+  }, [selectedSchoolId, availableSchools]);
 
   const normalizedGradeLevels = useMemo(() => Array.from(new Set(gradeLevels)).filter(Boolean), []);
 
@@ -808,14 +812,13 @@ export default function NewListingForm({
 
       const supabase = createClient();
 
-      const { data: currentProfile, error: profileError } = await supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle();
-      if (profileError) throw profileError;
-
-      const effectiveSchoolId =
-        initialSchoolId ||
-        (currentProfile?.school_id && currentProfile.school_id.trim().length > 0
-          ? currentProfile.school_id
-          : null);
+      const effectiveSchoolId = selectedSchoolId === "no-school" ? null : selectedSchoolId;
+      if (effectiveSchoolId && !availableSchools.some((school) => school.id === effectiveSchoolId)) {
+        throw new Error("El colegio elegido ya no está vinculado a tu cuenta.");
+      }
+      if (isSchoolAdmin && effectiveSchoolId !== initialSchoolId) {
+        throw new Error("Los anuncios del centro deben vincularse al colegio administrado.");
+      }
       const listingId = crypto.randomUUID();
       const uploadedPhotoRows = await uploadListingPhotos(listingId, currentUserId, photos);
       const photoUrls = uploadedPhotoRows.map((photo) => photo.url);
@@ -1124,7 +1127,27 @@ export default function NewListingForm({
 
           <div className="rounded-2xl border bg-background p-4 text-sm leading-relaxed text-muted-foreground">
             <div className="mb-1 flex items-center gap-2 font-medium text-foreground"><School className="h-4 w-4 text-primary" />Centro asociado</div>
-            <p>{schoolLabel}</p>
+            {availableSchools.length > 1 && !isSchoolAdmin ? (
+              <div className="mt-3 space-y-2">
+                <Label htmlFor="school-association">Selecciona el colegio de este anuncio</Label>
+                <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
+                  <SelectTrigger id="school-association" className="h-11">
+                    <SelectValue placeholder="Selecciona un colegio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSchools.map((school) => (
+                      <SelectItem key={school.id} value={school.id}>
+                        {school.name}{school.city ? ` · ${school.city}` : ""}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="no-school">Material general · sin colegio asociado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs">Elige el colegio al que corresponde el material. No es necesario seleccionar un estudiante.</p>
+              </div>
+            ) : (
+              <p>{schoolLabel}</p>
+            )}
             {isSchoolAdmin ? (
               <p className="mt-2 text-xs">
                 Como AMPA o centro, el anuncio queda vinculado a este centro. Puedes indicar un curso concreto o dejar “Varios cursos”; podrás comprar y contactar con usuarios de cualquier centro.

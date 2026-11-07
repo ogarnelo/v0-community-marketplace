@@ -8,6 +8,7 @@ type SavedSearchCandidate = {
   condition?: string | null;
   only_my_community?: boolean | null;
   school_id?: string | null;
+  school_ids?: string[] | null;
 };
 
 type ListingCandidate = {
@@ -65,7 +66,10 @@ export function savedSearchMatchesListing(search: SavedSearchCandidate, listing:
   ].filter(Boolean).join(" "));
   const listingType = listing.type || listing.listing_type || null;
 
-  if (search.only_my_community && search.school_id && search.school_id !== listing.school_id) return false;
+  if (search.only_my_community) {
+    const allowedSchools = search.school_ids ?? (search.school_id ? [search.school_id] : []);
+    if (!listing.school_id || !allowedSchools.includes(listing.school_id)) return false;
+  }
   if (search.category && normalize(search.category) !== normalize(listing.category)) return false;
   if (search.grade_level && normalize(search.grade_level) !== normalize(listing.grade_level)) return false;
   if (search.listing_type && normalize(search.listing_type) !== normalize(listingType)) return false;

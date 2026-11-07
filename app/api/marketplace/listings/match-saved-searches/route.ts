@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
+import { resolveCommunitySchoolsForUsers } from "@/lib/marketplace/community-school-context";
 import { isCurrentCourseAlert } from "@/lib/demand/course-alert-eligibility";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
@@ -113,7 +114,45 @@ export async function POST(request: Request) {
       search.intent_source !== "course_need" || validEducationalSearchIds.has(search.id)
     );
 
-    const matches = eligibleSavedSearches
+    // General saved searches with "Solo mi comunidad" follow the CURRENT
+    // linked schools (not a stale school_id captured when the alert was saved).
+    const communityUserIds = Array.from(new Set(eligibleSavedSearches
+      .filter((search) => search.only_my_community)
+      .map((search) => search.user_id)));
+    let communitySchoolIds = new Map<string, string[]>();
+    if (communityUserIds.length > 0) {
+      const [{ data: familyStudents, error: familyStudentsError },
+        { data: adminRoles, error: adminRolesError },
+        { data: userProfiles, error: userProfilesError }] = await Promise.all([
+          admin.from("account_students")
+            .select("owner_user_id,school_id")
+            .in("owner_user_id", communityUserIds)
+            .eq("active", true),
+          admin.from("user_roles")
+            .select("user_id,school_id,role")
+            .in("user_id", communityUserIds)
+            .eq("role", "school_admin"),
+          admin.from("profiles")
+            .select("id,school_id")
+            .in("id", communityUserIds),
+        ]);
+      if (familyStudentsError || adminRolesError || userProfilesError) {
+        throw familyStudentsError || adminRolesError || userProfilesError;
+      }
+      communitySchoolIds = resolveCommunitySchoolsForUsers({
+        userIds: communityUserIds,
+        students: familyStudents || [],
+        roles: adminRoles || [],
+        profiles: userProfiles || [],
+      });
+    }
+    const scopedSearches = eligibleSavedSearches.map((search) => (
+      search.only_my_community
+        ? { ...search, school_ids: communitySchoolIds.get(search.user_id) || [] }
+        : search
+    ));
+
+    const matches = scopedSearches
       .filter((search) => savedSearchMatchesListing(search, listing))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
