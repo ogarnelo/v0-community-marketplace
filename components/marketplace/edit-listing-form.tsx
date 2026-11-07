@@ -1,6 +1,7 @@
 "use client";
 
 import { prepareListingImage, MAX_LISTING_IMAGE_BYTES, ACCEPTED_LISTING_IMAGE_TYPES } from "@/lib/marketplace/photo-sanitizer";
+import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -344,21 +345,12 @@ export default function EditListingForm({
 
     for (let index = 0; index < newPhotos.length; index += 1) {
       const item = newPhotos[index];
-      const safeName = sanitizeFileName(item.file.name);
-      const fileExt = item.file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filePath = `${currentUserId}/${initialListing.id}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, item.file, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      if (!data?.publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
+      const { publicUrl } = await uploadSanitizedPhoto(item.file, "listing", initialListing.id);
+      if (!publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
 
       uploadedRows.push({
         listing_id: initialListing.id,
-        url: data.publicUrl,
+        url: publicUrl,
         sort_order: startingSortOrder + index,
       });
     }
