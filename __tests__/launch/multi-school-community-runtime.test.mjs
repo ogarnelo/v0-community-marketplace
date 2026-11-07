@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { resolveCommunitySchoolsForUsers } from "../../lib/marketplace/community-school-context.ts";
 import { savedSearchMatchesListing } from "../../lib/marketplace/saved-search-matching.ts";
 
@@ -40,7 +41,7 @@ test("active profile fallback is only used when no active students are present",
   assert.deepEqual(scope.get("unlinked"),["E"]);
 });
 test("browser filters include all current community schools, and distance mode does not exclude own school",()=>{
-  const page=await import("node:fs").then(({readFileSync})=>readFileSync(new URL("../../components/marketplace/marketplace-client.tsx",import.meta.url),"utf8"));
+  const page=readFileSync(new URL("../../components/marketplace/marketplace-client.tsx",import.meta.url),"utf8");
   assert.match(page,/currentUserSchoolIds\.includes\(l\.schoolId\)/);
   assert.match(page,/!onlyMyCommunity && maxDistanceKm !== Infinity/);
 });
