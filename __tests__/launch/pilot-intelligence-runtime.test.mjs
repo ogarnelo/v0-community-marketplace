@@ -6,7 +6,7 @@ import { getSchoolMemberIds, countSchoolStudents } from "../../lib/reports/schoo
 const USER = "family-a", STUDENT = "student-a", DEMAND = "demand-a";
 function fixture() {
   return {
-    search: { user_id: USER, demand_request_id: DEMAND },
+    search: { user_id: USER, demand_request_id: DEMAND, school_id: "school-a" },
     demand: { id: DEMAND, user_id: USER, source: "course_need", status: "open", school_id: "school-a", grade_level: "5P" },
     need: { owner_user_id: USER, student_id: STUDENT, demand_request_id: DEMAND, status: "active", academic_year: "2026-2027" },
     student: { id: STUDENT, owner_user_id: USER, active: true, school_id: "school-a", grade_level: "5P", academic_year: "2026-2027" },
@@ -16,6 +16,7 @@ const allowed = (f) => isCurrentCourseAlert(f.search, f.demand, f.need, f.studen
 
 test("valid and active educational alerts are allowed", () => assert.equal(allowed(fixture()), true));
 test("inactive student prevents notification", () => { const f=fixture(); f.student.active=false; assert.equal(allowed(f),false); });
+test("stale saved-search school prevents notification", () => { const f=fixture(); f.search.school_id="school-b"; assert.equal(allowed(f),false); });
 test("changed school prevents notification", () => { const f=fixture(); f.student.school_id="school-b"; assert.equal(allowed(f),false); });
 test("changed grade prevents notification", () => { const f=fixture(); f.student.grade_level="6P"; assert.equal(allowed(f),false); });
 test("changed academic year prevents notification", () => { const f=fixture(); f.student.academic_year="2027-2028"; assert.equal(allowed(f),false); });
