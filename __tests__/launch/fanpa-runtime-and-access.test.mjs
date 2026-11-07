@@ -63,7 +63,8 @@ test("FANPA page requires both role and explicit federation membership", () => {
   assert.match(page, /eq\("user_id", user.id\)/);
   assert.match(page, /if \(roleError \|\| membershipsError \|\| !role\) redirect/);
   assert.match(page, /\.eq\("is_test",false\)/);
-  assert.match(page, /\.in\("id", validIds\)/);
+  assert.match(page, /\.in\("id",schoolIds\)/);
+  assert.match(page, /\.in\("school_id",validIds\)/);
   assert.match(page, /metrics.schools.find\(\(school\) => school.id === selectedSchool\)/);
   assert.doesNotMatch(page, /select\(".*full_name/);
 });
