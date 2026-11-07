@@ -3,7 +3,7 @@
  * moment an item becomes available. General marketplace searches are not
  * evaluated here: they intentionally remain independent from students.
  */
-export type CourseAlertSearch = { user_id: string; demand_request_id: string | null };
+export type CourseAlertSearch = { user_id: string; demand_request_id: string | null; school_id: string | null };
 export type CourseAlertDemand = { id: string; user_id: string | null; source: string; status: string; school_id: string | null; grade_level: string | null };
 export type CourseAlertNeed = { owner_user_id: string; student_id: string; demand_request_id: string | null; status: string; academic_year: string };
 export type CourseAlertStudent = { id: string; owner_user_id: string; active: boolean; school_id: string | null; grade_level: string | null; academic_year: string };
@@ -27,5 +27,6 @@ export function isCurrentCourseAlert(
     && student.id === need.student_id
     && student.academic_year === need.academic_year
     && student.school_id === demand.school_id
+    && search.school_id === student.school_id
     && student.grade_level === demand.grade_level;
 }
