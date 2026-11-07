@@ -86,13 +86,6 @@ export async function PUT(request: Request) {
     .map((photo) => photo.path)
     .filter((path) => !nextPaths.has(path));
 
-  if (removedPaths.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
-    if (storageError) {
-      console.error("No se pudieron limpiar fotos retiradas del borrador", storageError);
-    }
-  }
-
   const { data, error } = await admin
     .from("listing_drafts")
     .upsert(
@@ -109,6 +102,15 @@ export async function PUT(request: Request) {
 
   if (error || !data) {
     return NextResponse.json({ error: error?.message || "No se pudo guardar el borrador." }, { status: 500 });
+  }
+
+  // Delete obsolete photos only after the new draft is durably saved.
+  // A failed upsert must never leave the existing draft pointing to deleted files.
+  if (removedPaths.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
+    if (storageError) {
+      console.error("No se pudieron limpiar fotos retiradas del borrador", storageError);
+    }
   }
 
   return NextResponse.json({ draft: data });
@@ -142,19 +144,20 @@ export async function DELETE(request: Request) {
     .map((photo) => photo.path)
     .filter((path) => !preservePaths.has(path));
 
-  if (pathsToRemove.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
-    if (storageError) {
-      return NextResponse.json(
-        { error: storageError.message || "No se pudieron limpiar las fotos del borrador." },
-        { status: 500 }
-      );
-    }
-  }
-
+  // Delete the record first; otherwise an unsuccessful DB delete would leave
+  // a saved draft whose referenced photos were already destroyed.
   const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
   if (error) {
     return NextResponse.json({ error: error.message || "No se pudo descartar el borrador." }, { status: 500 });
+  }
+
+  if (pathsToRemove.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
+    if (storageError) {
+      // The user-facing draft is already discarded. Preserve that success,
+      // log the unused files for eventual cleanup without restoring references.
+      console.error("No se pudieron limpiar las fotos del borrador descartado", storageError);
+    }
   }
 
   return NextResponse.json({ ok: true });
