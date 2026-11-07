@@ -99,11 +99,21 @@ export async function PUT(request: Request) {
   const photos = cleanPhotos(body?.photos, user.id);
   const admin = createAdminClient();
 
-  const { data: existing } = await admin
+  const { data: existing, error: draftReadError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  // A failed read must not be treated as an empty draft. It could otherwise
+  // permit overwriting valid references or losing track of photos to clean.
+  if (draftReadError) {
+    console.error("No se pudo comprobar el borrador anterior", draftReadError);
+    return NextResponse.json(
+      { error: "No se pudo comprobar el estado del borrador. Inténtalo más tarde." },
+      { status: 503 }
+    );
+  }
 
   const previousPhotos = cleanPhotos(existing?.photos, user.id);
   const nextPaths = new Set(photos.map((photo) => photo.path));
@@ -160,11 +170,21 @@ export async function DELETE(request: Request) {
   );
 
   const admin = createAdminClient();
-  const { data: existing } = await admin
+  const { data: existing, error: draftReadError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  // A failed read must not be treated as an empty draft. It could otherwise
+  // permit overwriting valid references or losing track of photos to clean.
+  if (draftReadError) {
+    console.error("No se pudo comprobar el borrador anterior", draftReadError);
+    return NextResponse.json(
+      { error: "No se pudo comprobar el estado del borrador. Inténtalo más tarde." },
+      { status: 503 }
+    );
+  }
 
   const existingPhotos = cleanPhotos(existing?.photos, user.id);
   const photosToRemove = existingPhotos
