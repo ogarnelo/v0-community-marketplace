@@ -120,6 +120,7 @@ test("storage removal error never makes an already deleted listing fail", async 
 function makeDeleteApp({
   authenticated = true, owner = USER, history = false,
   deleteError = false, deletedRow = true, photoQueryError = false,
+  historyLookupError = false,
 } = {}) {
   const events = [];
   const payload = { listingId: LISTING };
@@ -162,7 +163,11 @@ function makeDeleteApp({
             }).then(resolve, reject);
           }
           const data = history && (table === "conversations") ? [{ id: "conversation" }] : [];
-          return Promise.resolve({ data, error: null }).then(resolve, reject);
+          return Promise.resolve({
+            data,
+            error: historyLookupError && table === "conversations"
+              ? { message: "simulated history lookup failure" } : null,
+          }).then(resolve, reject);
         },
       };
       return query;
@@ -230,5 +235,13 @@ test("unauthorized deletion cannot remove photographs", async () => {
 test("failure to gather photo URLs prevents cleanup but not DB removal", async () => {
   const app = makeDeleteApp({ photoQueryError: true });
   assert.equal((await app.post()).body.mode, "deleted");
+  assert.ok(!app.events.includes("storage.cleanup"));
+});
+
+test("failed conversation/history lookup blocks deletion instead of losing records", async () => {
+  const app = makeDeleteApp({ historyLookupError: true });
+  const result = await app.post();
+  assert.equal(result.status, 503);
+  assert.ok(!app.events.includes("listing.delete"));
   assert.ok(!app.events.includes("storage.cleanup"));
 });
