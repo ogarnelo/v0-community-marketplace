@@ -46,6 +46,10 @@ export async function POST(request: Request) {
       | null;
 
     const email = (body?.email || user.email || "").trim().toLowerCase();
+    // No arbitrary recipient addresses for reports containing school analytics.
+    if (!user.email || email !== user.email.trim().toLowerCase()) {
+      return NextResponse.json({ error: "El informe solo puede enviarse al correo de tu cuenta." }, { status: 403 });
+    }
 
     if (!isEmail(email)) {
       return NextResponse.json(
@@ -68,6 +72,21 @@ export async function POST(request: Request) {
         { error: "El centro está desactivado." },
         { status: 400 }
       );
+    }
+
+    // Pilot safety limit: max two manual deliveries per admin, school and UTC day.
+    const utcDayStart = new Date();
+    utcDayStart.setUTCHours(0, 0, 0, 0);
+    const { count: sentToday, error: countError } = await admin
+      .from("school_impact_report_deliveries")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", schoolRole.school_id)
+      .eq("user_id", user.id)
+      .eq("source", "manual")
+      .gte("sent_at", utcDayStart.toISOString());
+    if (countError) throw countError;
+    if ((sentToday || 0) >= 2) {
+      return NextResponse.json({ error: "Has alcanzado el límite diario de envíos de informes." }, { status: 429 });
     }
 
     const period = previousCalendarMonth();
