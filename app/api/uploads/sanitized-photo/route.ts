@@ -53,6 +53,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // Reserve a per-account upload slot atomically before decoding pixels.
+    // The RPC is executable by service_role only, never by browser clients.
+    const { data: mayUpload, error: quotaError } = await admin.rpc(
+      "claim_photo_upload_slot",
+      { p_user_id: user.id }
+    );
+    if (quotaError) throw quotaError;
+    if (!mayUpload) {
+      return NextResponse.json(
+        { error: "Has alcanzado el límite de fotografías. Inténtalo más tarde." },
+        { status: 429 }
+      );
+    }
+
     let optimized: Awaited<ReturnType<typeof normalizePhoto>>;
     try {
       optimized = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
