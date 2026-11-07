@@ -33,10 +33,26 @@ function cleanPhotos(value: unknown, userId: string): ListingDraftPhoto[] {
 // risk breaking an existing publication.
 async function unusedDraftPhotoPaths(
   admin: ReturnType<typeof createAdminClient>,
-  candidatePhotos: ListingDraftPhoto[]
+  candidatePhotos: ListingDraftPhoto[],
+  ownerId: string
 ): Promise<string[]> {
+  // A second tab could have restored a photo after this request saved or
+  // deleted its draft. Re-read the latest draft before any Storage cleanup.
+  const { data: latestDraft, error: latestError } = await admin
+    .from("listing_drafts")
+    .select("photos")
+    .eq("user_id", ownerId)
+    .maybeSingle();
+  if (latestError) {
+    console.error("No se pudo verificar el borrador actualizado", latestError);
+    return [];
+  }
+  const currentPaths = new Set(
+    cleanPhotos(latestDraft?.photos, ownerId).map((photo) => photo.path)
+  );
   const unused: string[] = [];
   for (const photo of candidatePhotos) {
+    if (currentPaths.has(photo.path)) continue;
     const { data: linkedListing, error } = await admin
       .from("listings")
       .select("id")
@@ -141,7 +157,7 @@ export async function PUT(request: Request) {
   // Delete obsolete photos only after the new draft is durably saved.
   // A failed upsert must never leave the existing draft pointing to deleted files.
   if (removedPhotos.length > 0) {
-    const safePaths = await unusedDraftPhotoPaths(admin, removedPhotos);
+    const safePaths = await unusedDraftPhotoPaths(admin, removedPhotos, user.id);
     if (safePaths.length > 0) {
       const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(safePaths);
       if (storageError) {
@@ -198,7 +214,7 @@ export async function DELETE(request: Request) {
   }
 
   if (photosToRemove.length > 0) {
-    const safePaths = await unusedDraftPhotoPaths(admin, photosToRemove);
+    const safePaths = await unusedDraftPhotoPaths(admin, photosToRemove, user.id);
     if (safePaths.length > 0) {
       const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(safePaths);
       if (storageError) {
