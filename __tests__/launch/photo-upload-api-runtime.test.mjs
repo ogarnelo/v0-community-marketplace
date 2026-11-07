@@ -24,14 +24,22 @@ function fixture({
   chatBuyer = USER,
   chatSeller = OTHER,
   invalidPixels = false,
+  quotaAllowed = true,
 } = {}) {
   const uploads = [];
+  const claims = [];
   const parsed = {
     file: new File([fileBytes], "private-original-with-gps.jpg", { type: fileType }),
     destination,
     resourceId,
   };
   const admin = {
+    async rpc(name, params) {
+      assert.equal(name, "claim_photo_upload_slot");
+      assert.equal(params.p_user_id, USER);
+      claims.push(params);
+      return { data: quotaAllowed, error: null };
+    },
     from(table) {
       return {
         select() { return this; },
@@ -91,7 +99,7 @@ function fixture({
     File, Buffer, console,
   });
   const request = { formData: async () => ({ get: (key) => parsed[key] ?? null }) };
-  return { uploads, post: async () => module.exports.POST(request) };
+  return { uploads, claims, post: async () => module.exports.POST(request) };
 }
 
 test("unauthenticated photo requests cannot write to storage", async () => {
@@ -155,4 +163,23 @@ test("invalid image pixels never reach storage", async () => {
   const app = fixture({ invalidPixels: true });
   assert.equal((await app.post()).status, 422);
   assert.equal(app.uploads.length, 0);
+});
+
+test("denied upload quota returns 429 without processing or storing image", async () => {
+  const app = fixture({ quotaAllowed: false });
+  assert.equal((await app.post()).status, 429);
+  assert.equal(app.uploads.length, 0);
+  assert.equal(app.claims.length, 1);
+});
+test("unauthorized resource and invalid formats do not consume upload slots", async () => {
+  for (const options of [
+    { authenticated: false },
+    { listingOwner: OTHER },
+    { fileType: "image/gif" },
+  ]) {
+    const app = fixture(options);
+    assert.ok((await app.post()).status >= 400);
+    assert.equal(app.claims.length, 0);
+    assert.equal(app.uploads.length, 0);
+  }
 });
