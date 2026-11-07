@@ -47,11 +47,11 @@ export async function POST(request: Request) {
     }
 
     const [
-      { data: payments },
-      { data: acceptedOffer },
-      { data: approvedDonation },
-      { data: conversations },
-      { data: reports },
+      { data: payments, error: paymentsError },
+      { data: acceptedOffer, error: offersError },
+      { data: approvedDonation, error: donationsError },
+      { data: conversations, error: conversationsError },
+      { data: reports, error: reportsError },
     ] = await Promise.all([
       admin
         .from("payment_intents")
@@ -81,6 +81,15 @@ export async function POST(request: Request) {
         .eq("listing_id", listingId)
         .limit(1),
     ]);
+
+    // Never interpret a failed payment, agreement or history lookup as
+    // proof that an irreversible deletion is safe.
+    if (paymentsError || offersError || donationsError || conversationsError || reportsError) {
+      return NextResponse.json(
+        { error: "No se pudo comprobar el historial del anuncio. Inténtalo más tarde." },
+        { status: 503 }
+      );
+    }
 
     if ((payments || []).length > 0 || acceptedOffer || approvedDonation) {
       return NextResponse.json(
