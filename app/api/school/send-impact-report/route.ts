@@ -46,6 +46,10 @@ export async function POST(request: Request) {
       | null;
 
     const email = (body?.email || user.email || "").trim().toLowerCase();
+    // No arbitrary recipient addresses for reports containing school analytics.
+    if (!user.email || email !== user.email.trim().toLowerCase()) {
+      return NextResponse.json({ error: "El informe solo puede enviarse al correo de tu cuenta." }, { status: 403 });
+    }
 
     if (!isEmail(email)) {
       return NextResponse.json(
@@ -67,6 +71,20 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "El centro está desactivado." },
         { status: 400 }
+      );
+    }
+
+    // Reserve a slot atomically. Count-then-send is racy under concurrent requests.
+    // Claims are not refunded on email errors to avoid retry amplification.
+    const { data: permitted, error: quotaError } = await admin.rpc(
+      "claim_school_manual_report_slot",
+      { p_school_id: schoolRole.school_id, p_user_id: user.id }
+    );
+    if (quotaError) throw quotaError;
+    if (!permitted) {
+      return NextResponse.json(
+        { error: "Has alcanzado el límite diario de envíos de informes." },
+        { status: 429 }
       );
     }
 

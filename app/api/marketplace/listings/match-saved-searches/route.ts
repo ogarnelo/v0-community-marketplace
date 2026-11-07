@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
+import { isCurrentCourseAlert } from "@/lib/demand/course-alert-eligibility";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -65,13 +66,54 @@ export async function POST(request: Request) {
 
     const { data: savedSearches, error: searchesError } = await admin
       .from("saved_searches")
-      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, demand_request_id")
+      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, demand_request_id, intent_source")
       .eq("notifications_enabled", true)
       .neq("user_id", user.id);
 
     if (searchesError) throw searchesError;
 
-    const matches = (savedSearches || [])
+    // Validate educational searches against CURRENT owner/student/need/demand data.
+    // Never notify a parent about a need tied to an inactive or changed student.
+    const educationalSearches = (savedSearches || []).filter((search) => search.intent_source === "course_need");
+    const demandIds = Array.from(new Set(educationalSearches.map((search) => search.demand_request_id).filter((id): id is string => Boolean(id))));
+    const validEducationalSearchIds = new Set<string>();
+
+    if (demandIds.length > 0) {
+      const [{ data: demands, error: demandsError }, { data: needs, error: needsError }] = await Promise.all([
+        admin.from("demand_requests")
+          .select("id,user_id,source,status,school_id,grade_level")
+          .in("id", demandIds),
+        admin.from("course_needs")
+          .select("owner_user_id,student_id,demand_request_id,status,academic_year")
+          .in("demand_request_id", demandIds),
+      ]);
+      if (demandsError) throw demandsError;
+      if (needsError) throw needsError;
+      const studentIds = Array.from(new Set((needs || []).map((need) => need.student_id)));
+      const { data: students, error: studentError } = studentIds.length > 0
+        ? await admin.from("account_students")
+          .select("id,owner_user_id,active,school_id,grade_level,academic_year")
+          .in("id", studentIds)
+        : { data: [], error: null };
+      if (studentError) throw studentError;
+
+      const demandById = new Map((demands || []).map((demand) => [demand.id, demand]));
+      const needByDemandId = new Map((needs || []).map((need) => [need.demand_request_id, need]));
+      const studentById = new Map((students || []).map((student) => [student.id, student]));
+
+      for (const search of educationalSearches) {
+        const demand = search.demand_request_id ? demandById.get(search.demand_request_id) : undefined;
+        const need = demand ? needByDemandId.get(demand.id) : undefined;
+        const student = need ? studentById.get(need.student_id) : undefined;
+        if (isCurrentCourseAlert(search, demand, need, student)) validEducationalSearchIds.add(search.id);
+      }
+    }
+
+    const eligibleSavedSearches = (savedSearches || []).filter((search) =>
+      search.intent_source !== "course_need" || validEducationalSearchIds.has(search.id)
+    );
+
+    const matches = eligibleSavedSearches
       .filter((search) => savedSearchMatchesListing(search, listing))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
@@ -83,7 +125,7 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
 
-    for (const search of savedSearches || []) {
+    for (const search of eligibleSavedSearches) {
       if (!search.demand_request_id) continue;
       if (!matches.some((match) => match.saved_search_id === search.id)) continue;
       try {

@@ -1,0 +1,76 @@
+name: Pilot database isolation
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261107170000_pilot_privileges_photo_limit.sql"
+      - ".github/workflows/pilot-database-isolation.yml"
+  workflow_dispatch:
+
+jobs:
+  postgres-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wetudy_pilot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_pilot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: wetudy_pilot_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create minimal fake Supabase roles, tables and data
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          CREATE SCHEMA storage;
+          CREATE TABLE storage.buckets (id text primary key, file_size_limit bigint, allowed_mime_types text[]);
+          INSERT INTO storage.buckets VALUES ('listing-photos',10485760,ARRAY['image/jpeg','image/png','image/webp','image/gif']),
+                                            ('chat-attachments',10485760,ARRAY['application/pdf']);
+          CREATE TABLE public.listings (id integer primary key);
+          CREATE TABLE public.profiles (id integer primary key);
+          CREATE TABLE public.user_roles (id integer primary key);
+          INSERT INTO public.listings VALUES(1);
+          INSERT INTO public.profiles VALUES(2);
+          INSERT INTO public.user_roles VALUES(3);
+          GRANT SELECT,TRUNCATE ON ALL TABLES IN SCHEMA public TO anon,authenticated;
+          GRANT SELECT,TRUNCATE ON ALL TABLES IN SCHEMA public TO service_role;
+          SQL
+      - name: Execute Wetudy pilot security migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107170000_pilot_privileges_photo_limit.sql
+      - name: Verify permissions, data preservation and photo limit
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $checks$
+          BEGIN
+            IF has_table_privilege('anon','public.listings','TRUNCATE')
+               OR has_table_privilege('authenticated','public.profiles','TRUNCATE')
+               OR has_table_privilege('authenticated','public.user_roles','TRUNCATE')
+            THEN RAISE EXCEPTION 'Browser role retains unsafe TRUNCATE'; END IF;
+            IF NOT has_table_privilege('anon','public.listings','SELECT')
+               OR NOT has_table_privilege('service_role','public.listings','TRUNCATE')
+            THEN RAISE EXCEPTION 'Existing permissions changed unexpectedly'; END IF;
+            IF (SELECT count(*) FROM public.listings) <> 1
+               OR (SELECT count(*) FROM public.profiles) <> 1
+            THEN RAISE EXCEPTION 'Existing rows unexpectedly changed'; END IF;
+            IF (SELECT file_size_limit FROM storage.buckets WHERE id='listing-photos') <> 5242880
+               OR (SELECT allowed_mime_types FROM storage.buckets WHERE id='listing-photos')
+                  <> ARRAY['image/jpeg','image/png','image/webp']::text[]
+               OR (SELECT file_size_limit FROM storage.buckets WHERE id='chat-attachments') <> 10485760
+            THEN RAISE EXCEPTION 'Incorrect file limits or unintended bucket changes'; END IF;
+          END $checks$;
+          SQL

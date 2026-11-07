@@ -95,11 +95,12 @@ test("school dashboard community uses account_students as the canonical educatio
   const page = read("app/admin/school/page.tsx");
 
   assert.match(page, /from\("account_students"\)/);
-  assert.match(page, /ownersWithActiveEducationalContext/);
+  const membership = read("lib/reports/school-membership.ts");
+  assert.match(page, /getSchoolMemberIds/);
   assert.match(page, /schoolContextOwnerIds/);
-  assert.match(page, /context\.school_id === effectiveSchoolId/);
-  assert.match(page, /!ownersWithActiveEducationalContext\.has\(member\.id\)/);
-  assert.match(page, /safeSchoolAdminRoles[\s\S]*schoolContextOwnerIds\.add/);
+  assert.match(membership, /student.school_id === schoolId/);
+  assert.match(membership, /!ownersWithActiveContext.has/);
+  assert.match(membership, /for \\(const role of schoolAdmins\\)/);
   assert.match(page, /role === "school_admin" && Boolean\(role\.school_id\)/);
   assert.match(page, /const effectiveSchoolId = schoolAdminRole\?\.school_id \|\| null/);
   assert.doesNotMatch(page, /schoolAdminRole\?\.school_id \|\| profile\?\.school_id/);

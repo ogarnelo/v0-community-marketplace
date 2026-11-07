@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { pauseCourseAlertsForStudent } from "@/lib/my-course/course-need-search-server";
 
 export type StudentRelationship = "self" | "guardian";
 
@@ -194,7 +195,7 @@ export async function updateAccountStudent(
 
   const { data: existing, error: existingError } = await admin
     .from("account_students")
-    .select("id, relationship, active")
+    .select("id, relationship, active, school_id, grade_level")
     .eq("id", studentId)
     .eq("owner_user_id", userId)
     .maybeSingle();
@@ -210,6 +211,11 @@ export async function updateAccountStudent(
       409,
       "relationship_mismatch"
     );
+  }
+
+  if (existing.school_id !== input.schoolId || existing.grade_level !== input.gradeLevel) {
+    // Pause before changing context. A failure aborts the edit (fail closed).
+    await pauseCourseAlertsForStudent(userId, studentId);
   }
 
   const { data, error } = await admin
@@ -256,6 +262,9 @@ export async function deactivateAccountStudent(userId: string, studentId: string
       "self_context_required"
     );
   }
+
+  // Prevent notifications for a student who is being deactivated.
+  await pauseCourseAlertsForStudent(userId, studentId);
 
   const { error: deactivateError } = await admin
     .from("account_students")

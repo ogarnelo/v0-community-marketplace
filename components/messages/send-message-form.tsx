@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { prepareListingImage, MAX_LISTING_IMAGE_BYTES } from "@/lib/marketplace/photo-sanitizer";
 import { Paperclip, X, Image as ImageIcon, FileText, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { canSendNewMessageToListing, isValidListingStatus, type ListingStatus } 
 
 interface SendMessageFormProps { conversationId: string; currentUserId: string; disabled?: boolean; allowUnavailableConversationMessaging?: boolean; }
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 function formatFileSize(size: number) { if (size < 1024) return `${size} B`; if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`; return `${(size / (1024 * 1024)).toFixed(1)} MB`; }
 function isImageFile(file: File) { return file.type.startsWith("image/"); }
 function getSafeListingStatus(status: unknown): ListingStatus { return isValidListingStatus(status) ? status : "available"; }
@@ -21,7 +22,34 @@ export function SendMessageForm({ conversationId, currentUserId, disabled = fals
   const [body, setBody] = useState(""); const [selectedFile, setSelectedFile] = useState<File | null>(null); const [fileError, setFileError] = useState(""); const [loading, setLoading] = useState(false);
   const canSend = !disabled && (body.trim().length > 0 || !!selectedFile);
   const handlePickFile = () => { if (!disabled) fileInputRef.current?.click(); };
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0] || null; setFileError(""); if (!file) { setSelectedFile(null); return; } if (!ALLOWED_FILE_TYPES.includes(file.type)) { setSelectedFile(null); setFileError("Tipo de archivo no permitido. Usa imágenes, PDF o documentos Word."); if (fileInputRef.current) fileInputRef.current.value = ""; return; } if (file.size > MAX_FILE_SIZE) { setSelectedFile(null); setFileError("El archivo supera el límite de 10 MB."); if (fileInputRef.current) fileInputRef.current.value = ""; return; } setSelectedFile(file); };
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFileError("");
+    if (!file) { setSelectedFile(null); return; }
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setSelectedFile(null);
+      setFileError("Tipo de archivo no permitido. Usa imágenes JPG, PNG, WEBP, PDF o Word.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (!isImageFile(file) && file.size > MAX_FILE_SIZE) {
+      setSelectedFile(null);
+      setFileError("El documento supera el límite de 10 MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    try {
+      const cleanFile = isImageFile(file) ? await prepareListingImage(file) : file;
+      if (isImageFile(cleanFile) && cleanFile.size > MAX_LISTING_IMAGE_BYTES) {
+        throw new Error("Cada fotografía debe ocupar menos de 5 MB.");
+      }
+      setSelectedFile(cleanFile);
+    } catch (cause) {
+      setSelectedFile(null);
+      setFileError(cause instanceof Error ? cause.message : "No se pudo preparar la fotografía.");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
   const clearSelectedFile = () => { if (disabled) return; setSelectedFile(null); setFileError(""); if (fileInputRef.current) fileInputRef.current.value = ""; };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -39,5 +67,5 @@ export function SendMessageForm({ conversationId, currentUserId, disabled = fals
     } catch (error: any) { console.error("Error enviando mensaje:", error); const message = error?.message || error?.error_description || error?.details || "No se pudo enviar el mensaje."; alert(`Error enviando mensaje: ${message}`); } finally { setLoading(false); }
   };
 
-  return <form onSubmit={handleSend} className="space-y-3"><input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx" disabled={disabled} />{selectedFile ? <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-3"><div className="flex min-w-0 items-center gap-3"><div className="rounded-lg bg-white p-2 shadow-sm">{isImageFile(selectedFile) ? <ImageIcon className="h-4 w-4 text-emerald-600" /> : <FileText className="h-4 w-4 text-emerald-600" />}</div><div className="min-w-0"><p className="truncate text-sm font-medium">{selectedFile.name}</p><p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p></div></div><button type="button" onClick={clearSelectedFile} disabled={disabled} className="rounded-full p-1 text-muted-foreground transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50" aria-label="Quitar archivo"><X className="h-4 w-4" /></button></div> : null}{fileError ? <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"><AlertCircle className="h-4 w-4" /><span>{fileError}</span></div> : null}<div className="flex items-end gap-3"><button type="button" onClick={handlePickFile} disabled={disabled} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-white text-slate-600 transition hover:border-emerald-500 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-50" aria-label="Adjuntar archivo"><Paperclip className="h-5 w-5" /></button><div className="flex-1"><Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={disabled ? "No se pueden enviar más mensajes en este anuncio" : "Escribe tu mensaje..."} rows={2} className="min-h-[52px] resize-none rounded-2xl" disabled={disabled} /></div><Button type="submit" disabled={loading || !canSend} className="rounded-full bg-emerald-600 px-5 hover:bg-emerald-700">{loading ? "Enviando..." : "Enviar"}</Button></div></form>;
+  return <form onSubmit={handleSend} className="space-y-3"><input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" disabled={disabled} />{selectedFile ? <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-3"><div className="flex min-w-0 items-center gap-3"><div className="rounded-lg bg-white p-2 shadow-sm">{isImageFile(selectedFile) ? <ImageIcon className="h-4 w-4 text-emerald-600" /> : <FileText className="h-4 w-4 text-emerald-600" />}</div><div className="min-w-0"><p className="truncate text-sm font-medium">{selectedFile.name}</p><p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p></div></div><button type="button" onClick={clearSelectedFile} disabled={disabled} className="rounded-full p-1 text-muted-foreground transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50" aria-label="Quitar archivo"><X className="h-4 w-4" /></button></div> : null}{fileError ? <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"><AlertCircle className="h-4 w-4" /><span>{fileError}</span></div> : null}<div className="flex items-end gap-3"><button type="button" onClick={handlePickFile} disabled={disabled} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-white text-slate-600 transition hover:border-emerald-500 hover:text-emerald-600 disabled:pointer-events-none disabled:opacity-50" aria-label="Adjuntar archivo"><Paperclip className="h-5 w-5" /></button><div className="flex-1"><Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={disabled ? "No se pueden enviar más mensajes en este anuncio" : "Escribe tu mensaje..."} rows={2} className="min-h-[52px] resize-none rounded-2xl" disabled={disabled} /></div><Button type="submit" disabled={loading || !canSend} className="rounded-full bg-emerald-600 px-5 hover:bg-emerald-700">{loading ? "Enviando..." : "Enviar"}</Button></div></form>;
 }

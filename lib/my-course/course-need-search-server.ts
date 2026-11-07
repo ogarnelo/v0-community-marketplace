@@ -286,6 +286,22 @@ export async function activateCourseNeedSearch(userId: string, needId: string) {
   const need = await loadOwnedActiveNeed(userId, needId);
 
   if (need.demand_request_id) {
+    const { data: existingDemand, error: demandError } = await admin
+      .from("demand_requests")
+      .select("id,user_id,source,school_id,grade_level")
+      .eq("id", need.demand_request_id)
+      .eq("user_id", userId)
+      .eq("source", "course_need")
+      .maybeSingle();
+    if (demandError) throw demandError;
+    if (!existingDemand || existingDemand.school_id !== need.student.school_id ||
+        existingDemand.grade_level !== need.student.grade_level) {
+      throw new CourseNeedError(
+        "El colegio o curso de esta necesidad ha cambiado. Crea una nueva búsqueda desde Mi curso.",
+        409,
+        "student_context_changed"
+      );
+    }
     let reopened = false;
     let reenabledSavedSearchId: string | null = null;
 
@@ -640,4 +656,45 @@ export async function archiveCourseNeedAndStopSearch(userId: string, needId: str
 
     throw error;
   }
+}
+
+/**
+ * Stop all active educational alert subscriptions before changing or
+ * deactivating a student's context. Preserve needs and demand history.
+ */
+export async function pauseCourseAlertsForStudent(userId: string, studentId: string) {
+  const admin = createAdminClient();
+  const { data: linkedNeeds, error } = await admin
+    .from("course_needs")
+    .select("demand_request_id")
+    .eq("owner_user_id", userId)
+    .eq("student_id", studentId)
+    .eq("status", "active");
+  if (error) throw error;
+
+  const demandIds = Array.from(new Set((linkedNeeds || [])
+    .map((need) => need.demand_request_id)
+    .filter((id): id is string => Boolean(id))));
+  if (demandIds.length === 0) return;
+
+  // Pause even if the linked demand has already been deleted or closed:
+  // a stale relationship must not prevent editing/removing a student.
+  const { error: searchError } = await admin
+    .from("saved_searches")
+    .update({ notifications_enabled: false, updated_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("intent_source", "course_need")
+    .eq("notifications_enabled", true)
+    .in("demand_request_id", demandIds);
+  if (searchError) throw searchError;
+
+  // Preserve the educational history, but deactivate unresolved demands.
+  const { error: demandError } = await admin
+    .from("demand_requests")
+    .update({ status: "dismissed" })
+    .eq("user_id", userId)
+    .eq("source", "course_need")
+    .in("status", ["open", "matched"])
+    .in("id", demandIds);
+  if (demandError) throw demandError;
 }
