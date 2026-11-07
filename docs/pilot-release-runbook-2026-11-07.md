@@ -24,6 +24,15 @@ No integrar indiscriminadamente todas las migraciones SQL por orden de nombre y 
 - La política `20261107233000_server_photo_upload_policies.sql` impide las subidas directas desde el navegador; si se aplica antes de publicar y probar el nuevo frontend, corta la publicación de fotos y mensajes con imágenes.
 - El límite de 5 MB y exclusión de GIF en el bucket deben sincronizarse con la interfaz para no rechazar operaciones de la web antigua.
 
+## Verificación de consistencia de borradores y archivos (7/11/2026)
+
+- Se detectó que el guardado o eliminación de un borrador podía borrar fotos **antes** de confirmar la modificación correspondiente en PostgreSQL.
+- Se corrigió el orden de las operaciones: primero se confirma el cambio o la eliminación de la fila de borrador; después se limpian los archivos sin uso.
+- Los borradores pueden almacenar fotografías utilizadas después por un anuncio publicado. Antes de retirar cualquier archivo, el servidor consulta `listings.photos` y **conserva** los que aún se utilizan; ante un error de la consulta también los conserva.
+- Se añadieron diez pruebas de comportamiento con dobles de base de datos y Storage que simulan fallos al guardar, borrar o consultar referencias. No son pruebas con Supabase real.
+- **Pendiente:** al eliminar definitivamente anuncios, el endpoint actual elimina registros relacionados pero **no elimina sus fotografías de Storage**. No activar ningún borrado masivo automático sin analizar referencias históricas, documentos y operaciones archivadas; tratar la limpieza de huérfanos como una revisión separada y segura.
+- **Pendiente:** ejecutar al menos una prueba manual autenticada de guardar/publicar un borrador, descartar otro y confirmar que las fotografías publicadas siguen mostrando la imagen correcta.
+
 ## Fase A: validación PREVIA sin alterar producción
 
 1. Releer todas las migraciones en orden cronológico y simularlas en PostgreSQL temporal. No aplicar a producción en esta fase.
