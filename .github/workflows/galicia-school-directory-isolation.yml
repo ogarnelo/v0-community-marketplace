@@ -1,4 +1,4 @@
-name: Galicia school directory isolation
+name: Spain school directory isolation
 
 on:
   pull_request:
@@ -55,9 +55,9 @@ jobs:
             THEN RAISE EXCEPTION 'Backend cannot query directory'; END IF;
           END $assert$;
           INSERT INTO public.school_directory(official_code,name,school_type,category,municipality,
-              province,postal_code,source_name) VALUES
+              province,autonomous_community,postal_code,source_name) VALUES
             ('36006122','CEIP A Xunqueira Nº 1','CEIP','Escolar general (tipología identificada)',
-             'Pontevedra','Pontevedra','36005','Provincial CSV');
+             'Pontevedra','Pontevedra','Galicia','36005','Provincial CSV');
           DO $assert$
           BEGIN
             IF EXISTS(SELECT 1 FROM public.school_directory WHERE is_listed=true)
@@ -66,15 +66,15 @@ jobs:
             THEN RAISE EXCEPTION 'Import automatically linked active school'; END IF;
             BEGIN
               INSERT INTO public.school_directory(official_code,name,school_type,category,municipality,
-                province,postal_code,source_name) VALUES
-                ('36006122','Duplicate','CEIP','school','Pontevedra','Pontevedra','36005','CSV');
+                province,autonomous_community,postal_code,source_name) VALUES
+                ('36006122','Duplicate','CEIP','school','Pontevedra','Pontevedra','Galicia','36005','CSV');
               RAISE EXCEPTION 'Official code uniqueness not enforced';
             EXCEPTION WHEN unique_violation THEN NULL;
             END;
             BEGIN
               INSERT INTO public.school_directory(official_code,name,school_type,category,municipality,
-                province,postal_code,source_name,latitude,longitude) VALUES
-                ('36006123','Invalid point','CEIP','school','Pontevedra','Pontevedra','36005','CSV',-8.63,42.43);
+                province,autonomous_community,postal_code,source_name,latitude,longitude) VALUES
+                ('36006123','Invalid point','CEIP','school','Pontevedra','Pontevedra','Galicia','36005','CSV',-8.63,42.43);
               RAISE EXCEPTION 'Swapped coordinates should be rejected';
             EXCEPTION WHEN check_violation THEN NULL;
             END;
@@ -82,22 +82,22 @@ jobs:
             THEN RAISE EXCEPTION 'Operational schools were mutated'; END IF;
           END $assert$;
           SQL
-      - name: Measure synthetic 1624-row table footprint and safe filtered queries
+      - name: Measure synthetic 34845-row national table footprint and safe filtered queries
         run: |
           psql -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO public.school_directory (
-            official_code,name,school_type,category,address,municipality,province,postal_code,
+            official_code,name,school_type,category,address,municipality,province,autonomous_community,postal_code,
             latitude,longitude,source_name
           )
           SELECT lpad((10000000 + i)::text,8,'0'),
             'Centro educativo número ' || i || ' con denominación larga',
             'CEIP','Escolar general (tipología identificada)','Rúa de proba ' || i,
-            'Pontevedra','Pontevedra','36005',42.430000,-8.640000,'Directorio sintético'
-          FROM generate_series(1,1623) s(i);
+            'Pontevedra','Pontevedra','Galicia','36005',42.430000,-8.640000,'Directorio sintético'
+          FROM generate_series(1,34844) s(i);
           ANALYZE public.school_directory;
           DO $assert$
           BEGIN
-            IF (SELECT count(*) FROM public.school_directory) <> 1624
+            IF (SELECT count(*) FROM public.school_directory) <> 34845
             THEN RAISE EXCEPTION 'Unexpected directory size'; END IF;
             IF EXISTS (SELECT 1 FROM public.school_directory WHERE is_listed=true)
             THEN RAISE EXCEPTION 'Staging rows appeared publicly'; END IF;
