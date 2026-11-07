@@ -1,0 +1,37 @@
+name: Listing deletion FK integrity isolation
+
+on:
+  pull_request:
+    paths:
+      - "__tests__/launch/sql/listing-deletion-fk-integrity.sql"
+      - ".github/workflows/listing-deletion-fk-isolation.yml"
+      - "app/api/listings/delete/route.ts"
+      - "lib/marketplace/cleanup-deleted-listing-photos.ts"
+  workflow_dispatch:
+
+jobs:
+  postgres-fk-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wetudy_listing_deletion_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_listing_deletion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: wetudy_listing_deletion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cascaded deletion, ownership, references and archives
+        run: psql -v ON_ERROR_STOP=1 -f __tests__/launch/sql/listing-deletion-fk-integrity.sql
