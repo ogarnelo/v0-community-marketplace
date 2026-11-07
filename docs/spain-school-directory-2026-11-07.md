@@ -103,3 +103,30 @@ Solo cuando el propietario **autorice específicamente crear la tabla e importar
 - Batería `scripts/test_import_school_directory.py`: pruebas unitarias de validación, duplicados, aprobación, secreto, idempotencia y ausencia de publicación, ejecutadas en GitHub Actions sin conexión externa.
 
 **IMPORTANTE:** esta preparación **no constituye autorización para escribir en producción**. La PR #242 permanece en borrador y el selector de colegios para alumnos todavía requiere integración específica.
+
+## 8. Código público y QR por colegio — añadido a PR #242
+
+El identificador oficial de cada centro es su código ministerial de 8 dígitos.
+Wetudy deriva un código **público, único, estable y sin almacenamiento adicional**: `WET-<codigo_oficial>` (por ejemplo `WET-36006122`). El código no es una contraseña ni habilita permisos. La unicidad se apoya en la PK por código oficial; no hay que generar 34.845 claves arbitrarias.
+
+El QR se calcula bajo demanda mediante la dependencia `qrcode`, que el producto ya utilizaba, apuntando a `https://www.wetudy.com/centros/<codigo_oficial>`. Es descargable en PNG o SVG y se ofrece **solo si `is_listed=true`**. No se precalculan imágenes ni se almacenan 34.845 objetos en Supabase Storage. La caché CDN reduce el procesamiento repetido. El QR tampoco incluye información de familias, alumnos o tokens.
+
+**Separar tres conceptos:**
+- **Código oficial ministerial:** identifica de manera estable el colegio en los datos de origen.
+- **Código Wetudy del directorio:** `WET-XXXXXXXX`, identificador público para fichas, materiales impresos y seguimiento.
+- **Código/QR de incorporación de comunidad:** funciones existentes `school_access_codes` y `/api/school/share-qr` para centros activados, con sus propios controles de administradores. Un QR de directorio **no** equivale a una invitación a comunidad ni permite acceder a estadísticas AMPA.
+
+## 9. Política de SEO: fase piloto y crecimiento
+
+Crear una base de datos con 34.845 entradas **no mejora automáticamente el SEO**. Los buscadores solo obtendrán valor cuando las fichas aporten utilidad y una comunidad tenga materiales o actividad real.
+
+- Añadimos el campo `seo_indexable boolean NOT NULL DEFAULT false`, independiente de `is_listed`.
+- Una ficha debe estar publicada **y además** contar con autorización manual de indexación, asociación verificada a un colegio operativo, actividad activa y `is_test=false` para emitir `robots.index=true`. En los demás casos será `noindex, follow`, o responderá 404 si no está publicada.
+- Cada ficha aprobada tendrá título, descripción y URL canónica con código oficial. No se atribuirán anuncios, precios, ahorro, asociaciones o consentimientos que no se hayan comprobado.
+- **No generar ni incluir todavía los 34.845 URLs en el sitemap.** Más adelante, crear sitemaps únicamente de fichas con contenido real y aprobación editorial, enlazadas en navegación útil y agrupadas por provincia/comunidad.
+- Google considera abusivo el contenido masivo sin valor para los usuarios: https://developers.google.com/search/docs/essentials/spam-policies
+- Un sitemap facilita el descubrimiento, **no garantiza indexación**. https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
+
+### Validación necesaria antes de habilitar indexación
+
+Comprobar que el colegio participa realmente en Wetudy, que su ficha tiene contenido útil y correcto, que los anuncios de muestra no se presentan como reales y que las señales SEO son coherentes en el HTML servido al buscador. Revisar enlaces, canonicals y datos en Search Console. No indexar masivamente centros sin actividad. No usar datos estructurados `LocalBusiness` simulando que Wetudy es el operador de esos colegios.
