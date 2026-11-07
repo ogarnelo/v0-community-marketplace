@@ -62,6 +62,12 @@ export default function CentresDirectoryPage() {
           Consulta centros educativos de toda España. Aparecer en este directorio no significa
           que el centro o su AMPA esté adherido a Wetudy.
         </p>
+        <p className="text-xs text-muted-foreground">
+          Fuente del directorio nacional: Registro estatal de centros docentes no universitarios
+          del Ministerio de Educación. Seis códigos de Galicia proceden de un directorio
+          autonómico y están pendientes de contraste. Wetudy es una plataforma independiente,
+          no vinculada al Ministerio ni a los centros incluidos.
+        </p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <label className="flex-1 space-y-2">
