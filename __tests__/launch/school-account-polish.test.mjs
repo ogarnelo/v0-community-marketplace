@@ -73,7 +73,9 @@ test("school admin listings keep the managed centre but make course optional", (
   const page = read("app/marketplace/new/page.tsx");
   const form = read("components/marketplace/new-listing-form.tsx");
 
-  assert.match(page, /managedSchoolId \|\|[\s\S]*primaryStudentContext\?\.school_id/);
+  assert.match(page, /activeStudentContexts/);
+  assert.match(page, /availableSchools/);
+  assert.match(page, /activeContexts.length > 0/);
   assert.match(page, /isSchoolAdmin=\{Boolean\(managedSchoolId\)\}/);
   assert.match(form, /const courseRequired = !isSchoolAdmin && isCourseRequired/);
   assert.match(form, /el anuncio queda vinculado a este centro/);
