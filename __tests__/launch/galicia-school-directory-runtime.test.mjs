@@ -81,11 +81,14 @@ test("school search applies province and escaped literal query", async () => {
   const app = fakeDirectory();
   assert.equal((await app.get("province=Pontevedra&q=CEIP")).status, 200);
   assert.ok(app.operations.some(([op,col,value]) => op === "eq" && col === "province" && value === "Pontevedra"));
+  const national = fakeDirectory();
+  assert.equal((await national.get("community=Comunidad+de+Madrid&province=Madrid")).status, 200);
+  assert.ok(national.operations.some(([op,col,value]) => op === "eq" && col === "autonomous_community" && value === "Comunidad de Madrid"));
   assert.ok(app.operations.some(([op,col,value]) => op === "ilike" && col === "search_text" && value === "%ceip%"));
 });
 
 test("invalid user inputs are rejected before touching the database", async () => {
-  for (const value of ["province=Madrid", "page=999", "q=" + "x".repeat(100)]) {
+  for (const value of ["community=Atlantis", "province=Malaga%40foo", "page=2001", "q=" + "x".repeat(100)]) {
     const app = fakeDirectory();
     const result = await app.get(value);
     assert.equal(result.status, 400);
