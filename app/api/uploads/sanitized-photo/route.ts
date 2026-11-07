@@ -52,6 +52,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // Reserve one upload attempt before running expensive image decoding.
+    // An atomic database claim prevents concurrent uploads bypassing quotas.
+    const { data: mayUpload, error: quotaError } = await admin.rpc(
+      "claim_photo_upload_slot",
+      { p_user_id: user.id }
+    );
+    if (quotaError) throw quotaError;
+    if (!mayUpload) {
+      return NextResponse.json(
+        { error: "Has alcanzado el límite de fotografías. Inténtalo más tarde." },
+        { status: 429 }
+      );
+    }
+
     let bytes: Buffer;
     try {
       bytes = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
