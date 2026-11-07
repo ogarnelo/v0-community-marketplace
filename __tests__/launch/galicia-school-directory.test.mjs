@@ -6,7 +6,7 @@ import { getDirectorySearch, SCHOOL_DIRECTORY_PAGE_SIZE } from "../../lib/school
 const read = (path) => readFileSync(new URL("../../" + path, import.meta.url), "utf8");
 const parse = (value) => getDirectorySearch(new URLSearchParams(value));
 
-test("default is a small first page, not a preload of all 1,624 centres", () => {
+test("default is a small first page, not a preload of all 34,845 centres", () => {
   const result = parse("");
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -26,22 +26,26 @@ test("malicious wildcard search is escaped and does not broaden queries", () => 
   if (!result.ok) return;
   assert.equal(result.pattern, "%\\%\\_\\\\%");
 });
-test("unrecognized province and excess page limits fail", () => {
-  for (const value of ["province=Madrid", "page=-5", "page=0", "page=101",
+test("unrecognized community, malformed province and excess page limits fail", () => {
+  for (const value of ["community=Atlantis", "province=Madrid%40bad", "page=-5", "page=0", "page=2001",
     "page=1e8", "q=" + "x".repeat(81), "q=abc%0Adef"]) {
     assert.equal(parse(value).ok, false, value);
   }
 });
-test("province filters and page 3 are accepted", () => {
-  const result = parse("province=Pontevedra&page=3&q=colegio");
+test("Spanish community, province filters and deep pages are accepted", () => {
+  const result = parse("community=Galicia&province=Pontevedra&page=1452&q=colegio");
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.page, 3);
+  assert.equal(result.page, 1452);
+  assert.equal(result.community, "Galicia");
   assert.equal(result.province, "Pontevedra");
+  assert.equal(parse("community=Comunidad+de+Madrid&province=Madrid").ok, true);
 });
 test("DB migration keeps catalog records unpublished and disconnected from AMPA roles", () => {
   const sql = read("supabase/migrations/20261107235900_school_directory_catalog.sql");
   assert.match(sql, /official_code text PRIMARY KEY/);
+  assert.match(sql, /autonomous_community text NOT NULL/);
+  assert.match(sql, /postal_code/);
   assert.match(sql, /is_listed boolean NOT NULL DEFAULT false/);
   assert.match(sql, /linked_school_id uuid UNIQUE REFERENCES public.schools/);
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
@@ -53,6 +57,7 @@ test("directory API returns only explicitly approved listing fields", () => {
   assert.match(api, /\.eq\("is_listed", true\)/);
   assert.match(api, /\.range\(first, first \+ SCHOOL_DIRECTORY_PAGE_SIZE - 1\)/);
   assert.match(api, /getDirectorySearch/);
+  assert.match(api, /parsed.community/);
   assert.doesNotMatch(api, /school_admin|school_access_codes|federation_admins|telephone|phone|linked_school_id/);
   assert.match(api, /"Cache-Control"/);
 });
@@ -61,6 +66,7 @@ test("directory page does not claim membership or use an unbounded drop-down", (
   assert.match(page, /no significa/);
   assert.match(page, /adhesión a Wetudy no confirmada/);
   assert.match(page, /api\/school-directory/);
+  assert.match(page, /DIRECTORY_COMMUNITIES/);
   assert.match(page, /setPage\(1\)/);
   assert.doesNotMatch(page, /from\("schools"\)/);
 });
