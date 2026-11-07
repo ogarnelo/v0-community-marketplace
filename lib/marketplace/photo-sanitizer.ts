@@ -8,6 +8,8 @@
  * as trusted sources of photographs.
  */
 export const MAX_LISTING_IMAGE_BYTES = 5 * 1024 * 1024;
+// Keep multipart uploads below Vercel Functions 4.5 MB request-body limit.
+export const MAX_UPLOAD_TRANSFER_BYTES = 4 * 1024 * 1024;
 export const MAX_SOURCE_IMAGE_BYTES = 20 * 1024 * 1024;
 export const ACCEPTED_LISTING_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
@@ -49,14 +51,14 @@ export async function prepareListingImage(file: File): Promise<File> {
       if (encoded.type !== "image/jpeg") {
         throw new Error("No se pudo asegurar el formato de la fotografía.");
       }
-      if (encoded.size <= MAX_LISTING_IMAGE_BYTES) {
+      if (encoded.size <= MAX_UPLOAD_TRANSFER_BYTES) {
         return new File([encoded], `wetudy-${crypto.randomUUID()}.jpg`, {
           type: "image/jpeg",
           lastModified: Date.now(),
         });
       }
     }
-    throw new Error("La fotografía supera 5 MB después de optimizarla.");
+    throw new Error("Esta fotografía sigue siendo demasiado grande para enviarla; prueba con otra imagen.");
   } finally {
     bitmap.close();
   }

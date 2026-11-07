@@ -4,8 +4,9 @@ export type SanitizedUploadResult = {
   path: string;
   publicUrl: string | null;
   name: string;
-  contentType: "image/jpeg";
+  contentType: "image/jpeg" | "image/webp";
   size: number;
+  sourceBytes: number;
 };
 
 export async function uploadSanitizedPhoto(
