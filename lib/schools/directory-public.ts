@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validOfficialSchoolCode } from "@/lib/schools/directory-identity";
+import { isDemoListing } from "@/lib/seo/demo-listing";
 
 export type PublicDirectorySchool = {
   official_code: string;
@@ -15,6 +16,7 @@ export type PublicDirectorySchool = {
   seo_indexable: boolean;
   linked_school_id: string | null;
   verified_community: boolean;
+  available_material: { id: string; title: string }[];
   can_index: boolean;
 };
 
@@ -46,9 +48,32 @@ export const getPublicDirectorySchool = cache(async (officialCode: string): Prom
     if (!schoolError && school) verifiedCommunity = true;
   }
 
+  // An affiliated community without any genuine available material produces
+  // a thin page. Do not expose it to search engines until real value exists.
+  // Read only a small, recent sample; fail closed on DB errors and demo data.
+  let availableMaterial: { id: string; title: string }[] = [];
+  if (data.seo_indexable && verifiedCommunity && data.linked_school_id) {
+    const { data: offers, error: offersError } = await admin
+      .from("listings")
+      .select("id,title")
+      .eq("school_id", data.linked_school_id)
+      .eq("status", "available")
+      .order("updated_at", { ascending: false })
+      .limit(40);
+
+    if (!offersError) {
+      availableMaterial = (offers || [])
+        .filter((offer) => !isDemoListing(offer))
+        .filter((offer) => Boolean(offer.id && offer.title))
+        .slice(0, 6)
+        .map((offer) => ({ id: offer.id, title: offer.title }));
+    }
+  }
+
   return {
     ...data,
     verified_community: verifiedCommunity,
-    can_index: Boolean(data.seo_indexable && verifiedCommunity),
+    available_material: availableMaterial,
+    can_index: Boolean(data.seo_indexable && verifiedCommunity && availableMaterial.length > 0),
   };
 });
