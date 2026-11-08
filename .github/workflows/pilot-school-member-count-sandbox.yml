@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "scripts/pilot-school-member-count-candidate.sql"
+      - "app/admin/school/page.tsx"
+      - "__tests__/launch/school-member-aggregate-contract.test.mjs"
       - "scripts/pilot-school-member-count-sandbox.sh"
       - "scripts/pilot-school-member-count-equivalence.cjs"
       - ".github/workflows/pilot-school-member-count-sandbox.yml"
@@ -34,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          node --test __tests__/launch/school-member-aggregate-contract.test.mjs
           bash scripts/pilot-school-member-count-sandbox.sh
       - name: Compare original JS semantics to SQL and validate count cap
         run: node scripts/pilot-school-member-count-equivalence.cjs
