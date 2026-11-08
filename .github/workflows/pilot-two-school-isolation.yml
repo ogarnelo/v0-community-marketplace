@@ -6,6 +6,7 @@ on:
     paths:
       - "scripts/pilot-two-school-isolation.sh"
       - "scripts/pilot-report-resolution-sandbox.sh"
+      - "supabase/migrations/20261108195500_report_status_idempotent_notifications.sql"
       - ".github/workflows/pilot-two-school-isolation.yml"
 
 permissions:
