@@ -15,7 +15,7 @@ trap 'rm -f "$function_script"' EXIT
 python3 - "$function_script" <<'PY'
 from pathlib import Path
 import sys
-src=Path("supabase/migrations/20261108195500_report_status_idempotent_notifications.sql").read_text()
+src=Path("supabase/migrations/20261108210128_report_status_idempotent_notifications_20261108.sql").read_text()
 start=src.lower().find("create or replace function public.server_update_report_status(")
 end=src.find("$$;",start)
 if start<0 or end<0 or "p_resolution_note text" not in src[start:end]:
