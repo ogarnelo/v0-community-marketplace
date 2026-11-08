@@ -61,3 +61,19 @@ Los QR incluyen **URL y UUID del centro** para abrir `/onboarding/join-school`; 
 3. Moderación de punta a punta en entorno aislado con interfaz, superadmin y reporter.
 4. Privacidad y consentimiento de familias, con especial atención a menores, fotos y notificaciones.
 5. Comprobación de recuperación completa de Auth, acuerdos, mensajes y Storage API en entorno aislado.
+
+
+## Auditoría del panel AMPA y minimización de datos — 8 noviembre 2026
+
+**Riesgo identificado:** el servidor del panel de centro cargaba perfiles con nombres, cursos y tipos de usuario de toda la base y enviaba al componente cliente un array con todos los perfiles vinculados al centro, aunque el panel solo necesitaba mostrar `members.length`. Un administrador con acceso al panel podía inspeccionar esos datos en la respuesta serializada, pese a que la interfaz no mostraba sus nombres. Esa exposición era innecesaria con el modelo de incorporación abierto.
+
+**Corrección:** el panel ahora envía exclusivamente `memberCount` (número agregado) y conserva el nombre únicamente de quienes tienen el rol explícito `school_admin` en ese centro. Para calcular la pertenencia autoseleccionada, la consulta de perfiles carga solo `id,school_id`, sin nombres, cursos ni tipo de usuario. Los datos que la AMPA debe tratar por una solicitud de donación siguen restringidos al procedimiento autorizado de donaciones, y deben auditarse separadamente. Los acuerdos dejan de llevar el identificador privado `agreement.id` en sus props para métricas.
+
+**Terminología:** los KPI y el CSV del panel indican «Cuentas que seleccionaron el centro» y «no implica pertenencia verificada», de acuerdo con la decisión del fundador. No emplear las cifras como miembros certificados de la AMPA.
+
+**Límites de la corrección:** se verificó el flujo de datos mediante tests de regresión y compilación, pero falta una inspección de red en navegador con cuenta AMPA autorizada para confirmar que ningún otro componente expone detalles innecesarios. Todavía hay consultas de contexto en servidor con `service_role`; analizar escalabilidad y filtrado server-side antes del crecimiento. No se cambió ninguna política RLS ni se crearon usuarios o escuelas.
+
+**Riesgos de privacidad y menores aún pendientes:**
+- El código de privacidad y términos fija cuentas propias de estudiante de 14 años o más y recomienda acompañamiento familiar; no prueba edad de forma documental y **no implica** que los menores de 14 estén verificados por medios técnicos.
+- `docs/LEGAL_REVIEW_20260921.md` identifica **pendiente** la identidad legal definitiva del titular/responsable, revisión externa RGPD/menores, conservación de datos y proceso de solicitudes y brechas; no dar por listo el piloto para familias reales sin una decisión y revisión jurídica.
+- Moderación de contenidos contra menores: existe canal público de denuncia, pero el procedimiento de comunicación de motivos de retirada/restricción no está automatizado. El ciclo E2E desde navegador/administrador sigue pendiente de entorno controlado.
