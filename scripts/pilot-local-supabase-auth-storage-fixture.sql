@@ -17,6 +17,21 @@ create table public.conversations (
   buyer_id uuid not null,
   seller_id uuid not null
 );
+-- Fictional family association, restricted to the current authenticated UID.
+create table public.profiles (
+  id uuid primary key,
+  school_id uuid
+);
+alter table public.profiles enable row level security;
+create policy qa_profiles_self_select on public.profiles for select
+to authenticated using (id = (select auth.uid()));
+create policy qa_profiles_self_insert on public.profiles for insert
+to authenticated with check (id = (select auth.uid()));
+create policy qa_profiles_self_update on public.profiles for update
+to authenticated using (id = (select auth.uid()))
+with check (id = (select auth.uid()));
+grant select,insert,update on public.profiles to authenticated;
+
 alter table public.user_roles enable row level security;
 alter table public.school_access_codes enable row level security;
 alter table public.conversations enable row level security;

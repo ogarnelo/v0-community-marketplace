@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { appendGrowthUtm } from "@/lib/growth/attribution";
 import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 
@@ -28,6 +29,24 @@ export async function GET(request: Request) {
 
     if (!schoolRole?.school_id) {
       return new NextResponse("No autorizado.", { status: 403 });
+    }
+
+    // Do not generate new share codes/QR links for deactivated or missing
+    // school communities. The session role is checked above; this privileged
+    // lookup is limited to that school ID and never returns other school data.
+    const admin = createAdminClient();
+    const { data: school, error: schoolError } = await admin
+      .from("schools")
+      .select("id, is_active")
+      .eq("id", schoolRole.school_id)
+      .maybeSingle();
+
+    if (schoolError) throw schoolError;
+    if (!school || school.is_active === false) {
+      return new NextResponse("Centro no disponible.", {
+        status: 403,
+        headers: { "Cache-Control": "private, no-store" },
+      });
     }
 
     // Always encode the trusted public domain, never the request Host.
