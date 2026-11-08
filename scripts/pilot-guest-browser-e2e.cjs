@@ -52,7 +52,7 @@ async function runViewport(browser, viewport) {
 
     const signup = await visit(context, "/auth?mode=signup");
     try {
-      await signup.getByRole("heading", { name: /Crear cuenta/i }).waitFor({ timeout: 15000 });
+      await signup.getByText("Crear cuenta", { exact: true }).first().waitFor({ timeout: 15000 });
     } catch (error) {
       const headings = await signup.locator("h1,h2,h3").allTextContents();
       const bodyExcerpt = (await signup.locator("body").innerText()).slice(0, 280).replace(/\s+/g, " ");
