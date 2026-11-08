@@ -206,13 +206,27 @@ async function snapshot(){
   v=await snapshot();assert.equal(v.report.status,"resolved");
   assert.equal(v.notices,2);assert.equal(v.events,3);assert.equal(v.agreement,"confirmed");
 
+  // A temporary 503 from the actual endpoint path must be shown by the REAL
+  // React component, without mutating PostgreSQL or emitting another event.
+  const unavailableRoute="**/api/admin/reports/status";
+  await page.route(unavailableRoute,route=>route.fulfill({
+    status:503,contentType:"application/json",
+    body:JSON.stringify({error:"Servicio temporalmente no disponible."})
+  }));
+  await page.getByRole("button",{name:"Descartada"}).click();
+  await page.getByText("Servicio temporalmente no disponible.").waitFor();
+  v=await snapshot();
+  assert.equal(v.report.status,"resolved");
+  assert.equal(v.notices,2);assert.equal(v.events,3);
+  await page.unroute(unavailableRoute);
+
   // Actually revoke the super_admin DB role while browser session remains.
   await db.query("delete from public.user_roles where user_id=$1 and role='super_admin'",[SUPER]);
   await page.getByRole("button",{name:"Descartada"}).click();
   await page.getByText("No autorizado.").waitFor();
   v=await snapshot();assert.equal(v.report.status,"resolved");
   assert.equal(v.notices,2);assert.equal(v.events,3);
-  console.log("PASS real React UI -> real Next POST -> real PR #267 PG17: guest 401, AMPA 403, resolution, note, concurrent retries, reopen, rerresolve, revoked superadmin 403.");
+  console.log("PASS real React UI -> real Next POST -> real PR #267 PG17: guest 401, AMPA 403, resolution, note, concurrent retries, reopen, rerresolve, simulated 503 UI unchanged DB, revoked superadmin 403.");
   console.log("LIMIT: auth identity is a disposable localhost cookie adapter; Supabase Auth and full page login are not used.");
   await context.close();
  }finally{
