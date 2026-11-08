@@ -4,7 +4,6 @@ on:
     paths:
       - "scripts/pilot-local-supabase-auth-storage-fixture.sql"
       - "scripts/pilot-local-supabase-auth-storage.cjs"
-      - "scripts/pilot-local-supabase-auth-storage-restore.cjs"
       - "supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql"
       - ".github/workflows/pilot-local-supabase-auth-storage.yml"
 permissions:
@@ -54,10 +53,8 @@ jobs:
           set +a
           export LOCAL_SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
           export LOCAL_SUPABASE_ANON_KEY="${ANON_KEY:?missing anonymous localhost test key}"
-          export LOCAL_SUPABASE_SERVICE_KEY="${SERVICE_ROLE_KEY:?missing local service key}"
           export LOCAL_DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
           cd "$GITHUB_WORKSPACE"
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-local-supabase-auth-storage-fixture.sql
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql
           node scripts/pilot-local-supabase-auth-storage.cjs
-          node scripts/pilot-local-supabase-auth-storage-restore.cjs
