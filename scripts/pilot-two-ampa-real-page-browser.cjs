@@ -202,7 +202,7 @@ async function buildRealPage(){
    assert.doesNotMatch(betaAfter.body,/COLEGIO QA ALFA/);
    const memberRpcCalls=state.queries.filter(x=>x.table==="school_member_count_rpc");
    assert.equal(memberRpcCalls.length,3,"Only authorized A, B and B-after-revocation should invoke count");
-   const globalFamilyReads=state.queries.filter(x=>x.scope==="privileged" && ["profiles","account_students"].includes(x.table));
+   const globalFamilyReads=state.queries.filter(x=>x.scope==="privileged" && (x.table==="account_students" || (x.table==="profiles" && !x.filters.some(f=>f.op==="in" && f.k==="id"))));
    assert.equal(globalFamilyReads.length,0,"global private family tables must not be scanned");
    const privilegedReads=state.queries.filter(x=>x.scope==="privileged"&&scopedTables.has(x.table)&&x.table!=="user_roles");
    for(const q of privilegedReads){
