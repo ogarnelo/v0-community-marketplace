@@ -90,5 +90,36 @@ if (homeHtml) {
 
 for (const pathname of legacyCommerceRoutes) await checkLegacyCommerceRoute(pathname);
 
+
+async function checkLegacyImpactRedirect(pathname) {
+  try {
+    const response = await fetch(`${baseUrl}${pathname}`, { redirect: "manual" });
+    const destination = response.headers.get("location") || "";
+    if (![301, 302, 307, 308].includes(response.status) || !new URL(destination, baseUrl).pathname.startsWith("/about")) {
+      failed = true;
+      console.error(`[fail] ${pathname} debe redirigir a /about sin mostrar métricas ficticias (HTTP ${response.status}).`);
+      return;
+    }
+    console.log(`[ok] ${pathname} → /about (HTTP ${response.status})`);
+  } catch (error) {
+    failed = true;
+    console.error(`[fail] ${pathname} → ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+// Read-only smoke tests: protect against old cached or redeployed demo success stories.
+for (const pathname of ["/ranking", "/impacto"]) await checkLegacyImpactRedirect(pathname);
+const ampaHtml = await checkRoute("/blog/ampas-transformando-economia-escolar");
+if (ampaHtml) {
+  if (!ampaHtml.includes("Ideas para que un AMPA impulse la reutilización de material escolar")) {
+    failed = true;
+    console.error("[fail] La guía AMPA no muestra el título editorial corregido.");
+  }
+  if (/El caso del CEIP San Miguel|342 familias participaron|Feria de Reutilización|En Wetudy hemos medido/i.test(ampaHtml)) {
+    failed = true;
+    console.error("[fail] La guía AMPA contiene afirmaciones de adopción no verificadas.");
+  }
+}
+
 if (failed) process.exitCode = 1;
 else console.log("[ok] Readiness público del MVP completado.");
