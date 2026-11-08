@@ -160,7 +160,8 @@ export async function loadSuperAdminReport(
     admin
       .from("listings")
       .select("id", { count: "exact", head: true })
-      .in("status", ["available", "reserved"]),
+      .in("status", ["available", "reserved"])
+      .eq("is_demo", false),
     viewsQuery,
     demandQuery.returns<DemandEventRow[]>(),
     savedSearchesQuery,
@@ -193,6 +194,7 @@ export async function loadSuperAdminReport(
           .from("listings")
           .select("id, title, category, isbn")
           .in("id", listingIds)
+          .eq("is_demo", false)
           .returns<ListingImpactRow[]>()
       : { data: [] as ListingImpactRow[], error: null };
 
@@ -202,18 +204,24 @@ export async function loadSuperAdminReport(
     (listingResult.data || []).map((listing) => [listing.id, listing])
   );
 
-  const donatedItems = agreements.filter(
+  // Confirmed DEMO agreements must not count as real sales, reuse or CO₂ savings.
+  // Missing listings are also excluded rather than treated as verified impact.
+  const realAgreements = agreements.filter((agreement) =>
+    Boolean(agreement.listing_id && listingById.has(agreement.listing_id))
+  );
+
+  const donatedItems = realAgreements.filter(
     (agreement) => agreement.agreement_type === "donation"
   ).length;
-  const soldItems = agreements.length - donatedItems;
-  const circularValue = agreements.reduce(
+  const soldItems = realAgreements.length - donatedItems;
+  const circularValue = realAgreements.reduce(
     (sum, agreement) =>
       agreement.agreement_type !== "donation" && typeof agreement.amount === "number"
         ? sum + agreement.amount
         : sum,
     0
   );
-  const reusedBooks = agreements.filter((agreement) =>
+  const reusedBooks = realAgreements.filter((agreement) =>
     agreement.listing_id ? isSchoolBook(listingById.get(agreement.listing_id)) : false
   ).length;
 
@@ -228,13 +236,13 @@ export async function loadSuperAdminReport(
     periodLabel: period.label,
     generatedAt: new Date().toISOString(),
     impact: {
-      confirmedReuses: agreements.length,
+      confirmedReuses: realAgreements.length,
       soldItems,
       donatedItems,
       circularValue,
       reusedBooks,
       estimatedAvoidedCo2: reusedBooks * SCHOOL_BOOK_CO2E_KG,
-      unquantifiedItems: Math.max(0, agreements.length - reusedBooks),
+      unquantifiedItems: Math.max(0, realAgreements.length - reusedBooks),
       activeSchools: activeSchoolsResult.count || 0,
       totalMembers: profilesResult.count || 0,
       activeListings: activeListingsResult.count || 0,

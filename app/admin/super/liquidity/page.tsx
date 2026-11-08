@@ -91,7 +91,7 @@ export default async function LiquidityDashboard({
     getNavbarData(supabase),
     admin.from("profiles").select("id,user_type,school_id,created_at").limit(10000).returns<LiquidityProfile[]>(),
     admin.from("account_students").select("owner_user_id,school_id,relationship,active").eq("active", true).limit(10000).returns<LiquidityAccountStudent[]>(),
-    admin.from("listings").select("id,seller_id,school_id,category,grade_level,isbn,status,created_at").limit(10000).returns<LiquidityListing[]>(),
+    admin.from("listings").select("id,seller_id,school_id,category,grade_level,isbn,status,created_at").eq("is_demo", false).limit(10000).returns<LiquidityListing[]>(),
     admin.from("marketplace_search_events").select("id,user_id,school_id,category,grade_level,isbn_query,results_count,created_at").limit(10000).returns<LiquiditySearch[]>(),
     admin.from("demand_requests").select("id,user_id,school_id,category,grade_level,isbn,created_at,first_result_at,first_contact_at,first_agreement_at,resolved_at").limit(10000).returns<LiquidityNeed[]>(),
     admin.from("agreements").select("id,listing_id,buyer_id,seller_id,school_id,status,created_at,confirmed_at").limit(10000).returns<LiquidityAgreement[]>(),
@@ -104,7 +104,11 @@ export default async function LiquidityDashboard({
   const listings = listingsResult.data || [];
   const searches = searchesResult.data || [];
   const needs = needsResult.data || [];
-  const agreements = agreementsResult.data || [];
+  // A demo agreement must not inflate real liquidity or conversion rates.
+  const realListingIds = new Set(listings.map((row) => row.id));
+  const agreements = (agreementsResult.data || []).filter((row) =>
+    Boolean(row.listing_id && realListingIds.has(row.listing_id))
+  );
   const actions = actionsResult.data || [];
   const schools = schoolsResult.data || [];
 

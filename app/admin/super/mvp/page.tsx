@@ -199,7 +199,7 @@ export default async function MvpSuperAdminDashboardPage() {
     schoolsResult,
   ] = await Promise.all([
     supabase.from("profiles").select("id, full_name, user_type, grade_level, school_id, created_at").returns<ProfileRow[]>(),
-    supabase.from("listings").select("id, title, type, status, category, grade_level, school_id, created_at, photos").returns<ListingRow[]>(),
+    supabase.from("listings").select("id, title, type, status, category, grade_level, school_id, created_at, photos").eq("is_demo", false).returns<ListingRow[]>(),
     supabase.from("conversations").select("id, listing_id, buyer_id, seller_id, created_at, updated_at").returns<ConversationRow[]>(),
     supabase.from("messages").select("id, conversation_id, sender_id, created_at").returns<MessageRow[]>(),
     supabase.from("agreements").select("id, listing_id, conversation_id, status, agreement_type, amount, created_at, confirmed_at").returns<AgreementRow[]>(),
@@ -210,11 +210,21 @@ export default async function MvpSuperAdminDashboardPage() {
 
   const profiles = profilesResult.data || [];
   const listings = listingsResult.data || [];
-  const conversations = conversationsResult.data || [];
-  const messages = messagesResult.data || [];
-  const agreements = agreementsResult.data || [];
+  // Keep moderation reports intact, but exclude demo listings and their
+  // derived contacts, messages, agreements and views from growth KPIs.
+  const realListingIds = new Set(listings.map((listing) => listing.id));
+  const conversations = (conversationsResult.data || []).filter((row) =>
+    Boolean(row.listing_id && realListingIds.has(row.listing_id))
+  );
+  const realConversationIds = new Set(conversations.map((row) => row.id));
+  const messages = (messagesResult.data || []).filter((row) => realConversationIds.has(row.conversation_id));
+  const agreements = (agreementsResult.data || []).filter((row) =>
+    Boolean(row.listing_id && realListingIds.has(row.listing_id))
+  );
   const reports = reportsResult.data || [];
-  const views = viewsResult.data || [];
+  const views = (viewsResult.data || []).filter((row) =>
+    Boolean(row.listing_id && realListingIds.has(row.listing_id))
+  );
   const schools = schoolsResult.data || [];
 
   const users7d = since(profiles, 7).length;
