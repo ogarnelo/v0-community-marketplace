@@ -25,7 +25,7 @@ function countOriginal(school,profiles,active,roles){
  return profiles.filter(p=>schoolOwnerIds.has(p.id) ||
        (!allActiveOwners.has(p.id)&&p.school_id===school)).length;
 }
-function sqlCount(school){return Number(run("select public.pilot_school_member_count('"+school+"')"));}
+function sqlCount(school){return Number(run("select public.server_school_member_count('"+school+"')"));}
 function compare(label){
  const profiles=readJson("profiles","id,school_id","limit 10000");
  const active=readJson("account_students","owner_user_id,school_id","where active=true limit 20000");
