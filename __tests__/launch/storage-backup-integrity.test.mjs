@@ -69,3 +69,12 @@ test("encrypted Storage backup remains a manually triggered workflow with no pla
 function requireText(url) {
   return readFileSync(url, "utf8");
 }
+
+test("Storage workflow does not require a non-existent npm lockfile", () => {
+  const w = readFileSync(new URL("../../.github/workflows/wetudy-encrypted-storage-backup.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(w, /cache:\s*npm|npm\s+ci/);
+  assert.match(w, /npm install --prefix scripts/);
+  assert.match(w, /--no-save --package-lock=false --ignore-scripts --no-audit --no-fund/);
+  assert.match(w, /@supabase\/supabase-js@2\.49\.0/);
+  assert.match(w, /node scripts\/pilot-storage-backup\.mjs/);
+});
