@@ -53,7 +53,7 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialPostalCode?: string };
+type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string };
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
 type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 
@@ -78,9 +78,10 @@ function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   return createdAt >= start.getTime();
 }
 
-export function MarketplaceClient({ initialListings, initialSchoolId, initialPostalCode = "" }: MarketplaceClientProps) {
+export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "" }: MarketplaceClientProps) {
   const [dbListings] = useState<MarketplaceListing[]>(initialListings);
   const [currentUserSchoolId] = useState(initialSchoolId);
+  const [currentUserDirectorySchoolCode] = useState(initialDirectorySchoolCode);
   const [viewerPostalCode] = useState(initialPostalCode);
   const [onlyMyCommunity, setOnlyMyCommunity] = useState(false);
   const [category, setCategory] = useState("all");
@@ -127,7 +128,13 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
     const normalizedSearch = normalizeText(searchQuery);
     const filtered = listingsWithDistance.filter((l) => {
       if (l.status !== "available") return false;
-      if (onlyMyCommunity && currentUserSchoolId && l.schoolId !== currentUserSchoolId) return false;
+      if (onlyMyCommunity) {
+        if (currentUserDirectorySchoolCode) {
+          if (l.directorySchoolCode !== currentUserDirectorySchoolCode) return false;
+        } else if (currentUserSchoolId && l.schoolId !== currentUserSchoolId) {
+          return false;
+        }
+      }
       if (category !== "all" && l.category !== category) return false; if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false; if (listingType !== "all" && l.type !== listingType) return false; if (condition !== "all" && l.condition !== condition) return false; if (!isAfterDate(l.createdAt, publishedDateFilter)) return false;
       if (!onlyMyCommunity && maxDistanceKm !== Infinity && (l.distance === undefined || l.distance > maxDistanceKm)) return false;
       if (normalizedSearch) { const matchesSearch = [l.title, l.description, l.category, l.gradeLevel, l.isbn, l.author, l.publisher, l.format, l.language, l.subject, l.specificType, l.sizeLabel, l.brand, l.model, l.season].some((value) => normalizeText(value || "").includes(normalizedSearch)); if (!matchesSearch) return false; }
@@ -136,7 +143,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
       return true;
     });
     return filtered.sort((a, b) => { switch (sortBy) { case "distance": return (a.distance ?? Number.MAX_SAFE_INTEGER) - (b.distance ?? Number.MAX_SAFE_INTEGER); case "price_asc": return (a.price ?? 0) - (b.price ?? 0); case "price_desc": return (b.price ?? 0) - (a.price ?? 0); case "discount": return ((b.originalPrice ?? 0) - (b.price ?? 0)) - ((a.originalPrice ?? 0) - (a.price ?? 0)); case "newest": default: return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); } });
-  }, [listingsWithDistance, onlyMyCommunity, currentUserSchoolId, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
+  }, [listingsWithDistance, onlyMyCommunity, currentUserSchoolId, currentUserDirectorySchoolCode, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
 
   useEffect(() => {
     if (!hasSearchIntent) return;
@@ -197,13 +204,13 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialPos
 
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
-      <div className="rounded-2xl border border-border bg-card p-3"><div className="flex items-center justify-between gap-3"><Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"><School className="h-4 w-4 text-primary" />Solo mi comunidad</Label><Switch id="community-filter" checked={onlyMyCommunity} disabled={!currentUserSchoolId} onCheckedChange={setOnlyMyCommunity} /></div><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{currentUserSchoolId ? "Actívalo para priorizar anuncios de tu centro." : "Añade tu centro en Mi cuenta para activar este filtro."}</p></div>
+      <div className="rounded-2xl border border-border bg-card p-3"><div className="flex items-center justify-between gap-3"><Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"><School className="h-4 w-4 text-primary" />{currentUserDirectorySchoolCode ? "Solo mi colegio" : "Solo mi comunidad"}</Label><Switch id="community-filter" checked={onlyMyCommunity} disabled={!currentUserSchoolId && !currentUserDirectorySchoolCode} onCheckedChange={setOnlyMyCommunity} /></div><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{currentUserSchoolId || currentUserDirectorySchoolCode ? "Actívalo para ver anuncios asociados a tu centro." : "Añade tu centro en Mi cuenta para activar este filtro."}</p></div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Categoría</Label><Select value={category} onValueChange={setCategory}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas las categorías</SelectItem>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Curso / Etapa</Label><Select value={gradeLevel} onValueChange={setGradeLevel}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los cursos</SelectItem>{gradeLevels.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Tipo</Label><Select value={listingType} onValueChange={setListingType}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Venta y donación</SelectItem><SelectItem value="sale">Solo venta</SelectItem><SelectItem value="donation">Solo donación</SelectItem></SelectContent></Select></div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Estado</Label><Select value={condition} onValueChange={setCondition}><SelectTrigger className="h-11"><span className="truncate">{condition === "all" ? "Todos los estados" : conditions.find((c) => c.value === condition)?.label ?? condition}</span></SelectTrigger><SelectContent className="w-[min(360px,calc(100vw-2rem))]"><SelectItem value="all">Todos los estados</SelectItem>{conditions.map((c) => <SelectItem key={c.value} value={c.value} textValue={c.label}><div className="flex flex-col gap-0.5 py-0.5"><span className="font-medium">{c.label}</span><span className="whitespace-normal text-xs leading-relaxed text-muted-foreground">{c.description}</span></div></SelectItem>)}</SelectContent></Select></div>
       <div className="flex flex-col gap-3"><div className="flex items-center justify-between gap-3"><Label className="text-sm font-medium text-foreground">Precio</Label><span className="text-xs font-medium text-muted-foreground">{displayMinPrice} € - {displayMaxPrice >= PRICE_LIMIT ? "+200 €" : `${displayMaxPrice} €`}</span></div><Slider min={0} max={PRICE_LIMIT} step={1} value={priceRange} onValueChange={(value) => setPriceRange([value[0] ?? 0, value[1] ?? PRICE_LIMIT])} minStepsBetweenThumbs={1} aria-label="Rango de precio" className="py-3" /></div>
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3"><div className="flex items-center justify-between gap-3"><Label className="flex items-center gap-2 text-sm font-medium text-foreground"><MapPin className="h-4 w-4 text-primary" />Distancia máxima</Label><span className="text-xs font-medium text-muted-foreground">{selectedDistanceLabel}</span></div><Slider min={1} max={DISTANCE_MAX} step={1} value={[distanceKm]} onValueChange={(value) => setDistanceKm(Math.round(value[0] ?? DISTANCE_MAX))} disabled={onlyMyCommunity} aria-label="Distancia máxima" className="py-3" /><div className="flex justify-between text-[10px] text-muted-foreground"><span>1 km</span><span>50 km</span><span>+200</span></div><p className="text-xs leading-relaxed text-muted-foreground">{onlyMyCommunity ? "Al usar Solo mi comunidad, la distancia queda desactivada." : hasViewerPostalCode ? "Usamos el código postal de tu cuenta como referencia aproximada. No mostramos direcciones exactas." : "Añade tu código postal en Mi cuenta para poder acotar por distancia."}</p></div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3"><div className="flex items-center justify-between gap-3"><Label className="flex items-center gap-2 text-sm font-medium text-foreground"><MapPin className="h-4 w-4 text-primary" />Distancia máxima</Label><span className="text-xs font-medium text-muted-foreground">{selectedDistanceLabel}</span></div><Slider min={1} max={DISTANCE_MAX} step={1} value={[distanceKm]} onValueChange={(value) => setDistanceKm(Math.round(value[0] ?? DISTANCE_MAX))} disabled={onlyMyCommunity} aria-label="Distancia máxima" className="py-3" /><div className="flex justify-between text-[10px] text-muted-foreground"><span>1 km</span><span>50 km</span><span>+200</span></div><p className="text-xs leading-relaxed text-muted-foreground">{onlyMyCommunity ? "Al filtrar por tu centro, la distancia queda desactivada." : hasViewerPostalCode ? "Usamos el código postal de tu cuenta como referencia aproximada. No mostramos direcciones exactas." : "Añade tu código postal en Mi cuenta para poder acotar por distancia."}</p></div>
       <div className="flex flex-col gap-3"><Label className="flex items-center gap-2 text-sm font-medium text-foreground"><CalendarDays className="h-4 w-4 text-primary" />Fecha de publicación</Label><div className="flex flex-col gap-2">{[{ value: "today", label: "Hoy" }, { value: "7d", label: "Últimos 7 días" }, { value: "30d", label: "Últimos 30 días" }].map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm"><Checkbox checked={publishedDateFilter === option.value} onCheckedChange={() => togglePublishedDateFilter(option.value as PublishedDateFilter)} /><span>{option.label}</span></label>)}</div></div>
       <div className="flex flex-col gap-2"><div className="flex items-center gap-1.5"><Label className="text-sm font-medium text-foreground">ISBN</Label><Popover><PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 rounded-full"><HelpCircle className="h-3.5 w-3.5 text-muted-foreground" /><span className="sr-only">Qué es el ISBN</span></Button></PopoverTrigger><PopoverContent className="w-72 text-sm" side="top"><p className="font-semibold text-foreground">Qué es el ISBN?</p><p className="mt-1 leading-relaxed text-muted-foreground">Es el código que identifica de forma única una edición de un libro. Úsalo para encontrar libros de texto concretos.</p></PopoverContent></Popover></div><Input value={isbnQuery} onChange={(e) => setIsbnQuery(e.target.value)} placeholder="Buscar por ISBN..." className="h-11 text-sm" /></div>
       {activeFiltersCount > 0 ? <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={clearFilters}><X className="h-3.5 w-3.5" /> Limpiar filtros ({activeFiltersCount})</Button> : null}
