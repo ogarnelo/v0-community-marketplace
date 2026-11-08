@@ -50,7 +50,7 @@ async function loadRealHandler(){
     const fake=new Set(["next/server","qrcode","@/lib/supabase/server","@/lib/supabase/admin"]);
     b.onResolve({filter:/^(?:next\/server|qrcode|@\/lib\/supabase\/(?:server|admin))$/},
       arg=>({path:arg.path,namespace:"qr-test"}));
-    b.onResolve({filter:/^@\//},arg=>({path:path.join(ROOT,arg.path.slice(2))}));
+    b.onResolve({filter:/^@\//},arg=>({path:path.join(ROOT,arg.path.slice(2))+".ts"}));
     b.onLoad({filter:/.*/,namespace:"qr-test"},arg=>{
       let source;
       if(arg.path==="next/server")source="export class NextResponse extends Response {}";
