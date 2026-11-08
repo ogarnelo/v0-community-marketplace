@@ -65,7 +65,7 @@ function mockDirectory({
         return { validOfficialSchoolCode: (code) => /^[0-9]{8}$/.test(code) };
       if (name === "@/lib/seo/demo-listing")
         return { isDemoListing: ({ id, title }) =>
-          (id || "").startsWith("d0000000-0000-4000-8000-") || /^demo\\s*[·:—-]/i.test(title || "") };
+          (id || "").startsWith("d0000000-0000-4000-8000-") || /^demo\s*[·:—-]/i.test(title || "") };
       throw Error("Unexpected dependency: " + name);
     },
   });
@@ -87,7 +87,7 @@ test("directory-only school remains noindex even if SEO flag was mistakenly enab
   const data = await app.get("36006122");
   assert.equal(data.verified_community, false);
   assert.equal(data.can_index, false);
-  assert.deepEqual(data.available_material, []);
+  assert.equal(data.available_material.length, 0);
   assert.ok(!app.calls.some(([op,table]) => op === "table" && table === "listings"));
 });
 
@@ -140,7 +140,7 @@ test("database failure checking real listings conservatively keeps noindex", asy
   const app = mockDirectory({ listingError: true });
   const data = await app.get("36006122");
   assert.equal(data.can_index, false);
-  assert.deepEqual(data.available_material, []);
+  assert.equal(data.available_material.length, 0);
 });
 
 test("indexable centre page shows actual listings, not fabricated statistics", () => {
