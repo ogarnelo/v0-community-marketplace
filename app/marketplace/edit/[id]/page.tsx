@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import EditListingForm, { type EditableListing } from "@/components/marketplace/edit-listing-form";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function EditListingPage({
   const { data: listing, error: listingError } = await supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, book_edition_id, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, seller_id, school_id, status"
+      "id, title, description, category, grade_level, condition, type, listing_type, isbn, book_edition_id, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, seller_id, school_id, directory_school_code, status"
     )
     .eq("id", id)
     .maybeSingle();
@@ -53,12 +54,21 @@ export default async function EditListingPage({
   ]);
 
   if (photosError) throw photosError;
+  const { data: directorySchool } = typedListing.directory_school_code
+    ? await createAdminClient()
+        .from("school_directory")
+        .select("name,municipality")
+        .eq("official_code", typedListing.directory_school_code)
+        .maybeSingle()
+    : { data: null };
 
   const schoolLabel = school
     ? school.city
       ? `${school.name}, ${school.city}`
       : school.name
-    : "Centro no asignado";
+    : directorySchool
+      ? `${directorySchool.name}, ${directorySchool.municipality} · directorio nacional`
+      : "Centro no asignado";
 
   return (
     <EditListingForm
