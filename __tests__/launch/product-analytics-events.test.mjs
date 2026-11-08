@@ -49,3 +49,12 @@ test("external analytics payloads keep only coarse product context", () => {
   assert.match(contactSeller, /source: "contact_seller"/);
   assert.match(buyNowRoute, /source: "buy_now"/);
 });
+
+test("demo agreements notify participants but do not become real conversions", () => {
+  assert.match(agreementRoute, /isDemoListing\(conversionListing\)/);
+  assert.match(agreementRoute, /if \(isRealConversion\) \{/);
+  assert.match(agreementRoute, /recordAttributedConversion\(admin,/);
+  assert.match(agreementRoute, /if \(isRealConversion\) \{\s*deferProductEvent\("agreement_confirmed"/);
+  assert.match(agreementRoute, /if \(isConfirmed\) \{/);
+  assert.match(agreementRoute, /sendAgreementConfirmedEmail/);
+});
