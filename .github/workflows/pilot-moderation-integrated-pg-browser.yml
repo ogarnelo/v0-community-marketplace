@@ -6,6 +6,8 @@ on:
       - "app/api/admin/reports/status/route.ts"
       - "components/admin/report-status-controls.tsx"
       - "scripts/pilot-moderation-integrated-pg-browser.cjs"
+      - "app/api/school/share-qr/route.ts"
+      - "scripts/pilot-school-qr-route-contract.cjs"
       - "scripts/pilot-moderation-integrated-setup.sh"
       - "scripts/pilot-moderation-integrated-fixture.sql"
       - ".github/workflows/pilot-moderation-integrated-pg-browser.yml"
@@ -52,3 +54,5 @@ jobs:
           /tmp/wetudy-moderation-integrated/node_modules/.bin/playwright install --with-deps chromium
       - name: Verify React Chromium + real Next handler + checked-in SQL RPC
         run: node scripts/pilot-moderation-integrated-pg-browser.cjs
+      - name: Verify actual school QR route and inactive school guard
+        run: node scripts/pilot-school-qr-route-contract.cjs
