@@ -4,6 +4,7 @@ on:
     paths:
       - "scripts/pilot-school-member-count-candidate.sql"
       - "scripts/pilot-school-member-count-sandbox.sh"
+      - "scripts/pilot-school-member-count-equivalence.cjs"
       - ".github/workflows/pilot-school-member-count-sandbox.yml"
 permissions:
   contents: read
@@ -34,3 +35,5 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           bash scripts/pilot-school-member-count-sandbox.sh
+      - name: Compare original JS semantics to SQL and validate count cap
+        run: node scripts/pilot-school-member-count-equivalence.cjs
