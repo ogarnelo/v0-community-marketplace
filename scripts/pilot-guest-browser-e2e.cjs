@@ -68,6 +68,14 @@ async function runViewport(browser, viewport) {
 
     for (const [privateRoute, expectedRoute] of routes) {
       const page = await visit(context, privateRoute);
+      try {
+        await page.waitForURL((u) => new URL(u).pathname === expectedRoute, { timeout: 10000 });
+      } catch (error) {
+        const bodyExcerpt = (await page.locator("body").innerText()).slice(0, 320).replace(/\s+/g, " ");
+        console.error(`[DIAG] ${privateRoute}: final URL ${page.url()}`);
+        console.error(`[DIAG] ${privateRoute}: guest-visible page: ${bodyExcerpt}`);
+        throw error;
+      }
       const actual = new URL(page.url()).pathname;
       assert.equal(actual, expectedRoute, `${privateRoute}: anonymous user reached ${actual}`);
       console.log(`[OK] ${viewport.name} anonymous ${privateRoute} redirected to ${expectedRoute}`);
