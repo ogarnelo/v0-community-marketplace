@@ -1,0 +1,28 @@
+name: Wetudy two AMPA real server page Chromium (synthetic)
+on:
+  pull_request:
+    paths:
+      - "app/admin/school/page.tsx"
+      - "scripts/pilot-two-ampa-real-page-browser.cjs"
+      - ".github/workflows/pilot-two-ampa-real-page-browser.yml"
+permissions:
+  contents: read
+jobs:
+  two-ampa-page-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned disposable UI fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-ampa-ui --no-save --package-lock=false --no-audit --no-fund react@19.1.0 react-dom@19.1.0 esbuild@0.25.12 playwright@1.65.0
+          /tmp/wetudy-ampa-ui/node_modules/.bin/playwright install --with-deps chromium
+      - name: Browser assertions with real server component and synthetic sessions
+        env:
+          PILOT_UI_MODULES: /tmp/wetudy-ampa-ui/node_modules
+        run: node scripts/pilot-two-ampa-real-page-browser.cjs

@@ -130,5 +130,51 @@ BEGIN
 END
 $check$;
 ROLLBACK;
+
+-- Revocation must immediately remove school A's code access in a new request.
+-- Actor B and global superadmin must remain unaffected; re-grant is explicit.
+DELETE FROM public.user_roles
+ WHERE user_id='00000000-0000-4000-8000-000000000101'
+   AND role='school_admin'
+   AND school_id='00000000-0000-4000-8000-000000000201';
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000101',true);
+DO $check$
+BEGIN
+ IF (SELECT count(*) FROM public.school_access_codes)<>0 OR
+    (SELECT count(*) FROM public.user_roles)<>0 THEN
+    RAISE EXCEPTION 'Revoked school A admin retained permissions';
+ END IF;
+END
+$check$;
+ROLLBACK;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000102',true);
+DO $check$
+BEGIN
+ IF (SELECT count(*) FROM public.school_access_codes)<>1 OR
+    (SELECT count(*) FROM public.user_roles WHERE role='school_admin')<>1 THEN
+    RAISE EXCEPTION 'School B unexpectedly lost permissions after A revocation';
+ END IF;
+END
+$check$;
+ROLLBACK;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000103',true);
+DO $check$
+BEGIN
+ IF (SELECT count(*) FROM public.school_access_codes)<>2 OR
+    (SELECT count(*) FROM public.user_roles)<>2 THEN
+    RAISE EXCEPTION 'Superadmin access unexpected after revocation';
+ END IF;
+END
+$check$;
+ROLLBACK;
+
 SQL
-echo "Isolated AMPA RLS PASS: School A/B separation, family denied, superadmin access, escalation denied."
+echo "Isolated AMPA RLS PASS: School A/B separation, family denied, superadmin access, escalation denied, revocation and B continuity."

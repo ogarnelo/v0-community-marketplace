@@ -1,0 +1,19 @@
+name: Pilot AMPA dashboard query scope
+on:
+  pull_request:
+    paths:
+      - "app/admin/school/page.tsx"
+      - "__tests__/launch/pilot-ampa-dashboard-scope.test.mjs"
+      - ".github/workflows/pilot-ampa-dashboard-scope.yml"
+permissions:
+  contents: read
+jobs:
+  school-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test __tests__/launch/pilot-ampa-dashboard-scope.test.mjs
