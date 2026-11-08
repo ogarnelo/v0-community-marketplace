@@ -348,7 +348,7 @@ export default function StudentContextFields({
         </div>
 
         <p className="text-xs leading-5 text-muted-foreground">
-          Puedes identificar tu colegio aunque todavía no tenga comunidad Wetudy. Elegirlo no activa el centro ni concede permisos. El campo es opcional.
+          Puedes dejar este campo vacío y guardar para no pertenecer a ningún centro. También puedes indicar tu colegio del directorio nacional sin activar una comunidad ni conceder permisos.
         </p>
       </div>
 
