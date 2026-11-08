@@ -7,6 +7,7 @@ import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 import { linkAgreementToNeed } from "@/lib/demand/need-attribution";
 import { deferProductEvent } from "@/lib/analytics/product-events.server";
+import { isDemoListing } from "@/lib/seo/demo-listing";
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value;
@@ -63,6 +64,16 @@ export async function POST(request: Request) {
     }
 
     const isConfirmed = agreement.status === "confirmed";
+    // A confirmed test agreement must notify testers, but never count as
+    // a real marketplace conversion or acquisition in analytics.
+    const { data: conversionListing, error: conversionListingError } = isConfirmed
+      ? await admin.from("listings").select("id,title").eq("id", agreement.listing_id).maybeSingle()
+      : { data: null, error: null };
+    if (conversionListingError) {
+      console.error("No se pudo comprobar el anuncio del acuerdo para analítica", conversionListingError);
+    }
+    // Fail closed if lookup fails, so no false conversion is recorded.
+    const isRealConversion = isConfirmed && Boolean(conversionListing) && !isDemoListing(conversionListing);
 
     try {
       await linkAgreementToNeed(admin, agreement);
@@ -155,7 +166,8 @@ export async function POST(request: Request) {
           })
       );
 
-      try {
+      if (isRealConversion) {
+        try {
         const sellerRecorded = await recordAttributedConversion(admin, {
           userId: agreement.seller_id,
           eventType: "agreement_confirmed",
@@ -169,12 +181,13 @@ export async function POST(request: Request) {
             entityId: agreement.id,
           });
         }
-      } catch (attributionError) {
-        console.error("No se pudo atribuir el acuerdo confirmado", attributionError);
+        } catch (attributionError) {
+          console.error("No se pudo atribuir el acuerdo confirmado", attributionError);
+        }
       }
     }
 
-    if (isConfirmed) {
+    if (isRealConversion) {
       deferProductEvent("agreement_confirmed", { source: "chat_agreement" });
     }
 
