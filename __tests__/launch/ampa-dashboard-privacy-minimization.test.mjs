@@ -8,7 +8,9 @@ const dashboard = read("components/admin/school-admin-dashboard.tsx");
 const privacy = read("app/privacy/page.tsx");
 
 test("AMPA dashboard gets an aggregate count, never an array of family profiles", () => {
-  assert.match(page, /const memberCount = safeMembers\.length/);
+  assert.match(page, /const memberCount = Number\(memberCountData\)/);
+  assert.match(page, /\.rpc\("server_school_member_count", \{ p_school_id: effectiveSchoolId \}\)/);
+  assert.doesNotMatch(page, /profilesForCommunity|activeStudentContexts|safeMembers/);
   assert.match(page, /memberCount=\{memberCount\}/);
   assert.match(dashboard, /memberCount: number/);
   assert.match(dashboard, /String\(memberCount\)/);
@@ -17,7 +19,8 @@ test("AMPA dashboard gets an aggregate count, never an array of family profiles"
 });
 
 test("AMPA only fetches names for authorized school administrators", () => {
-  assert.match(page, /\.select\("id, school_id"\)\s*\.limit\(10000\)/);
+  assert.doesNotMatch(page, /\.select\("id, school_id"\)\s*\.limit\(10000\)/);
+  assert.doesNotMatch(page, /\.limit\(20000\)/);
   assert.match(page, /\.select\("id, full_name"\)\s*\.in\("id", schoolAdminIds\)/);
   assert.match(page, /\.eq\("school_id", effectiveSchoolId\)/);
   assert.match(page, /role === "school_admin" && Boolean\(role\.school_id\)/);
