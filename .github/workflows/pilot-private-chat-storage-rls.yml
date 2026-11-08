@@ -1,0 +1,35 @@
+name: Pilot private chat storage RLS adversarial PG17
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-private-chat-storage-rls-sandbox.sh"
+      - "supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql"
+      - ".github/workflows/pilot-private-chat-storage-rls.yml"
+permissions:
+  contents: read
+jobs:
+  chat-storage-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_chat_qa
+          POSTGRES_PASSWORD: wetudy_chat_qa
+          POSTGRES_DB: wetudy_chat_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_chat_qa -d wetudy_chat_qa"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wetudy_chat_qa:wetudy_chat_qa@127.0.0.1:5432/wetudy_chat_qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install psql client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Execute real Storage RLS policy with synthetic conversations and third-party
+        run: bash scripts/pilot-private-chat-storage-rls-sandbox.sh

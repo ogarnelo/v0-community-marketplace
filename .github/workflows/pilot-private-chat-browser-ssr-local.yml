@@ -1,0 +1,64 @@
+name: Wetudy private attachment Chromium with real SSR cookies local
+on:
+  pull_request:
+    paths:
+      - "app/api/messages/attachment/route.ts"
+      - "lib/supabase/server.ts"
+      - "lib/supabase/client.ts"
+      - "scripts/pilot-private-chat-browser-ssr-local.cjs"
+      - "scripts/pilot-private-chat-local-supabase-fixture.sql"
+      - "supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql"
+      - ".github/workflows/pilot-private-chat-browser-ssr-local.yml"
+permissions:
+  contents: read
+jobs:
+  chromium-real-ssr-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned disposable local Supabase and Chromium fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-ssr-browser-qa --no-save --package-lock=false --no-audit --no-fund \
+            supabase@2.121.0 @supabase/supabase-js@2.58.0 @supabase/ssr@0.6.1 \
+            playwright@1.65.0 esbuild@0.25.12
+          /tmp/wetudy-ssr-browser-qa/node_modules/.bin/playwright install --with-deps chromium
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Run real Chromium client cookies against real SSR helper, route, local Auth and Storage
+        shell: bash
+        env:
+          PILOT_QA_MODULES: /tmp/wetudy-ssr-browser-qa/node_modules
+        run: |
+          set -euo pipefail
+          cli="/tmp/wetudy-ssr-browser-qa/node_modules/.bin/supabase"
+          stack="/tmp/wetudy-ssr-browser-stack"
+          mkdir -p "$stack"
+          docker network create -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 wetudy-ssr-qa-network
+          cd "$stack"
+          "$cli" init
+          if grep -q '^enable_confirmations = true' supabase/config.toml; then
+            sed -i 's/^enable_confirmations = true/enable_confirmations = false/' supabase/config.toml
+          fi
+          cleanup(){
+            "$cli" stop --no-backup >/dev/null 2>&1 || true
+            docker network rm wetudy-ssr-qa-network >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          "$cli" start --network-id wetudy-ssr-qa-network \
+            -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          "$cli" status -o env > /tmp/wetudy-ssr-qa.env
+          set -a
+          source /tmp/wetudy-ssr-qa.env
+          set +a
+          export LOCAL_SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
+          export LOCAL_SUPABASE_ANON_KEY="${ANON_KEY:?missing local key}"
+          export LOCAL_DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          cd "$GITHUB_WORKSPACE"
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-private-chat-local-supabase-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql
+          node scripts/pilot-private-chat-browser-ssr-local.cjs

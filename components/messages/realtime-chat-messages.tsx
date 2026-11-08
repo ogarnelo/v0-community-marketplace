@@ -331,7 +331,8 @@ export default function RealtimeChatMessages({
       {messages.map((message) => {
         const isMine = message.sender_id === currentUserId;
         const isHighlighted = highlightedIds.has(message.id);
-        const hasAttachment = !!message.attachment_url;
+        const hasAttachment = !!message.attachment_path;
+        const privateAttachmentHref = hasAttachment ? `/api/messages/attachment?messageId=${encodeURIComponent(message.id)}` : "";
         const isImage = isImageAttachment(message.attachment_type);
         const showSeen = isMine && message.id === lastOwnMessageId && !!message.read_at;
         const parsedOffer = parseOfferChatBody(message.body);
@@ -394,15 +395,15 @@ export default function RealtimeChatMessages({
                 </p>
               ) : null}
 
-              {hasAttachment && isImage && message.attachment_url ? (
+              {hasAttachment && isImage && message.attachment_path ? (
                 <a
-                  href={message.attachment_url}
+                  href={privateAttachmentHref}
                   target="_blank"
                   rel="noreferrer"
                   className="mb-3 block overflow-hidden rounded-xl"
                 >
                   <Image
-                    src={message.attachment_url}
+                    src={privateAttachmentHref}
                     alt={message.attachment_name || "Imagen adjunta"}
                     width={500}
                     height={350}
@@ -412,9 +413,9 @@ export default function RealtimeChatMessages({
                 </a>
               ) : null}
 
-              {hasAttachment && !isImage && message.attachment_url ? (
+              {hasAttachment && !isImage && message.attachment_path ? (
                 <a
-                  href={message.attachment_url}
+                  href={privateAttachmentHref}
                   target="_blank"
                   rel="noreferrer"
                   className={`mb-3 flex items-center gap-3 rounded-xl border px-3 py-2 ${isMine ? "border-sky-300 bg-sky-400/40" : "border-slate-200 bg-white"
