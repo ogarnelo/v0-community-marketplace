@@ -21,7 +21,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
       - name: Require private credentials, never print them
         shell: bash
         run: |
@@ -32,7 +31,17 @@ jobs:
           test -n "$BACKUP_ENCRYPTION_PASSWORD" && test "${#BACKUP_ENCRYPTION_PASSWORD}" -ge 20 || {
             echo "Missing or too-short WETUDY_BACKUP_ENCRYPTION_PASSWORD secret."; exit 1;
           }
-      - run: npm ci --ignore-scripts
+      # Wetudy deploys through Vercel without a checked-in npm lockfile.
+      # Install only the pinned backup client beside this script so Node's
+      # module resolver finds it, without generating a lockfile or fetching
+      # the entire marketplace dependency tree.
+      - name: Install pinned Storage client without requiring a lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix scripts \
+            --no-save --package-lock=false --ignore-scripts --no-audit --no-fund \
+            '@supabase/supabase-js@2.119.0'
       - name: Export and verify Storage objects in the private runner
         shell: bash
         run: |
