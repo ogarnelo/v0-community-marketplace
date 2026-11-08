@@ -53,10 +53,16 @@ def validate_archive(archive_file):
         with tarfile.open(archive_file, mode="r:gz") as archive:
             members = {}
             for member in archive:
+                if member.isdir():
+                    # The actual tar -czf -C <directory> . archive includes
+                    # entries such as "./listing-photos/". Validate the
+                    # directory name after removing its trailing slash.
+                    directory_name = normalize_tar_name(member.name.rstrip("/"))
+                    if directory_name is not None and directory_name.split("/")[0] not in BUCKETS:
+                        raise ValueError("Unexpected archive directory")
+                    continue
                 name = normalize_tar_name(member.name)
                 if name is None:
-                    continue
-                if member.isdir():
                     continue
                 if not member.isfile() or member.issym() or member.islnk():
                     raise ValueError("Unsafe archive member type")

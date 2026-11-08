@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/pilot-combined-encrypted-recovery.yml"
+      - "scripts/verify-pilot-storage-restore.py"
+      - "scripts/test_pilot_storage_restore.py"
+      - "scripts/pilot-storage-offline-recovery.sh"
+      - "scripts/pilot-db-restore-drill.sh"
 
 permissions:
   contents: read

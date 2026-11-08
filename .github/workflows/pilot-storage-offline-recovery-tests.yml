@@ -1,0 +1,26 @@
+name: Wetudy Storage offline recovery unit tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/verify-pilot-storage-restore.py"
+      - "scripts/test_pilot_storage_restore.py"
+      - ".github/workflows/pilot-storage-offline-recovery-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/verify-pilot-storage-restore.py"
+      - "scripts/test_pilot_storage_restore.py"
+      - ".github/workflows/pilot-storage-offline-recovery-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify offline restore using synthetic, non-sensitive files
+        run: python3 -m unittest discover -s scripts -p 'test_pilot_storage_restore.py' -v
