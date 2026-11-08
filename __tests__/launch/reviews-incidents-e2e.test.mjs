@@ -5,6 +5,7 @@ import test from "node:test";
 const read = (path) => readFileSync(path, "utf8");
 
 const reviewHelper = read("lib/users/get-user-reviews.ts");
+const reviewRoute = read("app/api/agreements/review/route.ts");
 const stats = read("lib/users/get-user-profile-stats.ts");
 const account = read("app/account/page.tsx");
 const reviewsPage = read("app/account/reviews/page.tsx");
@@ -65,4 +66,15 @@ test("resolving an incident also resolves agreement state coherently", () => {
   assert.match(migration, /set status = 'confirmed'/);
   assert.match(migration, /status in \('open', 'reviewing'\)/);
   assert.match(migration, /agreement_incident_status_changed/);
+});
+
+test("DEMO agreement reviews stay out of public reputation and profile badges", () => {
+  assert.match(reviewRoute, /isDemoListing\(reviewedListing\)/);
+  assert.match(reviewRoute, /reviewStatus = isDemoListing/);
+  assert.match(reviewRoute, /"hidden" : "published"/);
+  assert.match(reviewRoute, /status: reviewStatus/);
+  assert.match(reviewRoute, /listingError \|\| !reviewedListing/);
+  assert.match(reviewHelper, /\.eq\("status", "published"\)/);
+  assert.match(stats, /isDemoListing\(listing\)/);
+  assert.match(stats, /select\("id, title, listing_type, status"\)/);
 });
