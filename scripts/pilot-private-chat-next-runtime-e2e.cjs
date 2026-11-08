@@ -84,17 +84,22 @@ const conv="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const msg="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const marker="NEXT16-LOCAL-AUTH-PRIVATE-ATTACHMENT";
 let next=null;
+let nextLogs="";
 const nextPort="31377";
 async function waitReady(){
- for(let i=0;i<90;i++){
-   if(next?.exitCode!==null)throw Error("Next exited before readiness");
+ let lastResponse="no HTTP response";
+ for(let i=0;i<55;i++){
+   if(next && next.exitCode!==null)throw Error("Next exited before readiness, code="+next.exitCode+"\\n"+nextLogs.slice(-3500));
    try{
-     const response=await fetch("http://127.0.0.1:"+nextPort+"/",{signal:AbortSignal.timeout(1600)});
-     if(response.ok && (await response.text()).includes("Local Next browser QA"))return;
-   }catch{}
+     const response=await fetch("http://127.0.0.1:"+nextPort+"/",{signal:AbortSignal.timeout(3500)});
+     const html=await response.text();
+     if(response.ok && html.includes("Local Next browser QA"))return;
+     lastResponse="HTTP "+response.status+": "+html.replace(/<[^>]*>/g," ").slice(0,500);
+   }catch(e){lastResponse=String(e.message||e);}
    await new Promise(r=>setTimeout(r,1800));
  }
- throw Error("Local Next runtime did not become ready");
+ throw Error("Local Next HTTP runtime did not become ready. Last response: "+lastResponse+
+   "\\nNext output tail:\\n"+nextLogs.slice(-3500));
 }
 
 (async()=>{
@@ -114,9 +119,8 @@ async function waitReady(){
     ...process.env,NEXT_TELEMETRY_DISABLED:"1",
     NEXT_PUBLIC_SUPABASE_URL:api,NEXT_PUBLIC_SUPABASE_ANON_KEY:key
    },stdio:["ignore","pipe","pipe"]});
- let fatal="";
  for(const stream of [next.stderr,next.stdout])
-   stream.on("data",d=>{const t=d.toString();if(/error|fatal|module not found/i.test(t))fatal+=t.slice(-1500);});
+   stream.on("data",d=>{nextLogs=(nextLogs+d.toString()).slice(-12000);});
  await waitReady();
  const origin="http://127.0.0.1:"+nextPort;
  const browser=await chromium.launch({headless:true});
