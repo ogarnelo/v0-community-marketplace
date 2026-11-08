@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/pilot-school-member-count-candidate.sql"
+      - "supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql"
       - "app/admin/school/page.tsx"
       - "__tests__/launch/school-member-aggregate-contract.test.mjs"
       - "scripts/pilot-school-member-count-sandbox.sh"
