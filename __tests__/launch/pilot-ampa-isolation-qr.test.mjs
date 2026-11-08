@@ -38,3 +38,20 @@ test("test runs only in disposable localhost Postgres and never sends emails", (
   assert.match(workflow, /127\.0\.0\.1:5432/);
   assert.doesNotMatch(fixture, /supabase\.co|api\.resend\.com|send-email|email/);
 });
+
+test("isolated moderation test uses the actual resolution RPC and cannot touch production", () => {
+  const script = read("scripts/pilot-report-resolution-sandbox.sh");
+  const migration = read("supabase/migrations/20260923223000_report_resolution_feedback.sql");
+  const flow = read(".github/workflows/pilot-two-school-isolation.yml");
+  assert.match(script, /Refusing to test moderation resolution against nonlocal DB/);
+  assert.match(script, /server_update_report_status/);
+  assert.match(script, /20260923223000_report_resolution_feedback\.sql/);
+  assert.match(script, /School admin was allowed to moderate globally/);
+  assert.match(script, /Agreement must remain disputed while second report is active/);
+  assert.match(script, /Closing all reports did not restore agreement and notify/);
+  assert.match(script, /Case status, notifications or audit events are inconsistent/);
+  assert.match(migration, /p_resolution_note text/);
+  assert.match(migration, /role = 'super_admin'/);
+  assert.match(flow, /wetudy_moderation/);
+  assert.doesNotMatch(script, /supabase\.co|WETUDY_BACKUP_DATABASE_URL/);
+});
