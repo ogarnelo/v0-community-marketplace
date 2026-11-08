@@ -55,6 +55,7 @@ function prepareFiles(){
    "lib/supabase/client.ts",
    "lib/supabase/admin.ts",
    "lib/supabase/proxy.ts","proxy.ts",
+   "app/api/school/share-qr/route.ts","lib/auth/public-origin.ts",
    "components/admin/school-admin-dashboard.tsx",
    "components/ui/tabs.tsx","components/ui/button.tsx","components/ui/card.tsx",
    "components/ui/badge.tsx","lib/utils.ts","lib/growth/attribution.ts"
@@ -121,7 +122,8 @@ function prepareFiles(){
     "@radix-ui/react-slot":"1.2.4",
     "class-variance-authority":"0.7.1",
     "clsx":"2.1.1",
-    "tailwind-merge":"3.3.1"
+    "tailwind-merge":"3.3.1",
+    "qrcode":"1.5.4"
   }
  },null,2));
 }
@@ -225,6 +227,25 @@ async function ready(next,origin){
     assert.ok(shareUrl.includes("utm_source=school") &&
       shareUrl.includes("utm_campaign=school_invite"));
     assert.equal(await page.locator("img[alt^='QR para unirse']").count(),1);
+    const svgResponse=await page.evaluate(async()=>{
+      const r=await fetch("/api/school/share-qr",{cache:"no-store"});
+      return {status:r.status,type:r.headers.get("content-type"),body:await r.text()};
+    });
+    assert.equal(svgResponse.status,200,"Active AMPA must generate a QR");
+    assert.match(svgResponse.type||"",/^image\/svg\+xml/);
+    assert.ok(svgResponse.body.includes("<svg"));
+    const pngResponse=await page.evaluate(async()=>{
+      const r=await fetch("/api/school/share-qr?format=png&download=1");
+      const buf=new Uint8Array(await r.arrayBuffer());
+      return {status:r.status,type:r.headers.get("content-type"),
+        disposition:r.headers.get("content-disposition"),
+        signature:Array.from(buf.slice(0,8)),length:buf.length};
+    });
+    assert.equal(pngResponse.status,200);
+    assert.equal(pngResponse.type,"image/png");
+    assert.match(pngResponse.disposition||"",/^attachment/);
+    assert.deepEqual(pngResponse.signature,[137,80,78,71,13,10,26,10]);
+    assert.ok(pngResponse.length>1000);
     await page.getByRole("tab",{name:"Comunidad"}).click();
     await page.getByText("Administradores del centro").waitFor();
     await page.getByRole("tab",{name:"Actividad"}).click();
@@ -267,6 +288,9 @@ async function ready(next,origin){
       "' and role='school_admin';");
   await sessions[2].page.reload({waitUntil:"domcontentloaded"});
   await sessions[2].page.waitForURL(u=>!u.pathname.endsWith("/admin/school"));
+  assert.equal(await sessions[2].page.evaluate(async()=>(
+    await fetch("/api/school/share-qr",{cache:"no-store"})).status),403,
+    "Revoked admin must not generate QR");
   assert.equal(await sessions[2].page.locator('[data-testid="school-dashboard"]').count(),0);
   await sessions[1].page.reload({waitUntil:"domcontentloaded"});
   await sessions[1].page.getByTestId("school-title").waitFor();
@@ -276,10 +300,16 @@ async function ready(next,origin){
   sql("update public.schools set is_active=false where id='"+schools[0].id+"';");
   await sessions[0].page.reload({waitUntil:"domcontentloaded"});
   await sessions[0].page.waitForURL(u=>!u.pathname.endsWith("/admin/school"));
+  assert.equal(await sessions[0].page.evaluate(async()=>(
+    await fetch("/api/school/share-qr",{cache:"no-store"})).status),403,
+    "Deactivated school must not generate QR");
   assert.equal(await sessions[0].page.locator('[data-testid="school-dashboard"]').count(),0);
   await sessions[1].page.reload({waitUntil:"domcontentloaded"});
   await sessions[1].page.getByTestId("school-title").waitFor();
   assert.equal(await sessions[1].page.getByTestId("school-title").innerText(),"COLEGIO QA BETA");
+  assert.equal(await sessions[1].page.evaluate(async()=>(
+    await fetch("/api/school/share-qr",{cache:"no-store"})).status),200,
+    "Active BETA QR must remain accessible");
   // __logout belongs to the minimal client login page, not the SSR admin
   // page. Navigate to that client page before invoking real Supabase signOut.
   await sessions[1].page.goto(origin,{waitUntil:"domcontentloaded"});
@@ -290,7 +320,7 @@ async function ready(next,origin){
   assert.equal(await sessions[1].page.locator('[data-testid="school-dashboard"]').count(),0);
   console.log("PASS real Next 16 HTTP /admin/school page with real GoTrue sessions and SSR cookies, actual service-role scoped RPC and PostgREST.");
   console.log("3 schools no cross-school name/listing/QR/report leakage; 4th user and guest denied; GAMMA role revoked, ALFA school deactivated, BETA independent, logout denied.");
-  console.log("PASS real dashboard + actual Radix tabs, clipboard code/link, school invite UTM, CSV export, QR UI and report-subscription 503 display.");
+  console.log("PASS real dashboard/Radix tabs, clipboard code/link, CSV export, real SVG/PNG QR API, revoked/inactive QR 403 and report-subscription 503 UI.");
   console.log("LIMIT: navbar and donation visuals are QA shims; Dashboard component and its UI primitives are REAL, while report API failure is simulated in browser. All data are fake, no remote project.");
   for(const actor of actors)await actor.context.close();
  }catch(err){
