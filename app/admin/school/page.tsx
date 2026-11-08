@@ -35,12 +35,14 @@ type ListingRow = {
   created_at: string;
 };
 
-type ProfileRow = {
+type ProfileSchoolContextRow = {
+  id: string;
+  school_id: string | null;
+};
+
+type SchoolAdminNameRow = {
   id: string;
   full_name: string | null;
-  school_id: string | null;
-  user_type: string | null;
-  grade_level: string | null;
 };
 
 type AccountStudentSchoolContextRow = {
@@ -81,7 +83,6 @@ type ListingViewRow = {
 };
 
 type AgreementRow = {
-  id: string;
   listing_id: string | null;
   agreement_type: string | null;
   status: string | null;
@@ -176,9 +177,9 @@ export default async function SchoolAdminPage() {
       .returns<ListingRow[]>(),
     adminSupabase
       .from("profiles")
-      .select("id, full_name, school_id, user_type, grade_level")
+      .select("id, school_id")
       .limit(10000)
-      .returns<ProfileRow[]>(),
+      .returns<ProfileSchoolContextRow[]>(),
     adminSupabase
       .from("account_students")
       .select("owner_user_id, school_id")
@@ -212,7 +213,7 @@ export default async function SchoolAdminPage() {
       .returns<DonationRequestRow[]>(),
     adminSupabase
       .from("agreements")
-      .select("id, listing_id, agreement_type, status, amount, confirmed_at, created_at")
+      .select("listing_id, agreement_type, status, amount, confirmed_at, created_at")
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<AgreementRow[]>(),
@@ -232,7 +233,7 @@ export default async function SchoolAdminPage() {
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
-  const safeProfilesForCommunity = (profilesForCommunity || []) as ProfileRow[];
+  const safeProfilesForCommunity = (profilesForCommunity || []) as ProfileSchoolContextRow[];
   const safeStudentContexts = (activeStudentContexts || []) as AccountStudentSchoolContextRow[];
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
@@ -278,8 +279,16 @@ export default async function SchoolAdminPage() {
     safeListings.some((listing) => listing.id === report.listing_id)
   );
 
+  // School admins can see the size of their self-selected community, not
+  // the full names, student grades or IDs of every family in the browser.
+  const memberCount = safeMembers.length;
   const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
-  const schoolAdmins = safeMembers.filter((member) => schoolAdminIds.includes(member.id));
+  const { data: schoolAdmins } = schoolAdminIds.length
+    ? await adminSupabase.from("profiles")
+      .select("id, full_name")
+      .in("id", schoolAdminIds)
+      .returns<SchoolAdminNameRow[]>()
+    : { data: [] as SchoolAdminNameRow[] };
 
   const requesterIds = Array.from(
     new Set(
@@ -336,8 +345,8 @@ export default async function SchoolAdminPage() {
           <SchoolAdminDashboard
             school={school || null}
             listings={safeListings}
-            members={safeMembers}
-            schoolAdmins={schoolAdmins}
+            memberCount={memberCount}
+            schoolAdmins={schoolAdmins || []}
             reports={safeListingReports}
             accessCodes={safeAccessCodes}
             listingViews={safeListingViews}
