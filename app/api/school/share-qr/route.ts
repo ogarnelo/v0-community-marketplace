@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { appendGrowthUtm } from "@/lib/growth/attribution";
+import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 
 export async function GET(request: Request) {
   try {
@@ -29,7 +30,8 @@ export async function GET(request: Request) {
       return new NextResponse("No autorizado.", { status: 403 });
     }
 
-    const origin = new URL(request.url).origin;
+    // Always encode the trusted public domain, never the request Host.
+    const origin = getAuthPublicOrigin();
     const baseShareUrl = new URL("/onboarding/join-school", origin);
     baseShareUrl.searchParams.set("school", schoolRole.school_id);
     const shareUrl = new URL(
