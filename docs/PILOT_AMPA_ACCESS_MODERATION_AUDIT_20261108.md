@@ -36,6 +36,19 @@ Los QR incluyen **URL y UUID del centro** para abrir `/onboarding/join-school`; 
 
 **Alcance:** solo prueba SQL. Falta UI E2E con superadministrador ficticio, verificación de visibilidad de notas, emails, reintentos y reversión bajo condiciones de concurrencia. No crear reportes ficticios en producción.
 
+## Decisión de producto — incorporación abierta aprobada por el fundador (08/11/2026)
+
+**Decisión definitiva para el piloto de tres AMPA:** mantener la incorporación abierta a cualquier familia con cuenta autenticada. La familia puede **seleccionar un centro activo mediante QR, enlace directo o búsqueda**, sin código obligatorio ni validación previa por el AMPA. También puede continuar sin centro y cambiar o quitar la selección cuando quiera.
+
+- La selección del centro es una **preferencia de contexto y descubrimiento**, **NO acredita** matrícula, pertenencia a la asociación, identidad ni autorización para administrar la comunidad.
+- **Administradores de AMPA**: solo sus roles concedidos explícitamente en `user_roles` permiten ver datos administrativos y operar; la selección de centro por parte de la familia NO concede roles.
+- **QR y códigos**: se distribuyen para facilitar acceso, **no son invitaciones privadas, de un solo uso o mecanismos de verificación**.
+- **Directorio ministerial**: elegir uno de los 34.845 colegios informativos no lo activa como comunidad Wetudy, no lo indexa y no confiere permisos.
+- **Mensajes públicos**: copy de alta, contexto educativo y pantalla de QR debe reflejar que no se verifica pertenencia. Se incorporan pruebas de regresión en `__tests__/launch/pilot-open-school-selection.test.mjs`.
+- **Posterior al piloto**: valorar verificación adicional únicamente si la experiencia de las tres AMPA indica una necesidad real, con evaluación de privacidad y costes. No implantarla ahora sin una nueva decisión.
+
+**Riesgo aceptado conscientemente:** un usuario autenticado puede seleccionar un centro aunque no pertenezca a él. Por tanto, las métricas de «familias del centro» deberán interpretarse como **usuarios que lo han seleccionado**, no como miembros verificados. Antes de difundir cifras a las AMPA, etiquetar correctamente este denominador y excluir cuentas DEMO.
+
 ## Reglas de costes y retención
 - Sin nuevos proyectos de Supabase ni gasto recurrente; pruebas en contenedor de GitHub Actions.
 - Conservar los **seis anuncios DEMO**, fotografías y la operación E2E hasta lanzamiento del piloto, conforme a la decisión del fundador.
