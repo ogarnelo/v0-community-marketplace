@@ -74,7 +74,24 @@ globalThis.__qaAmPaSession = async()=>({
  auth:{getUser:async()=>({data:{user:byActor[state.actor]?{id:byActor[state.actor].user,email:"qa-"+state.actor.toLowerCase()+"@example.invalid"}:null}})},
  from:(table)=>query(table,"session"),
 });
-globalThis.__qaAmPaAdmin=()=>({from:(table)=>query(table,"privileged")});
+globalThis.__qaAmPaAdmin=()=>({
+ from:(table)=>query(table,"privileged"),
+ // Production page now returns a school-scoped COUNT through service-role SQL,
+ // instead of fetching thousands of family profiles into Node.
+ rpc:async(name,args)=>{
+   assert.equal(name,"server_school_member_count");
+   const actor=byActor[state.actor];
+   assert.ok(actor,"privileged count without a valid actor");
+   assert.equal(args?.p_school_id,actor.school,
+     "school member count called for the wrong center");
+   assert.ok(!state.revoked.has(actor.user),"revoked admin executed count");
+   state.queries.push({
+     actor:state.actor,table:"school_member_count_rpc",scope:"privileged",
+     filters:[{op:"eq",k:"school_id",v:args.p_school_id}]
+   });
+   return {data:1,error:null};
+ }
+});
 
 async function buildRealPage(){
  const built=await build({
@@ -166,11 +183,13 @@ async function buildRealPage(){
    assert.match(alfa.body,/Panel Admin - COLEGIO QA ALFA/);
    assert.match(alfa.body,/ANUNCIO SOLO ALFA/);
    assert.match(alfa.body,/CODIGO_ALFA_SECRETO/);
+   assert.match(alfa.body,/MIEMBROS: 1/);
    assert.doesNotMatch(alfa.body,/COLEGIO QA BETA|ANUNCIO SOLO BETA|CODIGO_BETA_SECRETO|INCIDENCIA SOLO COLEGIO QA BETA/);
    const beta=await visit("B");
    assert.match(beta.body,/Panel Admin - COLEGIO QA BETA/);
    assert.match(beta.body,/ANUNCIO SOLO BETA/);
    assert.match(beta.body,/CODIGO_BETA_SECRETO/);
+   assert.match(beta.body,/MIEMBROS: 1/);
    assert.doesNotMatch(beta.body,/COLEGIO QA ALFA|ANUNCIO SOLO ALFA|CODIGO_ALFA_SECRETO|INCIDENCIA SOLO COLEGIO QA ALFA/);
    const stranger=await visit("STRANGER");
    assert.match(stranger.body,/REDIRIGIDO: acceso no autorizado/);
@@ -181,6 +200,10 @@ async function buildRealPage(){
    const betaAfter=await visit("B");
    assert.match(betaAfter.body,/Panel Admin - COLEGIO QA BETA/);
    assert.doesNotMatch(betaAfter.body,/COLEGIO QA ALFA/);
+   const memberRpcCalls=state.queries.filter(x=>x.table==="school_member_count_rpc");
+   assert.equal(memberRpcCalls.length,3,"Only authorized A, B and B-after-revocation should invoke count");
+   const globalFamilyReads=state.queries.filter(x=>x.scope==="privileged" && ["profiles","account_students"].includes(x.table));
+   assert.equal(globalFamilyReads.length,0,"global private family tables must not be scanned");
    const privilegedReads=state.queries.filter(x=>x.scope==="privileged"&&scopedTables.has(x.table)&&x.table!=="user_roles");
    for(const q of privilegedReads){
      const own=byActor[q.actor]?.school;
