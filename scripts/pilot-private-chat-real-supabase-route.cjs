@@ -85,7 +85,7 @@ async function requestAs(handler,client,expectStatus){
  const up=await a.client.storage.from("chat-attachments")
      .upload(filePath,new Blob([marker],{type:"application/pdf"}),{contentType:"application/pdf",upsert:false});
  assert.ifError(up.error);
- sql("insert into public.messages(id,conversation_id,attachment_path,attachment_type) "+
+ sql("insert into public.messages(id,conversation_id,attachment_path,attachment_type,attachment_name) "+
     "values ('"+msg+"','"+conv+"','"+filePath+"','application/pdf','Matemáticas 6º.pdf')");
  await requestAs(handler,create(),401);
  await requestAs(handler,a.client,200);
