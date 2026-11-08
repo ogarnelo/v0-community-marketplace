@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
   const { data: message, error: messageError } = await supabase
     .from("messages")
-    .select("id, conversation_id, attachment_path, attachment_type")
+    .select("id, conversation_id, attachment_path, attachment_type, attachment_name")
     .eq("id", messageId)
     .maybeSingle();
 
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     headers: {
       ...SECURE_HEADERS,
       "Content-Type": safeAttachmentType(message.attachment_type),
-      "Content-Disposition": dispositionForAttachment(message.attachment_type),
+      "Content-Disposition": dispositionForAttachment(message.attachment_type, message.attachment_name),
     },
   });
 }
