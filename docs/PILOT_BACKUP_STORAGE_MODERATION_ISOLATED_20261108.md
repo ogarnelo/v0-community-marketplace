@@ -70,3 +70,22 @@ Se incorpora el workflow `.github/workflows/pilot-encrypted-db-restore-drill.yml
 **Posible bloqueo técnico:** si los archivos se han caducado (retención 7 días), hay que ejecutar de nuevo el workflow `Wetudy encrypted database backup` antes de repetir este ensayo. **Estado del workflow y run-ID:** se documentan en el issue #245 tras la ejecución.
 
 **Costes:** no requiere otra instancia de Supabase. Consume una breve ejecución de GitHub Actions y el contenedor PostgreSQL del runner, sin pagos adicionales contratados.
+
+
+## 6. Comprobación conjunta de recuperación offline de ambas copias cifradas
+
+**Decisión del fundador:** el 08/11 confirmó que ha descargado el respaldo cifrado de Storage. Los seis anuncios DEMO y todas las evidencias se conservan.
+
+Nuevo workflow `Wetudy combined encrypted backup recovery check` (`.github/workflows/pilot-combined-encrypted-recovery.yml`):
+
+1. Obtiene el último artefacto **PostgreSQL cifrado** no caducado del repositorio, verifica SHA256, descifra en runner GitHub aislado y restaura **únicamente `school_directory`** en PostgreSQL 17 local, con su validación habitual. No restaura cuentas, chats, acuerdos ni datos privados en el servidor de prueba.
+2. Obtiene el último artefacto **Storage cifrado** no caducado del repositorio, verifica SHA256 del `.enc` y descifra en el mismo runner. Un validador Python recrea **cada objeto** en una carpeta temporal privada, y comprueba tamaño y SHA256 conforme al manifiesto, pertenencia a `listing-photos` o `chat-attachments`, ausencia de rutas peligrosas, enlaces simbólicos o archivos extra.
+3. El runner borra datos descifrados al terminar y **no sube archivos restaurados ni manifiestos de rutas privadas** a GitHub. Solo imprime recuentos, bytes y estado.
+4. No requiere ninguna credencial Supabase: solo el secreto de cifrado **existente** `WETUDY_BACKUP_ENCRYPTION_PASSWORD` y lectura de artefactos Actions con el token de GitHub. No se conecta a ningún entorno Supabase ni genera consumo de base de datos adicional.
+5. Se activa una vez tras la incorporación del workflow a `main` y está disponible para repetición manual. Los artefactos vencen a los 7 días, así que una ejecución posterior puede requerir nuevos respaldos.
+
+**Criterio de éxito:** GitHub Actions indica `Success` para ambos pasos de recuperación; los logs reflejan recuento de colegios restaurados, archivos de ambos buckets recuperados, hashes verificados y ninguna ruta inválida.
+
+**Interpretación:** demuestra que los **dos respaldos cifrados se pueden recuperar localmente**. No constituye una restauración integral y funcional del servicio Wetudy ni de Auth/RLS, ni la recreación del API Supabase Storage en un proyecto de recuperación. Esos ensayos completos siguen pendientes de infraestructura aislada y presupuesto autorizado.
+
+**Registro de ejecución:** registrar ID y resultado en el issue #245 cuando exista ejecución exitosa; hasta entonces **pendiente**, incluso si el código y Critical Contracts están verdes.
