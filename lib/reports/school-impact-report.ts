@@ -138,6 +138,7 @@ export async function loadSchoolImpactReport(params: {
       .from("listings")
       .select("id, title, category, isbn, status, created_at")
       .eq("school_id", schoolId)
+      .eq("is_demo", false)
       .returns<ListingRow[]>(),
     admin
       .from("profiles")
@@ -176,7 +177,8 @@ export async function loadSchoolImpactReport(params: {
 
   const listings = (listingsResult.data || []) as ListingRow[];
   const listingById = new Map(listings.map((listing) => [listing.id, listing]));
-  const agreements = (agreementsResult.data || []) as AgreementRow[];
+  const agreements = ((agreementsResult.data || []) as AgreementRow[])
+    .filter((agreement) => Boolean(agreement.listing_id && listingById.has(agreement.listing_id)));
 
   const reusedItems = agreements.length;
   const donatedItems = agreements.filter(
