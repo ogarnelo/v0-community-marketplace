@@ -58,12 +58,9 @@ type ListingRow = {
   created_at: string;
 };
 
-type ProfileRow = {
+type SchoolAdminRow = {
   id: string;
   full_name: string | null;
-  school_id: string | null;
-  user_type: string | null;
-  grade_level: string | null;
 };
 
 type ReportRow = {
@@ -88,7 +85,6 @@ type ListingViewRow = {
 };
 
 type AgreementRow = {
-  id: string;
   listing_id: string | null;
   agreement_type: string | null;
   status: string | null;
@@ -116,8 +112,8 @@ type ImpactDelivery = {
 type Props = {
   school: SchoolRow | null;
   listings: ListingRow[];
-  members: ProfileRow[];
-  schoolAdmins: ProfileRow[];
+  memberCount: number;
+  schoolAdmins: SchoolAdminRow[];
   reports: ReportRow[];
   accessCodes: SchoolAccessCodeRow[];
   listingViews: ListingViewRow[];
@@ -210,7 +206,7 @@ function MetricCard({
 export default function SchoolAdminDashboard({
   school,
   listings,
-  members,
+  memberCount,
   schoolAdmins,
   reports,
   accessCodes,
@@ -312,7 +308,7 @@ export default function SchoolAdminDashboard({
     ["Libros escolares incluidos en estimación CO2e", String(reusedBooks)],
     ["CO2e potencialmente evitado estimado (kg)", estimatedAvoidedCo2.toFixed(1)],
     ["Artículos reutilizados sin factor CO2e específico", String(unquantifiedItems)],
-    ["Miembros vinculados al centro", String(members.length)],
+    ["Cuentas que seleccionaron el centro", String(memberCount)],
     ["Administradores del centro", String(schoolAdmins.length)],
     ["Anuncios activos", String(activeListings)],
     ["Visitas a anuncios en periodo", String(filteredViews.length)],
@@ -579,8 +575,8 @@ export default function SchoolAdminDashboard({
             />
             <MetricCard
               icon={<Users className="h-5 w-5" />}
-              value={String(members.length)}
-              label="Comunidad vinculada"
+              value={String(memberCount)}
+              label="Cuentas que seleccionaron el centro"
               detail={`${schoolAdmins.length} administrador(es) de centro.`}
             />
           </div>
@@ -836,9 +832,9 @@ export default function SchoolAdminDashboard({
           <div className="grid gap-4 sm:grid-cols-3">
             <MetricCard
               icon={<Users className="h-5 w-5" />}
-              value={String(members.length)}
-              label="Miembros"
-              detail="Perfiles actualmente vinculados al centro."
+              value={String(memberCount)}
+              label="Centro seleccionado por"
+              detail="Cuentas que han seleccionado este centro. No implica pertenencia verificada."
             />
             <MetricCard
               icon={<ShieldCheck className="h-5 w-5" />}
