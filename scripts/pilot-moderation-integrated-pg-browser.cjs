@@ -174,8 +174,15 @@ async function snapshot(){
 
   const resolvedBy=v.report.resolved_by,at=v.report.resolved_at;
   await page.getByLabel("Respuesta al usuario").fill("Edición QA de respuesta");
+  // Wait for the HTTP response, not for the button label to disappear:
+  // during loading the button changes its label to "Guardando...".
+  const saveResponse=page.waitForResponse(r=>
+    r.url().endsWith("/api/admin/reports/status") &&
+    r.request().method()==="POST" &&
+    r.request().postDataJSON()?.resolutionNote==="Edición QA de respuesta"
+  );
   await page.getByRole("button",{name:"Guardar respuesta"}).click();
-  await page.getByRole("button",{name:"Guardar respuesta"}).waitFor({state:"hidden"});
+  assert.equal((await saveResponse).status(),200);
   v=await snapshot();
   assert.equal(v.report.resolution_note,"Edición QA de respuesta");
   assert.equal(v.notices,1);assert.equal(v.events,1);
