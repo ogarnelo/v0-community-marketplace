@@ -61,7 +61,8 @@ export async function POST(request: Request) {
     const input = parseStudentInput(body);
     const student = await createAccountStudent(user.id, input);
 
-    deferProductEvent("school_linked", { link_type: "student_context" });
+    // Directory-only references do not signify membership in an active community.
+    if (input.schoolId) deferProductEvent("school_linked", { link_type: "student_context" });
 
     return NextResponse.json({ student }, { status: 201 });
   } catch (error) {

@@ -24,6 +24,7 @@ type StudentRow = {
   relationship: "self" | "guardian";
   alias: string | null;
   school_id: string | null;
+  directory_school_code: string | null;
   grade_level: string;
   academic_year: string;
   is_primary: boolean;
@@ -89,7 +90,7 @@ export default async function StudentsOnboardingPage({
       .limit(500),
     supabase
       .from("account_students")
-      .select("id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
+      .select("id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
       .eq("owner_user_id", user.id)
       .eq("active", true)
       .order("sort_order", { ascending: true })

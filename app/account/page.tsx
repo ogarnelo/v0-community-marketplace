@@ -91,7 +91,7 @@ export default async function AccountPage() {
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<UserRoleRow[]>(),
     supabase
       .from("account_students")
-      .select("id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
+      .select("id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
       .eq("owner_user_id", user.id)
       .eq("active", true)
       .order("sort_order", { ascending: true })
@@ -236,7 +236,7 @@ export default async function AccountPage() {
                 userType,
                 defaultEducationalSchoolId,
                 ...accountStudentRows.map((student) =>
-                  [student.id, student.school_id || "", student.grade_level].join(":")
+                  [student.id, student.school_id || "", student.directory_school_code || "", student.grade_level].join(":")
                 ),
               ].join("|")}
               accountType={userType}

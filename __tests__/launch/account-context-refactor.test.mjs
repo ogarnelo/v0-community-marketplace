@@ -30,7 +30,7 @@ test("student educational context has no alias and includes center search code a
   assert.match(section, /showAlias=\{false\}/);
   assert.match(fields, /Centro educativo/);
   assert.match(fields, /Busca por nombre, ciudad o CP/);
-  assert.match(fields, /Código de centro/);
+  assert.match(fields, /Código de acceso de comunidad/);
   assert.match(fields, /Introduce un código/);
   assert.match(fields, /Aplicar/);
   assert.match(fields, /Curso/);
@@ -88,7 +88,7 @@ test("existing profile school or managed school preselects the educational conte
   assert.match(section, /defaultSchoolId = ""/);
   assert.match(
     section,
-    /schoolId: student\.school_id \|\| defaultSchoolId/
+    /schoolId: student\.school_id \|\| \(student\.directory_school_code \? "" : defaultSchoolId\)/
   );
   assert.match(
     section,

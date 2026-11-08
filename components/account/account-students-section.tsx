@@ -27,6 +27,7 @@ export type AccountStudentRow = {
   relationship: "self" | "guardian";
   alias: string | null;
   school_id: string | null;
+  directory_school_code: string | null;
   grade_level: string;
   academic_year: string;
   is_primary: boolean;
@@ -39,12 +40,14 @@ export type AccountStudentRow = {
 type Draft = {
   alias: string;
   schoolId: string;
+  directorySchoolCode: string;
   gradeLevel: string;
 };
 
 const EMPTY_DRAFT: Draft = {
   alias: "",
   schoolId: "",
+  directorySchoolCode: "",
   gradeLevel: "",
 };
 
@@ -55,12 +58,14 @@ function draftFromStudent(
   return student
     ? {
         alias: student.alias || "",
-        schoolId: student.school_id || defaultSchoolId,
+        schoolId: student.school_id || (student.directory_school_code ? "" : defaultSchoolId),
+        directorySchoolCode: student.directory_school_code || "",
         gradeLevel: student.grade_level || "",
       }
     : {
         ...EMPTY_DRAFT,
         schoolId: defaultSchoolId,
+        directorySchoolCode: "",
       };
 }
 
@@ -156,6 +161,7 @@ export default function AccountStudentsSection({
           body: JSON.stringify({
             alias: accountType === "student" ? null : draft.alias.trim() || null,
             schoolId: draft.schoolId || null,
+            directorySchoolCode: draft.directorySchoolCode || null,
             gradeLevel: draft.gradeLevel,
           }),
         }
@@ -260,6 +266,10 @@ export default function AccountStudentsSection({
             alias=""
             onAliasChange={() => undefined}
             schoolId={draft.schoolId}
+            directorySchoolCode={draft.directorySchoolCode}
+            onDirectorySchoolCodeChange={(directorySchoolCode) =>
+              setDraft((current) => ({ ...current, directorySchoolCode }))
+            }
             onSchoolIdChange={(schoolId) =>
               setDraft((current) => ({ ...current, schoolId }))
             }
@@ -352,7 +362,7 @@ export default function AccountStudentsSection({
                         ) : null}
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                        <span>{school?.name || "Sin centro"}</span>
+                        <span>{school?.name || (student.directory_school_code ? "Centro del directorio · " + student.directory_school_code : "Sin centro")}</span>
                         <span aria-hidden="true">·</span>
                         <span>{student.grade_level}</span>
                         <span aria-hidden="true">·</span>
@@ -448,6 +458,10 @@ export default function AccountStudentsSection({
                 setDraft((current) => ({ ...current, alias }))
               }
               schoolId={draft.schoolId}
+            directorySchoolCode={draft.directorySchoolCode}
+            onDirectorySchoolCodeChange={(directorySchoolCode) =>
+              setDraft((current) => ({ ...current, directorySchoolCode }))
+            }
               onSchoolIdChange={(schoolId) =>
                 setDraft((current) => ({ ...current, schoolId }))
               }

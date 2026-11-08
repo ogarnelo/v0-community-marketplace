@@ -26,6 +26,7 @@ type StudentRow = {
   relationship: "self" | "guardian";
   alias: string | null;
   school_id: string | null;
+  directory_school_code: string | null;
   grade_level: string;
   academic_year: string;
   is_primary: boolean;
@@ -38,12 +39,14 @@ type StudentRow = {
 type Draft = {
   alias: string;
   schoolId: string;
+  directorySchoolCode: string;
   gradeLevel: string;
 };
 
 const EMPTY_DRAFT: Draft = {
   alias: "",
   schoolId: "",
+  directorySchoolCode: "",
   gradeLevel: "",
 };
 
@@ -74,6 +77,7 @@ export default function AccountStudentsOnboarding({
       ? {
           alias: "",
           schoolId: initialSelf.school_id || "",
+          directorySchoolCode: initialSelf.directory_school_code || "",
           gradeLevel: initialSelf.grade_level || "",
         }
       : EMPTY_DRAFT
@@ -107,6 +111,7 @@ export default function AccountStudentsOnboarding({
     setDraft({
       alias: accountType === "student" ? "" : student.alias || "",
       schoolId: student.school_id || "",
+      directorySchoolCode: student.directory_school_code || "",
       gradeLevel: student.grade_level || "",
     });
     setEditingId(student.id);
@@ -141,6 +146,7 @@ export default function AccountStudentsOnboarding({
           body: JSON.stringify({
             alias: accountType === "student" ? null : draft.alias.trim() || null,
             schoolId: draft.schoolId || null,
+            directorySchoolCode: draft.directorySchoolCode || null,
             gradeLevel: draft.gradeLevel,
           }),
         }
@@ -166,6 +172,7 @@ export default function AccountStudentsOnboarding({
         setDraft({
           alias: "",
           schoolId: saved.school_id || "",
+          directorySchoolCode: saved.directory_school_code || "",
           gradeLevel: saved.grade_level || "",
         });
       } else {
@@ -217,7 +224,7 @@ export default function AccountStudentsOnboarding({
   }
 
   async function enterWetudy() {
-    const hasDraft = Boolean(draft.alias.trim() || draft.schoolId || draft.gradeLevel);
+    const hasDraft = Boolean(draft.alias.trim() || draft.schoolId || draft.directorySchoolCode || draft.gradeLevel);
 
     if (showEditor && hasDraft) {
       const saved = await saveDraft();
@@ -281,7 +288,7 @@ export default function AccountStudentsOnboarding({
                         ) : null}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {school?.name || "Sin centro"} · {student.grade_level} · {student.academic_year}
+                        {school?.name || (student.directory_school_code ? "Centro del directorio · " + student.directory_school_code : "Sin centro")} · {student.grade_level} · {student.academic_year}
                       </p>
                     </div>
 
@@ -346,6 +353,10 @@ export default function AccountStudentsOnboarding({
                   setDraft((current) => ({ ...current, alias }))
                 }
                 schoolId={draft.schoolId}
+                directorySchoolCode={draft.directorySchoolCode}
+                onDirectorySchoolCodeChange={(directorySchoolCode) =>
+                  setDraft((current) => ({ ...current, directorySchoolCode }))
+                }
                 onSchoolIdChange={(schoolId) =>
                   setDraft((current) => ({ ...current, schoolId }))
                 }

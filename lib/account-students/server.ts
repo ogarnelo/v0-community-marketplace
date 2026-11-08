@@ -7,6 +7,7 @@ export type StudentRelationship = "self" | "guardian";
 export type AccountStudentInput = {
   alias: string | null;
   schoolId: string | null;
+  directorySchoolCode: string | null;
   gradeLevel: string;
 };
 
@@ -41,10 +42,18 @@ function currentAcademicYear() {
 export function parseStudentInput(body: any): AccountStudentInput {
   const alias = cleanText(body?.alias, MAX_ALIAS_LENGTH);
   const schoolId = cleanText(body?.schoolId, 64) || null;
+  const directorySchoolCode = typeof body?.directorySchoolCode === "string" ? body.directorySchoolCode.trim() || null : null;
   const gradeLevel = cleanText(body?.gradeLevel, MAX_GRADE_LENGTH);
 
   if (schoolId && !UUID_RE.test(schoolId)) {
     throw new AccountStudentError("Selecciona un centro válido.");
+  }
+
+  if (directorySchoolCode && !/^[0-9]{8}$/.test(directorySchoolCode)) {
+    throw new AccountStudentError("Selecciona un código oficial válido.");
+  }
+  if (schoolId && directorySchoolCode) {
+    throw new AccountStudentError("Selecciona un único centro.");
   }
 
   if (!gradeLevel) {
@@ -54,6 +63,7 @@ export function parseStudentInput(body: any): AccountStudentInput {
   return {
     alias: alias || null,
     schoolId,
+    directorySchoolCode,
     gradeLevel,
   };
 }
@@ -102,11 +112,23 @@ export async function ensureActiveSchool(schoolId: string) {
   return school;
 }
 
+export async function ensureDirectorySchool(code: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("school_directory")
+    .select("official_code")
+    .eq("official_code", code)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new AccountStudentError("El colegio seleccionado no está en el directorio.", 400, "directory_school_not_found");
+  return data;
+}
+
 export async function listAccountStudents(userId: string) {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("account_students")
-    .select("id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
+    .select("id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
     .eq("owner_user_id", userId)
     .eq("active", true)
     .order("sort_order", { ascending: true })
@@ -121,6 +143,9 @@ export async function createAccountStudent(userId: string, input: AccountStudent
   const accountType = await getAccountType(userId);
   if (input.schoolId) {
     await ensureActiveSchool(input.schoolId);
+  }
+  if (input.directorySchoolCode) {
+    await ensureDirectorySchool(input.directorySchoolCode);
   }
 
   const relationship = relationshipForAccountType(accountType);
@@ -153,13 +178,14 @@ export async function createAccountStudent(userId: string, input: AccountStudent
       relationship,
       alias: accountType === "student" ? null : input.alias,
       school_id: input.schoolId,
+      directory_school_code: input.directorySchoolCode,
       grade_level: input.gradeLevel,
       academic_year: currentAcademicYear(),
       is_primary: isPrimary,
       active: true,
       sort_order: nextSortOrder,
     })
-    .select("id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
+    .select("id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
     .single();
 
   if (error) {
@@ -190,6 +216,9 @@ export async function updateAccountStudent(
   if (input.schoolId) {
     await ensureActiveSchool(input.schoolId);
   }
+  if (input.directorySchoolCode) {
+    await ensureDirectorySchool(input.directorySchoolCode);
+  }
   const expectedRelationship = relationshipForAccountType(accountType);
 
   const { data: existing, error: existingError } = await admin
@@ -217,12 +246,13 @@ export async function updateAccountStudent(
     .update({
       alias: accountType === "student" ? null : input.alias,
       school_id: input.schoolId,
+      directory_school_code: input.directorySchoolCode,
       grade_level: input.gradeLevel,
       updated_at: new Date().toISOString(),
     })
     .eq("id", studentId)
     .eq("owner_user_id", userId)
-    .select("id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
+    .select("id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
     .single();
 
   if (error) throw error;
