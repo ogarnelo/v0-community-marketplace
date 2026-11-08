@@ -1,0 +1,39 @@
+name: Wetudy isolated moderation SQL test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/pilot-moderation-sandbox.yml"
+      - "scripts/pilot-moderation-sandbox.sh"
+      - "supabase/migrations/20260918202500_harden_agreement_integrity.sql"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-moderation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_test
+          POSTGRES_PASSWORD: wetudy_test
+          POSTGRES_DB: wetudy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_test -d wetudy_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wetudy_test:wetudy_test@127.0.0.1:5432/wetudy_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Exercise dispute function against synthetic local data only
+        run: bash scripts/pilot-moderation-sandbox.sh
