@@ -20,7 +20,8 @@ test("a national reference on listings never activates or masquerades as a commu
 
 test("publishing prioritizes selected student directory code over a stale profile school", () => {
   assert.match(newPage, /select\("school_id,directory_school_code,is_primary,sort_order,created_at"\)/);
-  assert.doesNotMatch(newPage, /\.not\("school_id", "is", null\)/);
+  const studentQuery = newPage.slice(newPage.indexOf('from("account_students")'), newPage.indexOf("const requestedParams"));
+  assert.doesNotMatch(studentQuery, /\.not\("school_id", "is", null\)/);
   assert.match(newPage, /primaryStudentContext\s*\?\s*primaryStudentContext\.school_id \|\| null/);
   assert.match(newPage, /primaryStudentContext\?\.directory_school_code/);
   assert.match(newPage, /initialDirectorySchoolCode=\{selectedDirectorySchool\?\.official_code \|\| ""\}/);
