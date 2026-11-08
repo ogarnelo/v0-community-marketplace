@@ -58,6 +58,39 @@ async function expectAdminQrProtected(context) {
   console.log("PASS: admin QR cannot be fetched without a session.");
 }
 
+async function expectAdminPagesRequireLogin(context) {
+  // These pages may render privileged content for logged-in moderators.
+  // Test only the first unauthenticated GET without following any redirect,
+  // without creating user sessions, and without loading sensitive HTML.
+  const protectedRoutes = [
+    "/admin/school",
+    "/admin/super",
+    "/admin/super/reports/00000000-0000-4000-8000-000000000000",
+  ];
+
+  for (const path of protectedRoutes) {
+    const response = await context.request.get(new URL(path, ORIGIN).toString(), {
+      timeout: 25000,
+      maxRedirects: 0,
+    });
+    assert.ok(
+      [307, 308].includes(response.status()),
+      `Guest must be redirected away from ${path} (got ${response.status()})`
+    );
+    const location = response.headers().location || "";
+    const destination = new URL(location, ORIGIN);
+    assert.equal(destination.origin, ORIGIN, "Admin login must stay on Wetudy");
+    assert.equal(destination.pathname, "/auth", "Guest must go to login");
+    assert.equal(
+      destination.searchParams.get("next"),
+      path,
+      "Login return path must preserve the intended admin page"
+    );
+  }
+
+  console.log("PASS: guest cannot access AMPA, superadmin or report detail pages.");
+}
+
 async function checkQrOnboarding(browser, viewport, withLogin) {
   const context = await browser.newContext({ viewport, locale: "es-ES" });
   // Do not run analytics acquisition calls even if UI logic changes later.
@@ -129,6 +162,7 @@ async function checkQrOnboarding(browser, viewport, withLogin) {
     try {
       await expectPublicApi(context);
       await expectAdminQrProtected(context);
+      await expectAdminPagesRequireLogin(context);
     } finally {
       await context.close();
     }
