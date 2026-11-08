@@ -127,6 +127,8 @@ Crear una base de datos con 34.845 entradas **no mejora automáticamente el SEO*
 - Google considera abusivo el contenido masivo sin valor para los usuarios: https://developers.google.com/search/docs/essentials/spam-policies
 - Un sitemap facilita el descubrimiento, **no garantiza indexación**. https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
 
+**Regla adicional implementada en código (8/11/2026):** incluso un centro listado, vinculado a una comunidad activa no-test y marcado manualmente `seo_indexable=true` seguirá con `noindex` si no se encuentra al menos un anuncio **disponible y no demostrativo** de ese centro. Los anuncios de prueba se excluyen mediante `isDemoListing`; si falla la consulta a PostgreSQL, se mantiene `noindex`. Cuando existen anuncios reales, la ficha enlaza a un conjunto limitado de publicaciones disponibles. Sin embargo, no hay garantía de posicionamiento: conviene revisar manualmente calidad y contenido antes de la indexación y monitorizar Search Console.
+
 ### Validación necesaria antes de habilitar indexación
 
 Comprobar que el colegio participa realmente en Wetudy, que su ficha tiene contenido útil y correcto, que los anuncios de muestra no se presentan como reales y que las señales SEO son coherentes en el HTML servido al buscador. Revisar enlaces, canonicals y datos en Search Console. No indexar masivamente centros sin actividad. No usar datos estructurados `LocalBusiness` simulando que Wetudy es el operador de esos colegios.
