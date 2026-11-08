@@ -55,9 +55,9 @@ SQL
 temp="$(mktemp)"
 trap 'rm -f "$temp"' EXIT
 awk '
-  /^create or replace function public\\.server_dispute_agreement\\(/ { active=1 }
+  /^create or replace function public\.server_dispute_agreement\(/ { active=1 }
   active { print }
-  active && /^\\$\\$;$/ { exit }
+  active && /^\$\$;$/ { exit }
 ' supabase/migrations/20260918202500_harden_agreement_integrity.sql > "$temp"
 grep -q 'returns public.agreements' "$temp" || {
   echo "Dispute function extraction failed" >&2; exit 1;
