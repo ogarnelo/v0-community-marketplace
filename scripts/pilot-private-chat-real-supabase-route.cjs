@@ -70,6 +70,7 @@ async function requestAs(handler,client,expectStatus){
  if(expectStatus===200){
   assert.equal(response.headers.get("content-type"),"application/octet-stream");
   assert.match(response.headers.get("content-disposition")||"",/^attachment;/);
+  assert.match(response.headers.get("content-disposition")||"",/filename\*=UTF-8\x27\x27Matem%C3%A1ticas%206%C2%BA\.pdf/);
   assert.equal(await response.text(),marker);
  }else assert.doesNotMatch(await response.text(),new RegExp(marker));
 }
@@ -85,7 +86,7 @@ async function requestAs(handler,client,expectStatus){
      .upload(filePath,new Blob([marker],{type:"application/pdf"}),{contentType:"application/pdf",upsert:false});
  assert.ifError(up.error);
  sql("insert into public.messages(id,conversation_id,attachment_path,attachment_type) "+
-    "values ('"+msg+"','"+conv+"','"+filePath+"','application/pdf')");
+    "values ('"+msg+"','"+conv+"','"+filePath+"','application/pdf','Matemáticas 6º.pdf')");
  await requestAs(handler,create(),401);
  await requestAs(handler,a.client,200);
  await requestAs(handler,b.client,200);
