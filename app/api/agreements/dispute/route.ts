@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isDemoListing } from "@/lib/seo/demo-listing";
 
 const INCIDENT_REASON_LABELS: Record<string, string> = {
   delivery_missing: "No se ha realizado la entrega",
@@ -50,6 +51,41 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
+    // A DEMO cannot create an authentic moderation case, mutate a confirmed
+    // agreement to disputed, or send automated incident messages.
+    const { data: currentAgreement, error: agreementLookupError } = await admin
+      .from("agreements")
+      .select("listing_id,buyer_id,seller_id")
+      .eq("id", agreementId)
+      .maybeSingle();
+    if (agreementLookupError) {
+      throw agreementLookupError;
+    }
+    if (!currentAgreement) {
+      return NextResponse.json({ error: "No se encontró el acuerdo." }, { status: 404 });
+    }
+    if (currentAgreement.buyer_id !== user.id && currentAgreement.seller_id !== user.id) {
+      return NextResponse.json({ error: "No puedes reportar este acuerdo." }, { status: 403 });
+    }
+
+    const { data: reportListing, error: listingLookupError } = await admin
+      .from("listings")
+      .select("id,title")
+      .eq("id", currentAgreement.listing_id)
+      .maybeSingle();
+    if (listingLookupError || !reportListing) {
+      return NextResponse.json(
+        { error: "No se pudo verificar el anuncio. Inténtalo de nuevo." },
+        { status: 503 }
+      );
+    }
+    if (isDemoListing(reportListing)) {
+      return NextResponse.json(
+        { error: "Los acuerdos de demostración no generan incidencias reales." },
+        { status: 409 }
+      );
+    }
+
     const { data, error } = await admin.rpc("server_dispute_agreement", {
       p_actor_id: user.id,
       p_agreement_id: agreementId,
