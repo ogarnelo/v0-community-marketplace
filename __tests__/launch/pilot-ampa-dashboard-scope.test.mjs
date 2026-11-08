@@ -23,12 +23,16 @@ test("AMPA dashboard uses school-scoped queries for listing and sensitive data",
 });
 
 test("AMPA panel does not expose full family profiles to dashboard client", () => {
-  assert.match(page, /const memberCount = safeMembers\.length/);
+  assert.match(page, /const memberCount = Number\(memberCountData\)/);
+  assert.match(page, /\.rpc\("server_school_member_count", \{ p_school_id: effectiveSchoolId \}\)/);
   assert.match(page, /School admins can see the size of their self-selected community/);
 });
 
-// Known optimization debt: the server currently fetches up to 10k profiles
-// and 20k student contexts across schools before aggregating. These are NOT
-// returned directly to the browser, but create unnecessary privileged reads.
-// Do not mark this as resolved until queries are school-scoped in the DB.
-test.todo("replace privileged cross-school profile/context scans with scoped aggregate counts");
+// The server must only request a school-scoped scalar from the database,
+ // never pull all family/student IDs into the Node process.
+test("AMPA membership aggregation is service-role restricted and school-scoped", () => {
+  assert.match(page, /adminSupabase\.rpc\("server_school_member_count", \{ p_school_id: effectiveSchoolId \}\)/);
+  assert.doesNotMatch(page, /profilesForCommunity|activeStudentContexts|safeMembers/);
+  assert.doesNotMatch(page, /\.limit\(10000\)|\.limit\(20000\)/);
+  assert.match(page, /if \(memberCountError \|\| memberCountData == null\)/);
+});
