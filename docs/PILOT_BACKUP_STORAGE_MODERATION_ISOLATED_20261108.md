@@ -53,3 +53,20 @@ Nuevo workflow `.github/workflows/pilot-moderation-sandbox.yml`:
 - PR #247–#254: contexto nacional, flujo E2E y controles de datos DEMO y RLS.
 - Referencia oficial: https://supabase.com/docs/guides/platform/backups y https://supabase.com/docs/reference/javascript/file-buckets-download
 - Esta guía no contiene claves, datos personales ni contenido de chats.
+
+
+## 5. Ensayo verificable de recuperación parcial de PostgreSQL
+
+Se incorpora el workflow `.github/workflows/pilot-encrypted-db-restore-drill.yml`, ejecutado automáticamente **una sola vez al incorporarlo a `main`** y disponible luego bajo `workflow_dispatch`:
+
+1. Sin conectarse a la base de datos de producción, recupera de GitHub Actions el **último artefacto cifrado y no caducado** `wetudy-encrypted-postgres-backup` (el que ya crea el workflow DB).
+2. Comprueba SHA-256, descifra con el secreto existente `WETUDY_BACKUP_ENCRYPTION_PASSWORD` y valida la estructura `pg_restore --list`.
+3. Inicia PostgreSQL 17 desechable en `127.0.0.1`; únicamente restaura la tabla de **centros escolares nacionales**, sin datos personales, chats, contraseñas ni acuerdos.
+4. Comprueba que hay más de 30.000 colegios, que el código oficial `04602365` existe, y que ningún centro del directorio está listado, indexado ni vinculado.
+5. Borra todos los archivos descifrados al finalizar el proceso en el runner.
+
+**Este procedimiento confirma solo una restauración parcial y la lectura del artefacto realmente cifrado.** No demuestra una restauración completa de Auth, RLS, datos transaccionales ni binarios Storage.
+
+**Posible bloqueo técnico:** si los archivos se han caducado (retención 7 días), hay que ejecutar de nuevo el workflow `Wetudy encrypted database backup` antes de repetir este ensayo. **Estado del workflow y run-ID:** se documentan en el issue #245 tras la ejecución.
+
+**Costes:** no requiere otra instancia de Supabase. Consume una breve ejecución de GitHub Actions y el contenedor PostgreSQL del runner, sin pagos adicionales contratados.
