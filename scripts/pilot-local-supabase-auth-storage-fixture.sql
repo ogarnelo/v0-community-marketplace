@@ -36,6 +36,7 @@ using (buyer_id = (select auth.uid()) or seller_id = (select auth.uid()));
 grant select on public.user_roles, public.school_access_codes, public.conversations to authenticated;
 insert into public.school_access_codes (school_id,code) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','QA-ALFA-ONLY'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','QA-BETA-ONLY');
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','QA-BETA-ONLY'),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','QA-GAMMA-ONLY');
 insert into storage.buckets (id,name,public,file_size_limit) values
   ('chat-attachments','chat-attachments',false,10485760);
