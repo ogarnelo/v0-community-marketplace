@@ -41,11 +41,11 @@ test("test runs only in disposable localhost Postgres and never sends emails", (
 
 test("isolated moderation test uses the actual resolution RPC and cannot touch production", () => {
   const script = read("scripts/pilot-report-resolution-sandbox.sh");
-  const migration = read("supabase/migrations/20261108195500_report_status_idempotent_notifications.sql");
+  const migration = read("supabase/migrations/20261108210128_report_status_idempotent_notifications_20261108.sql");
   const flow = read(".github/workflows/pilot-two-school-isolation.yml");
   assert.match(script, /Refusing to test moderation resolution against nonlocal DB/);
   assert.match(script, /server_update_report_status/);
-  assert.match(script, /20261108195500_report_status_idempotent_notifications\.sql/);
+  assert.match(script, /20261108210128_report_status_idempotent_notifications_20261108\.sql/);
   assert.match(script, /School admin was allowed to moderate globally/);
   assert.match(script, /Agreement must remain disputed while second report is active/);
   assert.match(script, /Closing all reports did not restore agreement and notify/);
