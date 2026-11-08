@@ -46,14 +46,14 @@ DECLARE
  v_a bigint;
  v_b bigint;
 BEGIN
- v_a := public.pilot_school_member_count('00000000-0000-4000-8000-000000000201');
- v_b := public.pilot_school_member_count('00000000-0000-4000-8000-000000000202');
+ v_a := public.server_school_member_count('00000000-0000-4000-8000-000000000201');
+ v_b := public.server_school_member_count('00000000-0000-4000-8000-000000000202');
  IF v_a <> 4 OR v_b <> 5 THEN
    RAISE EXCEPTION 'Wrong school membership A=%, B=% (expected 4 and 5)',v_a,v_b;
  END IF;
- IF has_function_privilege('anon','public.pilot_school_member_count(uuid)','EXECUTE')
-   OR has_function_privilege('authenticated','public.pilot_school_member_count(uuid)','EXECUTE')
-   OR NOT has_function_privilege('service_role','public.pilot_school_member_count(uuid)','EXECUTE') THEN
+ IF has_function_privilege('anon','public.server_school_member_count(uuid)','EXECUTE')
+   OR has_function_privilege('authenticated','public.server_school_member_count(uuid)','EXECUTE')
+   OR NOT has_function_privilege('service_role','public.server_school_member_count(uuid)','EXECUTE') THEN
    RAISE EXCEPTION 'Candidate SQL aggregate function privilege violation';
  END IF;
 END $test$;
@@ -61,8 +61,8 @@ BEGIN;
 SET LOCAL ROLE service_role;
 DO $test$
 BEGIN
- IF public.pilot_school_member_count('00000000-0000-4000-8000-000000000201') <> 4
- OR public.pilot_school_member_count('00000000-0000-4000-8000-000000000202') <> 5 THEN
+ IF public.server_school_member_count('00000000-0000-4000-8000-000000000201') <> 4
+ OR public.server_school_member_count('00000000-0000-4000-8000-000000000202') <> 5 THEN
    RAISE EXCEPTION 'Service role expected scoped aggregate';
  END IF;
 END $test$;
