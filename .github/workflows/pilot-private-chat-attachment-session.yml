@@ -1,0 +1,24 @@
+name: Pilot private chat attachment session checks
+on:
+  pull_request:
+    paths:
+      - "lib/messages/private-attachment-guards.mjs"
+      - "lib/messages/private-attachment-guards.d.mts"
+      - "app/api/messages/attachment/route.ts"
+      - "components/messages/send-message-form.tsx"
+      - "components/messages/realtime-chat-messages.tsx"
+      - "__tests__/launch/pilot-private-chat-attachment-session.test.mjs"
+      - ".github/workflows/pilot-private-chat-attachment-session.yml"
+permissions:
+  contents: read
+jobs:
+  private-attachment-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate path guards, noncached per-session access, no bearer URLs
+        run: node --test __tests__/launch/pilot-private-chat-attachment-session.test.mjs
