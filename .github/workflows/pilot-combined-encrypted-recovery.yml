@@ -1,0 +1,56 @@
+name: Wetudy combined encrypted backup recovery check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/pilot-combined-encrypted-recovery.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  combined-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_restore
+          POSTGRES_PASSWORD: local_only_password
+          POSTGRES_DB: wetudy_restore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_restore -d wetudy_restore"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.WETUDY_BACKUP_ENCRYPTION_PASSWORD }}
+      LOCAL_RESTORE_URL: postgresql://wetudy_restore:local_only_password@127.0.0.1:5432/wetudy_restore
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the existing encryption password is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BACKUP_ENCRYPTION_PASSWORD" || {
+            echo "Missing WETUDY_BACKUP_ENCRYPTION_PASSWORD"; exit 1;
+          }
+      - name: Install PostgreSQL 17 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+      - name: Decrypt and restore existing PostgreSQL archive subset locally
+        run: bash scripts/pilot-db-restore-drill.sh
+      - name: Decrypt and materialize existing Storage archive locally; verify all hashes
+        run: bash scripts/pilot-storage-offline-recovery.sh
