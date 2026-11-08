@@ -1,0 +1,23 @@
+name: Pilot moderation API authorization contract
+on:
+  pull_request:
+    paths:
+      - "app/api/admin/reports/status/route.ts"
+      - "app/admin/super/reports/[id]/page.tsx"
+      - "components/admin/report-status-controls.tsx"
+      - "__tests__/launch/pilot-moderation-server-auth-contract.test.mjs"
+      - ".github/workflows/pilot-moderation-auth-contract.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  moderation-auth-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify session-bound authorization without secrets or database
+        run: node --test __tests__/launch/pilot-moderation-server-auth-contract.test.mjs
