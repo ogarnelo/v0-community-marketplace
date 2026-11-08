@@ -89,7 +89,7 @@ test("SEO is manual, published-only, verified non-test school; otherwise noindex
   assert.match(loader, /\.eq\("is_listed", true\)/);
   assert.match(loader, /\.eq\("is_test", false\)/);
   assert.match(loader, /\.eq\("is_active", true\)/);
-  assert.match(loader, /can_index: Boolean\(data\.seo_indexable && verifiedCommunity\)/);
+  assert.match(loader, /can_index: Boolean\(data\.seo_indexable && verifiedCommunity && availableMaterial\.length > 0\)/);
   assert.match(page, /robots: \{ index: centre\.can_index, follow: true \}/);
   assert.match(page, /getWetudyDirectoryCode/);
   assert.match(page, /api\/school-directory\/\$\{centre\.official_code\}\/qr/);
