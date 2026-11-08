@@ -58,7 +58,7 @@ function draftFromStudent(
   return student
     ? {
         alias: student.alias || "",
-        schoolId: student.school_id || defaultSchoolId,
+        schoolId: student.school_id || (student.directory_school_code ? "" : defaultSchoolId),
         directorySchoolCode: student.directory_school_code || "",
         gradeLevel: student.grade_level || "",
       }
@@ -362,7 +362,7 @@ export default function AccountStudentsSection({
                         ) : null}
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                        <span>{school?.name || "Sin centro"}</span>
+                        <span>{school?.name || (student.directory_school_code ? "Centro del directorio · " + student.directory_school_code : "Sin centro")}</span>
                         <span aria-hidden="true">·</span>
                         <span>{student.grade_level}</span>
                         <span aria-hidden="true">·</span>
