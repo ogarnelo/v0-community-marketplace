@@ -226,7 +226,10 @@ async function ready(next,origin){
   await sessions[1].page.reload({waitUntil:"domcontentloaded"});
   await sessions[1].page.getByTestId("school-title").waitFor();
   assert.equal(await sessions[1].page.getByTestId("school-title").innerText(),"COLEGIO QA BETA");
-  // Log out of valid BETA session must deny the panel.
+  // __logout belongs to the minimal client login page, not the SSR admin
+  // page. Navigate to that client page before invoking real Supabase signOut.
+  await sessions[1].page.goto(origin,{waitUntil:"domcontentloaded"});
+  await sessions[1].page.waitForFunction(()=>typeof window.__logout==="function");
   assert.equal(await sessions[1].page.evaluate(()=>window.__logout()),null);
   await sessions[1].page.goto(origin+"/admin/school",{waitUntil:"domcontentloaded"});
   await sessions[1].page.waitForURL(u=>!u.pathname.endsWith("/admin/school"));
