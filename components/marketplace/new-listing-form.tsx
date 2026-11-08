@@ -1121,6 +1121,11 @@ export default function NewListingForm({
           <div className="rounded-2xl border bg-background p-4 text-sm leading-relaxed text-muted-foreground">
             <div className="mb-1 flex items-center gap-2 font-medium text-foreground"><School className="h-4 w-4 text-primary" />Centro asociado</div>
             <p>{schoolLabel}</p>
+            {initialDirectorySchoolCode ? (
+              <p className="mt-1 text-xs">
+                Centro del directorio nacional · comunidad Wetudy todavía no activada.
+              </p>
+            ) : null}
             {isSchoolAdmin ? (
               <p className="mt-2 text-xs">
                 Como AMPA o centro, el anuncio queda vinculado a este centro. Puedes indicar un curso concreto o dejar “Varios cursos”; podrás comprar y contactar con usuarios de cualquier centro.
