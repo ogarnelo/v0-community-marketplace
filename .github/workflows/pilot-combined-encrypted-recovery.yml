@@ -50,6 +50,8 @@ jobs:
           sudo apt-get install -y -qq postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y -qq postgresql-client-17
+      - name: Test safe offline Storage archive recovery with synthetic data
+        run: python3 -m unittest discover -s scripts -p 'test_pilot_storage_restore.py'
       - name: Decrypt and restore existing PostgreSQL archive subset locally
         run: bash scripts/pilot-db-restore-drill.sh
       - name: Decrypt and materialize existing Storage archive locally; verify all hashes
