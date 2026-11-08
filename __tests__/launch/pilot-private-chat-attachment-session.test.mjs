@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  validChatAttachmentPath, safeAttachmentType, dispositionForAttachment,
+  validChatAttachmentPath, safeAttachmentType, dispositionForAttachment, filenameForAttachment,
 } from "../../lib/messages/private-attachment-guards.mjs";
 
 const source = (path) => readFileSync(path, "utf8");
@@ -58,4 +58,13 @@ test("sending and rendering messages do not persist or expose 7-day bearer links
   assert.match(viewer,/const hasAttachment = !!message\.attachment_path/);
   assert.match(viewer,/\x60\/api\/messages\/attachment\?messageId=\$\{encodeURIComponent\(message\.id\)\}\x60/);
   assert.doesNotMatch(viewer,/href=\{message\.attachment_url\}|src=\{message\.attachment_url\}/);
+});
+
+test("safe original file names remain available without HTTP header injection", () => {
+  assert.equal(filenameForAttachment("../../Matemáticas 6º.pdf"),"Matemáticas 6º.pdf");
+  assert.equal(filenameForAttachment(".."),"wetudy-attachment");
+  const h = dispositionForAttachment("application/pdf", "../Matemáticas 6º.pdf\r\nInjected: yes");
+  assert.match(h,/^attachment; filename="Matem_ticas_6_\.pdf/);
+  assert.match(h,/filename\*=UTF-8''Matem%C3%A1ticas%206%C2%BA\.pdfInjected%3A%20yes/);
+  assert.doesNotMatch(h,/\r|\n/);
 });
