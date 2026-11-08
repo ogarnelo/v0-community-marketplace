@@ -1,0 +1,70 @@
+name: Wetudy encrypted Storage backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WETUDY_STORAGE_BACKUP_PROJECT_URL: https://jpsljmakoscqevssimtk.supabase.co
+      # A dedicated GitHub Actions secret must be installed before running.
+      WETUDY_STORAGE_BACKUP_SERVICE_ROLE_KEY: ${{ secrets.WETUDY_STORAGE_BACKUP_SERVICE_ROLE_KEY }}
+      BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.WETUDY_BACKUP_ENCRYPTION_PASSWORD }}
+      WETUDY_STORAGE_BACKUP_DESTINATION: backup/storage-data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Require private credentials, never print them
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$WETUDY_STORAGE_BACKUP_SERVICE_ROLE_KEY" || {
+            echo "Configure WETUDY_STORAGE_BACKUP_SERVICE_ROLE_KEY in GitHub Actions secrets."; exit 1;
+          }
+          test -n "$BACKUP_ENCRYPTION_PASSWORD" && test "${#BACKUP_ENCRYPTION_PASSWORD}" -ge 20 || {
+            echo "Missing or too-short WETUDY_BACKUP_ENCRYPTION_PASSWORD secret."; exit 1;
+          }
+      - run: npm ci --ignore-scripts
+      - name: Export and verify Storage objects in the private runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p backup/storage-data
+          node scripts/pilot-storage-backup.mjs
+          node scripts/pilot-storage-backup.mjs --verify
+      - name: Encrypt archive and destroy plaintext on runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tar -czf backup/wetudy-storage.tar.gz -C backup/storage-data .
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in backup/wetudy-storage.tar.gz \
+            -out backup/wetudy-storage.tar.gz.enc \
+            -pass env:BACKUP_ENCRYPTION_PASSWORD
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in backup/wetudy-storage.tar.gz.enc \
+            -out backup/verified-storage.tar.gz \
+            -pass env:BACKUP_ENCRYPTION_PASSWORD
+          cmp backup/wetudy-storage.tar.gz backup/verified-storage.tar.gz
+          tar -tzf backup/verified-storage.tar.gz > /dev/null
+          sha256sum backup/wetudy-storage.tar.gz.enc > backup/STORAGE_SHA256SUMS.txt
+          rm -rf backup/storage-data backup/wetudy-storage.tar.gz backup/verified-storage.tar.gz
+      - name: Upload only encrypted Storage backup (seven-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: wetudy-encrypted-storage-backup
+          path: |
+            backup/wetudy-storage.tar.gz.enc
+            backup/STORAGE_SHA256SUMS.txt
+          retention-days: 7
+          if-no-files-found: error
