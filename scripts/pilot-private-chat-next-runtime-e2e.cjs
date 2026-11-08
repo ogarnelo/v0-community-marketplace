@@ -56,7 +56,8 @@ fs.writeFileSync(path.join(fixture,"app/page.tsx"),[
 fs.writeFileSync(path.join(fixture,"package.json"),JSON.stringify({
  name:"wetudy-local-next-attachment-qa",version:"0.0.0",private:true,
  dependencies:{"next":"16.3.5","react":"19.2.4","react-dom":"19.2.4",
- "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0"}
+ "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0",
+ "typescript":"5.9.3","@types/node":"22.19.11","@types/react":"19.2.14","@types/react-dom":"19.2.3"}
 },null,2));
 fs.writeFileSync(path.join(fixture,"tsconfig.json"),JSON.stringify({
  compilerOptions:{
