@@ -156,7 +156,6 @@ export default async function SchoolAdminPage() {
     { data: listings },
     { data: profilesForCommunity },
     { data: activeStudentContexts },
-    { data: reports },
     { data: accessCodes },
     { data: schoolAdminRoles },
     { data: donationRequests },
@@ -186,12 +185,6 @@ export default async function SchoolAdminPage() {
       .eq("active", true)
       .limit(20000)
       .returns<AccountStudentSchoolContextRow[]>(),
-    adminSupabase
-      .from("reports")
-      .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
-      .eq("target_type", "listing")
-      .order("created_at", { ascending: false })
-      .returns<ReportRow[]>(),
     adminSupabase
       .from("school_access_codes")
       .select("code, is_active, created_at")
@@ -254,7 +247,6 @@ export default async function SchoolAdminPage() {
     schoolContextOwnerIds.has(member.id) ||
     (!ownersWithActiveEducationalContext.has(member.id) && member.school_id === effectiveSchoolId)
   );
-  const safeReports = (reports || []) as ReportRow[];
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const safeAgreements = (agreements || []) as AgreementRow[];
 
@@ -263,6 +255,19 @@ export default async function SchoolAdminPage() {
   }
 
   const listingIds = safeListings.map((item) => item.id);
+
+  // Reports may contain sensitive reasons. Never load all schools' reports
+  // through the service-role client just to filter them in JavaScript.
+  const { data: reports } = listingIds.length > 0
+    ? await adminSupabase
+      .from("reports")
+      .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
+      .eq("target_type", "listing")
+      .in("listing_id", listingIds)
+      .order("created_at", { ascending: false })
+      .returns<ReportRow[]>()
+    : { data: [] as ReportRow[] };
+  const safeReports = reports || [];
 
   const { data: listingViews } =
     listingIds.length > 0
