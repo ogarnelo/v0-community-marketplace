@@ -130,7 +130,7 @@ export default async function ListingDetailPage({
   const [{ data: listing, error: listingError }, { data: photosData }, { data: authData }] = await Promise.all([
     supabase
       .from("listings")
-      .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, seller_id, school_id, status, created_at")
+      .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, seller_id, school_id, directory_school_code, status, created_at")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -171,6 +171,14 @@ export default async function ListingDetailPage({
 
     if (!participantConversation) notFound();
   }
+  const { data: directorySchool } = listing.directory_school_code
+    ? await supabase
+        .from("school_directory")
+        .select("name,municipality")
+        .eq("official_code", listing.directory_school_code)
+        .maybeSingle()
+    : { data: null };
+
   const conditionText = getConditionLabel(listing.condition);
   const showIsbn = shouldShowIsbn(listing.category, listing.isbn);
   const structuredDetails = [
@@ -212,7 +220,7 @@ export default async function ListingDetailPage({
 
   const relatedQuery = supabase
     .from("listings")
-    .select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, school_id, status, created_at")
+    .select("id, title, description, category, grade_level, condition, type, listing_type, isbn, price, original_price, estimated_retail_price, seller_id, school_id, directory_school_code, status, created_at")
     .eq("status", "available")
     .neq("id", listing.id)
     .limit(6);
@@ -248,6 +256,7 @@ export default async function ListingDetailPage({
     photos: relatedPhotosMap.get(item.id) || [],
     sellerId: item.seller_id || null,
     schoolId: item.school_id || null,
+    directorySchoolCode: item.directory_school_code || null,
     status: item.status,
     createdAt: item.created_at || null,
     isFavorite: false,
@@ -326,6 +335,11 @@ export default async function ListingDetailPage({
                 <p className="mt-2 text-sm text-muted-foreground">
                   {createdAtLabel ? `Publicado el ${createdAtLabel}` : "Publicado en Wetudy"} · {sellerName}
                 </p>
+                {directorySchool ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Centro de referencia: {directorySchool.name}, {directorySchool.municipality} · directorio nacional (comunidad no activada).
+                  </p>
+                ) : null}
               </div>
 
               <div className="mt-6 border-t pt-6">

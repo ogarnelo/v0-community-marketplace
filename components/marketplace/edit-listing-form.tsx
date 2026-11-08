@@ -64,6 +64,7 @@ export type EditableListing = {
   original_price: number | null;
   seller_id: string | null;
   school_id: string | null;
+  directory_school_code: string | null;
   status: string | null;
 };
 

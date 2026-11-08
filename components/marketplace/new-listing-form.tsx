@@ -68,6 +68,7 @@ type DemandListingPrefill = {
 type NewListingFormProps = {
   currentUserId: string;
   initialSchoolId: string;
+  initialDirectorySchoolCode: string;
   initialSchoolName: string;
   initialSchoolCity: string;
   initialPrefill?: DemandListingPrefill | null;
@@ -106,6 +107,7 @@ type ListingInsertPayload = {
   original_price: number | null;
   seller_id: string;
   school_id: string | null;
+  directory_school_code: string | null;
   status: "available";
   photos: string[];
 };
@@ -208,6 +210,7 @@ function SectionCard({
 export default function NewListingForm({
   currentUserId,
   initialSchoolId,
+  initialDirectorySchoolCode,
   initialSchoolName,
   initialSchoolCity,
   initialPrefill = null,
@@ -405,10 +408,10 @@ export default function NewListingForm({
   }, [selectedCategory]);
 
   const schoolLabel = useMemo(() => {
-    if (!initialSchoolId) return "Sin centro asignado";
+    if (!initialSchoolId && !initialDirectorySchoolCode) return "Sin centro asignado";
     if (initialSchoolCity?.trim()) return `${initialSchoolName}, ${initialSchoolCity}`;
     return initialSchoolName;
-  }, [initialSchoolCity, initialSchoolId, initialSchoolName]);
+  }, [initialSchoolCity, initialSchoolId, initialDirectorySchoolCode, initialSchoolName]);
 
   const normalizedGradeLevels = useMemo(() => Array.from(new Set(gradeLevels)).filter(Boolean), []);
 
@@ -804,14 +807,10 @@ export default function NewListingForm({
 
       const supabase = createClient();
 
-      const { data: currentProfile, error: profileError } = await supabase.from("profiles").select("school_id").eq("id", currentUserId).maybeSingle();
-      if (profileError) throw profileError;
-
-      const effectiveSchoolId =
-        initialSchoolId ||
-        (currentProfile?.school_id && currentProfile.school_id.trim().length > 0
-          ? currentProfile.school_id
-          : null);
+      // Server-selected student context is authoritative: never pull a stale
+      // profiles.school_id after a family chooses a national directory centre.
+      const effectiveSchoolId = initialSchoolId || null;
+      const directorySchoolCode = initialDirectorySchoolCode || null;
       const listingId = crypto.randomUUID();
       const uploadedPhotoRows = await uploadListingPhotos(listingId, currentUserId, photos);
       const photoUrls = uploadedPhotoRows.map((photo) => photo.url);
@@ -845,6 +844,7 @@ export default function NewListingForm({
         original_price: isDonation || !originalPrice.trim() ? null : parsePrice(originalPrice),
         seller_id: currentUserId,
         school_id: effectiveSchoolId,
+        directory_school_code: directorySchoolCode,
         status: "available",
         photos: photoUrls,
       };
@@ -1121,6 +1121,11 @@ export default function NewListingForm({
           <div className="rounded-2xl border bg-background p-4 text-sm leading-relaxed text-muted-foreground">
             <div className="mb-1 flex items-center gap-2 font-medium text-foreground"><School className="h-4 w-4 text-primary" />Centro asociado</div>
             <p>{schoolLabel}</p>
+            {initialDirectorySchoolCode ? (
+              <p className="mt-1 text-xs">
+                Centro del directorio nacional · comunidad Wetudy todavía no activada.
+              </p>
+            ) : null}
             {isSchoolAdmin ? (
               <p className="mt-2 text-xs">
                 Como AMPA o centro, el anuncio queda vinculado a este centro. Puedes indicar un curso concreto o dejar “Varios cursos”; podrás comprar y contactar con usuarios de cualquier centro.
