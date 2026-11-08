@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "lib/messages/private-attachment-guards.mjs"
+      - "scripts/pilot-private-chat-route-integration.cjs"
       - "lib/messages/private-attachment-guards.d.mts"
       - "app/api/messages/attachment/route.ts"
       - "components/messages/send-message-form.tsx"
@@ -22,3 +23,13 @@ jobs:
           node-version: "22"
       - name: Validate path guards, noncached per-session access, no bearer URLs
         run: node --test __tests__/launch/pilot-private-chat-attachment-session.test.mjs
+
+      - name: Prepare pinned route compiler for isolated HTTP-handler test
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-private-chat-qa --no-save --package-lock=false --ignore-scripts --no-audit --no-fund esbuild@0.25.12
+      - name: Exercise real route handler with mocked Auth and Storage (no production)
+        env:
+          PILOT_QA_MODULES: /tmp/wetudy-private-chat-qa/node_modules
+        run: node scripts/pilot-private-chat-route-integration.cjs
