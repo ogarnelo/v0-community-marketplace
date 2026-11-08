@@ -2,17 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ListingRow } from "@/lib/types/marketplace";
 import { deriveBadges } from "@/lib/users/badges";
 import { getUserReviews } from "@/lib/users/get-user-reviews";
+import { isDemoListing } from "@/lib/seo/demo-listing";
 
 export async function getUserProfileStats(supabase: SupabaseClient, userId: string) {
   const [reviews, { data: listingsData }] = await Promise.all([
     getUserReviews(supabase, userId),
     supabase
       .from("listings")
-      .select("id, listing_type, status")
+      .select("id, title, listing_type, status")
       .eq("seller_id", userId),
   ]);
 
-  const listings = (listingsData || []) as Pick<ListingRow, "id" | "status" | "listing_type">[];
+  const listings = ((listingsData || []) as Pick<ListingRow, "id" | "title" | "status" | "listing_type">[])
+    .filter((listing) => !isDemoListing(listing));
 
   const reviewCount = reviews.length;
   const averageRating =
