@@ -34,11 +34,8 @@ test("student educational context has no alias and includes center search code a
   assert.match(fields, /Introduce un código/);
   assert.match(fields, /Aplicar/);
   assert.match(fields, /Curso/);
-  assert.match(
-    fields,
-    /Puedes dejar este campo vacío/;
-  assert.match(fields, /no acredita que pertenezcas a él ni concede permisos/
-  );
+  assert.match(fields, /Puedes dejar este campo vacío/);
+  assert.match(fields, /no acredita que pertenezcas a él ni concede permisos/);
 });
 
 test("family student editor keeps optional alias", () => {
