@@ -23,7 +23,7 @@ test("school dashboard exposes measurable and reportable sustainability impact",
   assert.match(dashboard, /No se resta de la huella de carbono propia/);
   assert.match(dashboard, /Descargar CSV de impacto/);
   assert.match(dashboard, /Imprimir \/ guardar PDF/);
-  assert.match(dashboard, /Miembros vinculados al centro/);
+  assert.match(dashboard, /Cuentas que seleccionaron el centro/);
   assert.match(dashboard, /Valor de ventas acordadas/);
   assert.match(dashboard, /grid h-auto w-full grid-cols-2/);
 });
