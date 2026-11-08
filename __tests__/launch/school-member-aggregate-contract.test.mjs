@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const source=readFileSync("app/admin/school/page.tsx","utf8");
 const sql=readFileSync("scripts/pilot-school-member-count-candidate.sql","utf8");
+const migratedSql=readFileSync("supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql","utf8");
 
 test("AMPA membership loads one school-restricted aggregate, not all family profiles",()=>{
   assert.match(source,/const effectiveSchoolId = schoolAdminRole\?\.school_id \|\| null/);
@@ -18,6 +19,10 @@ test("service-role count must fail explicitly on RPC error rather than report ze
   assert.match(source,/throw new Error\("No se ha podido calcular la comunidad del centro\."\)/);
   assert.match(source,/Number\.isSafeInteger\(memberCount\)/);
   assert.match(source,/memberCount=\{memberCount\}/);
+});
+
+test("versioned SQL is byte-for-byte identical to the sandbox-validated candidate",()=>{
+  assert.equal(migratedSql,sql);
 });
 
 test("SQL aggregate returns only a number, honors profiles and never grants browser tokens",()=>{
