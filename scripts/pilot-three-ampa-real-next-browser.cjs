@@ -54,7 +54,10 @@ function prepareFiles(){
    "lib/supabase/server.ts",
    "lib/supabase/client.ts",
    "lib/supabase/admin.ts",
-   "lib/supabase/proxy.ts","proxy.ts"
+   "lib/supabase/proxy.ts","proxy.ts",
+   "components/admin/school-admin-dashboard.tsx",
+   "components/ui/tabs.tsx","components/ui/button.tsx","components/ui/card.tsx",
+   "components/ui/badge.tsx","lib/utils.ts","lib/growth/attribution.ts"
  ])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))
    fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
@@ -78,6 +81,7 @@ function prepareFiles(){
  "qa/footer.tsx":'import React from "react";export const Footer=()=> <footer>QA FOOTER</footer>;',
  "qa/dashboard.tsx":[
   'import React from "react";',
+  'import RealSchoolAdminDashboard from "@/components/admin/school-admin-dashboard";',
   'export default function SchoolAdminDashboard(p:any){',
   'return <section data-testid="school-dashboard">',
   ' <h2 data-testid="school-title">{p.school?.name}</h2>',
@@ -85,6 +89,7 @@ function prepareFiles(){
   ' <ul data-testid="listing-list">{p.listings.map((x:any)=><li key={x.id}>{x.title}</li>)}</ul>',
   ' <ul data-testid="access-code-list">{p.accessCodes.map((x:any)=><li key={x.code}>{x.code}</li>)}</ul>',
   ' <ul data-testid="report-list">{p.reports.map((x:any)=><li key={x.id}>{x.reason}</li>)}</ul>',
+  ' <RealSchoolAdminDashboard {...p} />',
   '</section>}',
  ].join("\n"),
  "qa/donations.tsx":'import React from "react";export type DonationRequestAdminItem=any;export function DonationRequestsPanel(_p:any){return <aside>QA DONATIONS</aside>;}'
@@ -111,7 +116,12 @@ function prepareFiles(){
   dependencies:{
     next:"16.3.5",react:"19.2.4","react-dom":"19.2.4",
     "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0",
-    "lucide-react":"0.468.0"
+    "lucide-react":"0.468.0",
+    "@radix-ui/react-tabs":"1.1.13",
+    "@radix-ui/react-slot":"1.2.4",
+    "class-variance-authority":"0.7.1",
+    "clsx":"2.1.1",
+    "tailwind-merge":"3.3.1"
   }
  },null,2));
 }
@@ -163,7 +173,8 @@ async function ready(next,origin){
   browser=await chromium.launch({headless:true});
   const actors=[];
   async function createSession(identity){
-   const context=await browser.newContext();
+   const context=await browser.newContext({acceptDownloads:true});
+   await context.grantPermissions(["clipboard-read","clipboard-write"],{origin});
    const page=await context.newPage();
    await page.route("**/*",route=>{
      const target=new URL(route.request().url());
@@ -195,6 +206,36 @@ async function ready(next,origin){
     assert.ok(html.includes("QA-CODIGO-"+schools[i].label));
     assert.ok(html.includes("RAZON RESERVADA "+schools[i].label));
     assert.equal(await page.getByTestId("member-count").innerText(),"1");
+    // ACTUAL interactive dashboard (real Radix Tabs + real copy handlers).
+    // Verify access code, school-specific growth link and QR belong to user school.
+    await page.getByRole("tab",{name:"Código del centro"}).click();
+    await page.getByText("QA-CODIGO-"+schools[i].label).last().waitFor();
+    await page.getByRole("button",{name:"Copiar código"}).click();
+    await page.getByRole("button",{name:"Copiado"}).waitFor();
+    assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),
+      "QA-CODIGO-"+schools[i].label);
+    await page.getByRole("button",{name:"Copiar enlace"}).click();
+    await page.getByRole("button",{name:"Enlace copiado"}).waitFor();
+    const shareUrl=await page.evaluate(()=>navigator.clipboard.readText());
+    assert.ok(shareUrl.includes("school="+schools[i].id),
+      "school invite points to wrong center");
+    assert.ok(shareUrl.includes("utm_source=school") &&
+      shareUrl.includes("utm_campaign=school_invite"));
+    assert.equal(await page.locator("img[alt^='QR para unirse']").count(),1);
+    await page.getByRole("tab",{name:"Comunidad"}).click();
+    await page.getByText("Administradores del centro").waitFor();
+    await page.getByRole("tab",{name:"Actividad"}).click();
+    await page.getByText("Visitas registradas").waitFor();
+    await page.getByRole("tab",{name:"Impacto"}).click();
+    const downloadPromise=page.waitForEvent("download");
+    await page.getByRole("button",{name:"Descargar CSV de impacto"}).click();
+    const download=await downloadPromise;
+    const csv=fs.readFileSync(await download.path(),"utf8");
+    assert.ok(csv.includes("COLEGIO QA "+schools[i].label));
+    assert.ok(csv.includes("Cuentas que seleccionaron el centro"));
+    for(const other of schools)if(other.id!==schools[i].id)
+      assert.ok(!csv.includes("COLEGIO QA "+other.label),
+        "export disclosed another school's identity");
     for(let j=0;j<schools.length;j++)if(j!==i){
      for(const secret of [
       "COLEGIO QA ","LIBRO EXCLUSIVO ","QA-CODIGO-","RAZON RESERVADA "
@@ -207,6 +248,16 @@ async function ready(next,origin){
    await actor.page.waitForURL(u=>!u.pathname.endsWith("/admin/school"),{timeout:30000});
    assert.equal(await actor.page.locator('[data-testid="school-dashboard"]').count(),0);
   }
+  // The real dashboard's report-subscription fetch fails safely in browser.
+  // The API response is intercepted locally: NO email or report is sent.
+  await sessions[1].page.route("**/api/school/report-subscription",route=>
+    route.fulfill({status:503,contentType:"application/json",
+      body:JSON.stringify({error:"QA email deshabilitado temporalmente"})}));
+  await sessions[1].page.getByRole("button",{name:"Guardar programación"}).click();
+  await sessions[1].page.getByRole("status").getByText(
+    "QA email deshabilitado temporalmente").waitFor();
+  await sessions[1].page.unroute("**/api/school/report-subscription");
+
   // Database role revocation immediately invalidates SSR server data access
   // without refreshing GoTrue JWT: GAMMA loses access, BETA unaffected.
   sql("delete from public.user_roles where user_id='"+users[2].userId+
@@ -236,7 +287,8 @@ async function ready(next,origin){
   assert.equal(await sessions[1].page.locator('[data-testid="school-dashboard"]').count(),0);
   console.log("PASS real Next 16 HTTP /admin/school page with real GoTrue sessions and SSR cookies, actual service-role scoped RPC and PostgREST.");
   console.log("3 schools no cross-school name/listing/QR/report leakage; 4th user and guest denied; GAMMA role revoked, ALFA school deactivated, BETA independent, logout denied.");
-  console.log("LIMIT: real server page + Supabase clients + backend, but navbar/dashboard/donations visual children are test-only stubs. All fixture records fake, no remote project.");
+  console.log("PASS real dashboard + actual Radix tabs, clipboard code/link, school invite UTM, CSV export, QR UI and report-subscription 503 display.");
+  console.log("LIMIT: navbar and donation visuals are QA shims; Dashboard component and its UI primitives are REAL, while report API failure is simulated in browser. All data are fake, no remote project.");
   for(const actor of actors)await actor.context.close();
  }catch(err){
   console.error("AMPA SSR QA failed:",err.message);
