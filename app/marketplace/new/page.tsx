@@ -72,10 +72,9 @@ export default async function NewListingPage({
 
   const { data: primaryStudentContext, error: studentContextError } = await supabase
     .from("account_students")
-    .select("school_id,is_primary,sort_order,created_at")
+    .select("school_id,directory_school_code,is_primary,sort_order,created_at")
     .eq("owner_user_id", user.id)
     .eq("active", true)
-    .not("school_id", "is", null)
     .order("is_primary", { ascending: false })
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true })
@@ -164,12 +163,27 @@ export default async function NewListingPage({
   }
 
   let selectedSchool: SchoolRow | null = null;
-  const preferredSchoolId =
-    managedSchoolId ||
-    primaryStudentContext?.school_id ||
-    (typedProfile?.school_id && typedProfile.school_id.trim().length > 0
-      ? typedProfile.school_id
-      : null);
+  let selectedDirectorySchool: { official_code: string; name: string; municipality: string } | null = null;
+
+  // An explicitly selected directory school MUST override a stale profile.school_id.
+  // Profile school is a legacy fallback only when no student context exists.
+  const directorySchoolCode = managedSchoolId
+    ? null
+    : primaryStudentContext?.directory_school_code || null;
+  const preferredSchoolId = managedSchoolId ||
+    (primaryStudentContext
+      ? primaryStudentContext.school_id || null
+      : typedProfile?.school_id || null);
+
+  if (directorySchoolCode) {
+    const { data: directorySchool, error: directoryError } = await createAdminClient()
+      .from("school_directory")
+      .select("official_code,name,municipality")
+      .eq("official_code", directorySchoolCode)
+      .maybeSingle();
+    if (directoryError) console.error("Error cargando centro del directorio para el anuncio", directoryError);
+    selectedDirectorySchool = directorySchool || null;
+  }
 
   if (preferredSchoolId) {
     const { data: school, error: schoolError } = await supabase
@@ -190,8 +204,9 @@ export default async function NewListingPage({
     <NewListingForm
       currentUserId={user.id}
       initialSchoolId={selectedSchool?.id || ""}
-      initialSchoolName={selectedSchool?.name || "Centro no asignado"}
-      initialSchoolCity={selectedSchool?.city || ""}
+      initialDirectorySchoolCode={selectedDirectorySchool?.official_code || ""}
+      initialSchoolName={selectedSchool?.name || selectedDirectorySchool?.name || "Centro no asignado"}
+      initialSchoolCity={selectedSchool?.city || selectedDirectorySchool?.municipality || ""}
       initialPrefill={initialPrefill}
       activationOpportunityKey={activationOpportunityKey}
       isSchoolAdmin={Boolean(managedSchoolId)}
