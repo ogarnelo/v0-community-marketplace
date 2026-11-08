@@ -1,6 +1,6 @@
 # Cierre seguro del ensayo E2E Wetudy (8 noviembre 2026)
 
-**Estado:** el recorrido manual entre dos cuentas controladas está completado hasta la valoración; el cierre de artefactos y la prueba funcional de moderación siguen pendientes.
+**Estado (revisión 08/11/2026):** la prueba manual entre dos cuentas está completada hasta la valoración. **Decisión del fundador: conservar los seis anuncios DEMO y las evidencias asociadas hasta el lanzamiento del piloto**. No ejecutar borrado ni archivado destructivo; la moderación E2E aislada sigue pendiente.
 
 ## Verificaciones hechas
 
@@ -24,11 +24,11 @@ La función de base de datos `server_dispute_agreement` hace escritura real: cam
 
 **Pendiente:** probar el ciclo completo de denuncia y resolución en un entorno aislado con datos y cuentas de test, junto a un miembro autorizado para moderar. Si no hay una instancia de staging, mantener la prueba marcada como pendiente.
 
-## Plan de limpieza (NO ejecutar sin aprobación explícita)
+## Retención autorizada y plan de limpieza (NO ejecutar hasta el lanzamiento del piloto y nueva autorización)
 
 1. Capturar estado SQL de solo lectura: IDs y recuentos de anuncio, fotos, conversación, mensajes, notificaciones, acuerdo, eventos, valoración, búsquedas y eventos derivados; comprobar propietario de cada fila.
 2. Conservar únicamente un registro de evidencia **sin contenido de mensajes ni datos personales** en el issue privado/controlado y una copia cifrada reciente de PostgreSQL. El backup de PostgreSQL **no incluye los binarios de Storage**.
-3. Decidir si conservar el anuncio DEMO para demostraciones o retirarlo completamente. Por defecto **conservar sin cambios** hasta la decisión del propietario.
+3. **Decisión tomada:** conservar los seis anuncios DEMO existentes, incluida la calculadora y sus datos de prueba (foto, chat, acuerdo y reseña oculta), hasta el lanzamiento del piloto. Esta decisión no autoriza publicarlos como operaciones reales ni borrarlos antes del lanzamiento.
 4. Si se aprueba eliminar: revisar políticas de retención y cascadas, eliminar primero las referencias derivadas de prueba mediante operaciones validadas, y después el anuncio; eliminar con la API Storage **únicamente** los archivos del anuncio de test comprobados por ruta y propiedad. Verificar que no haya referencias compartidas antes de borrar un objeto.
 5. **Nunca** borrar masivamente perfiles, cuentas de test, datos de otros usuarios, centros operativos, colegio nacional o directorio escolar como parte de esta limpieza.
 6. Volver a medir usuarios, publicaciones reales, acuerdos reales, fotos de Storage, correos y errores después de la actuación. Registrar qué se conservó y qué se eliminó.
@@ -42,3 +42,12 @@ La función de base de datos `server_dispute_agreement` hace escritura real: cam
 - Separación de colegios informativos del directorio nacional y comunidades operativas: sigue obligatoria.
 
 **Costes:** los cambios son una columna derivada y un índice parcial sobre listings y ajustes a consultas existentes; no requieren por sí mismos contratar otra plataforma. Vigilar índices y cardinalidad al crecer.
+
+## Auditoría adicional — 8 noviembre 2026
+
+- **Separación de métricas:** `listings.is_demo` está desplegado y SQL devuelve 6 DEMO, 0 anuncios reales, 1 acuerdo DEMO, 0 acuerdos reales, 0 EUR acordados reales.
+- **Acceso RLS simulado en modo solo lectura y rollback:** comprador y vendedor (cuentas controladas) ven 1 conversación / 4 mensajes; comprador ve 0 notificaciones del vendedor; vendedor puede ver sus 2 notificaciones; usuario externo simulado ve 0/0/0. No acredita todos los endpoints ni permisos AMPA.
+- **Adopción:** hay 11 usuarios con email confirmado y 22 búsquedas registradas (2 de cuentas conocidas de prueba, 20 de otras cuentas). Ninguna cifra acredita por sí sola usuarios orgánicos o interés comercial; clasificar cuentas y búsquedas antes de publicar conversiones.
+- **Directorio:** 34.845 colegios, 0 indexables/listados/vinculados; la búsqueda de centros se usa solo para el contexto educativo de estudiantes, no activa comunidades.
+- **Seguridad pendiente:** Supabase Security Advisor mantiene advertencia de leaked password protection desactivada. La resolución de incidencias con moderadores y la recuperación real del backup, incluyendo Storage, siguen pendientes.
+- **Código:** PR #247–252 fusionadas; #242, #244 y #246 todavía en borrador. Seguimiento principal: issue #245.
