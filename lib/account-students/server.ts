@@ -42,7 +42,7 @@ function currentAcademicYear() {
 export function parseStudentInput(body: any): AccountStudentInput {
   const alias = cleanText(body?.alias, MAX_ALIAS_LENGTH);
   const schoolId = cleanText(body?.schoolId, 64) || null;
-  const directorySchoolCode = cleanText(body?.directorySchoolCode, 8) || null;
+  const directorySchoolCode = typeof body?.directorySchoolCode === "string" ? body.directorySchoolCode.trim() || null : null;
   const gradeLevel = cleanText(body?.gradeLevel, MAX_GRADE_LENGTH);
 
   if (schoolId && !UUID_RE.test(schoolId)) {
