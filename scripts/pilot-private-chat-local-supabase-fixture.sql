@@ -8,7 +8,8 @@ create table public.messages (
  id uuid primary key,
  conversation_id uuid not null references public.conversations(id),
  attachment_path text,
- attachment_type text
+ attachment_type text,
+ attachment_name text
 );
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
