@@ -51,7 +51,16 @@ async function runViewport(browser, viewport) {
     await marketplace.close();
 
     const signup = await visit(context, "/auth?mode=signup");
-    await signup.getByRole("heading", { name: /Crear cuenta/i }).waitFor({ timeout: 15000 });
+    try {
+      await signup.getByRole("heading", { name: /Crear cuenta/i }).waitFor({ timeout: 15000 });
+    } catch (error) {
+      const headings = await signup.locator("h1,h2,h3").allTextContents();
+      const bodyExcerpt = (await signup.locator("body").innerText()).slice(0, 280).replace(/\s+/g, " ");
+      console.error("[DIAG] signup path: " + new URL(signup.url()).pathname);
+      console.error("[DIAG] headings: " + JSON.stringify(headings.slice(0, 8)));
+      console.error("[DIAG] public signup body: " + bodyExcerpt);
+      throw error;
+    }
     assert.ok(await signup.locator('input[type="email"]').count() > 0, "Signup email missing");
     assert.ok(await signup.locator('input[type="password"]').count() > 0, "Signup password missing");
     console.log(`[OK] ${viewport.name} signup form renders without submitting`);
