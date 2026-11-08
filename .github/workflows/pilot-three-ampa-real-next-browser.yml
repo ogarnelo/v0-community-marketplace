@@ -1,0 +1,72 @@
+name: Wetudy three AMPA actual Next school page local Auth E2E
+on:
+  pull_request:
+    paths:
+      - "app/admin/school/page.tsx"
+      - "lib/supabase/server.ts"
+      - "lib/supabase/client.ts"
+      - "lib/supabase/admin.ts"
+      - "lib/supabase/proxy.ts"
+      - "scripts/pilot-three-ampa-next-real-fixture.sql"
+      - "scripts/pilot-three-ampa-real-next-browser.cjs"
+      - "supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql"
+      - ".github/workflows/pilot-three-ampa-real-next-browser.yml"
+permissions:
+  contents: read
+jobs:
+  next-three-ampa-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 34
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned ephemeral Next 16, Supabase, GoTrue and browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-ampa-next-local --no-save --package-lock=false --no-audit --no-fund \
+            supabase@2.121.0 next@16.3.5 react@19.2.4 react-dom@19.2.4 \
+            @supabase/ssr@0.6.1 @supabase/supabase-js@2.58.0 \
+            playwright@1.65.0 lucide-react@0.468.0 typescript@5.9.3 \
+            @types/node@24.10.1 @types/react@19.2.2 @types/react-dom@19.2.2
+          /tmp/wetudy-ampa-next-local/node_modules/.bin/playwright install --with-deps chromium
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Start local GoTrue, Storage, PostgREST and actual Next admin school page
+        shell: bash
+        env:
+          PILOT_AMPA_NEXT_MODULES: /tmp/wetudy-ampa-next-local/node_modules
+          PILOT_AMPA_NEXT_FIXTURE: /tmp/wetudy-ampa-next-local
+        run: |
+          set -euo pipefail
+          cli="/tmp/wetudy-ampa-next-local/node_modules/.bin/supabase"
+          stack="/tmp/wetudy-ampa-next-stack"
+          mkdir -p "$stack"
+          docker network create -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 wetudy-three-ampa-next
+          cd "$stack"
+          "$cli" init
+          if grep -q '^enable_confirmations = true' supabase/config.toml; then
+            sed -i 's/^enable_confirmations = true/enable_confirmations = false/' supabase/config.toml
+          fi
+          cleanup(){
+            "$cli" stop --no-backup >/dev/null 2>&1 || true
+            docker network rm wetudy-three-ampa-next >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          "$cli" start --network-id wetudy-three-ampa-next \
+            -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          "$cli" status -o env > /tmp/wetudy-three-ampa.env
+          set -a
+          source /tmp/wetudy-three-ampa.env
+          set +a
+          export LOCAL_SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
+          export LOCAL_SUPABASE_ANON_KEY="${ANON_KEY:?missing local anon key}"
+          export LOCAL_SUPABASE_SERVICE_KEY="${SERVICE_ROLE_KEY:?missing local service key}"
+          export LOCAL_DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          cd "$GITHUB_WORKSPACE"
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-three-ampa-next-real-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql
+          node scripts/pilot-three-ampa-real-next-browser.cjs

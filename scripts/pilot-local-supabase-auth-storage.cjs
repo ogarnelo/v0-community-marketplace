@@ -19,6 +19,7 @@ if(!url||!pg||!anon || !isLoopback(new URL(url).hostname) || !isLoopback(new URL
 if(!url.startsWith("http://"))throw Error("Local Supabase HTTP required");
 const schoolA="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const schoolB="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const schoolC="dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const conv="cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 function sql(cmd){
@@ -69,17 +70,21 @@ async function fetchAttachment(actor,filePath,allowed){
 (async()=>{
   const a=await signup("ampa-alfa");
   const b=await signup("ampa-beta");
+  const c=await signup("ampa-gamma");
   const outsider=await signup("visitor");
   sql("insert into public.user_roles (user_id,role,school_id) values "+
       "('"+a.id+"','school_admin','"+schoolA+"'),"+
-      "('"+b.id+"','school_admin','"+schoolB+"')");
+      "('"+b.id+"','school_admin','"+schoolB+"'),"+
+      "('"+c.id+"','school_admin','"+schoolC+"')");
   sql("insert into public.conversations(id,buyer_id,seller_id) values ('"+conv+"','"+a.id+"','"+b.id+"')");
 
   assert.deepEqual(await schoolCodes(a),["QA-ALFA-ONLY"]);
   assert.deepEqual(await schoolCodes(b),["QA-BETA-ONLY"]);
+  assert.deepEqual(await schoolCodes(c),["QA-GAMMA-ONLY"]);
   assert.deepEqual(await schoolCodes(outsider),[]);
   assert.equal((await roles(a)).length,1);
   assert.equal((await roles(b)).length,1);
+  assert.equal((await roles(c)).length,1);
   assert.deepEqual(await roles(outsider),[]);
 
   const filePath=conv+"/"+a.id+"/synthetic.pdf";
@@ -91,6 +96,7 @@ async function fetchAttachment(actor,filePath,allowed){
   await fetchAttachment(a,filePath,true);
   await fetchAttachment(b,filePath,true);
   await fetchAttachment(outsider,filePath,false);
+  await fetchAttachment(c,filePath,false);
   const badUpload=await outsider.client.storage.from("chat-attachments")
      .upload(conv+"/"+outsider.id+"/denied.pdf",file,{contentType:"application/pdf"});
   assert.ok(badUpload.error,"stranger must not upload to another conversation");
@@ -100,6 +106,12 @@ async function fetchAttachment(actor,filePath,allowed){
   assert.deepEqual(await schoolCodes(a),[],"same real JWT immediately loses school access");
   assert.deepEqual(await roles(a),[]);
   assert.deepEqual(await schoolCodes(b),["QA-BETA-ONLY"]);
+  assert.deepEqual(await schoolCodes(c),["QA-GAMMA-ONLY"]);
+  // Another school_admin role is revoked independently, with JWT still valid.
+  sql("delete from public.user_roles where user_id='"+c.id+"' and role='school_admin'");
+  assert.deepEqual(await schoolCodes(c),[]);
+  assert.deepEqual(await schoolCodes(b),["QA-BETA-ONLY"]);
+  assert.deepEqual(await schoolCodes(a),[]);
 
   // Conversation membership is separate from AMPA role.
   // Remove A from chat in database while retaining A's valid access token.
@@ -111,6 +123,6 @@ async function fetchAttachment(actor,filePath,allowed){
   // Private Storage must not permit anonymous readers, even for a guessed exact path.
   const anonymous=sessionClient();
   await fetchAttachment({client:anonymous},filePath,false);
-  console.log("PASS local Supabase Auth + PostgREST RLS + Storage: 3 real JWT sessions, 2 schools, third-party denial, immediate school-role revocation, private attachment revocation.");
+  console.log("PASS local Supabase Auth + PostgREST RLS + Storage: 4 real JWT sessions, 3 schools, third-party denial, immediate school-role revocation, private attachment revocation.");
   console.log("LIMIT: local Supabase service fixture, NOT the real Next SSR browser or full production schema. No hosted project/network credentials.");
 })().catch(e=>{console.error("Local Supabase integration QA failed:",e.message);process.exitCode=1;});
