@@ -88,3 +88,17 @@ Los QR incluyen **URL y UUID del centro** para abrir `/onboarding/join-school`; 
 
 **Puerta GO del piloto:** mantener NO-GO para enrolamiento de tres AMPA hasta completar verificación jurídica identificativa, revisión de protección de menores y E2E autenticado QR/AMPA/soporte. No activar el directorio nacional ni alterar los seis DEMO por esta PR.
 
+
+## 8 noviembre 2026 — Navegación QR invitado en navegador real (solo lectura)
+
+Decisión del fundador: **aparcar temporalmente los asuntos jurídicos P0** (identidad legal del responsable y revisión RGPD/menores) para avanzar en las pruebas técnicas. **Esto no constituye aprobación legal para abrir el piloto a familias reales**. No solicitar nuevos datos jurídicos ahora; mantener las tareas visibles pero marcadas `APARCADO POR EL FUNDADOR` en el seguimiento. No convertirlas silenciosamente en «completadas».
+
+Nueva comprobación `Wetudy pilot guest QR browser smoke (read-only)` (workflow `.github/workflows/pilot-qr-guest-browser-smoke.yml`):
+- Una única ejecución automática tras publicar este workflow y ejecuciones por cambios propios o manuales, **sin calendario diario** ni conexiones a Supabase con claves de administrador. Node + Playwright Chromium instalado temporalmente en GitHub runner; no requiere el archivo `package-lock.json` del marketplace.
+- En `www.wetudy.com`, valida con llamadas GET que el centro DEMO Monteverde de la migración QA no aparece en la búsqueda pública, pero sí se resuelve por URL directa, sin campos privados.
+- Con navegador invitado y cero credenciales abre `/onboarding/join-school?school=<QA>`, espera ver el centro, el mensaje de no-verificación, login/registro y la ausencia de acción directa de incorporación sin sesión.
+- Navega a login **sin autenticar**, verifica que la URL `next` conserva centro y `join=1`; repite la pantalla QR en ancho móvil (390 px).
+- Comprueba que la descarga de QR de AMPA responde 401 sin sesión. **Solo GET y navegación; nunca rellenar formularios, subir fotos, publicar, iniciar sesión ni modificar roles/perfiles**. No genera capturas, traces ni artefactos con datos privados.
+- Mantener separada la futura prueba E2E de **cuentas autenticadas** por QR, cambio/revocación de centro, aislamiento AMPA real y moderación UI, que requiere ambiente y usuarios autorizados.
+
+No activar comunidades reales, no afectar el directorio nacional ni eliminar anuncios DEMO. No interpretar este smoke invitado como GO de lanzamiento.
