@@ -10,6 +10,7 @@ const schoolReport = read("lib/reports/school-impact-report.ts");
 const mvp = read("app/admin/super/mvp/page.tsx");
 const liquidity = read("app/admin/super/liquidity/page.tsx");
 const superPage = read("app/admin/super/page.tsx");
+const dispute = read("app/api/agreements/dispute/route.ts");
 
 test("demo identification is derived, not editable by a user", () => {
   assert.match(migration, /GENERATED ALWAYS AS/);
@@ -47,4 +48,11 @@ test("admin pilot and liquidity dashboards exclude demo funnels", () => {
 test("moderation queue remains visible; no incident is created by a reporting fix", () => {
   assert.match(mvp, /const reports = reportsResult\.data \|\| \[\]/);
   assert.doesNotMatch(migration, /reports|agreements|school_directory/);
+});
+
+test("demo incidents cannot enter the real moderation queue through agreement disputes", () => {
+  assert.match(dispute, /isDemoListing\(reportListing\)/);
+  assert.match(dispute, /currentAgreement\.buyer_id !== user\.id/);
+  assert.match(dispute, /Los acuerdos de demostración no generan incidencias reales/);
+  assert.ok(dispute.indexOf("isDemoListing(reportListing)") < dispute.indexOf('admin.rpc("server_dispute_agreement"'));
 });
