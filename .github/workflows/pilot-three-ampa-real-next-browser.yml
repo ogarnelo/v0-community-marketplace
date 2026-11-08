@@ -38,8 +38,7 @@ jobs:
             supabase@2.121.0 next@16.3.5 react@19.2.4 react-dom@19.2.4 \
             @supabase/ssr@0.6.1 @supabase/supabase-js@2.58.0 \
             playwright@1.65.0 lucide-react@0.468.0 typescript@5.9.3 \
-            @radix-ui/react-tabs@1.1.13 @radix-ui/react-slot@1.2.4 \
-            class-variance-authority@0.7.1 clsx@2.1.1 tailwind-merge@3.3.1 qrcode@1.5.4 \
+            qrcode@1.5.4 \
             @types/node@24.10.1 @types/react@19.2.2 @types/react-dom@19.2.2
           /tmp/wetudy-ampa-next-local/node_modules/.bin/playwright install --with-deps chromium
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
