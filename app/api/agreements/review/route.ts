@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isDemoListing } from "@/lib/seo/demo-listing";
 
 export async function POST(request: Request) {
   try {
@@ -22,11 +23,24 @@ export async function POST(request: Request) {
     if (agreement.status !== "confirmed") return NextResponse.json({ error: "Solo puedes valorar acuerdos confirmados." }, { status: 409 });
     if (agreement.buyer_id !== user.id && agreement.seller_id !== user.id) return NextResponse.json({ error: "No puedes valorar este acuerdo." }, { status: 403 });
 
+    // Reviews of controlled DEMO agreements are stored for E2E verification,
+    // but must not affect public user reputation or badges.
+    const { data: reviewedListing, error: listingError } = await admin
+      .from("listings")
+      .select("id,title")
+      .eq("id", agreement.listing_id)
+      .maybeSingle();
+    if (listingError || !reviewedListing) {
+      console.error("No se pudo determinar si la valoración es de prueba", listingError);
+      return NextResponse.json({ error: "No se pudo verificar el anuncio de la valoración." }, { status: 503 });
+    }
+    const reviewStatus = isDemoListing(reviewedListing) ? "hidden" : "published";
+
     const reviewedUserId = user.id === agreement.buyer_id ? agreement.seller_id : agreement.buyer_id;
     const { data: existing } = await admin.from("agreement_reviews").select("id").eq("agreement_id", agreement.id).eq("reviewer_id", user.id).maybeSingle();
     if (existing?.id) return NextResponse.json({ error: "Ya has valorado este acuerdo." }, { status: 409 });
 
-    const { data: review, error } = await admin.from("agreement_reviews").insert({ agreement_id: agreement.id, listing_id: agreement.listing_id, reviewer_id: user.id, reviewed_user_id: reviewedUserId, rating, comment, status: "published" }).select("*").single();
+    const { data: review, error } = await admin.from("agreement_reviews").insert({ agreement_id: agreement.id, listing_id: agreement.listing_id, reviewer_id: user.id, reviewed_user_id: reviewedUserId, rating, comment, status: reviewStatus }).select("*").single();
     if (error || !review) return NextResponse.json({ error: error?.message || "No se pudo guardar la valoración." }, { status: 500 });
 
     await admin.from("agreement_events").insert({ agreement_id: agreement.id, actor_id: user.id, event_type: "agreement_reviewed", metadata: { rating } });
