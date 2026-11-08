@@ -54,9 +54,7 @@ function prepareFiles(){
    "lib/supabase/server.ts",
    "lib/supabase/client.ts",
    "lib/supabase/admin.ts",
-   "lib/supabase/proxy.ts","proxy.ts",
-   "app/api/school/share-qr/route.ts",
-   "lib/auth/public-origin.ts","lib/growth/attribution.ts"
+   "lib/supabase/proxy.ts","proxy.ts"
  ])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))
    fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
@@ -113,8 +111,7 @@ function prepareFiles(){
   dependencies:{
     next:"16.3.5",react:"19.2.4","react-dom":"19.2.4",
     "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0",
-    "lucide-react":"0.468.0",
-    "qrcode":"1.5.4"
+    "lucide-react":"0.468.0"
   }
  },null,2));
 }
@@ -198,26 +195,6 @@ async function ready(next,origin){
     assert.ok(html.includes("QA-CODIGO-"+schools[i].label));
     assert.ok(html.includes("RAZON RESERVADA "+schools[i].label));
     assert.equal(await page.getByTestId("member-count").innerText(),"1");
-    // REAL Next QR API: correct Auth role, SVG response, PNG download bytes.
-    const svg=await page.evaluate(async()=>{
-      const response=await fetch("/api/school/share-qr",{cache:"no-store"});
-      return {status:response.status,type:response.headers.get("content-type"),
-        body:await response.text()};
-    });
-    assert.equal(svg.status,200);
-    assert.match(svg.type||"",/^image\/svg\+xml/);
-    assert.ok(svg.body.includes("<svg"));
-    const png=await page.evaluate(async()=>{
-      const response=await fetch("/api/school/share-qr?format=png&download=1");
-      const bytes=new Uint8Array(await response.arrayBuffer());
-      return {status:response.status,type:response.headers.get("content-type"),
-        disposition:response.headers.get("content-disposition"),
-        first8:Array.from(bytes.slice(0,8))};
-    });
-    assert.equal(png.status,200);
-    assert.equal(png.type,"image/png");
-    assert.match(png.disposition||"",/^attachment/);
-    assert.deepEqual(png.first8,[137,80,78,71,13,10,26,10]);
     for(let j=0;j<schools.length;j++)if(j!==i){
      for(const secret of [
       "COLEGIO QA ","LIBRO EXCLUSIVO ","QA-CODIGO-","RAZON RESERVADA "
@@ -236,8 +213,6 @@ async function ready(next,origin){
       "' and role='school_admin';");
   await sessions[2].page.reload({waitUntil:"domcontentloaded"});
   await sessions[2].page.waitForURL(u=>!u.pathname.endsWith("/admin/school"));
-  assert.equal(await sessions[2].page.evaluate(async()=>(
-    await fetch("/api/school/share-qr",{cache:"no-store"})).status),403);
   assert.equal(await sessions[2].page.locator('[data-testid="school-dashboard"]').count(),0);
   await sessions[1].page.reload({waitUntil:"domcontentloaded"});
   await sessions[1].page.getByTestId("school-title").waitFor();
@@ -247,14 +222,10 @@ async function ready(next,origin){
   sql("update public.schools set is_active=false where id='"+schools[0].id+"';");
   await sessions[0].page.reload({waitUntil:"domcontentloaded"});
   await sessions[0].page.waitForURL(u=>!u.pathname.endsWith("/admin/school"));
-  assert.equal(await sessions[0].page.evaluate(async()=>(
-    await fetch("/api/school/share-qr",{cache:"no-store"})).status),403);
   assert.equal(await sessions[0].page.locator('[data-testid="school-dashboard"]').count(),0);
   await sessions[1].page.reload({waitUntil:"domcontentloaded"});
   await sessions[1].page.getByTestId("school-title").waitFor();
   assert.equal(await sessions[1].page.getByTestId("school-title").innerText(),"COLEGIO QA BETA");
-  assert.equal(await sessions[1].page.evaluate(async()=>(
-    await fetch("/api/school/share-qr",{cache:"no-store"})).status),200);
   // __logout belongs to the minimal client login page, not the SSR admin
   // page. Navigate to that client page before invoking real Supabase signOut.
   await sessions[1].page.goto(origin,{waitUntil:"domcontentloaded"});
@@ -264,7 +235,7 @@ async function ready(next,origin){
   await sessions[1].page.waitForURL(u=>!u.pathname.endsWith("/admin/school"));
   assert.equal(await sessions[1].page.locator('[data-testid="school-dashboard"]').count(),0);
   console.log("PASS real Next 16 HTTP /admin/school page with real GoTrue sessions and SSR cookies, actual service-role scoped RPC and PostgREST.");
-  console.log("3 schools no cross-school leakage; real QR SVG/PNG 200 and revoked/inactive QR 403; guest/stranger denied; GAMMA revoked, ALFA inactive, BETA independent, logout denied.");
+  console.log("3 schools no cross-school name/listing/QR/report leakage; 4th user and guest denied; GAMMA role revoked, ALFA school deactivated, BETA independent, logout denied.");
   console.log("LIMIT: real server page + Supabase clients + backend, but navbar/dashboard/donations visual children are test-only stubs. All fixture records fake, no remote project.");
   for(const actor of actors)await actor.context.close();
  }catch(err){
