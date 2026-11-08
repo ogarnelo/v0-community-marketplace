@@ -1,0 +1,36 @@
+name: Wetudy AMPA scoped member count sandbox
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-school-member-count-candidate.sql"
+      - "scripts/pilot-school-member-count-sandbox.sh"
+      - ".github/workflows/pilot-school-member-count-sandbox.yml"
+permissions:
+  contents: read
+jobs:
+  member-aggregation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_counts
+          POSTGRES_PASSWORD: wetudy_counts
+          POSTGRES_DB: wetudy_counts
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_counts -d wetudy_counts"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wetudy_counts:wetudy_counts@127.0.0.1:5432/wetudy_counts
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client and execute scoped aggregate QA
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          bash scripts/pilot-school-member-count-sandbox.sh
