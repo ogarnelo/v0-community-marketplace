@@ -72,6 +72,7 @@ export default function StudentContextFields({
     }
 
     const controller = new AbortController();
+    setDirectoryResults([]);
     const timer = window.setTimeout(async () => {
       setDirectoryLoading(true);
       setDirectoryError("");
