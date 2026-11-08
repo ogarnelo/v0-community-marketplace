@@ -931,7 +931,7 @@ export default function SchoolAdminDashboard({
                     className="h-52 w-52 rounded-lg bg-white p-2"
                   />
                   <p className="mt-2 max-w-52 text-center text-xs text-muted-foreground">
-                    Ideal para WhatsApp, carteles, circulares y reuniones del AMPA.
+                    Ideal para WhatsApp, carteles, circulares y reuniones del AMPA. El enlace permite seleccionar el centro sin verificar la pertenencia de la familia.
                   </p>
                   <div className="mt-3 grid w-full gap-2">
                     <Button type="button" size="sm" onClick={shareSchoolQr}>

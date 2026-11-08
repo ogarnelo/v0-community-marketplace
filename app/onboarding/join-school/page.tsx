@@ -268,7 +268,7 @@ export default function JoinSchoolPage() {
       setCurrentLinkedSchool(null);
       setFound(null);
       setChangeSchoolMode(false);
-      setStatusMessage("Ya no perteneces a ningún centro. Puedes vincular otro cuando quieras.");
+      setStatusMessage("Ya no tienes un centro seleccionado. Puedes elegir otro cuando quieras.");
       router.refresh();
     } catch (unlinkError: any) {
       setError(
@@ -469,8 +469,8 @@ export default function JoinSchoolPage() {
               : isAuthenticated === false && !found
                 ? "Inicia sesión o crea una cuenta antes de vincular o cambiar tu centro educativo."
                 : currentLinkedSchool && !changeSchoolMode && !found
-                  ? "Tu cuenta ya pertenece a un centro. Desde aquí puedes cambiarlo o desvincularlo."
-                  : "Te ayuda a priorizar tu comunidad educativa, pero no es obligatorio."}
+                  ? "Tu cuenta tiene un centro seleccionado. Puedes cambiarlo o quitarlo cuando quieras."
+                  : "Seleccionar un centro te ayuda a encontrar productos cercanos. Es opcional y no acredita pertenencia al colegio."}
           </CardDescription>
         </CardHeader>
 
@@ -727,7 +727,7 @@ export default function JoinSchoolPage() {
                 <div className="rounded-xl border bg-muted/30 p-4">
                   <p className="font-medium text-foreground">¿Ya tienes cuenta en Wetudy?</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Al iniciar sesión o crear tu cuenta, la vincularemos automáticamente con <strong className="text-foreground">{found.name}</strong>.
+                    Al iniciar sesión o crear tu cuenta, seleccionaremos <strong className="text-foreground">{found.name}</strong> como tu centro de referencia. Esto no verifica que pertenezcas a él.
                   </p>
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
                     <Button asChild className="w-full">

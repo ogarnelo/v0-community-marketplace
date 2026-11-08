@@ -348,7 +348,7 @@ export default function StudentContextFields({
         </div>
 
         <p className="text-xs leading-5 text-muted-foreground">
-          Puedes dejar este campo vacío y guardar para no pertenecer a ningún centro. También puedes indicar tu colegio del directorio nacional sin activar una comunidad ni conceder permisos.
+          Puedes dejar este campo vacío. Seleccionar un centro te ayuda a encontrar productos, pero no acredita que pertenezcas a él ni concede permisos. Un colegio del directorio nacional no activa una comunidad.
         </p>
       </div>
 

@@ -30,7 +30,8 @@ test("join-school recognizes an existing link and supports switching or unlinkin
 test("educational context lets a regular user clear the selected school before saving", () => {
   assert.match(studentContextFields, /Quitar centro educativo/);
   assert.match(studentContextFields, /onSchoolIdChange\(""\)/);
-  assert.match(studentContextFields, /Puedes dejar este campo vacío y guardar para no pertenecer a ningún centro/);
+  assert.match(studentContextFields, /Puedes dejar este campo vacío/);
+  assert.match(studentContextFields, /no acredita que pertenezcas a él ni concede permisos/);
   assert.doesNotMatch(accountProfile, /Centro educativo/);
   assert.doesNotMatch(accountProfile, /Curso \/ nivel/);
 });
