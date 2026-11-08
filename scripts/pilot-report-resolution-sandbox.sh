@@ -49,7 +49,7 @@ trap 'rm -f "$script"' EXIT
 python3 - "$script" <<'PY'
 from pathlib import Path
 import sys
-src = Path("supabase/migrations/20260923223000_report_resolution_feedback.sql").read_text()
+src = Path("supabase/migrations/20261108195500_report_status_idempotent_notifications.sql").read_text()
 start = src.lower().find("create or replace function public.server_update_report_status(")
 if start < 0:
     raise SystemExit("Missing moderation resolution function")
@@ -130,4 +130,64 @@ BEGIN
   END IF;
 END $test$;
 SQL
-echo "Isolated moderation resolution PASS: non-super denied; two reports, notices, state transitions."
+
+# A note-only save, a duplicate POST, or a retry after slow networking must
+# not notify again or create a second incident audit event.
+psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" <<'SQL'
+DO $test$
+DECLARE
+  v_original_resolved_at timestamptz;
+  v_original_resolved_by uuid;
+BEGIN
+  select resolved_at, resolved_by
+    into v_original_resolved_at, v_original_resolved_by
+  from public.reports
+  where id='00000000-0000-4000-8000-000000000403';
+  PERFORM public.server_update_report_status(
+    '00000000-0000-4000-8000-000000000102',
+    '00000000-0000-4000-8000-000000000403',
+    'resolved','Otra compra revisada');
+  IF (SELECT count(*) FROM public.notifications)<>3 OR
+     (SELECT count(*) FROM public.agreement_events)<>3 THEN
+    RAISE EXCEPTION 'Idempotent duplicate moderation POST created notifications/events';
+  END IF;
+
+  PERFORM public.server_update_report_status(
+    '00000000-0000-4000-8000-000000000102',
+    '00000000-0000-4000-8000-000000000403',
+    'resolved','Respuesta editada sin duplicado');
+  IF (SELECT count(*) FROM public.notifications)<>3 OR
+     (SELECT count(*) FROM public.agreement_events)<>3 OR
+     (SELECT resolution_note FROM public.reports
+       WHERE id='00000000-0000-4000-8000-000000000403')<>'Respuesta editada sin duplicado' OR
+     (SELECT resolved_at FROM public.reports
+       WHERE id='00000000-0000-4000-8000-000000000403') IS DISTINCT FROM v_original_resolved_at OR
+     (SELECT resolved_by FROM public.reports
+       WHERE id='00000000-0000-4000-8000-000000000403') IS DISTINCT FROM v_original_resolved_by THEN
+    RAISE EXCEPTION 'Note-only moderation update changed resolution identity or created duplicates';
+  END IF;
+
+  -- Actual reopened-and-resolved status transitions legitimately produce
+  -- one audit entry per transition and one NEW resolution notification.
+  PERFORM public.server_update_report_status(
+    '00000000-0000-4000-8000-000000000102',
+    '00000000-0000-4000-8000-000000000403','reviewing',null);
+  IF (SELECT count(*) FROM public.notifications)<>3 OR
+     (SELECT count(*) FROM public.agreement_events)<>4 OR
+     (SELECT status FROM public.agreements
+       WHERE id='00000000-0000-4000-8000-000000000302')<>'disputed' THEN
+    RAISE EXCEPTION 'Reopening a closed report failed';
+  END IF;
+  PERFORM public.server_update_report_status(
+    '00000000-0000-4000-8000-000000000102',
+    '00000000-0000-4000-8000-000000000403',
+    'resolved','Segunda resolución tras reapertura');
+  IF (SELECT count(*) FROM public.notifications)<>4 OR
+     (SELECT count(*) FROM public.agreement_events)<>5 OR
+     (SELECT status FROM public.agreements
+       WHERE id='00000000-0000-4000-8000-000000000302')<>'confirmed' THEN
+    RAISE EXCEPTION 'Legitimate re-resolution failed to notify once';
+  END IF;
+END $test$;
+SQL
+echo "Isolated moderation resolution PASS: non-super denied; idempotent same-state retries and note edits; one notification per transition."

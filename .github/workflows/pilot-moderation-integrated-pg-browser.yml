@@ -1,0 +1,54 @@
+name: Wetudy actual moderation UI API PG17 isolated
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261108195500_report_status_idempotent_notifications.sql"
+      - "app/api/admin/reports/status/route.ts"
+      - "components/admin/report-status-controls.tsx"
+      - "scripts/pilot-moderation-integrated-pg-browser.cjs"
+      - "scripts/pilot-moderation-integrated-setup.sh"
+      - "scripts/pilot-moderation-integrated-fixture.sql"
+      - ".github/workflows/pilot-moderation-integrated-pg-browser.yml"
+permissions:
+  contents: read
+jobs:
+  ui-api-real-rpc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 19
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_moderation_ui
+          POSTGRES_PASSWORD: wetudy_moderation_ui
+          POSTGRES_DB: wetudy_moderation_ui
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_moderation_ui -d wetudy_moderation_ui"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wetudy_moderation_ui:wetudy_moderation_ui@127.0.0.1:5432/wetudy_moderation_ui
+      PILOT_UI_MODULES: /tmp/wetudy-moderation-integrated/node_modules
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Load actual four-argument migration RPC in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          bash scripts/pilot-moderation-integrated-setup.sh
+      - name: Install isolated browser/test adapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-moderation-integrated --no-save --package-lock=false --ignore-scripts --no-audit --no-fund \
+            react@19.1.0 react-dom@19.1.0 esbuild@0.25.12 playwright@1.65.0 pg@8.16.3
+          /tmp/wetudy-moderation-integrated/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify React Chromium + real Next handler + checked-in SQL RPC
+        run: node scripts/pilot-moderation-integrated-pg-browser.cjs
