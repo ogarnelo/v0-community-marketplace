@@ -28,6 +28,7 @@ export default async function MarketplacePage() {
 
   let favoriteIds = new Set<string>();
   let viewerSchoolId = "";
+  let viewerDirectorySchoolCode = "";
   let viewerPostalCode = "";
 
   if (user) {
@@ -53,10 +54,9 @@ export default async function MarketplacePage() {
         .maybeSingle(),
       supabase
         .from("account_students")
-        .select("school_id,is_primary,sort_order,created_at")
+        .select("school_id,directory_school_code,is_primary,sort_order,created_at")
         .eq("owner_user_id", user.id)
         .eq("active", true)
-        .not("school_id", "is", null)
         .order("is_primary", { ascending: false })
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true })
@@ -69,18 +69,20 @@ export default async function MarketplacePage() {
     );
 
     const typedProfile = (profile as ProfileRow | null) ?? null;
+    viewerDirectorySchoolCode =
+      schoolAdminRole?.school_id ? "" : primaryStudentContext?.directory_school_code?.trim() || "";
     viewerSchoolId =
       schoolAdminRole?.school_id?.trim() ||
-      primaryStudentContext?.school_id?.trim() ||
-      typedProfile?.school_id?.trim() ||
-      "";
+      (primaryStudentContext
+        ? primaryStudentContext.school_id?.trim() || ""
+        : typedProfile?.school_id?.trim() || "");
     viewerPostalCode = typedProfile?.postal_code?.trim() || "";
   }
 
   const { data: listingsData, error: listingsError } = await supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, postal_code, status, created_at"
+      "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, directory_school_code, postal_code, status, created_at"
     )
     .eq("status", "available")
     .order("created_at", { ascending: false })
@@ -140,7 +142,11 @@ export default async function MarketplacePage() {
   const initialListings: MarketplaceListing[] = listingRows.map((item) => {
     const sellerId = item.seller_id || item.user_id || null;
     const sellerProfile = sellerId ? sellerProfileMap.get(sellerId) || null : null;
-    const currentSellerSchoolId = item.school_id || sellerProfile?.schoolId || null;
+    // Directory-only listings must never inherit an old operational centre
+    // from seller profiles.
+    const currentSellerSchoolId = item.directory_school_code
+      ? null
+      : item.school_id || sellerProfile?.schoolId || null;
     const currentSellerPostalCode =
       sellerProfile?.postalCode ||
       item.postal_code ||
@@ -170,6 +176,7 @@ export default async function MarketplacePage() {
     photos: photosMap.get(item.id) || [],
     sellerId,
     schoolId: currentSellerSchoolId,
+    directorySchoolCode: item.directory_school_code || null,
     postalCode: currentSellerPostalCode,
     status: item.status,
     createdAt: item.created_at || null,
@@ -182,6 +189,7 @@ export default async function MarketplacePage() {
     <MarketplaceClient
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
+      initialDirectorySchoolCode={viewerDirectorySchoolCode}
       initialPostalCode={viewerPostalCode}
     />
   );
