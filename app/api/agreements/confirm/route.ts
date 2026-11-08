@@ -166,7 +166,8 @@ export async function POST(request: Request) {
           })
       );
 
-      if (isRealConversion) try {
+      if (isRealConversion) {
+        try {
         const sellerRecorded = await recordAttributedConversion(admin, {
           userId: agreement.seller_id,
           eventType: "agreement_confirmed",
@@ -180,8 +181,9 @@ export async function POST(request: Request) {
             entityId: agreement.id,
           });
         }
-      } catch (attributionError) {
-        console.error("No se pudo atribuir el acuerdo confirmado", attributionError);
+        } catch (attributionError) {
+          console.error("No se pudo atribuir el acuerdo confirmado", attributionError);
+        }
       }
     }
 
