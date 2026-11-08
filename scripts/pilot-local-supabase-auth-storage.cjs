@@ -72,6 +72,7 @@ async function fetchAttachment(actor,filePath,allowed){
   const b=await signup("ampa-beta");
   const c=await signup("ampa-gamma");
   const outsider=await signup("visitor");
+  const family=await signup("school-family");
   sql("insert into public.user_roles (user_id,role,school_id) values "+
       "('"+a.id+"','school_admin','"+schoolA+"'),"+
       "('"+b.id+"','school_admin','"+schoolB+"'),"+
@@ -113,6 +114,44 @@ async function fetchAttachment(actor,filePath,allowed){
   assert.deepEqual(await schoolCodes(b),["QA-BETA-ONLY"]);
   assert.deepEqual(await schoolCodes(a),[]);
 
+  // Actual GoTrue + PostgREST family school context persisted across
+  // logout/login. The child's chosen school NEVER grants school_admin.
+  const insertFamily=await family.client.from("profiles").upsert(
+    {id:family.id,school_id:schoolA},{onConflict:"id"});
+  assert.ifError(insertFamily.error);
+  let familyProfile=await family.client.from("profiles")
+    .select("school_id").eq("id",family.id).maybeSingle();
+  assert.ifError(familyProfile.error);
+  assert.equal(familyProfile.data?.school_id,schoolA);
+  let outsiderUpdate=await outsider.client.from("profiles")
+    .update({school_id:schoolB}).eq("id",family.id).select("id");
+  assert.ok(!outsiderUpdate.data?.length,"Another user must not mutate family school");
+  const outsiderProfiles=await outsider.client.from("profiles")
+    .select("id").eq("id",family.id);
+  assert.deepEqual(outsiderProfiles.data,[],"Another user's family profile is private");
+  assert.deepEqual(await roles(family),[],"Selecting school never grants AMPA role");
+
+  const familyCredentials={
+    email:"qa-school-family@example.invalid",
+    password:"Local-QA-school-family-Test-2026!aZ6"
+  };
+  assert.ifError((await family.client.auth.signOut()).error);
+  assert.ifError((await family.client.auth.signInWithPassword(familyCredentials)).error);
+  familyProfile=await family.client.from("profiles")
+    .select("school_id").eq("id",family.id).maybeSingle();
+  assert.ifError(familyProfile.error);
+  assert.equal(familyProfile.data?.school_id,schoolA,"School must survive relogin");
+  const changeFamily=await family.client.from("profiles")
+    .update({school_id:schoolB}).eq("id",family.id);
+  assert.ifError(changeFamily.error);
+  assert.ifError((await family.client.auth.signOut()).error);
+  assert.ifError((await family.client.auth.signInWithPassword(familyCredentials)).error);
+  familyProfile=await family.client.from("profiles")
+    .select("school_id").eq("id",family.id).maybeSingle();
+  assert.equal(familyProfile.data?.school_id,schoolB,
+    "New chosen school persists across second login");
+  assert.deepEqual(await roles(family),[],"Family role remains unprivileged");
+
   // Conversation membership is separate from AMPA role.
   // Remove A from chat in database while retaining A's valid access token.
   sql("update public.conversations set buyer_id='"+outsider.id+"' where id='"+conv+"'");
@@ -123,6 +162,6 @@ async function fetchAttachment(actor,filePath,allowed){
   // Private Storage must not permit anonymous readers, even for a guessed exact path.
   const anonymous=sessionClient();
   await fetchAttachment({client:anonymous},filePath,false);
-  console.log("PASS local Supabase Auth + PostgREST RLS + Storage: 4 real JWT sessions, 3 schools, third-party denial, immediate school-role revocation, private attachment revocation.");
+  console.log("PASS local Supabase Auth + PostgREST RLS + Storage: 5 real JWT sessions, 3 schools, family school persistence after relogin, third-party denial, immediate school-role revocation, private attachment revocation.");
   console.log("LIMIT: local Supabase service fixture, NOT the real Next SSR browser or full production schema. No hosted project/network credentials.");
 })().catch(e=>{console.error("Local Supabase integration QA failed:",e.message);process.exitCode=1;});
