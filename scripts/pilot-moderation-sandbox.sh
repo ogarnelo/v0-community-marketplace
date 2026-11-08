@@ -4,10 +4,13 @@
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL must point to a disposable PostgreSQL instance}"
-case "$DATABASE_URL" in
-  *localhost*|*127.0.0.1*) ;;
-  *) echo "Refusing to run moderation fixture against a nonlocal database" >&2; exit 1 ;;
-esac
+python3 - <<'PY'
+from urllib.parse import urlsplit
+import os
+host = urlsplit(os.environ["DATABASE_URL"]).hostname
+if host not in ("localhost", "127.0.0.1", "::1"):
+    raise SystemExit("Refusing to run moderation fixture against a nonlocal database")
+PY
 
 psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" <<'SQL'
 CREATE TABLE public.agreements (
