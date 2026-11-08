@@ -47,6 +47,12 @@ def archive_at(path, broken=False, unsafe=False):
     if unsafe:
         payloads["../leaked.txt"] = b"evil"
     with tarfile.open(path, "w:gz") as handle:
+        # Match the actual 'tar -czf -C backup/storage-data .' format,
+        # which includes root and bucket directories with trailing '/'.
+        for name in ("./", "./listing-photos/", "./chat-attachments/"):
+            directory = tarfile.TarInfo(name)
+            directory.type = tarfile.DIRTYPE
+            handle.addfile(directory)
         for name, data in payloads.items():
             info = tarfile.TarInfo("./" + name)
             info.size = len(data)
