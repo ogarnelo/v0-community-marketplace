@@ -5,6 +5,7 @@ on:
       - "supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql"
       - "scripts/pilot-school-member-load-fixture.sql"
       - "scripts/pilot-school-member-load-benchmark.py"
+      - "scripts/pilot-school-member-restore-drill.sh"
       - ".github/workflows/pilot-school-member-load.yml"
 permissions:
   contents: read
@@ -47,5 +48,7 @@ jobs:
           PY
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-school-member-load-fixture.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql
+      - name: Exercise checksum and restore of synthetic SQL fixtures into second localhost database
+        run: bash scripts/pilot-school-member-restore-drill.sh
       - name: Check cross-school counts, role grants, query plans and optional index
         run: python3 scripts/pilot-school-member-load-benchmark.py
