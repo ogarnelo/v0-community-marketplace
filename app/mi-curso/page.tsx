@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { categories } from "@/lib/mock-data";
 import MyCourseClient from "@/components/my-course/my-course-client";
 import { Navbar } from "@/components/navbar";
@@ -20,6 +21,7 @@ type StudentRow = {
   relationship: "self" | "guardian";
   alias: string | null;
   school_id: string | null;
+  directory_school_code: string | null;
   grade_level: string;
   academic_year: string;
   is_primary: boolean;
@@ -75,7 +77,7 @@ export default async function MyCoursePage({
     supabase
       .from("account_students")
       .select(
-        "id, relationship, alias, school_id, grade_level, academic_year, is_primary, active, sort_order, created_at"
+        "id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at"
       )
       .eq("owner_user_id", user.id)
       .eq("active", true)
@@ -126,8 +128,26 @@ export default async function MyCoursePage({
       .map((school) => [school.id, school])
   );
 
+  // Directory selection identifies the school without creating a community
+  // membership. Read only names corresponding to this user's student rows.
+  const directoryCodes = Array.from(new Set(
+    studentRows.map((student) => student.directory_school_code).filter((code): code is string => Boolean(code))
+  ));
+  const directorySchools = new Map<string, { name: string; municipality: string }>();
+  if (directoryCodes.length > 0) {
+    const { data: matches, error: directoryError } = await createAdminClient()
+      .from("school_directory")
+      .select("official_code,name,municipality")
+      .in("official_code", directoryCodes);
+    if (directoryError) console.error("Mi curso: error consultando colegio del directorio", directoryError);
+    for (const match of matches || []) {
+      directorySchools.set(match.official_code, { name: match.name, municipality: match.municipality });
+    }
+  }
+
   const courseStudents = studentRows.map((student, index) => {
     const school = student.school_id ? schoolById.get(student.school_id) || null : null;
+    const directorySchool = student.directory_school_code ? directorySchools.get(student.directory_school_code) || null : null;
 
     return {
       id: student.id,
@@ -136,8 +156,8 @@ export default async function MyCoursePage({
           ? "Mi curso"
           : student.alias?.trim() || "Estudiante " + (index + 1),
       schoolId: student.school_id,
-      schoolName: school?.name || null,
-      schoolCity: school?.city || null,
+      schoolName: school?.name || directorySchool?.name || null,
+      schoolCity: school?.city || directorySchool?.municipality || null,
       gradeLevel: student.grade_level,
       academicYear: student.academic_year,
       isPrimary: student.is_primary,
