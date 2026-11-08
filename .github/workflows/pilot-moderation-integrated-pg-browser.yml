@@ -8,6 +8,10 @@ on:
       - "scripts/pilot-moderation-integrated-pg-browser.cjs"
       - "app/api/school/share-qr/route.ts"
       - "scripts/pilot-school-qr-route-contract.cjs"
+      - "scripts/pilot-ampa-dashboard-entry.cjs"
+      - "scripts/pilot-ampa-real-dashboard-chromium.cjs"
+      - "components/admin/school-admin-dashboard.tsx"
+      - "components/ui/tabs.tsx"
       - "scripts/pilot-moderation-integrated-setup.sh"
       - "scripts/pilot-moderation-integrated-fixture.sql"
       - ".github/workflows/pilot-moderation-integrated-pg-browser.yml"
@@ -50,9 +54,14 @@ jobs:
         run: |
           set -euo pipefail
           npm install --prefix /tmp/wetudy-moderation-integrated --no-save --package-lock=false --ignore-scripts --no-audit --no-fund \
-            react@19.1.0 react-dom@19.1.0 esbuild@0.25.12 playwright@1.65.0 pg@8.16.3
+            react@19.2.4 react-dom@19.2.4 esbuild@0.25.12 playwright@1.65.0 pg@8.16.3 \
+            @radix-ui/react-tabs@1.1.13 @radix-ui/react-slot@1.2.4 \
+            class-variance-authority@0.7.1 clsx@2.1.1 tailwind-merge@3.3.1 \
+            lucide-react@0.468.0
           /tmp/wetudy-moderation-integrated/node_modules/.bin/playwright install --with-deps chromium
       - name: Verify React Chromium + real Next handler + checked-in SQL RPC
         run: node scripts/pilot-moderation-integrated-pg-browser.cjs
       - name: Verify actual school QR route and inactive school guard
         run: node scripts/pilot-school-qr-route-contract.cjs
+      - name: Verify original AMPA dashboard UI in isolated Chromium for three schools
+        run: node scripts/pilot-ampa-real-dashboard-chromium.cjs
