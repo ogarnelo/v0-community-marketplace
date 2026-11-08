@@ -11,6 +11,13 @@ test("guest QA browser checks are read only, use public centre fixture and requi
   assert.match(script, /QA centre must remain hidden from generic public search/);
   assert.match(script, /Unauthenticated QR administration must return 401/);
   assert.match(script, /guest QR -> login preserves selected school/);
+  assert.match(script, /expectAdminPagesRequireLogin\(context\)/);
+  assert.match(script, /"\/admin\/school"/);
+  assert.match(script, /"\/admin\/super"/);
+  assert.match(script, /"\/admin\/super\/reports\/00000000-0000-4000-8000-000000000000"/);
+  assert.match(script, /maxRedirects: 0/);
+  assert.match(script, /destination\.pathname, "\/auth"/);
+  assert.match(script, /destination\.searchParams\.get\("next"\)/);
   assert.match(script, /Mobile QR screen should not overflow horizontally/);
   assert.match(script, /context\.request\.get/);
   assert.match(script, /context\.route\("\*\*\/api\/analytics\/\*\*"/);
