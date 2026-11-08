@@ -35,19 +35,9 @@ type ListingRow = {
   created_at: string;
 };
 
-type ProfileSchoolContextRow = {
-  id: string;
-  school_id: string | null;
-};
-
 type SchoolAdminNameRow = {
   id: string;
   full_name: string | null;
-};
-
-type AccountStudentSchoolContextRow = {
-  owner_user_id: string;
-  school_id: string | null;
 };
 
 type ReportRow = {
@@ -154,8 +144,7 @@ export default async function SchoolAdminPage() {
   const [
     { data: school },
     { data: listings },
-    { data: profilesForCommunity },
-    { data: activeStudentContexts },
+    { data: memberCountData, error: memberCountError },
     { data: accessCodes },
     { data: schoolAdminRoles },
     { data: donationRequests },
@@ -174,17 +163,9 @@ export default async function SchoolAdminPage() {
       .eq("school_id", effectiveSchoolId)
       .order("created_at", { ascending: false })
       .returns<ListingRow[]>(),
-    adminSupabase
-      .from("profiles")
-      .select("id, school_id")
-      .limit(10000)
-      .returns<ProfileSchoolContextRow[]>(),
-    adminSupabase
-      .from("account_students")
-      .select("owner_user_id, school_id")
-      .eq("active", true)
-      .limit(20000)
-      .returns<AccountStudentSchoolContextRow[]>(),
+    // Aggregate on the database without transferring other schools' profile IDs.
+    // The RPC is EXECUTE-only for service_role; the session role is checked above.
+    adminSupabase.rpc("server_school_member_count", { p_school_id: effectiveSchoolId }),
     adminSupabase
       .from("school_access_codes")
       .select("code, is_active, created_at")
@@ -226,27 +207,9 @@ export default async function SchoolAdminPage() {
   ]);
 
   const safeListings = (listings || []) as ListingRow[];
-  const safeProfilesForCommunity = (profilesForCommunity || []) as ProfileSchoolContextRow[];
-  const safeStudentContexts = (activeStudentContexts || []) as AccountStudentSchoolContextRow[];
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
 
-  const ownersWithActiveEducationalContext = new Set(
-    safeStudentContexts.map((context) => context.owner_user_id)
-  );
-  const schoolContextOwnerIds = new Set(
-    safeStudentContexts
-      .filter((context) => context.school_id === effectiveSchoolId)
-      .map((context) => context.owner_user_id)
-  );
-  for (const role of safeSchoolAdminRoles) {
-    schoolContextOwnerIds.add(role.user_id);
-  }
-
-  const safeMembers = safeProfilesForCommunity.filter((member) =>
-    schoolContextOwnerIds.has(member.id) ||
-    (!ownersWithActiveEducationalContext.has(member.id) && member.school_id === effectiveSchoolId)
-  );
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const safeAgreements = (agreements || []) as AgreementRow[];
 
@@ -286,7 +249,15 @@ export default async function SchoolAdminPage() {
 
   // School admins can see the size of their self-selected community, not
   // the full names, student grades or IDs of every family in the browser.
-  const memberCount = safeMembers.length;
+  if (memberCountError || memberCountData == null) {
+    // The SQL RPC must be deployed before this page; do not silently report 0.
+    console.error("Error consultando miembros AMPA", memberCountError?.message);
+    throw new Error("No se ha podido calcular la comunidad del centro.");
+  }
+  const memberCount = Number(memberCountData);
+  if (!Number.isSafeInteger(memberCount) || memberCount < 0) {
+    throw new Error("La cifra de miembros del centro no es válida.");
+  }
   const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
   const { data: schoolAdmins } = schoolAdminIds.length
     ? await adminSupabase.from("profiles")
