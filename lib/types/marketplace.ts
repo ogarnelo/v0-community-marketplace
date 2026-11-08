@@ -29,6 +29,7 @@ export type ListingRow = {
   seller_id: string | null;
   user_id?: string | null;
   school_id?: string | null;
+  directory_school_code?: string | null;
   postal_code?: string | null;
   status: string | null;
   created_at?: string | null;
@@ -101,6 +102,7 @@ export type MarketplaceListing = {
   photos: string[];
   sellerId: string | null;
   schoolId: string | null;
+  directorySchoolCode?: string | null;
   postalCode?: string | null;
   status: string | null;
   createdAt: string | null;
