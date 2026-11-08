@@ -8,7 +8,13 @@ import unittest
 from pathlib import Path
 from contextlib import redirect_stdout
 
-from verify_pilot_storage_restore import validate_archive
+from runpy import run_path
+
+# The production verifier is a command-line file with hyphens in its name,
+# not an importable Python module. Load its existing implementation by path.
+validate_archive = run_path(
+    str(Path(__file__).with_name("verify-pilot-storage-restore.py"))
+)["validate_archive"]
 
 
 def archive_at(path, broken=False, unsafe=False):
