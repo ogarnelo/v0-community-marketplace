@@ -1,0 +1,29 @@
+name: Wetudy isolated React moderation Chromium
+on:
+  pull_request:
+    paths:
+      - "components/admin/report-status-controls.tsx"
+      - "scripts/pilot-moderation-real-react-browser.cjs"
+      - ".github/workflows/pilot-moderation-real-react-browser.yml"
+permissions:
+  contents: read
+jobs:
+  moderation-ui-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned browser fixture dependencies (not Wetudy production app)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-pilot-moderation-ui --no-save --package-lock=false --no-audit --no-fund \
+            react@19.1.0 react-dom@19.1.0 esbuild@0.25.12 playwright@1.65.0
+          /tmp/wetudy-pilot-moderation-ui/node_modules/.bin/playwright install --with-deps chromium
+      - name: Exercise real React controls with synthetic local API
+        env:
+          PILOT_UI_MODULES: /tmp/wetudy-pilot-moderation-ui/node_modules
+        run: node scripts/pilot-moderation-real-react-browser.cjs
