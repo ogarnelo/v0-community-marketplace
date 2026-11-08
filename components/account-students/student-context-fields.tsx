@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, KeyRound, Loader2, School, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,12 +15,22 @@ export type StudentContextSchoolOption = {
   postal_code?: string | null;
 };
 
+type DirectorySchoolOption = {
+  official_code: string;
+  name: string;
+  municipality: string;
+  province: string;
+  postal_code: string;
+};
+
 export default function StudentContextFields({
   showAlias,
   alias,
   onAliasChange,
   schoolId,
   onSchoolIdChange,
+  directorySchoolCode,
+  onDirectorySchoolCodeChange,
   gradeLevel,
   onGradeLevelChange,
   schools,
@@ -32,6 +42,8 @@ export default function StudentContextFields({
   onAliasChange: (value: string) => void;
   schoolId: string;
   onSchoolIdChange: (value: string) => void;
+  directorySchoolCode: string;
+  onDirectorySchoolCodeChange: (value: string) => void;
   gradeLevel: string;
   onGradeLevelChange: (value: string) => void;
   schools: StudentContextSchoolOption[];
@@ -39,6 +51,10 @@ export default function StudentContextFields({
   disabled?: boolean;
 }) {
   const [schoolSearch, setSchoolSearch] = useState("");
+  const [directoryResults, setDirectoryResults] = useState<DirectorySchoolOption[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
+  const [selectedDirectory, setSelectedDirectory] = useState<DirectorySchoolOption | null>(null);
   const [schoolPopoverOpen, setSchoolPopoverOpen] = useState(false);
   const [schoolAccessCode, setSchoolAccessCode] = useState("");
   const [accessCodeLoading, setAccessCodeLoading] = useState(false);
@@ -46,16 +62,66 @@ export default function StudentContextFields({
   const [codeMessage, setCodeMessage] = useState("");
   const [codeError, setCodeError] = useState("");
 
+  useEffect(() => {
+    const query = schoolSearch.trim();
+    if (!schoolPopoverOpen || query.length < 3) {
+      setDirectoryResults([]);
+      setDirectoryLoading(false);
+      setDirectoryError("");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setDirectoryLoading(true);
+      setDirectoryError("");
+      try {
+        const response = await fetch(
+          "/api/account/schools/directory?q=" + encodeURIComponent(query),
+          { signal: controller.signal, cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("No se pudo consultar el directorio.");
+        const data = await response.json();
+        if (!controller.signal.aborted) setDirectoryResults(data.centres || []);
+      } catch {
+        if (!controller.signal.aborted) {
+          setDirectoryResults([]);
+          setDirectoryError("No se pudo completar la búsqueda. Inténtalo de nuevo.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setDirectoryLoading(false);
+      }
+    }, 350);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [schoolPopoverOpen, schoolSearch]);
+
+  useEffect(() => {
+    if (!directorySchoolCode || selectedDirectory?.official_code === directorySchoolCode) return;
+    const controller = new AbortController();
+    void fetch("/api/account/schools/directory?code=" + encodeURIComponent(directorySchoolCode), {
+      cache: "no-store",
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json();
+      if (!controller.signal.aborted) setSelectedDirectory(payload.centre || null);
+    }).catch(() => undefined);
+    return () => controller.abort();
+  }, [directorySchoolCode, selectedDirectory?.official_code]);
+
   const filteredSchools = useMemo(() => {
     const query = schoolSearch.trim().toLowerCase();
-    if (!query) return schools;
+    if (!query) return schools.slice(0, 20);
 
     return schools.filter(
       (school) =>
         school.name.toLowerCase().includes(query) ||
         (school.city || "").toLowerCase().includes(query) ||
         (school.postal_code || "").toLowerCase().includes(query)
-    );
+    ).slice(0, 20);
   }, [schools, schoolSearch]);
 
   const selectedSchool =
@@ -94,6 +160,8 @@ export default function StudentContextFields({
       }
 
       setResolvedSchool(payload.school);
+      onDirectorySchoolCodeChange("");
+      setSelectedDirectory(null);
       onSchoolIdChange(payload.school.id);
       setSchoolSearch("");
       setCodeMessage("Centro aplicado correctamente.");
@@ -140,7 +208,11 @@ export default function StudentContextFields({
                 <span className="truncate text-left">
                   {selectedSchool
                     ? `${selectedSchool.name}${selectedSchool.city ? ` · ${selectedSchool.city}` : ""}`
-                    : "Selecciona un centro"}
+                    : directorySchoolCode
+                      ? selectedDirectory?.official_code === directorySchoolCode
+                        ? `${selectedDirectory.name} · ${selectedDirectory.municipality}`
+                        : `Centro del directorio · ${directorySchoolCode}`
+                      : "Selecciona un centro"}
                 </span>
                 <School className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
               </Button>
@@ -171,6 +243,8 @@ export default function StudentContextFields({
                         className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted"
                         onClick={() => {
                           onSchoolIdChange(school.id);
+                          onDirectorySchoolCodeChange("");
+                          setSelectedDirectory(null);
                           setResolvedSchool(null);
                           setSchoolPopoverOpen(false);
                           setSchoolSearch("");
@@ -183,7 +257,7 @@ export default function StudentContextFields({
                           <p className="truncate text-xs text-muted-foreground">
                             {[school.city, school.postal_code]
                               .filter(Boolean)
-                              .join(" · ")}
+                              .join(" · ")} · Comunidad activa
                           </p>
                         </div>
                         {schoolId === school.id ? (
@@ -197,11 +271,57 @@ export default function StudentContextFields({
                     </p>
                   )}
                 </div>
+                <div className="border-t pt-2">
+                  <p className="mb-1 px-3 text-xs font-semibold text-muted-foreground">
+                    Directorio nacional (no implica comunidad activa)
+                  </p>
+                  {schoolSearch.trim().length < 3 ? (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      Escribe al menos 3 caracteres para buscar entre los centros de España.
+                    </p>
+                  ) : directoryLoading ? (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">Buscando colegios…</p>
+                  ) : directoryError ? (
+                    <p className="px-3 py-2 text-xs text-destructive">{directoryError}</p>
+                  ) : directoryResults.length ? (
+                    <div className="max-h-64 space-y-1 overflow-y-auto">
+                      {directoryResults.map((centre) => (
+                        <button
+                          key={centre.official_code}
+                          type="button"
+                          className="w-full rounded-lg px-3 py-2 text-left hover:bg-muted"
+                          onClick={() => {
+                            onDirectorySchoolCodeChange(centre.official_code);
+                            onSchoolIdChange("");
+                            setSelectedDirectory(centre);
+                            setResolvedSchool(null);
+                            setSchoolPopoverOpen(false);
+                            setSchoolSearch("");
+                            setCodeMessage("");
+                            setCodeError("");
+                          }}
+                        >
+                          <p className="truncate font-medium">{centre.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {centre.municipality} · {centre.province} · CP {centre.postal_code} · {centre.official_code}
+                          </p>
+                        </button>
+                      ))}
+                      {directoryResults.length === 20 ? (
+                        <p className="px-3 text-xs text-muted-foreground">Afina la búsqueda para ver más resultados.</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      No hay coincidencias. Comprueba el nombre o prueba con el código postal.
+                    </p>
+                  )}
+                </div>
               </div>
             </PopoverContent>
           </Popover>
 
-          {schoolId ? (
+          {schoolId || directorySchoolCode ? (
             <Button
               type="button"
               variant="outline"
@@ -212,6 +332,8 @@ export default function StudentContextFields({
               disabled={disabled}
               onClick={() => {
                 onSchoolIdChange("");
+                onDirectorySchoolCodeChange("");
+                setSelectedDirectory(null);
                 setResolvedSchool(null);
                 setSchoolSearch("");
                 setSchoolAccessCode("");
@@ -225,12 +347,12 @@ export default function StudentContextFields({
         </div>
 
         <p className="text-xs leading-5 text-muted-foreground">
-          Puedes dejar este campo vacío y guardar para no pertenecer a ningún centro.
+          Puedes identificar tu colegio aunque todavía no tenga comunidad Wetudy. Elegirlo no activa el centro ni concede permisos. El campo es opcional.
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="student-context-school-code">Código de centro</Label>
+        <Label htmlFor="student-context-school-code">Código de acceso de comunidad (si lo tienes)</Label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative min-w-0 flex-1">
             <KeyRound className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
