@@ -13,7 +13,7 @@ const {chromium}=require(path.join(MOD,"playwright"));
   entryPoints:["scripts/pilot-ampa-dashboard-entry.cjs"],absWorkingDir:ROOT,
   bundle:true,write:false,format:"iife",platform:"browser",target:"es2020",
   nodePaths:[MOD],plugins:[{name:"project-alias",setup(b){
-    b.onResolve({filter:/^@\//},arg=>({path:path.join(ROOT,arg.path.slice(2))}));
+    b.onResolve({filter:/^@\//},arg=>{const base=path.join(ROOT,arg.path.slice(2));return {path:fs.existsSync(base+".tsx")?base+".tsx":base+".ts"};});
   }}]
  });
  const code=result.outputFiles[0].text;
