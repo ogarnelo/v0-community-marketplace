@@ -81,6 +81,21 @@ export default async function DirectoryCentrePage({ params }: DetailProps) {
           </a>
         </div>
       </section>
+      {centre.available_material.length > 0 ? (
+        <section className="space-y-3" aria-label="Material disponible en el centro">
+          <h2 className="text-xl font-semibold">Material escolar disponible en esta comunidad</h2>
+          <ul className="space-y-2">
+            {centre.available_material.map((material) => (
+              <li key={material.id}>
+                <Link href={`/marketplace/listing/${material.id}`}
+                  className="block rounded-lg border p-3 underline-offset-2 hover:underline">
+                  {material.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <p className="text-sm text-muted-foreground">
         Wetudy es independiente del Ministerio y de los centros incluidos
         en este directorio. La presencia de una ficha no acredita colaboración ni adhesión del AMPA.
