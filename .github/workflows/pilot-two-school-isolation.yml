@@ -1,0 +1,46 @@
+name: Wetudy two-AMPA isolation SQL test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/pilot-two-school-isolation.sh"
+      - "scripts/pilot-report-resolution-sandbox.sh"
+      - ".github/workflows/pilot-two-school-isolation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  school-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_rls
+          POSTGRES_PASSWORD: wetudy_rls
+          POSTGRES_DB: wetudy_rls
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_rls -d wetudy_rls"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wetudy_rls:wetudy_rls@127.0.0.1:5432/wetudy_rls
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Test centre isolation, family denial and role escalation
+        run: bash scripts/pilot-two-school-isolation.sh
+      - name: Create separate disposable database for moderation resolution
+        run: |
+          PGPASSWORD=wetudy_rls createdb -h 127.0.0.1 -U wetudy_rls -p 5432 wetudy_moderation
+      - name: Verify real resolution function and superadmin-only permissions
+        env:
+          DATABASE_URL: postgresql://wetudy_rls:wetudy_rls@127.0.0.1:5432/wetudy_moderation
+        run: bash scripts/pilot-report-resolution-sandbox.sh
