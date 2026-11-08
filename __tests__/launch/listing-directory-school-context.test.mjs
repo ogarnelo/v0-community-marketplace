@@ -32,7 +32,10 @@ test("new listing saves the authoritative directory school rather than refetchin
   assert.match(newForm, /school_id: effectiveSchoolId/);
   assert.match(newForm, /const effectiveSchoolId = initialSchoolId \|\| null/);
   assert.doesNotMatch(newForm, /currentProfile\?\.school_id/);
-  assert.match(newForm, /comunidad Wetudy todavía no activada/);
+  assert.match(newForm, /Centro asociado/);
+  assert.match(newForm, /<p>\{schoolLabel\}<\/p>/);
+  assert.doesNotMatch(newForm, /Centro del directorio nacional · comunidad Wetudy todavía no activada/);
+  assert.doesNotMatch(newForm, /La entrega y el pago se acuerdan directamente entre las partes/);
 });
 
 test("marketplace search separates operational community and national school identity", () => {
