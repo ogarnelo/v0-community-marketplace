@@ -49,7 +49,7 @@ trap 'rm -f "$script"' EXIT
 python3 - "$script" <<'PY'
 from pathlib import Path
 import sys
-src = Path("supabase/migrations/20261108195500_report_status_idempotent_notifications.sql").read_text()
+src = Path("supabase/migrations/20261108210128_report_status_idempotent_notifications_20261108.sql").read_text()
 start = src.lower().find("create or replace function public.server_update_report_status(")
 if start < 0:
     raise SystemExit("Missing moderation resolution function")
