@@ -1,0 +1,33 @@
+name: Piloto — E2E navegador invitado (solo lectura)
+
+on:
+  pull_request:
+    paths:
+      - scripts/pilot-guest-browser-e2e.cjs
+      - .github/workflows/pilot-guest-browser-e2e.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guest-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test runner
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/wetudy-playwright" --no-audit --no-fund --ignore-scripts playwright@1.56.1
+          "$RUNNER_TEMP/wetudy-playwright/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Run anonymous desktop and mobile browser tests
+        shell: bash
+        env:
+          WETUDY_E2E_URL: https://www.wetudy.com
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/wetudy-playwright/node_modules"
+          node scripts/pilot-guest-browser-e2e.cjs
