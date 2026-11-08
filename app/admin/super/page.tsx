@@ -157,6 +157,7 @@ export default async function SuperAdminPage() {
     supabase
       .from("listings")
       .select("id, type, price, status, condition, school_id, category, grade_level, created_at")
+      .eq("is_demo", false)
       .returns<ListingStatsRow[]>(),
     supabase
       .from("support_tickets")
