@@ -2,7 +2,7 @@ name: Wetudy actual moderation UI API PG17 isolated
 on:
   pull_request:
     paths:
-      - "supabase/migrations/20261108195500_report_status_idempotent_notifications.sql"
+      - "supabase/migrations/20261108210128_report_status_idempotent_notifications_20261108.sql"
       - "app/api/admin/reports/status/route.ts"
       - "components/admin/report-status-controls.tsx"
       - "scripts/pilot-moderation-integrated-pg-browser.cjs"
