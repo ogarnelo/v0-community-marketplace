@@ -43,3 +43,16 @@ La prueba realmente completa requiere una cuenta QA **sin participación en oper
 - No enviar contraseñas, sesiones, tokens, claves API, códigos de acceso o capturas con datos personales.
 - No crear usuarios nuevos, habilitar comunidades ni eliminar/modificar los seis anuncios DEMO.
 - No automatizar pruebas autenticadas contra producción sin cuentas expresamente autorizadas.
+
+## 08/11/2026 — Evidencia manual de cuenta normal (sin cambios de centro)
+
+El fundador confirmó **«todos correctos»** después de ejecutar los tres pasos de la fase A: acceso denegado a `/admin/school` y `/admin/super` para una cuenta normal autenticada, y previsualización del centro QA Monteverde por enlace directo **sin pulsar** incorporación/cambio/desvinculación. Se registra como **APROBADA la parte de solo lectura** con cuenta normal, no como cambio de centro o persistencia demostrada.
+
+**Evaluación no invasiva de cuentas existentes (consulta agregada sin emails/IDs):** de 11 perfiles, 5 no participan en anuncios/acuerdos DEMO ni tienen rol school_admin/super_admin; 4 de ellos no tienen centro seleccionado. **NO asumir que sean identidades QA bajo control del fundador**: ningún perfil puede utilizarse o cambiarse hasta que el propietario confirme que controla la cuenta escogida. No generar nuevas cuentas ni extraer contraseñas.
+
+**Verificación de seguridad RLS actual:** `profiles.UPDATE` exige `auth.uid()=id` tanto en USING como WITH CHECK; `user_roles.INSERT/UPDATE` requiere ser superadministrador. El código del alta QR persiste únicamente `profiles.school_id` y `auth.updateUser(user_metadata)`, **no escribe user_roles**. La pantalla administrativa comprueba el rol real en `user_roles` y nunca concede permisos porque `profiles.school_id` sea seleccionado.
+
+**Regresión añadida en PR #266:** `pilot-auth-school-link-guards.test.mjs` protege el retorno `next` al login/onboarding y la separación de selección de colegio frente a roles administrativos. Es una revisión de **contratos estáticos de código**, no un E2E real de persistencia y no sustituye el punto B.
+
+**Siguiente intervención futura:** únicamente usar una cuenta QA normal, sin participación en anuncios DEMO, que el fundador identifique y controle directamente. Prueba de cambio de centro real requiere consentimiento expreso, y debe registrarse/restaurarse el valor original. No seguir con cambios de perfiles de las 5 cuentas sin comprobar su pertenencia.
+
