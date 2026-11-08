@@ -176,10 +176,12 @@ async function ready(next,origin){
    const context=await browser.newContext({acceptDownloads:true});
    await context.grantPermissions(["clipboard-read","clipboard-write"],{origin});
    const page=await context.newPage();
+   page.setDefaultNavigationTimeout(90000);
    await page.route("**/*",route=>{
      const target=new URL(route.request().url());
      return [origin,new URL(api).origin].includes(target.origin)?route.continue():route.abort();
    });
+   console.log("QA Next client page navigation:",identity?.email?"authenticated":"guest");
    await page.goto(origin,{waitUntil:"domcontentloaded"});
    await page.waitForFunction(()=>typeof window.__login==="function");
    if(identity){
@@ -198,6 +200,7 @@ async function ready(next,origin){
   const guest=await createSession(null);
   for(let i=0;i<schools.length;i++){
     const {page}=sessions[i];
+    console.log("QA Next actual school dashboard load:",schools[i].label);
     await page.goto(origin+"/admin/school",{waitUntil:"domcontentloaded"});
     await page.getByTestId("school-title").waitFor({timeout:30000});
     const html=await page.locator("body").innerText();
