@@ -141,6 +141,25 @@ def snapshot(url):
     return tuple(query(url, statement) for statement in statements)
 
 
+def verify_media_ownership(database):
+    """A restored photo belongs to listing seller; attachment to message author."""
+    matches = (
+        query(database, """SELECT count(*) FROM qa_pilot_app.listing_photos p
+            JOIN qa_pilot_app.listings l ON l.id=p.listing_id
+            JOIN qa_pilot_app.storage_refs s ON s.bucket=p.bucket AND s.path=p.path
+            WHERE s.owner_user_id=l.seller_id"""),
+        query(database, """SELECT count(*) FROM qa_pilot_app.message_attachments a
+            JOIN qa_pilot_app.messages m ON m.id=a.message_id
+            JOIN qa_pilot_app.storage_refs s ON s.bucket=a.bucket AND s.path=a.path
+            WHERE s.owner_user_id=m.sender_id"""),
+    )
+    total = (
+        query(database, "SELECT count(*) FROM qa_pilot_app.listing_photos"),
+        query(database, "SELECT count(*) FROM qa_pilot_app.message_attachments"),
+    )
+    if matches != total or total != ("1", "1"):
+        raise AssertionError("Recovered object owner is inconsistent with listing or message")
+
 def verify_encrypted_checksum(source, expected):
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     if digest != expected:
@@ -292,6 +311,36 @@ def main():
                   AND c.seller_id=o.seller_id""") != "1":
                 raise AssertionError("Recovered sale parties/relationships differ")
 
+            verify_media_ownership(TARGET)
+            # Negative controls: broken restored object ownership MUST be rejected,
+            # even when the object still exists and its SHA256 happens to match.
+            qa_seller = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+            qa_buyer = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+            query(TARGET, "UPDATE qa_pilot_app.storage_refs SET owner_user_id='" +
+                  qa_buyer + "' WHERE bucket='listing-photos'")
+            try:
+                try:
+                    verify_media_ownership(TARGET)
+                except AssertionError:
+                    pass
+                else:
+                    raise AssertionError("Foreign-owned listing photo was accepted")
+            finally:
+                query(TARGET, "UPDATE qa_pilot_app.storage_refs SET owner_user_id='" +
+                      qa_seller + "' WHERE bucket='listing-photos'")
+            query(TARGET, "UPDATE qa_pilot_app.storage_refs SET owner_user_id='" +
+                  qa_seller + "' WHERE bucket='chat-attachments'")
+            try:
+                try:
+                    verify_media_ownership(TARGET)
+                except AssertionError:
+                    pass
+                else:
+                    raise AssertionError("Foreign-owned chat attachment was accepted")
+            finally:
+                query(TARGET, "UPDATE qa_pilot_app.storage_refs SET owner_user_id='" +
+                      qa_buyer + "' WHERE bucket='chat-attachments'")
+            verify_media_ownership(TARGET)
             if query(TARGET,"select count(*) from qa_pilot_app.profiles where school_id is not null") != "0":
                 raise AssertionError("Unexpected active school membership in recovery")
             with tarfile.open(archive, "r:gz") as tar:
@@ -301,7 +350,7 @@ def main():
                         raise AssertionError("Storage object bytes changed across recovery")
             print("PASS synthetic integrated DR: two account surrogates, two profiles, "
                   "one student, listing, conversation, messages, offer, agreement and two linked storage objects; local pg_dump/pg_restore and "
-                  "encrypted artifacts round-tripped and byte-for-byte SHA256 verified.")
+                  "encrypted artifacts, object ownership consistency, tamper checks and byte-for-byte SHA256 verified.")
             print("LIMIT: synthetic account surrogates are NOT Supabase GoTrue users; "
                   "this is NOT a full hosted Auth/DB/Storage restore.")
         finally:
