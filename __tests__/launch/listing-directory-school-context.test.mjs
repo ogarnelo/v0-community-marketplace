@@ -307,7 +307,7 @@ test("search signals do not fire from anonymous browsing or every infinite-scrol
 test("postcode radius returns only matching backend pages, without arbitrary scan caps", () => {
   const client = read("components/marketplace/marketplace-client.tsx");
   const route = read("app/api/marketplace/feed/route.ts");
-  const migration = read("supabase/migrations/20261109210000_marketplace_postal_radius_v1.sql");
+  const migration = read("supabase/migrations/20261109205354_marketplace_postal_radius_v1.sql");
   assert.match(client, /params\.set\("radiusKm", String\(distanceKm\)\)/);
   assert.match(client, /No encontramos anuncios a/);
   assert.match(client, /Ampliar distancia/);
