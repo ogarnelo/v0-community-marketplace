@@ -68,6 +68,37 @@ class RecoveryDrillTest(unittest.TestCase):
                 validate_archive(archive)
             self.assertIn("2 objects", output.getvalue())
 
+    def test_total_byte_limit_rejects_before_writing_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "oversized.tar.gz"
+            archive_at(archive)  # fixture contains 9 bytes in two objects
+            globals_ = validate_archive.__globals__
+            original = globals_["MAX_TOTAL_BYTES"]
+            try:
+                globals_["MAX_TOTAL_BYTES"] = 8
+                with self.assertRaisesRegex(ValueError, "Invalid archive file size|before extraction"):
+                    validate_archive(archive)
+            finally:
+                globals_["MAX_TOTAL_BYTES"] = original
+
+    def test_invalid_manifest_bucket_type_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "bad-manifest.tar.gz"
+            archive_at(archive)
+            with tarfile.open(archive, "r:gz") as source:
+                contents = [(m, source.extractfile(m).read() if m.isfile() else None)
+                            for m in source]
+            with tarfile.open(archive, "w:gz") as output:
+                for member, payload in contents:
+                    if member.name == "./manifest.json":
+                        manifest = json.loads(payload)
+                        manifest["buckets"] = "listing-photos"
+                        payload = json.dumps(manifest).encode()
+                        member.size = len(payload)
+                    output.addfile(member, io.BytesIO(payload) if payload is not None else None)
+            with self.assertRaisesRegex(ValueError, "Unexpected manifest bucket list"):
+                validate_archive(archive)
+
     def test_corrupted_hash_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "tampered.tar.gz"
