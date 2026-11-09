@@ -56,8 +56,25 @@ def snapshot(conn):
                 "FROM pg_tables WHERE schemaname = 'public'")
     return names, digests
 
+def security_snapshot(conn):
+    report = {}
+    for name in TABLES:
+        report[name] = sql(
+            conn, "SELECT relrowsecurity::text || ':' || "
+            "coalesce((SELECT string_agg(polname || ':' || polcmd, ',' ORDER BY polname) "
+            "FROM pg_policy WHERE polrelid=c.oid), '') "
+            "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
+            "WHERE n.nspname='public' AND c.relname='" + name + "'"
+        )
+    for name in ("profiles", "account_students", "user_roles", "school_directory"):
+        report["authenticated_select_" + name] = sql(
+            conn, "SELECT has_table_privilege('authenticated', 'public."
+            + name + "', 'SELECT')::text")
+    return report
+
 def main():
     names, original = snapshot(SOURCE)
+    original_security = security_snapshot(SOURCE)
     if set(names.split(",")) != set(TABLES):
         raise AssertionError("Unexpected local public schema: check table inventory")
     if any(not checksum or checksum.startswith("0:") for name, checksum
@@ -69,7 +86,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="wetudy-qa-public-restore-") as temp:
         archive = Path(temp) / "public-only.dump"
         run("pg_dump", "--format=custom", "--schema=public", "--no-owner",
-            "--no-acl", "--dbname", SOURCE, "--file", str(archive))
+            "--dbname", SOURCE, "--file", str(archive))
         if archive.stat().st_size < 4096:
             raise AssertionError("Empty public-schema dump")
         sql(SOURCE, "CREATE DATABASE " + DEST_NAME + " TEMPLATE template0")
@@ -79,18 +96,22 @@ def main():
             # GoTrue or working Auth service is restored by this operation.
             sql(DEST, """CREATE SCHEMA auth;
                 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
-                STABLE AS $$SELECT NULL::uuid$$;""")
+                STABLE AS $SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$;""")
             # template0 may already contain an empty public schema.
             sql(DEST, "DROP SCHEMA IF EXISTS public CASCADE")
-            run("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
+            run("pg_restore", "--exit-on-error", "--no-owner",
                 "--dbname", DEST, str(archive))
             recovered_names, restored = snapshot(DEST)
             if names != recovered_names or original != restored:
                 raise AssertionError("Public application schema/rows differ after cold restore")
+            if security_snapshot(DEST) != original_security:
+                raise AssertionError("Recovered RLS policies or grants differ")
+            if sql(DEST, "SELECT has_table_privilege('anon', 'public.profiles', 'SELECT')") != "f":
+                raise AssertionError("Anonymous access to profiles was granted")
             if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
                 raise AssertionError("Restored local test center has unexpected admin roles")
             print("PASS full LOCAL PUBLIC application schema cold restore: all six "
-                  "tables with row-level digest parity; no active school admin.")
+                  "tables with row digests, RLS and SQL GRANT parity; no school admin.")
             print("LIMIT: this restores APPLICATION tables only, not Supabase "
                   "managed Auth, GoTrue runtime, SMTP, Storage bytes or hosted DR.")
         finally:
