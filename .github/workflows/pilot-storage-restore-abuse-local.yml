@@ -1,0 +1,19 @@
+name: Wetudy offline storage archive abuse checks
+on:
+  pull_request:
+    paths:
+      - "scripts/test_pilot_storage_restore.py"
+      - "scripts/verify-pilot-storage-restore.py"
+      - ".github/workflows/pilot-storage-restore-abuse-local.yml"
+permissions:
+  contents: read
+jobs:
+  reject-unsafe-archives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify synthetic offline restoration and reject adversarial tar entries
+        run: python3 -m unittest discover -s scripts -p 'test_pilot_storage_restore.py' -v
