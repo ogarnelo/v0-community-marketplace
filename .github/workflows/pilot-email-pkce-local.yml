@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/pilot-local-email-pkce-fixture.sql"
+      - "scripts/pilot-local-gotrue-snapshot-recovery.py"
       - "scripts/pilot-local-email-pkce-next-browser.cjs"
       - "app/auth/callback/route.ts"
       - "app/api/account/students/route.ts"
@@ -89,3 +90,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-local-email-pkce-fixture.sql
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -c "NOTIFY pgrst, 'reload schema'"
           node scripts/pilot-local-email-pkce-next-browser.cjs
+          python3 scripts/pilot-local-gotrue-snapshot-recovery.py
