@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  applyMarketplaceFeedFilters,
+  parseMarketplaceFeedFilters,
+} from "@/lib/marketplace/feed-filters";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildPhotosMap,
@@ -14,7 +19,15 @@ const FIELDS =
   "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, directory_school_code, postal_code, status, created_at";
 
 export async function GET(request: Request) {
-  const rawOffset = new URL(request.url).searchParams.get("offset") || "0";
+  const params = new URL(request.url).searchParams;
+  let filters;
+  try {
+    filters = parseMarketplaceFeedFilters(params);
+  } catch {
+    return NextResponse.json({ error: "Filtros incorrectos." },
+      { status: 400, headers: { "Cache-Control": "private, no-store" } });
+  }
+  const rawOffset = params.get("offset") || "0";
   if (!/^(0|[1-9][0-9]{0,5})$/.test(rawOffset)) {
     return NextResponse.json({ error: "Página incorrecta." }, { status: 400 });
   }
@@ -26,11 +39,11 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     // Ask for one extra row instead of exact-count scanning on every page.
-    const { data, error } = await supabase.from("listings")
-      .select(FIELDS).eq("status", "available")
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(offset, offset + PAGE_SIZE);
+    const query = applyMarketplaceFeedFilters(
+      supabase.from("listings").select(FIELDS).eq("status", "available"),
+      filters
+    );
+    const { data, error } = await query.range(offset, offset + PAGE_SIZE);
     if (error) throw error;
     const allRows = (data || []) as ListingRow[];
     const hasMore = allRows.length > PAGE_SIZE;
