@@ -80,6 +80,8 @@ def main():
             sql(DEST, """CREATE SCHEMA auth;
                 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
                 STABLE AS $$SELECT NULL::uuid$$;""")
+            # template0 may already contain an empty public schema.
+            sql(DEST, "DROP SCHEMA IF EXISTS public CASCADE")
             run("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
                 "--dbname", DEST, str(archive))
             recovered_names, restored = snapshot(DEST)
