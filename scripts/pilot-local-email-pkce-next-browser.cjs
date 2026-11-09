@@ -172,9 +172,14 @@ async function mailLink(){
    "PKCE verifier cookie missing from browser");
   console.log("PASS unconfirmed local GoTrue user denied password login; browser PKCE verifier retained.");
   const link=await mailLink();
-  await page.goto(link,{waitUntil:"domcontentloaded",timeout:90000});
+  const landing=await page.goto(link,{waitUntil:"domcontentloaded",timeout:90000});
+  const reached=new URL(page.url());
+  console.log("Local Mailpit confirmation destination:",JSON.stringify({
+    origin:reached.origin,pathname:reached.pathname,
+    queryKeys:Array.from(reached.searchParams.keys()),httpStatus:landing?.status()||null
+  }));
   await page.waitForURL(u=>u.origin===origin&&u.pathname==="/onboarding/students",
-   {timeout:90000});
+   {timeout:13000});
   assert.equal(new URL(page.url()).searchParams.get("next"),qr);
   await page.waitForFunction(()=>typeof window.__qaEmail?.user==="function");
   const user=await page.evaluate(()=>window.__qaEmail.user());
