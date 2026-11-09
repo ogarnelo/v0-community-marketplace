@@ -83,7 +83,7 @@ def check(ddl):
                 errors.append(table+"."+column+" is not "+datatype)
     for (table,column),(schema,target) in REFERENCES.items():
         body=tables.get(table,"")
-        match=(r"(?m)^\s*"+re.escape(column)+r"\s+uuid\b[^,]*?\bREFERENCES\s+"+
+        match=(r"(?:^|,)\s*"+re.escape(column)+r"\s+uuid\b[^,]*?\bREFERENCES\s+"+
                re.escape(schema)+r"\."+re.escape(target)+r"\(id\)")
         # Commas never occur inside these column declarations; FK is inline.
         if not re.search(match,body,re.I|re.S):
