@@ -48,6 +48,7 @@ import {
 import type { MarketplaceListing } from "@/lib/types/marketplace";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { CommunityInviteCard } from "@/components/growth/community-invite-card";
+import { toast } from "sonner";
 
 function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -173,6 +174,38 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     }
   };
 
+  // A small, dismissible invitation when the user's school has enough
+  // inventory. Never change the default all-marketplace view automatically.
+  // Session-scoped and per school: avoid showing the same nudge repeatedly.
+  useEffect(() => {
+    const schoolKey = currentUserDirectorySchoolCode || currentUserSchoolId;
+    if (!schoolKey || schoolCount === null || schoolCount < 10 ||
+        onlyMyCommunity || showSchoolInvite) return;
+
+    const storageKey = `wetudy:school-invite:${schoolKey}`;
+    const handle = window.setTimeout(() => {
+      try {
+        if (window.sessionStorage.getItem(storageKey) === "seen") return;
+        if (new URLSearchParams(window.location.search).get("joined") === "1") return;
+        window.sessionStorage.setItem(storageKey, "seen");
+      } catch {
+        // Browsers can block session storage: do not show a potentially
+        // repetitive popup when we cannot enforce the once-per-session rule.
+        return;
+      }
+      toast("¡Tu colegio ya tiene movimiento!", {
+        description: `${schoolCount} anuncios disponibles. ¿Quieres echar un vistazo?`,
+        action: {
+          label: "Ver mi colegio",
+          onClick: () => setOnlyMyCommunity(true),
+        },
+        duration: 7500,
+      });
+    }, 1200);
+    return () => window.clearTimeout(handle);
+  }, [schoolCount, currentUserDirectorySchoolCode, currentUserSchoolId,
+      onlyMyCommunity, showSchoolInvite]);
+
   const deferredPriceRange = useDeferredValue(priceRange);
   const deferredDistanceKm = useDeferredValue(distanceKm);
   const displayMinPrice = priceRange[0] ?? 0;
@@ -261,6 +294,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
       : `${schoolCount} anuncios de tu colegio`;
   // Ten is a discovery milestone, NEVER an automatic filter-on threshold.
   const highlightSchoolShortcut = (schoolCount ?? 0) >= 10;
+  const subtleSchoolShortcut = (schoolCount ?? 0) >= 5 && !highlightSchoolShortcut;
   const emptySchoolView = onlyMyCommunity && schoolLoaded && filteredListings.length === 0;
 
   const schoolFeedPending = onlyMyCommunity && !schoolLoaded && !schoolLoadError;
@@ -271,7 +305,11 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
 
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
-      <div className="rounded-2xl border border-border bg-card p-3">
+      <div className={`rounded-2xl border p-3 transition-colors ${highlightSchoolShortcut
+        ? "border-primary/40 bg-primary/5"
+        : subtleSchoolShortcut
+          ? "border-primary/20 bg-card"
+          : "border-border bg-card"}`}>
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
             <School className="h-4 w-4 text-primary" />
@@ -287,7 +325,8 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
               : "Por defecto ves todos los anuncios. Activa este filtro cuando quieras centrarte en tu colegio."}
         </p>
         {hasSchoolContext && schoolCount !== null ? (
-          <Badge variant={highlightSchoolShortcut ? "default" : "secondary"} className="mt-2">
+          <Badge variant={highlightSchoolShortcut ? "default" : "secondary"}
+            className={`mt-2 ${subtleSchoolShortcut ? "bg-primary/10 text-primary" : ""}`}>
             {communityCountLabel}
           </Badge>
         ) : null}
