@@ -230,6 +230,24 @@ async function mailLink(){
   assert.equal(sql("select postal_code from public.profiles where id='"+signed.id+"'"),
     "99999","Legitimate own-profile update must persist");
   console.log("PASS own-profile update allowed, cross-family SELECT/UPDATE/INSERT denied.");
+  // Confirm that the authenticated PKCE session survives navigation/reload
+  // before the parent proceeds to student onboarding and the school QR flow.
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.waitForFunction(()=>typeof window.__qaEmail?.user==="function");
+  const refreshed=await page.evaluate(()=>window.__qaEmail.user());
+  assert.equal(refreshed.error,null);
+  assert.equal(refreshed.id,signed.id,"Confirmed parent session must survive reload");
+  assert.equal(refreshed.confirmed,true);
+  const afterRefresh=await page.evaluate(id=>window.__qaEmail.profile(id),signed.id);
+  assert.equal(afterRefresh.error,null);
+  assert.equal(afterRefresh.data.postal_code,"99999",
+    "Own RLS profile update must remain available after a full page reload");
+  assert.equal(new URL(page.url()).pathname,"/onboarding/students",
+    "Reload must preserve student-onboarding destination");
+  assert.equal(new URL(page.url()).searchParams.get("next"),qr,
+    "Reload must preserve the intended school QR continuation");
+  console.log("PASS confirmed parent PKCE session, own-profile RLS and QR continuation survive browser reload.");
+
 
   const attribution=sql("select source,medium,campaign from public.growth_acquisition_events where user_id='"+signed.id+"'");
   assert.equal(attribution,"school|qr|school_invite");
