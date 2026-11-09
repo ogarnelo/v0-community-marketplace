@@ -4,6 +4,10 @@ on:
     paths:
       - "scripts/pilot-local-supabase-auth-storage-fixture.sql"
       - "scripts/pilot-local-supabase-auth-storage.cjs"
+      - "app/onboarding/join-school/page.tsx"
+      - "lib/supabase/client.ts"
+      - "scripts/pilot-qr-local-gotrue-entry.cjs"
+      - "scripts/pilot-qr-local-gotrue-browser.cjs"
       - "supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql"
       - ".github/workflows/pilot-local-supabase-auth-storage.yml"
 permissions:
@@ -11,7 +15,7 @@ permissions:
 jobs:
   local-auth-storage-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,7 +26,12 @@ jobs:
         run: |
           set -euo pipefail
           npm install --prefix /tmp/wetudy-local-supabase-qa --no-save --package-lock=false --no-audit --no-fund \
-            supabase@2.121.0 @supabase/supabase-js@2.58.0
+            supabase@2.121.0 @supabase/supabase-js@2.58.0 @supabase/ssr@0.6.1 \
+            react@19.2.4 react-dom@19.2.4 esbuild@0.25.12 playwright@1.65.0 \
+            @radix-ui/react-label@2.1.8 @radix-ui/react-slot@1.2.4 \
+            class-variance-authority@0.7.1 clsx@2.1.1 tailwind-merge@3.3.1 \
+            lucide-react@0.468.0
+          /tmp/wetudy-local-supabase-qa/node_modules/.bin/playwright install --with-deps chromium
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Boot isolated local Supabase, authenticate and check RLS/Storage
         shell: bash
@@ -58,3 +67,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-local-supabase-auth-storage-fixture.sql
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f supabase/migrations/20260920114500_chat_attachment_privacy_hardening.sql
           node scripts/pilot-local-supabase-auth-storage.cjs
+          node scripts/pilot-qr-local-gotrue-browser.cjs
