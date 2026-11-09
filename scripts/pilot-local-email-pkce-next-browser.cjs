@@ -209,6 +209,15 @@ async function mailLink(){
   const deniedBefore=await page.evaluate(async()=>{const res=await fetch("/api/account/students");return {status:res.status,body:await res.json()};});
   assert.equal(deniedBefore.status,401,"Unconfirmed visitor must not read students through the original Next API");
   assert.equal(deniedBefore.body.code,"unauthorized");
+
+  const deniedPost=await page.evaluate(async()=>{const res=await fetch("/api/account/students",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({gradeLevel:"3 Primaria",alias:"Intento antes de verificar"})});
+    return {status:res.status,body:await res.json()};});
+  assert.equal(deniedPost.status,401,"Unconfirmed signup must not create students");
+  assert.equal(deniedPost.body.code,"unauthorized");
+  assert.equal(sql("select count(*) from public.account_students"),"0",
+    "Unconfirmed creation must not write any student rows");
   console.log("PASS original student Next API returns 401 before email confirmation.");
   assert.ok((await ctx.cookies(origin)).some(x=>x.name.includes("code-verifier")),
    "PKCE verifier cookie missing from browser");
@@ -304,6 +313,15 @@ async function mailLink(){
     method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({gradeLevel:""})});
     return {status:res.status,body:await res.json()};});
   assert.equal(httpInvalid.status,400);
+  assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+signed.id+"'"),
+    "1","Invalid student POST must not write a new record");
+  const malformedJson=await page.evaluate(async()=>{const res=await fetch("/api/account/students",{
+    method:"POST",headers:{"Content-Type":"application/json"},body:"{not-json"});
+    return {status:res.status,body:await res.json()};});
+  assert.equal(malformedJson.status,400,"Malformed student JSON must be rejected");
+  assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+signed.id+"'"),
+    "1","Malformed POST must not write new student rows");
+
   const httpCreated=await page.evaluate(async()=>{const res=await fetch("/api/account/students",{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({gradeLevel:"3 Primaria",alias:"Alumno desde API"})});
