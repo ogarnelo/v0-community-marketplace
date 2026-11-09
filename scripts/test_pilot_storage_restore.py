@@ -108,6 +108,49 @@ class RecoveryDrillTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Unsafe archive member type"):
                 validate_archive(archive)
 
+    def test_hardlink_archive_member_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "hardlink.tar.gz"
+            archive_at(archive)
+            with tarfile.open(archive, "r:gz") as existing:
+                entries = [(m, existing.extractfile(m).read() if m.isfile() else None)
+                           for m in existing]
+            with tarfile.open(archive, "w:gz") as output:
+                for member, payload in entries:
+                    output.addfile(member, io.BytesIO(payload) if payload is not None else None)
+                link = tarfile.TarInfo("./chat-attachments/hardlink")
+                link.type = tarfile.LNKTYPE
+                link.linkname = "./listing-photos/example.webp"
+                output.addfile(link)
+            with self.assertRaisesRegex(ValueError, "Unsafe archive member type"):
+                validate_archive(archive)
+
+    def test_unexpected_bucket_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "extra-bucket.tar.gz"
+            archive_at(archive)
+            with tarfile.open(archive, "r:gz") as existing:
+                entries = [(m, existing.extractfile(m).read() if m.isfile() else None)
+                           for m in existing]
+            with tarfile.open(archive, "w:gz") as output:
+                for member, payload in entries:
+                    output.addfile(member, io.BytesIO(payload) if payload is not None else None)
+                extra = tarfile.TarInfo("./unknown-bucket/secret.txt")
+                extra.size = 6
+                output.addfile(extra, io.BytesIO(b"secret"))
+            with self.assertRaisesRegex(ValueError, "unexpected files"):
+                validate_archive(archive)
+
+    def test_missing_manifest_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "no-manifest.tar.gz"
+            with tarfile.open(archive, "w:gz") as output:
+                info = tarfile.TarInfo("./listing-photos/image.webp")
+                info.size = 3
+                output.addfile(info, io.BytesIO(b"img"))
+            with self.assertRaisesRegex(ValueError, "Missing or oversized backup manifest"):
+                validate_archive(archive)
+
     def test_unsafe_member_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "unsafe.tar.gz"
