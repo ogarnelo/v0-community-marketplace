@@ -60,8 +60,9 @@ def main():
         "(email_confirmed_at is not null) as confirmed "
         "from auth.users where email in (" + ",".join("'" + e + "'" for e in EMAILS) + ")"
     )
-    if not users or not all(u["confirmed"] and u["password_hash"] for u in users):
-        raise AssertionError("Local GoTrue user(s) must be confirmed and password-backed")
+    if (len(users) != len(EMAILS) or {u["email"] for u in users} != set(EMAILS)
+            or not all(u["confirmed"] and u["password_hash"] for u in users)):
+        raise AssertionError("Both local GoTrue QA families must be confirmed and password-backed")
     user_ids = {u["id"] for u in users}
     identities = rows(
         "select user_id::text as user_id, provider, provider_id "
@@ -87,6 +88,16 @@ def main():
         raise AssertionError("Unexpected identity owner")
     if any(r["owner_user_id"] not in user_ids for r in students):
         raise AssertionError("Unexpected student owner")
+    for user_id in user_ids:
+        if not any(r["user_id"] == user_id for r in identities):
+            raise AssertionError("One local GoTrue user has no identity")
+        if not any(r["owner_user_id"] == user_id for r in students):
+            raise AssertionError("One local GoTrue user has no linked student")
+        if not any(r["id"] == user_id for r in profiles):
+            raise AssertionError("One local GoTrue user has no profile")
+    if sql("select count(*) from public.user_roles") != "0":
+        raise AssertionError("Local QR rehearsal must grant no administrative roles")
+
     archive = {"users": users, "identities": identities,
                "profiles": profiles, "students": students}
     with tempfile.TemporaryDirectory(prefix="wetudy-local-auth-restore-") as temporary:
@@ -106,6 +117,21 @@ def main():
         plain.unlink()
         if hashlib.sha256(encrypted.read_bytes()).hexdigest() != encrypted_sha:
             raise AssertionError("Encrypted Auth backup was altered")
+        corrupted = bytearray(encrypted.read_bytes())
+        corrupted[-2] ^= 0x01
+        if hashlib.sha256(corrupted).hexdigest() == encrypted_sha:
+            raise AssertionError("Tampering detection must catch modified ciphertext")
+        wrong = dict(env, **{PASSWORD_ENV: "wrong-local-qa-password"})
+        wrong_out = directory / "auth-wrong-password.json"
+        negative = cmd(["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2",
+                        "-iter", "200000", "-in", str(encrypted),
+                        "-out", str(wrong_out), "-pass", "env:" + PASSWORD_ENV],
+                       env=wrong, check=False)
+        if negative.returncode == 0 and wrong_out.exists() and (
+                hashlib.sha256(wrong_out.read_bytes()).hexdigest() == expected_sha):
+            raise AssertionError("Wrong decryption password recovered authentic content")
+        wrong_out.unlink(missing_ok=True)
+
         cmd(["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2",
              "-iter", "200000", "-in", str(encrypted), "-out", str(recovered),
              "-pass", "env:" + PASSWORD_ENV], env=env)
@@ -157,7 +183,7 @@ def main():
                 if sorted(source[key], key=lambda item: json.dumps(item, sort_keys=True)) != sorted(
                         restored[key], key=lambda item: json.dumps(item, sort_keys=True)):
                     raise AssertionError("Local real GoTrue linked snapshot differs: " + key)
-            print("PASS selective REAL local GoTrue Auth user+identity snapshot, "
+            print("PASS TWO confirmed REAL local GoTrue QA families: Auth user+identity snapshot, "
                   "profiles and students encrypted and recovered to DISTINCT local DB; "
                   "SHA256, UUID relationships and record parity verified.")
             print("LIMIT: selective logical tables, not a bootable GoTrue Auth restore, "
