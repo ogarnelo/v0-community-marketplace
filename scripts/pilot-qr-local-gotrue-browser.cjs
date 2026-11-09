@@ -31,17 +31,20 @@ const qr="/onboarding/join-school?school="+A+
   nodePaths:[MOD],
   define:{
    "process.env.NEXT_PUBLIC_SUPABASE_URL":JSON.stringify(api),
-   "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY":JSON.stringify(anon)
+   "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY":JSON.stringify(anon),
+   "process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY":JSON.stringify("qa-local-site-key")
   },
   plugins:[{name:"qa-next-shell",setup(t){
-   t.onResolve({filter:/^(?:next\/navigation|next\/link|@vercel\/analytics)$/},
+   t.onResolve({filter:/^(?:next\/navigation|next\/link|@vercel\/analytics|@\/components\/auth\/turnstile-widget)$/},
      arg=>({namespace:"qa-shell",path:arg.path}));
    t.onLoad({filter:/.*/,namespace:"qa-shell"},arg=>{
     let contents;
     if(arg.path==="next/navigation")
-      contents="export function useRouter(){return window.__qa.router;}";
+      contents="export function useRouter(){return window.__qa.router;} export function useSearchParams(){return new URLSearchParams(window.location.search);}";
     else if(arg.path==="next/link")
       contents='import React from "react";export default React.forwardRef(function Link(props,ref){const {href,children,...rest}=props;return React.createElement("a",{...rest,href,ref},children);});';
+    else if(arg.path==="@/components/auth/turnstile-widget")
+      contents='import React from "react";export function TurnstileWidget({onTokenChange}){React.useEffect(()=>onTokenChange("local-qa-turnstile-token"),[onTokenChange]);return React.createElement("span",{"data-testid":"local-turnstile-stub"},"Turnstile solo QA");}';
     else contents="export function track(name,data){window.__qa.actions.tracks.push({name,data})}";
     return {contents,loader:"js",resolveDir:MOD};
    });
@@ -98,12 +101,17 @@ const qr="/onboarding/join-school?school="+A+
    return data.user?.id||null;
   });
  }
- async function login(page,email,password,mode="login",next=qr){
-  await page.goto(origin+"/auth?mode="+mode+"&next="+encodeURIComponent(next),
+ async function login(page,email,password,mode="login",next=qr,realForm=false){
+  await page.goto(origin+(realForm?"/auth-real":"/auth")+"?mode="+mode+"&next="+encodeURIComponent(next),
      {waitUntil:"load"});
-  await page.getByLabel("Correo").fill(email);
-  await page.getByLabel("Contraseña").fill(password);
-  await page.getByRole("button",{name:mode==="signup"?"Crear QA":"Entrar QA"}).click();
+  await page.getByLabel(realForm?"Email":"Correo").fill(email);
+  await page.getByLabel("Contraseña",{exact:true}).fill(password);
+  if(realForm){
+    await page.getByTestId("local-turnstile-stub").waitFor();
+    await page.getByRole("button",{name:"Iniciar sesión",exact:true}).last().click();
+  } else {
+    await page.getByRole("button",{name:mode==="signup"?"Crear QA":"Entrar QA"}).click();
+  }
   await page.waitForURL(u=>u.pathname==="/onboarding/join-school",{timeout:25000});
   const uid=await identity(page);
   assert.match(uid||"",/^[0-9a-f-]{36}$/);
@@ -124,7 +132,7 @@ const qr="/onboarding/join-school?school="+A+
    await page.getByRole("link",{name:"Crear cuenta"}).click();
    await page.waitForURL(u=>u.pathname==="/auth");
    await page.getByLabel("Correo").fill("qa-qr-newfamily@example.invalid");
-   await page.getByLabel("Contraseña").fill("Local-QA-qr-newfamily-Test-2026!aZ6");
+   await page.getByLabel("Contraseña",{exact:true}).fill("Local-QA-qr-newfamily-Test-2026!aZ6");
    await page.getByRole("button",{name:"Crear QA"}).click();
    await page.waitForURL(u=>u.pathname==="/onboarding/join-school");
    await page.waitForFunction(()=>window.__qa?.actions?.navigation?.some(x=>
@@ -144,7 +152,7 @@ const qr="/onboarding/join-school?school="+A+
   {
    const {page,ctx}=await context();
    familyId=await login(page,"qa-school-family@example.invalid",
-      "Local-QA-school-family-Test-2026!aZ6");
+      "Local-QA-school-family-Test-2026!aZ6","login",qr,true);
    await page.getByText("Vas a cambiar de centro").waitFor();
    assert.equal(await readSchool(page,familyId),B);
    const roleCount=await page.evaluate(async()=>(
@@ -157,9 +165,36 @@ const qr="/onboarding/join-school?school="+A+
    assert.equal((await page.evaluate(()=>window.__qa.signOut())).error,null);
    await login(page,"qa-school-family@example.invalid",
      "Local-QA-school-family-Test-2026!aZ6","login",
-     "/onboarding/join-school?school="+A+"&join=1");
+     "/onboarding/join-school?school="+A+"&join=1",true);
    assert.equal(await readSchool(page,familyId),A);
-   console.log("PASS existing B -> real GoTrue login -> ORIGINAL QR UI no silent switch -> explicit click -> A survives logout/login.");
+   console.log("PASS commercial AuthForm login + real GoTrue -> original QR UI: B preserved until explicit change to A and after logout/relogin.");
+   await ctx.close();
+  }
+
+  // Original commercial signup enforces verification even when local
+  // GoTrue offers an immediate session. This does not deliver email.
+  {
+   const {page,ctx}=await context();
+   const q="/auth-real?mode=signup&next="+encodeURIComponent(qr)+
+    "&utm_source=school&utm_medium=qr&utm_campaign=school_invite";
+   await page.goto(origin+q,{waitUntil:"load"});
+   await page.locator('[data-slot="card-title"]').getByText("Crear cuenta",{exact:true}).waitFor();
+   await page.getByLabel("Nombre *").fill("QA");
+   await page.getByLabel("Apellidos *").fill("Familia Prueba");
+   await page.getByLabel("Email").fill("qa-qr-authform-signup@example.invalid");
+   await page.getByLabel("Contraseña",{exact:true}).fill("Local-QA-authform-signup-Test-2026!aZ6");
+   await page.getByRole("combobox").click();
+   await page.getByRole("option",{name:"Familia / tutor"}).click();
+   await page.getByLabel("Código postal *").fill("37001");
+   await page.getByRole("checkbox").check();
+   await page.getByTestId("local-turnstile-stub").waitFor();
+   await page.getByRole("button",{name:"Crear cuenta",exact:true}).last().click();
+   await page.getByText(
+     "Wetudy requiere verificar el email antes de iniciar sesión.",
+     {exact:false}).waitFor({timeout:18000});
+   assert.equal(await identity(page),null,
+    "Commercial signup must sign out when local GoTrue returns an immediate session");
+   console.log("PASS real AuthForm signup blocks automatic local session pending email verification.");
    await ctx.close();
   }
 
@@ -185,8 +220,8 @@ const qr="/onboarding/join-school?school="+A+
    console.log("PASS stranger GoTrue JWT cannot read/change original family's school under local PostgREST RLS.");
    await ctx.close();
   }
-  console.log("PASS QR original React UI + local REAL Supabase GoTrue Auth and RLS combined in one Chromium test.");
-  console.log("LIMIT: actual hosted AuthForm and school-lookup Next endpoint are QA adapters, not tested here.");
+  console.log("PASS original commercial AuthForm LOGIN and SIGNUP guard, QR UI and local GoTrue/RLS together in Chromium.");
+  console.log("LIMIT: AuthForm real; Turnstile token/navigation QA adapters; confirmation email/callback and public school Next API NOT end-to-end verified.");
  }finally{
   await browser.close();
   await new Promise(done=>server.close(done));

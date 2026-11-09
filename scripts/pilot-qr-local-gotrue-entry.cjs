@@ -3,6 +3,7 @@
 const React=require("react");
 const {createRoot}=require("react-dom/client");
 const JoinSchoolPage=require("../app/onboarding/join-school/page.tsx").default;
+const {AuthForm}=require("../components/auth/auth-form.tsx");
 const {createClient}=require("../lib/supabase/client.ts");
 const {getSafeInternalPath}=require("../lib/auth/safe-next.ts");
 
@@ -40,7 +41,9 @@ function AuthAdapter(){
   React.createElement("span",{role:"alert"},message));
 }
 window.__qa.signOut=async()=>supabase.auth.signOut();
-const app=window.location.pathname==="/auth"
- ?React.createElement(AuthAdapter)
- :React.createElement(JoinSchoolPage);
+const app=window.location.pathname==="/auth-real"
+ ?React.createElement(AuthForm)
+ :window.location.pathname==="/auth"
+  ?React.createElement(AuthAdapter)
+  :React.createElement(JoinSchoolPage);
 createRoot(document.getElementById("root")).render(app);

@@ -5,6 +5,8 @@ on:
       - "scripts/pilot-local-supabase-auth-storage-fixture.sql"
       - "scripts/pilot-local-supabase-auth-storage.cjs"
       - "app/onboarding/join-school/page.tsx"
+      - "components/auth/auth-form.tsx"
+      - "lib/auth/safe-next.ts"
       - "lib/supabase/client.ts"
       - "scripts/pilot-qr-local-gotrue-entry.cjs"
       - "scripts/pilot-qr-local-gotrue-browser.cjs"
@@ -28,7 +30,7 @@ jobs:
           npm install --prefix /tmp/wetudy-local-supabase-qa --no-save --package-lock=false --no-audit --no-fund \
             supabase@2.121.0 @supabase/supabase-js@2.58.0 @supabase/ssr@0.6.1 \
             react@19.2.4 react-dom@19.2.4 esbuild@0.25.12 playwright@1.65.0 \
-            @radix-ui/react-label@2.1.8 @radix-ui/react-slot@1.2.4 \
+            @radix-ui/react-label@2.1.8 @radix-ui/react-slot@1.2.4 @radix-ui/react-select@2.2.6 \
             class-variance-authority@0.7.1 clsx@2.1.1 tailwind-merge@3.3.1 \
             lucide-react@0.468.0
           /tmp/wetudy-local-supabase-qa/node_modules/.bin/playwright install --with-deps chromium
