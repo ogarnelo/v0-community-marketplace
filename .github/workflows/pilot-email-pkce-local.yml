@@ -53,9 +53,9 @@ jobs:
           data=p.read_text()
           assert 'enable_confirmations = false' in data
           data=data.replace('enable_confirmations = false','enable_confirmations = true',1)
-          data,n=re.subn(r'(?m)^site_url = .*$', 'site_url = "http://127.0.0.1:31421"',data,count=1)
+          data,n=re.subn(r'(?m)^site_url = .*$', 'site_url = "http://localhost:31421"',data,count=1)
           assert n==1
-          data,n=re.subn(r'(?m)^additional_redirect_urls = .*$', 'additional_redirect_urls = ["http://127.0.0.1:31421/**"]',data,count=1)
+          data,n=re.subn(r'(?m)^additional_redirect_urls = .*$', 'additional_redirect_urls = ["http://localhost:31421/**"]',data,count=1)
           assert n==1
           p.write_text(data)
           PY
