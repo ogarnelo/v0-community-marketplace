@@ -302,20 +302,41 @@ test("search signals do not fire from anonymous browsing or every infinite-scrol
   assert.doesNotMatch(deps, /generalOffset|schoolOffset/);
 });
 
-test("approximate radius never declares an empty market while older pages remain", () => {
+
+test("radius scrolling examines all pages, never halts after an arbitrary count", () => {
   const client = read("components/marketplace/marketplace-client.tsx");
-  assert.match(client, /const radiusMayHaveUnseenMatches = radiusIsApproximate &&/);
-  assert.match(client, /generalHasMore && filteredListings\.length === 0/);
-  assert.match(client, /radiusMayHaveUnseenMatches \? <div role="status"/);
-  assert.match(client, /puede haber otros anuncios en páginas posteriores/);
-  assert.match(client, /Estimación basada en centros provinciales/);
-  assert.match(client, /disabled=\{onlyMyCommunity \|\| !hasViewerPostalCode\}/);
-  assert.match(client, /setDistanceKm\(DISTANCE_MAX\)/);
-  // Stop automatic requests when the 3-page empty-result cap is reached.
-  assert.match(client, /radiusPrefetchCap = !onlyMyCommunity && distanceKm < DISTANCE_MAX/);
-  assert.match(client, /!radiusHasCandidates && generalOffset >= 180/);
-  assert.match(client, /const waiting = radiusPrefetchCap \|\| filterDebouncing/);
-  assert.match(client, /rootMargin: "360px 0px"/);
-  assert.match(client, /Ver anuncios sin límite de distancia/);
-  assert.doesNotMatch(client, />Cargar más anuncios<\/Button>/);
+  assert.ok(client.includes("const radiusMayHaveUnseenMatches = radiusIsApproximate &&"));
+  assert.ok(client.includes("generalHasMore && filteredListings.length === 0"));
+  assert.ok(client.includes("radiusMayHaveUnseenMatches ? <div"));
+  assert.ok(client.includes("puede haber otros anuncios en páginas posteriores"));
+  assert.ok(client.includes("Continuamos examinando las siguientes publicaciones hasta terminar el catálogo"));
+  assert.ok(client.includes("const waiting = filterDebouncing || (onlyMyCommunity"));
+  assert.ok(client.includes("observer.observe(target)"));
+  assert.ok(client.includes('rootMargin: "360px 0px"'));
+  assert.doesNotMatch(client, /radiusPrefetchCap|generalOffset >= 180|radiusPrefetchCapReached/);
+  assert.ok(client.includes("generalHasMore"));
+  assert.ok(client.includes("Distancia aproximada"));
+});
+
+test("missing postal code explains disabled distance filter without redesign", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  assert.ok(client.includes("disabled={onlyMyCommunity || !hasViewerPostalCode}"));
+  assert.ok(client.includes("onPointerDownCapture={explainMissingPostalCode}"));
+  assert.ok(client.includes("onKeyDownCapture={(event) =>"));
+  assert.ok(client.includes('role={!hasViewerPostalCode && !onlyMyCommunity ? "button" : undefined}'));
+  assert.ok(client.includes("tabIndex={!hasViewerPostalCode && !onlyMyCommunity ? 0 : undefined}"));
+  assert.ok(client.includes("marketplace-postal-code-required"));
+  assert.ok(client.includes("duration: 5000"));
+  assert.ok(client.includes('window.location.assign("/account")'));
+  assert.ok(client.includes("if (onlyMyCommunity || hasViewerPostalCode) return"));
+});
+
+test("failed pagination can be retried manually while observer stops on error", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  assert.ok(client.includes("generalLoading || generalLoadError || !generalHasMore"));
+  assert.ok(client.includes("schoolLoading || schoolLoadError || !schoolHasMore"));
+  assert.ok(client.includes("onClick={loadMoreGeneralListings}>Reintentar carga"));
+  assert.ok(client.includes("onClick={loadMoreSchoolListings}>Reintentar carga"));
+  assert.doesNotMatch(client, /generalLoadError \|\| generalRequestInFlight\.current\) return/);
+  assert.doesNotMatch(client, /schoolLoadError \|\| schoolRequestInFlight\.current\) return/);
 });
