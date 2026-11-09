@@ -71,7 +71,9 @@ jobs:
           assert n==1
           data,n=re.subn(r'(?m)^additional_redirect_urls = .*$', 'additional_redirect_urls = ["http://localhost:31421/**"]',data,count=1)
           assert n==1
-          data,n=re.subn(r'(?m)^max_frequency = .*
+          data=data.replace('max_frequency = "1m"', 'max_frequency = "1s"')
+          assert 'max_frequency = "1s"' in data
+          p.write_text(data)
           PY
           cleanup(){
             "$cli" stop --no-backup >/dev/null 2>&1 || true
