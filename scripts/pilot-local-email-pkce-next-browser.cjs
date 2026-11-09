@@ -172,6 +172,14 @@ async function mailLink(){
    "PKCE verifier cookie missing from browser");
   console.log("PASS unconfirmed local GoTrue user denied password login; browser PKCE verifier retained.");
   const link=await mailLink();
+  // Capture the original PKCE exchange path ONLY in this local process.
+  // Never output, persist or report the one-time token.
+  let confirmedCodePath=null;
+  page.on("request",request=>{
+    const target=new URL(request.url());
+    if(target.origin===origin&&target.pathname==="/auth/callback"&&
+      target.searchParams.get("code"))confirmedCodePath=target.pathname+target.search;
+  });
   const landing=await page.goto(link,{waitUntil:"domcontentloaded",timeout:90000});
   const reached=new URL(page.url());
   console.log("Local Mailpit confirmation destination:",JSON.stringify({
@@ -194,11 +202,27 @@ async function mailLink(){
   const attribution=sql("select source,medium,campaign from public.growth_acquisition_events where user_id='"+signed.id+"'");
   assert.equal(attribution,"school|qr|school_invite");
   console.log("PASS actual Mailpit email -> local GoTrue verify -> ORIGINAL Next auth callback with PKCE session cookie, RLS profile and attribution.");
+  assert.ok(confirmedCodePath&&confirmedCodePath.startsWith("/auth/callback?"),
+    "One-time PKCE callback must be observed on local Next");
+  // Replaying the SAME exchange code must not grant a second session or
+  // re-run profile/attribution side effects.
+  await page.goto(origin+confirmedCodePath,{waitUntil:"domcontentloaded"});
+  await page.waitForURL(u=>u.pathname==="/auth"&&
+    u.searchParams.get("auth_error")==="invalid_link",{timeout:20000});
+  assert.equal(sql("select count(*) from public.growth_acquisition_events where user_id='"+
+    signed.id+"'"),"1","One-time replay must not duplicate attribution");
+  console.log("PASS replay of spent local PKCE code denied with no duplicate acquisition event.");
+  // Missing/forged codes and external destinations must remain safe as well.
+  await page.goto(origin+"/auth/callback?next="+
+    encodeURIComponent("//external.example/steal"),{waitUntil:"domcontentloaded"});
+  await page.waitForURL(u=>u.pathname==="/auth"&&
+    u.searchParams.get("auth_error")==="invalid_link",{timeout:20000});
+  console.log("PASS missing code cannot redirect to protocol-relative external origin.");
   await page.goto(origin+"/auth/callback?code=invalid-qa-code&next="+
    encodeURIComponent("https://invalid.example/external"),{waitUntil:"domcontentloaded"});
   await page.waitForURL(u=>u.pathname==="/auth"&&
    u.searchParams.get("auth_error")==="invalid_link",{timeout:23000});
-  console.log("PASS original Next callback rejects invalid code and prevents external redirect.");
+  console.log("PASS original Next callback rejects replayed, missing and invalid codes without offsite redirects.");
   console.log("LIMIT: original AuthForm is covered separately; Turnstile external, email provider hosted and full student onboarding are NOT part of this local rehearsal.");
   await ctx.close();
  }catch(error){
