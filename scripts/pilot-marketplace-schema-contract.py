@@ -77,8 +77,8 @@ def check(ddl):
             errors.append("Missing restored "+table+" table")
             continue
         for column,datatype in columns.items():
-            # All expected types occur at the beginning of a DDL column line.
-            if not re.search(r"(?m)^\s*"+re.escape(column)+r"\s+"+
+            # Column declarations can follow a comma on the same SQL line.
+            if not re.search(r"(?:^|,)\s*"+re.escape(column)+r"\s+"+
                              re.escape(datatype)+r"\b",body,re.I):
                 errors.append(table+"."+column+" is not "+datatype)
     for (table,column),(schema,target) in REFERENCES.items():
@@ -89,9 +89,9 @@ def check(ddl):
         if not re.search(match,body,re.I|re.S):
             errors.append("FK mismatch: "+table+"."+column+" -> "+schema+"."+target)
     # These two erroneous assumptions drove the earlier simplified test.
-    if re.search(r"(?m)^\s*amount_cents\b",tables.get("listing_offers","")):
+    if re.search(r"(?:^|,)\s*amount_cents\b",tables.get("listing_offers","")):
         errors.append("Synthetic amount_cents must not replace real offered_price")
-    if re.search(r"(?m)^\s*offer_id\b",tables.get("agreements","")):
+    if re.search(r"(?:^|,)\s*offer_id\b",tables.get("agreements","")):
         errors.append("Production agreements has listing_id, not an offer_id field")
     return errors
 
