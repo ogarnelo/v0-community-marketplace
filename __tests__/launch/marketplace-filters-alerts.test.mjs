@@ -18,7 +18,7 @@ test("marketplace calculates approximate distance from postal codes", () => {
   assert.match(page, /listings[\s\S]*postal_code/);
   assert.match(types, /postalCode\?: string \| null/);
   assert.match(marketplace, /calculateDistanceKm\(viewerPostalCode, listing\.postalCode\)/);
-  assert.match(marketplace, /Estimación basada en centros provinciales/);
+  assert.match(marketplace, /Estimación entre centros de códigos postales/);
   assert.match(marketplace, /No mostramos direcciones/);
 });
 
@@ -27,7 +27,8 @@ test("marketplace offers distance only outside community mode", () => {
   assert.match(marketplace, /Slider min=\{1\}/);
   assert.match(marketplace, /distanceKm/);
   assert.match(marketplace, /calculateDistanceKm/);
-  assert.match(marketplace, /POSTAL_PREFIX_COORDS/);
+  assert.match(marketplace, /POSTAL_CENTROIDS/);
+  assert.doesNotMatch(marketplace, /POSTAL_PREFIX_COORDS/);
   assert.match(marketplace, /selectedDistanceLabel/);
   assert.match(marketplace, /DISTANCE_MAX = 201/);
   assert.match(marketplace, /\+200/);
