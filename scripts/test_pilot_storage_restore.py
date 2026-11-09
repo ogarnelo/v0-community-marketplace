@@ -99,6 +99,57 @@ class RecoveryDrillTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Unexpected manifest bucket list"):
                 validate_archive(archive)
 
+    def test_non_object_manifest_fails_cleanly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "list-manifest.tar.gz"
+            archive_at(archive)
+            self._replace_manifest(archive, lambda _manifest: [])
+            with self.assertRaisesRegex(ValueError, "Invalid backup manifest structure"):
+                validate_archive(archive)
+
+    def test_duplicate_bucket_names_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "duplicate-buckets.tar.gz"
+            archive_at(archive)
+            self._replace_manifest(
+                archive,
+                lambda manifest: dict(manifest, buckets=[
+                    "listing-photos", "chat-attachments", "listing-photos"]))
+            with self.assertRaisesRegex(ValueError, "Unexpected manifest bucket list"):
+                validate_archive(archive)
+
+    def test_wrong_manifest_totals_rejected_preflight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "wrong-total.tar.gz"
+            archive_at(archive)
+            self._replace_manifest(archive, lambda manifest: dict(manifest, totalBytes=10))
+            with self.assertRaisesRegex(ValueError, "Manifest totals mismatch"):
+                validate_archive(archive)
+
+    def test_missing_manifest_object_rejected_preflight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "missing-object.tar.gz"
+            archive_at(archive)
+            self._replace_manifest(
+                archive,
+                lambda manifest: dict(manifest,
+                    files=manifest["files"][:-1], fileCount=1, totalBytes=5))
+            with self.assertRaisesRegex(ValueError, "Archive contains unexpected files"):
+                validate_archive(archive)
+
+    @staticmethod
+    def _replace_manifest(archive, transform):
+        with tarfile.open(archive, "r:gz") as source:
+            entries = [(member, source.extractfile(member).read()
+                        if member.isfile() else None) for member in source]
+        with tarfile.open(archive, "w:gz") as output:
+            for member, payload in entries:
+                if member.name == "./manifest.json":
+                    payload = json.dumps(transform(json.loads(payload))).encode()
+                    member.size = len(payload)
+                output.addfile(member, io.BytesIO(payload)
+                               if payload is not None else None)
+
     def test_corrupted_hash_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "tampered.tar.gz"
