@@ -242,6 +242,42 @@ def main():
             sql(TARGET,"UPDATE qa_real_market.object_bytes SET owner_user_id='"+
                 SELLER+"' WHERE bucket='listing-photos'")
             validate(TARGET)
+            # Tamper with one recoverable relationship at a time, then reset
+            # the same disposable target DB. Every error must be detected.
+            adverse=[
+              ("offer amount", "UPDATE qa_real_market.listing_offers "
+                "SET offered_price=9.00", "UPDATE qa_real_market.listing_offers "
+                "SET offered_price=15.00"),
+              ("payment total", "UPDATE qa_real_market.payment_intents "
+                "SET amount=19.00", "UPDATE qa_real_market.payment_intents "
+                "SET amount=15.00"),
+              ("shipping buyer", "UPDATE qa_real_market.shipments SET buyer_id='"+
+                SELLER+"'", "UPDATE qa_real_market.shipments SET buyer_id='"+
+                BUYER+"'"),
+              ("listing photo reference", "UPDATE qa_real_market.listing_photos "
+                "SET url='local://listing-photos/incorrect.webp'",
+                "UPDATE qa_real_market.listing_photos "
+                "SET url='local://listing-photos/seller/example.webp'"),
+              ("chat attachment reference", "UPDATE qa_real_market.messages "
+                "SET attachment_path='buyer/incorrect.txt'",
+                "UPDATE qa_real_market.messages "
+                "SET attachment_path='buyer/receipt.txt'"),
+            ]
+            for label,corrupt,reset in adverse:
+                sql(TARGET,corrupt)
+                try:
+                    validate(TARGET)
+                except AssertionError:
+                    pass
+                else:
+                    raise AssertionError("Corrupt recovered "+label+" was not detected")
+                finally:
+                    sql(TARGET,reset)
+                validate(TARGET)
+            if snapshot(TARGET)!=original:
+                raise AssertionError("Recovery table data altered by adverse tests")
+            print("PASS five adversarial recovery cases: offer amount, payment total, "
+                  "shipping buyer, image and chat attachment references.")
             print("PASS production-SHAPED local sale chain: listings, photos, "
                   "conversations, messages, offers, agreements, payment intents/events, "
                   "shipments, object bytes and owner continuity restored.")
