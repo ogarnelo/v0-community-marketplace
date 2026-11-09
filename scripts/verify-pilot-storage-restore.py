@@ -74,7 +74,9 @@ def validate_archive(archive_file):
                 if len(members) > MAX_FILES + 1:
                     raise ValueError("Too many archived files")
 
-            if sum(member.size for member in members.values()) > MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES:\n                raise ValueError("Backup exceeds safety limit before extraction")\n            head = members.pop("manifest.json", None)
+            if sum(member.size for member in members.values()) > MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES:
+                raise ValueError("Backup exceeds safety limit before extraction")
+            head = members.pop("manifest.json", None)
             if head is None or head.size > MAX_MANIFEST_BYTES:
                 raise ValueError("Missing or oversized backup manifest")
             source = archive.extractfile(head)
