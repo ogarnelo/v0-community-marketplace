@@ -178,7 +178,7 @@ const qr="/onboarding/join-school?school="+A+
    const q="/auth-real?mode=signup&next="+encodeURIComponent(qr)+
     "&utm_source=school&utm_medium=qr&utm_campaign=school_invite";
    await page.goto(origin+q,{waitUntil:"load"});
-   await page.getByRole("heading",{name:"Crear cuenta"}).waitFor();
+   await page.locator('[data-slot="card-title"]').getByText("Crear cuenta",{exact:true}).waitFor();
    await page.getByLabel("Nombre *").fill("QA");
    await page.getByLabel("Apellidos *").fill("Familia Prueba");
    await page.getByLabel("Email").fill("qa-qr-authform-signup@example.invalid");
