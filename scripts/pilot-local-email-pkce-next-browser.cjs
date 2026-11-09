@@ -72,7 +72,10 @@ async function setup(){
   ' return {data,error:error?.message||null};},',
   ' updateProfile:async(id)=>{const {data,error}=await client.from("profiles")',
   ' .update({postal_code:"99999"}).eq("id",id).select("id");',
-  ' return {rows:data?.length||0,error:error?.message||null};}',
+  ' return {rows:data?.length||0,error:error?.message||null};},',
+  ' insertProfile:async(id)=>{const {data,error}=await client.from("profiles")',
+  ' .insert({id,first_name:"Intrusion",last_name:"QA",user_type:"parent",postal_code:"00000"})',
+  ' .select("id");return {rows:data?.length||0,error:error?.message||null};}',
   '};'
  ].join("\n");
  write("qa-email-entry.js",src);
@@ -215,6 +218,19 @@ async function mailLink(){
   assert.equal(sql("select postal_code from public.profiles where id='"+foreignId+"'"),
     "28001","Other family's profile must remain unchanged");
   console.log("PASS real PostgREST/RLS prevents cross-family profile reads and writes.");
+  const foreignInsertId="cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const foreignInsert=await page.evaluate(id=>window.__qaEmail.insertProfile(id),foreignInsertId);
+  assert.equal(foreignInsert.rows,0,"RLS must deny creating a foreign-ID profile");
+  assert.ok(foreignInsert.error,"RLS foreign insert must explicitly fail");
+  assert.equal(sql("select count(*) from public.profiles where id='"+foreignInsertId+"'"),
+    "0","No foreign-ID profile may be inserted");
+  const selfWrite=await page.evaluate(id=>window.__qaEmail.updateProfile(id),signed.id);
+  assert.equal(selfWrite.error,null,"Owner must retain legitimate update permission");
+  assert.equal(selfWrite.rows,1,"Owner must be able to update exactly own profile");
+  assert.equal(sql("select postal_code from public.profiles where id='"+signed.id+"'"),
+    "99999","Legitimate own-profile update must persist");
+  console.log("PASS own-profile update allowed, cross-family SELECT/UPDATE/INSERT denied.");
+
   const attribution=sql("select source,medium,campaign from public.growth_acquisition_events where user_id='"+signed.id+"'");
   assert.equal(attribution,"school|qr|school_invite");
   console.log("PASS actual Mailpit email -> local GoTrue verify -> ORIGINAL Next auth callback with PKCE session cookie, RLS profile and attribution.");
