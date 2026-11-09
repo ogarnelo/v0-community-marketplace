@@ -136,7 +136,8 @@ test("general catalogue continues after sixty cards without forcing school filte
   assert.match(feed, /applyMarketplaceFeedFilters\(/);
   assert.match(read("lib/marketplace/feed-filters.ts"), /\.order\("id", \{ ascending: false \}\)/);
   assert.match(feed, /Cache-Control": "private, no-store"/);
-  assert.match(feed, /const hasMore = allRows\.length > PAGE_SIZE/);
+  assert.match(feed, /hasMore = allRows.length > PAGE_SIZE/);
+  assert.match(feed, /const nearbyDistances = new Map/);
   assert.doesNotMatch(feed, /service_role|schoolId=|directorySchoolCode=/);
 });
 
