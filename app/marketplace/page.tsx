@@ -2,6 +2,7 @@ import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { makeMarketplaceSchoolFilter, resolveMarketplaceSchoolScope } from "@/lib/marketplace/school-scope";
 import {
   buildPhotosMap,
   type ListingPhotoRow,
@@ -77,6 +78,28 @@ export default async function MarketplacePage() {
         ? primaryStudentContext.school_id?.trim() || ""
         : typedProfile?.school_id?.trim() || "");
     viewerPostalCode = typedProfile?.postal_code?.trim() || "";
+  }
+
+  // Exact school count (including older cards) and national-directory ↔
+  // operational-centre continuity. A failed school lookup must not block the
+  // general marketplace from loading.
+  let communityListingCount: number | null = null;
+  if (viewerDirectorySchoolCode || viewerSchoolId) {
+    try {
+      const scope = await resolveMarketplaceSchoolScope(
+        viewerSchoolId, viewerDirectorySchoolCode);
+      const schoolFilter = makeMarketplaceSchoolFilter(scope);
+      if (schoolFilter) {
+        const result = await supabase.from("listings")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "available").or(schoolFilter);
+        if (!result.error) communityListingCount = result.count;
+      } else {
+        communityListingCount = 0;
+      }
+    } catch (error) {
+      console.error("Error contando anuncios del colegio:", error);
+    }
   }
 
   const { data: listingsData, error: listingsError } = await supabase
@@ -190,6 +213,7 @@ export default async function MarketplacePage() {
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
       initialDirectorySchoolCode={viewerDirectorySchoolCode}
+      initialCommunityListingCount={communityListingCount}
       initialPostalCode={viewerPostalCode}
     />
   );

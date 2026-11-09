@@ -53,7 +53,7 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string };
+type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null };
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
 type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 
@@ -78,8 +78,15 @@ function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   return createdAt >= start.getTime();
 }
 
-export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "" }: MarketplaceClientProps) {
+export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null }: MarketplaceClientProps) {
   const [dbListings] = useState<MarketplaceListing[]>(initialListings);
+  const [schoolListings, setSchoolListings] = useState<MarketplaceListing[]>([]);
+  const [schoolCount, setSchoolCount] = useState<number | null>(initialCommunityListingCount);
+  const [schoolLoaded, setSchoolLoaded] = useState(false);
+  const [schoolLoading, setSchoolLoading] = useState(false);
+  const [schoolHasMore, setSchoolHasMore] = useState(false);
+  const [schoolLoadError, setSchoolLoadError] = useState(false);
+
   const [currentUserSchoolId] = useState(initialSchoolId);
   const [currentUserDirectorySchoolCode] = useState(initialDirectorySchoolCode);
   const [viewerPostalCode] = useState(initialPostalCode);
@@ -112,6 +119,60 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     );
   }, []);
 
+  // Only fetch the user's own school feed on explicit opt-in. The endpoint
+  // resolves the school from the authenticated account, not user parameters.
+  useEffect(() => {
+    if (!onlyMyCommunity) return;
+    const controller = new AbortController();
+    setSchoolListings([]);
+    setSchoolLoaded(false);
+    setSchoolLoading(true);
+    setSchoolLoadError(false);
+    fetch("/api/marketplace/my-school?offset=0", {
+      cache: "no-store", signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("school_listings_fetch_failed");
+        return response.json();
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        setSchoolListings(payload.listings || []);
+        setSchoolCount(payload.total ?? null);
+        setSchoolHasMore(Boolean(payload.hasMore));
+        setSchoolLoaded(true);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSchoolLoadError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSchoolLoading(false);
+      });
+    return () => controller.abort();
+  }, [onlyMyCommunity]);
+
+  const loadMoreSchoolListings = async () => {
+    if (!onlyMyCommunity || schoolLoading || !schoolHasMore || schoolLoadError) return;
+    setSchoolLoading(true);
+    try {
+      const response = await fetch(
+        `/api/marketplace/my-school?offset=${schoolListings.length}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("school_listings_more_failed");
+      const payload = await response.json();
+      setSchoolListings((current) => {
+        const ids = new Set(current.map((item) => item.id));
+        return [...current, ...(payload.listings || []).filter(
+          (item: MarketplaceListing) => !ids.has(item.id))];
+      });
+      setSchoolCount(payload.total ?? null);
+      setSchoolHasMore(Boolean(payload.hasMore));
+    } catch {
+      setSchoolLoadError(true);
+    } finally {
+      setSchoolLoading(false);
+    }
+  };
+
   const deferredPriceRange = useDeferredValue(priceRange);
   const deferredDistanceKm = useDeferredValue(distanceKm);
   const displayMinPrice = priceRange[0] ?? 0;
@@ -122,19 +183,14 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const selectedDistanceLabel = distanceKm >= DISTANCE_MAX ? "+200" : `${distanceKm} km`;
   const hasViewerPostalCode = Boolean(normalizePostalCode(viewerPostalCode));
   const hasSearchIntent = Boolean(searchQuery.trim() || isbnQuery.trim() || category !== "all" || gradeLevel !== "all" || listingType !== "all" || condition !== "all" || onlyMyCommunity || minPrice > 0 || maxPrice < PRICE_LIMIT || (!onlyMyCommunity && maxDistanceKm !== Infinity) || publishedDateFilter !== "all");
-  const listingsWithDistance = useMemo(() => dbListings.map((listing) => ({ ...listing, distance: listing.distance ?? calculateDistanceKm(viewerPostalCode, listing.postalCode) })), [dbListings, viewerPostalCode]);
+  const listingsWithDistance = useMemo(() => (onlyMyCommunity ? schoolListings : dbListings).map((listing) => ({ ...listing, distance: listing.distance ?? calculateDistanceKm(viewerPostalCode, listing.postalCode) })), [dbListings, schoolListings, onlyMyCommunity, viewerPostalCode]);
 
   const filteredListings = useMemo(() => {
     const normalizedSearch = normalizeText(searchQuery);
     const filtered = listingsWithDistance.filter((l) => {
       if (l.status !== "available") return false;
-      if (onlyMyCommunity) {
-        if (currentUserDirectorySchoolCode) {
-          if (l.directorySchoolCode !== currentUserDirectorySchoolCode) return false;
-        } else if (currentUserSchoolId && l.schoolId !== currentUserSchoolId) {
-          return false;
-        }
-      }
+      // School membership matching has already been enforced by the server,
+      // including directory codes linked to a newly activated community.
       if (category !== "all" && l.category !== category) return false; if (gradeLevel !== "all" && l.gradeLevel !== gradeLevel) return false; if (listingType !== "all" && l.type !== listingType) return false; if (condition !== "all" && l.condition !== condition) return false; if (!isAfterDate(l.createdAt, publishedDateFilter)) return false;
       if (!onlyMyCommunity && maxDistanceKm !== Infinity && (l.distance === undefined || l.distance > maxDistanceKm)) return false;
       if (normalizedSearch) { const matchesSearch = [l.title, l.description, l.category, l.gradeLevel, l.isbn, l.author, l.publisher, l.format, l.language, l.subject, l.specificType, l.sizeLabel, l.brand, l.model, l.season].some((value) => normalizeText(value || "").includes(normalizedSearch)); if (!matchesSearch) return false; }
@@ -143,7 +199,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
       return true;
     });
     return filtered.sort((a, b) => { switch (sortBy) { case "distance": return (a.distance ?? Number.MAX_SAFE_INTEGER) - (b.distance ?? Number.MAX_SAFE_INTEGER); case "price_asc": return (a.price ?? 0) - (b.price ?? 0); case "price_desc": return (b.price ?? 0) - (a.price ?? 0); case "discount": return ((b.originalPrice ?? 0) - (b.price ?? 0)) - ((a.originalPrice ?? 0) - (a.price ?? 0)); case "newest": default: return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); } });
-  }, [listingsWithDistance, onlyMyCommunity, currentUserSchoolId, currentUserDirectorySchoolCode, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
+  }, [listingsWithDistance, onlyMyCommunity, category, gradeLevel, listingType, condition, publishedDateFilter, maxDistanceKm, searchQuery, isbnQuery, minPrice, maxPrice, sortBy]);
 
   useEffect(() => {
     if (!hasSearchIntent) return;
@@ -197,6 +253,17 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     setSaveSearchStatus("idle");
   }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceRange, distanceKm, publishedDateFilter]);
 
+  const hasSchoolContext = Boolean(currentUserSchoolId || currentUserDirectorySchoolCode);
+  const communityCountLabel = schoolCount === null
+    ? "Anuncios de tu colegio"
+    : schoolCount === 1
+      ? "1 anuncio de tu colegio"
+      : `${schoolCount} anuncios de tu colegio`;
+  // Ten is a discovery milestone, NEVER an automatic filter-on threshold.
+  const highlightSchoolShortcut = (schoolCount ?? 0) >= 10;
+  const emptySchoolView = onlyMyCommunity && schoolLoaded && filteredListings.length === 0;
+
+  const schoolFeedPending = onlyMyCommunity && !schoolLoaded && !schoolLoadError;
   const activeFiltersCount = [onlyMyCommunity, category !== "all", gradeLevel !== "all", listingType !== "all", condition !== "all", minPrice > 0 || maxPrice < PRICE_LIMIT, !onlyMyCommunity && maxDistanceKm !== Infinity, publishedDateFilter !== "all", isbnQuery.length > 0].filter(Boolean).length;
   const clearFilters = () => { setOnlyMyCommunity(false); setCategory("all"); setGradeLevel("all"); setListingType("all"); setCondition("all"); setSearchQuery(""); setIsbnQuery(""); setPriceRange([0, PRICE_LIMIT]); setDistanceKm(DISTANCE_MAX); setPublishedDateFilter("all"); setDemandDetails(""); };
   const saveSearch = async () => { if (!hasSearchIntent || saveSearchStatus === "saving" || saveSearchStatus === "saved") return; setSaveSearchStatus("saving"); try { const response = await fetch("/api/marketplace/saved-searches", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: demandDetails.trim() || searchQuery.trim() || null, isbnQuery: isbnQuery.trim() || null, category: category === "all" ? null : category, gradeLevel: gradeLevel === "all" ? null : gradeLevel, listingType: listingType === "all" ? null : listingType, condition: condition === "all" ? null : condition, onlyMyCommunity, radiusKm: maxDistanceKm === Infinity ? null : maxDistanceKm, resultsCount: filteredListings.length, sourcePath: "/marketplace", needDetails: demandDetails.trim() || searchQuery.trim() || null, intentSource: "zero_results_prompt" }) }); if (response.status === 401) return setSaveSearchStatus("auth"); if (!response.ok) throw new Error("saved_search_failed"); setSaveSearchStatus("saved"); setDemandDetails(""); } catch { setSaveSearchStatus("error"); } };
@@ -204,7 +271,27 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
 
   const FilterControls = () => (
     <div className="flex flex-col gap-5">
-      <div className="rounded-2xl border border-border bg-card p-3"><div className="flex items-center justify-between gap-3"><Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"><School className="h-4 w-4 text-primary" />{currentUserDirectorySchoolCode ? "Solo mi colegio" : "Solo mi comunidad"}</Label><Switch id="community-filter" checked={onlyMyCommunity} disabled={!currentUserSchoolId && !currentUserDirectorySchoolCode} onCheckedChange={setOnlyMyCommunity} /></div><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{currentUserSchoolId || currentUserDirectorySchoolCode ? "Actívalo para ver anuncios asociados a tu centro." : "Añade tu centro en Mi cuenta para activar este filtro."}</p></div>
+      <div className="rounded-2xl border border-border bg-card p-3">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="community-filter" className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
+            <School className="h-4 w-4 text-primary" />
+            {currentUserDirectorySchoolCode ? "Solo mi colegio" : "Solo mi comunidad"}
+          </Label>
+          <Switch id="community-filter" checked={onlyMyCommunity} disabled={!hasSchoolContext} onCheckedChange={setOnlyMyCommunity} />
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          {!hasSchoolContext
+            ? "Añade tu colegio en Mi cuenta. Mientras tanto, puedes explorar todos los anuncios."
+            : schoolCount === 0
+              ? "Tu colegio todavía no tiene anuncios disponibles. Puedes seguir viendo los de otros centros."
+              : "Por defecto ves todos los anuncios. Activa este filtro cuando quieras centrarte en tu colegio."}
+        </p>
+        {hasSchoolContext && schoolCount !== null ? (
+          <Badge variant={highlightSchoolShortcut ? "default" : "secondary"} className="mt-2">
+            {communityCountLabel}
+          </Badge>
+        ) : null}
+      </div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Categoría</Label><Select value={category} onValueChange={setCategory}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas las categorías</SelectItem>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Curso / Etapa</Label><Select value={gradeLevel} onValueChange={setGradeLevel}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los cursos</SelectItem>{gradeLevels.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
       <div className="flex flex-col gap-2"><Label className="text-sm font-medium text-foreground">Tipo</Label><Select value={listingType} onValueChange={setListingType}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Venta y donación</SelectItem><SelectItem value="sale">Solo venta</SelectItem><SelectItem value="donation">Solo donación</SelectItem></SelectContent></Select></div>
@@ -217,5 +304,5 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     </div>
   );
 
-  return <div className="bg-background"><div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6 lg:px-8">{showSchoolInvite ? <div className="mb-5"><CommunityInviteCard campaign="school_joined" title="Ya formas parte de tu comunidad" description="Si conoces otra familia de tu entorno escolar, puedes invitarla ahora a Wetudy." /></div> : null}<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-2xl font-bold text-foreground">Marketplace</h1><p className="text-sm text-muted-foreground">Comunidad Wetudy · {filteredListings.length} anuncios</p></div><Link href="/marketplace/new" className="hidden sm:block"><Button className="gap-2"><Plus className="h-4 w-4" />Publicar anuncio</Button></Link></div><div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar por título, curso, ISBN o categoría..." className="h-12 pl-10 text-base sm:text-sm" /></div><div className="grid grid-cols-[1fr_auto] gap-2 sm:flex sm:items-center"><Select value={sortBy} onValueChange={setSortBy}><SelectTrigger className="h-11 w-full sm:w-[220px]"><SelectValue placeholder="Ordenar" /></SelectTrigger><SelectContent><SelectItem value="newest">Más recientes</SelectItem><SelectItem value="distance">Más cercanos</SelectItem><SelectItem value="price_asc">Precio: de menor a mayor</SelectItem><SelectItem value="price_desc">Precio: de mayor a menor</SelectItem><SelectItem value="discount">Mayor ahorro</SelectItem></SelectContent></Select><Sheet><SheetTrigger asChild><Button variant="outline" className="h-11 gap-2 lg:hidden"><SlidersHorizontal className="h-4 w-4" /><span>Filtros</span>{activeFiltersCount > 0 ? <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge> : null}</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-6 sm:left-auto sm:right-0 sm:h-full sm:max-h-none sm:w-96 sm:rounded-none sm:border-l"><SheetHeader className="px-0 pt-6"><SheetTitle>Filtros</SheetTitle></SheetHeader><FilterControls /></SheetContent></Sheet></div></div><div className="mt-4 flex flex-wrap gap-2 lg:hidden">{categories.slice(0, 5).map((item) => <Button key={item} type="button" variant={category === item ? "default" : "outline"} size="sm" onClick={() => setCategory(category === item ? "all" : item)} className="rounded-full">{item}</Button>)}</div><div className="mt-6 flex gap-8"><aside className="hidden w-64 shrink-0 lg:block"><div className="sticky top-24"><h3 className="mb-4 text-sm font-semibold text-foreground">Filtros</h3><FilterControls /></div></aside><div className="flex-1 pb-20 sm:pb-0">{filteredListings.length === 0 ? <Empty className="rounded-2xl border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><PackageSearch /></EmptyMedia><EmptyTitle>{hasSearchIntent ? "Todavía no tenemos lo que buscas" : "Todavía no hay anuncios disponibles"}</EmptyTitle><EmptyDescription>{hasSearchIntent ? "Una búsqueda sin resultado es demanda real. Dinos exactamente qué necesitas y te avisaremos si aparece." : "Puedes publicar el primer anuncio o volver más adelante."}</EmptyDescription></EmptyHeader><EmptyContent>{hasSearchIntent ? <div className="mx-auto mb-3 w-full max-w-xl space-y-2 text-left"><Label htmlFor="zero-result-demand" className="text-sm font-medium">¿Qué necesitas exactamente?</Label><Textarea id="zero-result-demand" value={demandDetails} onChange={(event) => setDemandDetails(event.target.value)} maxLength={500} placeholder="Ej. Polo del Colegio X, talla 12, azul marino" className="min-h-20 resize-y bg-background" /><p className="text-xs text-muted-foreground">Los filtros y la búsqueda actuales se guardarán junto con este detalle. Avísame si aparece una coincidencia.</p></div> : null}<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">{hasSearchIntent ? <Button onClick={saveSearch} disabled={saveSearchStatus === "saving" || saveSearchStatus === "saved"} className="gap-2">{saveSearchStatus === "saved" ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}{saveSearchStatus === "saving" ? "Guardando..." : saveSearchStatus === "saved" ? "Demanda guardada" : "Guardar demanda y avisarme"}</Button> : null}<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button><Link href="/marketplace/new"><Button variant={hasSearchIntent ? "outline" : "default"}>Publicar anuncio</Button></Link></div>{saveSearchStatus === "auth" ? <p className="mt-3 text-center text-sm text-muted-foreground">Para guardar la demanda, <Link href="/auth?next=/marketplace" className="font-medium text-primary underline-offset-4 hover:underline">inicia sesión o crea una cuenta</Link>.</p> : null}{saveSearchStatus === "error" ? <p className="mt-3 text-center text-sm text-destructive">No se pudo guardar la demanda. Prueba de nuevo.</p> : null}{saveSearchStatus === "saved" ? <p className="mt-3 text-center text-sm text-muted-foreground">Demanda registrada. Búsqueda guardada. Te avisaremos si aparece un anuncio compatible.</p> : null}</EmptyContent></Empty> : <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-3">{filteredListings.map((listing) => <ListingCard key={listing.id} listing={listing} currentSchoolId={currentUserSchoolId} />)}</div>}</div></div><Link href="/marketplace/new" className="fixed bottom-4 right-4 z-30 sm:hidden"><Button className="h-12 rounded-full px-5 shadow-lg"><Plus className="mr-2 h-4 w-4" />Publicar</Button></Link></div></div>;
+  return <div className="bg-background"><div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6 lg:px-8">{showSchoolInvite ? <div className="mb-5"><CommunityInviteCard campaign="school_joined" title="Ya formas parte de tu comunidad" description="Si conoces otra familia de tu entorno escolar, puedes invitarla ahora a Wetudy." /></div> : null}<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-2xl font-bold text-foreground">Marketplace</h1><p className="text-sm text-muted-foreground">Comunidad Wetudy · {filteredListings.length} anuncios</p></div><Link href="/marketplace/new" className="hidden sm:block"><Button className="gap-2"><Plus className="h-4 w-4" />Publicar anuncio</Button></Link></div><div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar por título, curso, ISBN o categoría..." className="h-12 pl-10 text-base sm:text-sm" /></div><div className="grid grid-cols-[1fr_auto] gap-2 sm:flex sm:items-center"><Select value={sortBy} onValueChange={setSortBy}><SelectTrigger className="h-11 w-full sm:w-[220px]"><SelectValue placeholder="Ordenar" /></SelectTrigger><SelectContent><SelectItem value="newest">Más recientes</SelectItem><SelectItem value="distance">Más cercanos</SelectItem><SelectItem value="price_asc">Precio: de menor a mayor</SelectItem><SelectItem value="price_desc">Precio: de mayor a menor</SelectItem><SelectItem value="discount">Mayor ahorro</SelectItem></SelectContent></Select><Sheet><SheetTrigger asChild><Button variant="outline" className="h-11 gap-2 lg:hidden"><SlidersHorizontal className="h-4 w-4" /><span>Filtros</span>{activeFiltersCount > 0 ? <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge> : null}</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-6 sm:left-auto sm:right-0 sm:h-full sm:max-h-none sm:w-96 sm:rounded-none sm:border-l"><SheetHeader className="px-0 pt-6"><SheetTitle>Filtros</SheetTitle></SheetHeader><FilterControls /></SheetContent></Sheet></div></div><div className="mt-4 flex flex-wrap gap-2 lg:hidden">{categories.slice(0, 5).map((item) => <Button key={item} type="button" variant={category === item ? "default" : "outline"} size="sm" onClick={() => setCategory(category === item ? "all" : item)} className="rounded-full">{item}</Button>)}</div><div className="mt-6 flex gap-8"><aside className="hidden w-64 shrink-0 lg:block"><div className="sticky top-24"><h3 className="mb-4 text-sm font-semibold text-foreground">Filtros</h3><FilterControls /></div></aside><div className="flex-1 pb-20 sm:pb-0">{schoolFeedPending ? <p role="status" className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">Cargando los anuncios de tu colegio…</p> : schoolLoadError ? <div role="alert" className="rounded-2xl border border-dashed p-8 text-center"><p className="mb-3 text-sm">No se han podido cargar los anuncios de tu colegio.</p><Button onClick={() => setOnlyMyCommunity(false)}>Ver todos los anuncios</Button></div> : filteredListings.length === 0 ? <Empty className="rounded-2xl border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><PackageSearch /></EmptyMedia><EmptyTitle>{emptySchoolView ? "Aún no hay coincidencias en tu colegio" : hasSearchIntent ? "Todavía no tenemos lo que buscas" : "Todavía no hay anuncios disponibles"}</EmptyTitle><EmptyDescription>{emptySchoolView ? "Tu colegio es solo una parte de Wetudy. Puedes seguir viendo anuncios de otros centros y volver a buscar aquí cuando quieras." : hasSearchIntent ? "Una búsqueda sin resultado es demanda real. Dinos exactamente qué necesitas y te avisaremos si aparece." : "Puedes publicar el primer anuncio o volver más adelante."}</EmptyDescription></EmptyHeader><EmptyContent>{hasSearchIntent ? <div className="mx-auto mb-3 w-full max-w-xl space-y-2 text-left"><Label htmlFor="zero-result-demand" className="text-sm font-medium">¿Qué necesitas exactamente?</Label><Textarea id="zero-result-demand" value={demandDetails} onChange={(event) => setDemandDetails(event.target.value)} maxLength={500} placeholder="Ej. Polo del Colegio X, talla 12, azul marino" className="min-h-20 resize-y bg-background" /><p className="text-xs text-muted-foreground">Los filtros y la búsqueda actuales se guardarán junto con este detalle. Avísame si aparece una coincidencia.</p></div> : null}<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">{hasSearchIntent ? <Button onClick={saveSearch} disabled={saveSearchStatus === "saving" || saveSearchStatus === "saved"} className="gap-2">{saveSearchStatus === "saved" ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}{saveSearchStatus === "saving" ? "Guardando..." : saveSearchStatus === "saved" ? "Demanda guardada" : "Guardar demanda y avisarme"}</Button> : null}{emptySchoolView ? <Button onClick={() => setOnlyMyCommunity(false)}>Ver todos los anuncios</Button> : null}<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button><Link href="/marketplace/new"><Button variant={hasSearchIntent ? "outline" : "default"}>Publicar anuncio</Button></Link></div>{saveSearchStatus === "auth" ? <p className="mt-3 text-center text-sm text-muted-foreground">Para guardar la demanda, <Link href="/auth?next=/marketplace" className="font-medium text-primary underline-offset-4 hover:underline">inicia sesión o crea una cuenta</Link>.</p> : null}{saveSearchStatus === "error" ? <p className="mt-3 text-center text-sm text-destructive">No se pudo guardar la demanda. Prueba de nuevo.</p> : null}{saveSearchStatus === "saved" ? <p className="mt-3 text-center text-sm text-muted-foreground">Demanda registrada. Búsqueda guardada. Te avisaremos si aparece un anuncio compatible.</p> : null}</EmptyContent></Empty> : <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-3">{filteredListings.map((listing) => <ListingCard key={listing.id} listing={listing} currentSchoolId={currentUserSchoolId} />)}</div>}{onlyMyCommunity && schoolHasMore ? <div className="mt-5 flex justify-center"><Button variant="outline" disabled={schoolLoading} onClick={loadMoreSchoolListings}>{schoolLoading ? "Cargando…" : "Cargar más anuncios de mi colegio"}</Button></div> : null}</div></div><Link href="/marketplace/new" className="fixed bottom-4 right-4 z-30 sm:hidden"><Button className="h-12 rounded-full px-5 shadow-lg"><Plus className="mr-2 h-4 w-4" />Publicar</Button></Link></div></div>;
 }

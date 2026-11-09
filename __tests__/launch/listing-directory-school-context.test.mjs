@@ -8,6 +8,8 @@ const newPage = read("app/marketplace/new/page.tsx");
 const newForm = read("components/marketplace/new-listing-form.tsx");
 const marketPage = read("app/marketplace/page.tsx");
 const marketClient = read("components/marketplace/marketplace-client.tsx");
+const schoolScope = read("lib/marketplace/school-scope.ts");
+const schoolFeedRoute = read("app/api/marketplace/my-school/route.ts");
 const detailPage = read("app/marketplace/listing/[id]/page.tsx");
 const editPage = read("app/marketplace/edit/[id]/page.tsx");
 
@@ -42,7 +44,9 @@ test("marketplace search separates operational community and national school ide
   assert.match(marketPage, /directory_school_code/);
   assert.match(marketPage, /viewerDirectorySchoolCode/);
   assert.match(marketPage, /item\.directory_school_code\s*\?\s*null/);
-  assert.match(marketClient, /l\.directorySchoolCode !== currentUserDirectorySchoolCode/);
+  assert.match(schoolScope, /linked_school_id/);
+  assert.match(schoolScope, /viewerDirectorySchoolCode/);
+  assert.ok(marketClient.includes("/api/marketplace/my-school?offset="));
   assert.match(marketClient, /Solo mi colegio/);
 });
 
@@ -51,4 +55,35 @@ test("listing detail and editor retain and label national directory reference", 
   assert.match(detailPage, /directory_school_code/);
   assert.match(editPage, /directory_school_code/);
   assert.match(editPage, /directorio nacional/);
+});
+
+test("marketplace always opens on all schools; school count does not derive from the first 60 cards", () => {
+  assert.match(marketClient, /const \[onlyMyCommunity, setOnlyMyCommunity\] = useState\(false\)/);
+  assert.match(marketPage, /select\("id", \{ count: "exact", head: true \}\)/);
+  assert.match(marketPage, /communityListingCount = result\.count/);
+  assert.match(marketPage, /makeMarketplaceSchoolFilter/);
+  assert.match(marketPage, /initialCommunityListingCount=\{communityListingCount\}/);
+  assert.match(marketClient, /highlightSchoolShortcut = \(schoolCount \?\? 0\) >= 10/);
+  assert.doesNotMatch(marketClient, /setOnlyMyCommunity\(initialCommunityListingCount/);
+});
+
+test("empty school feed always explains that other schools remain available", () => {
+  assert.match(marketClient, /Aún no hay coincidencias en tu colegio/);
+  assert.match(marketClient, /Puedes seguir viendo anuncios de otros centros/);
+  assert.match(marketClient, /Ver todos los anuncios/);
+  assert.match(marketClient, /setOnlyMyCommunity\(false\)/);
+});
+
+test("school feed is loaded in authenticated, paginated chunks rather than filtering the latest 60 global cards", () => {
+  assert.match(schoolFeedRoute, /supabase\.auth\.getUser\(\)/);
+  assert.match(schoolFeedRoute, /if \(authError \|\| !user\)/);
+  assert.match(schoolFeedRoute, /PAGE_SIZE = 60/);
+  assert.match(schoolFeedRoute, /\.range\(offset, offset \+ PAGE_SIZE - 1\)/);
+  assert.match(schoolFeedRoute, /\.eq\("status", "available"\)\.or\(expression\)/);
+  assert.match(schoolFeedRoute, /hasMore: offset \+ listings\.length < total/);
+  assert.doesNotMatch(schoolFeedRoute, /searchParams\.get\("schoolId"\)/);
+  assert.match(marketClient, /loadMoreSchoolListings/);
+  assert.match(marketClient, /Cargar más anuncios de mi colegio/);
+  assert.match(schoolScope, /linked_school_id/);
+  assert.match(schoolScope, /Never fall back to an old profile/);
 });
