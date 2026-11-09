@@ -75,6 +75,39 @@ class RecoveryDrillTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash mismatch"):
                 validate_archive(archive)
 
+    def test_duplicate_archive_member_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "duplicate.tar.gz"
+            archive_at(archive)
+            with tarfile.open(archive, "r:gz") as existing:
+                entries = [(member, existing.extractfile(member).read() if member.isfile() else None)
+                           for member in existing]
+            with tarfile.open(archive, "w:gz") as output:
+                for member, payload in entries:
+                    output.addfile(member, io.BytesIO(payload) if payload is not None else None)
+                extra = tarfile.TarInfo("./listing-photos/example.webp")
+                extra.size = len(b"evil")
+                output.addfile(extra, io.BytesIO(b"evil"))
+            with self.assertRaisesRegex(ValueError, "Duplicate archive member"):
+                validate_archive(archive)
+
+    def test_symlink_archive_member_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "symlink.tar.gz"
+            archive_at(archive)
+            with tarfile.open(archive, "r:gz") as existing:
+                entries = [(member, existing.extractfile(member).read() if member.isfile() else None)
+                           for member in existing]
+            with tarfile.open(archive, "w:gz") as output:
+                for member, payload in entries:
+                    output.addfile(member, io.BytesIO(payload) if payload is not None else None)
+                extra = tarfile.TarInfo("./listing-photos/shortcut")
+                extra.type = tarfile.SYMTYPE
+                extra.linkname = "../../escape"
+                output.addfile(extra)
+            with self.assertRaisesRegex(ValueError, "Unsafe archive member type"):
+                validate_archive(archive)
+
     def test_unsafe_member_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "unsafe.tar.gz"
