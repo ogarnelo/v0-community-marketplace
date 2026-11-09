@@ -54,7 +54,7 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null; initialGeneralHasMore?: boolean; initialIsAuthenticated?: boolean };
+type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null; initialGeneralHasMore?: boolean; initialIsAuthenticated?: boolean; initialHasKnownPostalCode?: boolean };
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
 type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 
@@ -67,7 +67,7 @@ function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   return createdAt >= start.getTime();
 }
 
-export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null, initialGeneralHasMore = false, initialIsAuthenticated = false }: MarketplaceClientProps) {
+export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null, initialGeneralHasMore = false, initialIsAuthenticated = false, initialHasKnownPostalCode = false }: MarketplaceClientProps) {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>(initialListings);
   const [generalHasMore, setGeneralHasMore] = useState(initialGeneralHasMore);
   const [generalLoading, setGeneralLoading] = useState(false);
@@ -123,7 +123,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     if (priceRange[0] > 0) params.set("minPrice", String(priceRange[0]));
     if (priceRange[1] < PRICE_LIMIT) params.set("maxPrice", String(priceRange[1]));
     if (sortBy === "price_asc" || sortBy === "price_desc") params.set("sort", sortBy);
-    if (!onlyMyCommunity && distanceKm < DISTANCE_MAX && /^\d{5}$/.test(viewerPostalCode.trim())) {
+    if (!onlyMyCommunity && distanceKm < DISTANCE_MAX && initialHasKnownPostalCode) {
       params.set("radiusKm", String(distanceKm));
       if (sortBy === "distance" || sortBy === "discount") params.set("sort", sortBy);
     }
@@ -136,7 +136,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     }
     return params.toString();
   }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition,
-      priceRange, sortBy, publishedDateFilter, distanceKm, onlyMyCommunity, viewerPostalCode]);
+      priceRange, sortBy, publishedDateFilter, distanceKm, onlyMyCommunity, initialHasKnownPostalCode]);
   const [debouncedFeedFilters, setDebouncedFeedFilters] = useState(feedFilters);
   const filterDebouncing = feedFilters !== debouncedFeedFilters;
   useEffect(() => {
@@ -378,8 +378,8 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const selectedDistanceLabel = distanceKm >= DISTANCE_MAX ? "+200" : `${distanceKm} km`;
   const explainMissingPostalCode = () => {
     if (onlyMyCommunity || hasViewerPostalCode) return;
-    toast("Para usar el filtro de distancia necesitas un código postal", {
-      description: "Añádelo en Mi cuenta y podrás explorar anuncios próximos a tu zona.",
+    toast("Para usar el filtro de distancia necesitas un código postal válido", {
+      description: "Añádelo o compruébalo en Mi cuenta para explorar anuncios próximos a tu zona.",
       duration: 5000,
       action: {
         label: "Mi cuenta",
@@ -388,7 +388,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     });
   };
 
-  const hasViewerPostalCode = /^\d{5}$/.test(viewerPostalCode.trim());
+  const hasViewerPostalCode = initialHasKnownPostalCode;
   const hasSearchIntent = Boolean(searchQuery.trim() || isbnQuery.trim() || category !== "all" || gradeLevel !== "all" || listingType !== "all" || condition !== "all" || onlyMyCommunity || minPrice > 0 || maxPrice < PRICE_LIMIT || (!onlyMyCommunity && maxDistanceKm !== Infinity) || publishedDateFilter !== "all");
   const listingsWithDistance = useMemo(() => onlyMyCommunity ? schoolListings : dbListings,
     [dbListings, schoolListings, onlyMyCommunity]);
