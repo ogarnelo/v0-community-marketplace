@@ -84,10 +84,23 @@ def main():
             raise AssertionError("Full Supabase PostgreSQL local archive appears empty")
         sql(SOURCE, "create database " + DEST_NAME)
         try:
-            # Do NOT weaken the exit status: schema dependency or restore errors
-            # should keep pilot DR in NO-GO instead of producing a false green.
-            call("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
-                 "--dbname", DEST, str(archive))
+            # Supabase CLI's 'postgres' login is deliberately not a real
+            # superuser. PostgreSQL's dump includes a SET of the protected
+            # log_min_messages parameter; remove that EXACT statement only.
+            # All remaining SQL is applied with ON_ERROR_STOP (fail closed).
+            restored_sql = Path(directory) / "local-full-restore.sql"
+            call("pg_restore", "--no-owner", "--no-acl", "--file",
+                 str(restored_sql), str(archive))
+            lines = restored_sql.read_text(encoding="utf8").splitlines(keepends=True)
+            forbidden = "SET log_min_messages = warning;"
+            removed = sum(line.strip() == forbidden for line in lines)
+            if removed != 1:
+                raise RuntimeError("Expected exactly one restricted PostgreSQL session SET")
+            restored_sql.write_text(
+                "".join(line for line in lines if line.strip() != forbidden),
+                encoding="utf8")
+            call("psql", "-X", "-v", "ON_ERROR_STOP=1", "--dbname", DEST,
+                 "--file", str(restored_sql))
             recovered = snapshot(DEST)
             if original != recovered:
                 raise AssertionError("Full local database clone differs in Auth, profile, student or school references")
