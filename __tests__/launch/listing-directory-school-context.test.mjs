@@ -303,19 +303,23 @@ test("search signals do not fire from anonymous browsing or every infinite-scrol
 });
 
 
-test("radius scrolling examines all pages, never halts after an arbitrary count", () => {
+test("postcode radius returns only matching backend pages, without arbitrary scan caps", () => {
   const client = read("components/marketplace/marketplace-client.tsx");
-  assert.ok(client.includes("const radiusMayHaveUnseenMatches = radiusIsApproximate &&"));
-  assert.ok(client.includes("generalHasMore && filteredListings.length === 0"));
-  assert.ok(client.includes("radiusMayHaveUnseenMatches ? <div"));
-  assert.ok(client.includes("puede haber otros anuncios en páginas posteriores"));
-  assert.ok(client.includes("Continuamos examinando las siguientes publicaciones hasta terminar el catálogo"));
-  assert.ok(client.includes("const waiting = filterDebouncing || (onlyMyCommunity"));
-  assert.ok(client.includes("observer.observe(target)"));
+  const route = read("app/api/marketplace/feed/route.ts");
+  const migration = read("supabase/migrations/20261109210000_marketplace_postal_radius_v1.sql");
+  assert.match(client, /params\.set\("radiusKm", String\(distanceKm\)\)/);
+  assert.match(client, /No encontramos anuncios a/);
+  assert.match(client, /Ampliar distancia/);
+  assert.match(client, /const radiusNoMatches = radiusIsActive && !generalHasMore/);
   assert.ok(client.includes('rootMargin: "360px 0px"'));
-  assert.doesNotMatch(client, /radiusPrefetchCap|generalOffset >= 180|radiusPrefetchCapReached/);
-  assert.ok(client.includes("generalHasMore"));
-  assert.ok(client.includes("Distancia aproximada"));
+  assert.doesNotMatch(client, /radiusPrefetchCap|generalOffset >= 180|radiusMayHaveUnseenMatches/);
+  assert.match(route, /marketplace_nearby_listing_page_v1/);
+  assert.match(route, /\.rpc\(/);
+  assert.match(route, /viewerPostalCode = viewerProfile\?\.postal_code/);
+  assert.match(migration, /extensions\.st_dwithin/);
+  assert.match(migration, /limit least\(p_page_size, 61\) offset p_offset/);
+  assert.match(migration, /revoke all on function public\.marketplace_nearby_listing_page_v1/);
+  assert.match(client, /Distancia aproximada/);
 });
 
 test("missing postal code explains disabled distance filter without redesign", () => {
@@ -325,7 +329,7 @@ test("missing postal code explains disabled distance filter without redesign", (
   assert.ok(client.includes("onKeyDownCapture={(event) =>"));
   assert.ok(client.includes('role={!hasViewerPostalCode && !onlyMyCommunity ? "button" : undefined}'));
   assert.ok(client.includes("tabIndex={!hasViewerPostalCode && !onlyMyCommunity ? 0 : undefined}"));
-  assert.ok(client.includes("marketplace-postal-code-required"));
+  assert.doesNotMatch(client, /id: "marketplace-postal-code-required"/);
   assert.ok(client.includes("duration: 5000"));
   assert.ok(client.includes('window.location.assign("/account")'));
   assert.ok(client.includes("if (onlyMyCommunity || hasViewerPostalCode) return"));
