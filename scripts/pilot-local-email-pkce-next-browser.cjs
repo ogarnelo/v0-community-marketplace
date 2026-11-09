@@ -499,8 +499,12 @@ async function mailLink(targetEmail=email){
   const email2="qa-authform-family@example.invalid";
   const authUrl=origin+"/qa-authform?mode=signup&next="+encodeURIComponent(qr)+
     "&utm_source=school&utm_medium=qr&utm_campaign=school_invite";
-  await page.goto(authUrl,{waitUntil:"domcontentloaded"});
-  await page.getByRole("heading",{name:"Crear cuenta"}).waitFor({timeout:20000});
+  const authView=await page.goto(authUrl,{waitUntil:"domcontentloaded"});
+  console.log("ORIGINAL AUTHFORM QA route",JSON.stringify({
+    status:authView?.status(),pathname:new URL(page.url()).pathname,
+    visibleText:(await page.locator("body").innerText()).slice(0,450)
+  }));
+  await page.getByRole("heading",{name:"Crear cuenta"}).waitFor({timeout:26000});
   await page.locator("#firstName").fill("Familia");
   await page.locator("#lastName").fill("UI");
   await page.locator("#email").fill(email2);
