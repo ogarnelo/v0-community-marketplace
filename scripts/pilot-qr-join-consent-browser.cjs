@@ -56,7 +56,7 @@ function bootstrap(query){
     else if(arg.path==="@vercel/analytics")
       contents="export function track(name,data){window.__qa.actions.tracks.push({name,data})}";
     else contents="export function createClient(){return window.__qa.client;}";
-    return {loader:"js",contents};
+    return {loader:"js",contents,resolveDir:MOD};
    });
    b.onResolve({filter:/^@\//},arg=>{
     const root=path.join(ROOT,arg.path.slice(2));
