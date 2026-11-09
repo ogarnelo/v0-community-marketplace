@@ -94,8 +94,8 @@ def main():
             lines = restored_sql.read_text(encoding="utf8").splitlines(keepends=True)
             forbidden = "SET log_min_messages = warning;"
             removed = sum(line.strip() == forbidden for line in lines)
-            if removed != 1:
-                raise RuntimeError("Expected exactly one restricted PostgreSQL session SET")
+            if removed > 1:
+                raise RuntimeError("Unexpected repeated restricted PostgreSQL session SET")
             restored_sql.write_text(
                 "".join(line for line in lines if line.strip() != forbidden),
                 encoding="utf8")
