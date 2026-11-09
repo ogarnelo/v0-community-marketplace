@@ -18,6 +18,7 @@ type SchoolRow = {
   region: string | null;
   school_type: string | null;
   is_active: boolean | null;
+  is_test: boolean;
 };
 
 type SchoolRequestRow = {
@@ -57,7 +58,7 @@ export default async function SuperAdminSchoolsPage() {
   const navbarData = await getNavbarData(supabase);
   const admin = createAdminClient();
   const [schoolsResult, profilesResult, listingsResult, requestsResult] = await Promise.all([
-    admin.from("schools").select("id, name, city, region, school_type, is_active").order("name", { ascending: true }).returns<SchoolRow[]>(),
+    admin.from("schools").select("id, name, city, region, school_type, is_active, is_test").order("name", { ascending: true }).returns<SchoolRow[]>(),
     admin.from("profiles").select("id, school_id").returns<ProfileRow[]>(),
     admin.from("listings").select("id, school_id").returns<ListingRow[]>(),
     admin
@@ -166,6 +167,7 @@ export default async function SuperAdminSchoolsPage() {
                     schoolId={school.id}
                     schoolName={school.name}
                     isActive={school.is_active !== false}
+                    isTest={school.is_test}
                     requestId={request?.id}
                     contactEmail={request?.contact_email}
                   />

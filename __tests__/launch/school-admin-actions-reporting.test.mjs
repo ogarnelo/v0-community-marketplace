@@ -72,3 +72,27 @@ test("monthly subscriptions are service-only and idempotent by school and user",
   assert.match(migration, /day_of_month between 1 and 28/);
   assert.match(migration, /last_sent_month/);
 });
+
+
+test("directory-community manual linking is fail-closed and superadmin-only", () => {
+  const handler = read("app/api/admin/link-directory-school/route.ts");
+  const actions = read("components/admin/school-management-actions.tsx");
+  const schools = read("app/admin/super/schools/page.tsx");
+  assert.match(handler, /eq\("role", "super_admin"\)/);
+  assert.match(handler, /const CODE = \/\^\[0-9\]\{8\}\$/);
+  assert.match(handler, /realActiveCommunity/);
+  assert.match(handler, /ampaApproved/);
+  assert.match(handler, /matchingPostalCode/);
+  assert.match(handler, /matchingMunicipality/);
+  assert.match(handler, /codeNotClaimedElsewhere/);
+  assert.match(handler, /communityNotLinkedElsewhere/);
+  assert.match(handler, /body\?\.confirm !== true/);
+  assert.match(handler, /confirmedDirectoryName !== directory\.name/);
+  assert.match(handler, /\.is\("linked_school_id", null\)/);
+  assert.doesNotMatch(handler, /\.update\(\{ is_active:|\.insert\(/);
+  assert.match(actions, /Verificar código/);
+  assert.match(actions, /Confirmar vinculación/);
+  assert.match(actions, /window\.confirm/);
+  assert.match(actions, /!compact && active && !isTest/);
+  assert.match(schools, /isTest=\{school\.is_test\}/);
+});
