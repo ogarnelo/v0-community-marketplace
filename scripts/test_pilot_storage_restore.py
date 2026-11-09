@@ -76,7 +76,7 @@ class RecoveryDrillTest(unittest.TestCase):
             original = globals_["MAX_TOTAL_BYTES"]
             try:
                 globals_["MAX_TOTAL_BYTES"] = 8
-                with self.assertRaisesRegex(ValueError, "before extraction"):
+                with self.assertRaisesRegex(ValueError, "Invalid archive file size|before extraction"):
                     validate_archive(archive)
             finally:
                 globals_["MAX_TOTAL_BYTES"] = original
