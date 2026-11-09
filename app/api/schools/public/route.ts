@@ -29,7 +29,9 @@ export async function GET(request: Request) {
         { school: data || null },
         {
           headers: {
-            "Cache-Control": "public, max-age=60, s-maxage=300",
+            // A QR link is checked immediately before saving a school profile.
+          // Do not serve a stale active school after deactivation.
+          "Cache-Control": "private, no-store, max-age=0",
           },
         }
       );

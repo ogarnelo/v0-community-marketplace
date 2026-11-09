@@ -8,6 +8,8 @@ on:
       - "scripts/pilot-moderation-integrated-pg-browser.cjs"
       - "app/api/school/share-qr/route.ts"
       - "scripts/pilot-school-qr-route-contract.cjs"
+      - "app/api/schools/public/route.ts"
+      - "scripts/pilot-school-public-no-stale-id.cjs"
       - "scripts/pilot-ampa-dashboard-entry.cjs"
       - "scripts/pilot-ampa-real-dashboard-chromium.cjs"
       - "components/admin/school-admin-dashboard.tsx"
@@ -63,5 +65,7 @@ jobs:
         run: node scripts/pilot-moderation-integrated-pg-browser.cjs
       - name: Verify actual school QR route and inactive school guard
         run: node scripts/pilot-school-qr-route-contract.cjs
+      - name: Verify school-by-ID API cannot serve stale active QR schools
+        run: node scripts/pilot-school-public-no-stale-id.cjs
       - name: Verify original AMPA dashboard UI in isolated Chromium for three schools
         run: node scripts/pilot-ampa-real-dashboard-chromium.cjs
