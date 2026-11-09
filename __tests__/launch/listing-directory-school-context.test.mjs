@@ -325,7 +325,8 @@ test("missing postal code explains disabled distance filter without redesign", (
   assert.ok(client.includes("onKeyDownCapture={(event) =>"));
   assert.ok(client.includes('role={!hasViewerPostalCode && !onlyMyCommunity ? "button" : undefined}'));
   assert.ok(client.includes("tabIndex={!hasViewerPostalCode && !onlyMyCommunity ? 0 : undefined}"));
-  assert.ok(client.includes("marketplace-postal-code-required"));
+  // A fixed Sonner ID can update an existing notification rather than show a fresh one.
+  assert.doesNotMatch(client, /id: "marketplace-postal-code-required"/);
   assert.ok(client.includes("duration: 5000"));
   assert.ok(client.includes('window.location.assign("/account")'));
   assert.ok(client.includes("if (onlyMyCommunity || hasViewerPostalCode) return"));
