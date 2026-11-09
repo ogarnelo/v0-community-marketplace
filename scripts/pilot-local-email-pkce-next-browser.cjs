@@ -37,11 +37,32 @@ function copy(name){
  fs.copyFileSync(path.join(root,name),dest);
 }
 async function setup(){
- for(const name of ["app/auth/callback/route.ts","lib/supabase/server.ts",
+ for(const name of ["app/auth/callback/route.ts","app/api/account/students/route.ts","lib/supabase/server.ts",
   "lib/supabase/client.ts","lib/supabase/admin.ts","lib/auth/safe-next.ts",
   "lib/users/person-name.ts","lib/growth/attribution.ts"])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
  write("qa/events.ts","export function deferProductEvent(_name:string,_data:any){/* no network telemetry in local QA */}");
+ 
+ // Only the account-students data-layer is simplified; the tested Next API
+ // route and its requireUser/email-confirmation guard are ORIGINAL app code.
+ write("lib/account-students/server.ts",[
+  'import { createClient } from "@/lib/supabase/server";',
+  'export class AccountStudentError extends Error {',
+  ' constructor(message:string,public status=400,public code="invalid_request"){super(message);}}',
+  'export function parseStudentInput(body:any){',
+  ' if(!body||typeof body.gradeLevel!=="string"||!body.gradeLevel.trim())',
+  ' throw new AccountStudentError("Selecciona un curso válido.");',
+  ' return {alias:typeof body.alias==="string"?body.alias:null,gradeLevel:body.gradeLevel.trim(),',
+  ' schoolId:null,directorySchoolCode:null};}',
+  'export async function listAccountStudents(id:string){',
+  ' const supabase=await createClient();const {data,error}=await supabase.from("account_students")',
+  ' .select("id,owner_user_id,alias,grade_level").eq("owner_user_id",id);',
+  ' if(error)throw error;return data||[];}',
+  'export async function createAccountStudent(id:string,input:any){',
+  ' const supabase=await createClient();const {data,error}=await supabase.from("account_students")',
+  ' .insert({owner_user_id:id,alias:input.alias||"Alumno QA",grade_level:input.gradeLevel})',
+  ' .select("id,owner_user_id,alias,grade_level").single();if(error)throw error;return data;}'
+ ].join("\n"));
  write("app/layout.tsx",'import React from "react";export default function Layout({children}:{children:React.ReactNode}){return <html lang="es"><body>{children}<script src="/qa-email-client.js" defer /></body></html>;}');
  write("app/page.tsx",'export default function Page(){return <main>LOCAL EMAIL CONFIRMATION QA</main>;}');
  write("app/auth/page.tsx",'export default function Auth(){return <main>LOCAL INVALID AUTH LINK</main>;}');
@@ -185,6 +206,10 @@ async function mailLink(){
   const login=await page.evaluate(p=>window.__qaEmail.login(p.email,p.password),
    {email,password});
   assert.ok(login.error && !login.id,"Login forbidden before email verification");
+  const deniedBefore=await page.evaluate(async()=>{const res=await fetch("/api/account/students");return {status:res.status,body:await res.json()};});
+  assert.equal(deniedBefore.status,401,"Unconfirmed visitor must not read students through the original Next API");
+  assert.equal(deniedBefore.body.code,"unauthorized");
+  console.log("PASS original student Next API returns 401 before email confirmation.");
   assert.ok((await ctx.cookies(origin)).some(x=>x.name.includes("code-verifier")),
    "PKCE verifier cookie missing from browser");
   console.log("PASS unconfirmed local GoTrue user denied password login; browser PKCE verifier retained.");
@@ -268,6 +293,26 @@ async function mailLink(){
   assert.equal(ownVisible.data?.length,1);
   assert.equal(ownVisible.data[0].id,studentId);
   console.log("PASS local student ownership RLS: own INSERT/SELECT, foreign SELECT/INSERT/UPDATE/DELETE denied.");
+  // HTTP responses from the ORIGINAL Next route (the student data service
+  // is a local RLS-backed adapter, not the full production implementation).
+  const httpBefore=await page.evaluate(async()=>{const res=await fetch("/api/account/students");
+    return {status:res.status,body:await res.json()};});
+  assert.equal(httpBefore.status,200);
+  assert.ok(httpBefore.body.students.some(x=>x.owner_user_id===signed.id));
+  assert.ok(httpBefore.body.students.every(x=>x.owner_user_id===signed.id));
+  const httpInvalid=await page.evaluate(async()=>{const res=await fetch("/api/account/students",{
+    method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({gradeLevel:""})});
+    return {status:res.status,body:await res.json()};});
+  assert.equal(httpInvalid.status,400);
+  const httpCreated=await page.evaluate(async()=>{const res=await fetch("/api/account/students",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({gradeLevel:"3 Primaria",alias:"Alumno desde API"})});
+    return {status:res.status,body:await res.json()};});
+  assert.equal(httpCreated.status,201);
+  assert.equal(httpCreated.body.student.owner_user_id,signed.id);
+  assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+signed.id+"'"),"2");
+  console.log("PASS original Next /api/account/students GET/POST: preconfirmation 401, owner read 200, invalid 400, creation 201.");
+
 
   // Confirm that the authenticated PKCE session survives navigation/reload
   // before the parent proceeds to student onboarding and the school QR flow.
