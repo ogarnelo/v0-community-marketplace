@@ -1,0 +1,43 @@
+name: Wetudy synthetic local PostgreSQL and Storage combined recovery
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-synthetic-db-storage-recovery.py"
+      - "scripts/verify-pilot-storage-restore.py"
+      - ".github/workflows/pilot-synthetic-db-storage-recovery.yml"
+permissions:
+  contents: read
+jobs:
+  synthetic-local-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_dr
+          POSTGRES_PASSWORD: local_only_password
+          POSTGRES_DB: wetudy_pilot_dr_source
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_dr -d wetudy_pilot_dr_source"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      LOCAL_RESTORE_URL: postgresql://wetudy_dr:local_only_password@127.0.0.1:5432/wetudy_pilot_dr_source
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL 17 client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+      - name: Restore synthetic account surrogates, profiles, students and Storage bytes locally
+        run: python3 scripts/pilot-synthetic-db-storage-recovery.py
