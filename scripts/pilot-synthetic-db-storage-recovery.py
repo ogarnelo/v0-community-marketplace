@@ -81,6 +81,7 @@ def encrypt_then_recover(plain_db, plain_storage, directory):
     env = dict(os.environ, WETUDY_QA_ENC_PASS=password)
     recovered = []
     for source in (plain_db, plain_storage):
+        expected_plain = hashlib.sha256(source.read_bytes()).hexdigest()
         encrypted = directory / (source.name + ".enc")
         restored = directory / ("recovered-" + source.name)
         subprocess.run(
@@ -107,7 +108,7 @@ def encrypt_then_recover(plain_db, plain_storage, directory):
             env=broken_env, timeout=40)
         if wrong.returncode == 0:
             # Rare valid padding with wrong key is NOT a successful restoration.
-            if bad_target.exists() and hashlib.sha256(bad_target.read_bytes()).hexdigest() == expected_digest:
+            if bad_target.exists() and hashlib.sha256(bad_target.read_bytes()).hexdigest() == expected_plain:
                 raise AssertionError("Wrong password unexpectedly recovered encrypted bytes")
         if bad_target.exists():
             bad_target.unlink()
@@ -119,8 +120,8 @@ def encrypt_then_recover(plain_db, plain_storage, directory):
              "-pass", "env:WETUDY_QA_ENC_PASS"],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             env=env, timeout=40)
-        if restored.stat().st_size == 0:
-            raise AssertionError("Decryption produced empty backup")
+        if restored.stat().st_size == 0 or hashlib.sha256(restored.read_bytes()).hexdigest() != expected_plain:
+            raise AssertionError("Decrypted backup bytes do not match source")
         recovered.append(restored)
     return tuple(recovered)
 
