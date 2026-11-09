@@ -5,7 +5,8 @@
 const assert=require("node:assert/strict");
 const {execFileSync}=require("node:child_process");
 function testOnly(path){
-  return /^scripts\/pilot-[a-zA-Z0-9_.-]+\.(?:cjs|mjs|js|sql|sh)$/.test(path) ||
+  return /^scripts\/pilot-[a-zA-Z0-9_.-]+\.(?:cjs|mjs|js|sql|sh|py)$/.test(path) ||
+    /^scripts\/(?:verify-pilot-storage-restore|test_pilot_storage_restore)\.py$/.test(path) ||
     /^\.github\/workflows\/pilot-[a-zA-Z0-9_.-]+\.ya?ml$/.test(path);
 }
 function skip(paths){
@@ -15,6 +16,8 @@ function skip(paths){
 function check(){
   const yes=[
     ["scripts/pilot-local-email-pkce-next-browser.cjs"],
+    ["scripts/pilot-local-gotrue-snapshot-recovery.py"],
+    ["scripts/pilot-synthetic-db-storage-recovery.py","scripts/verify-pilot-storage-restore.py","scripts/test_pilot_storage_restore.py"],
     ["scripts/pilot-local-email-pkce-fixture.sql",".github/workflows/pilot-email-pkce-local.yml"],
     [".github/workflows/pilot-three-ampa-real-next-browser.yml"]
   ];
@@ -22,6 +25,8 @@ function check(){
     [],["app/onboarding/join-school/page.tsx"],["package.json"],["vercel.json"],
     ["supabase/migrations/20261108_security.sql"],
     ["scripts/vercel-ignore-qa-only.cjs"],["scripts/pilot-malicious.js/extra"],
+    ["scripts/pilot-unsafe.py/extra"],["scripts/supabase-prod-migration.py"],
+    ["scripts/verify-pilot-db-restore.py"],
     ["scripts/pilot-test.cjs","app/auth/callback/route.ts"],
     ["README.md","scripts/pilot-test.cjs"]
   ];
