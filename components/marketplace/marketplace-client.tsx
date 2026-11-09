@@ -49,7 +49,6 @@ import type { MarketplaceListing } from "@/lib/types/marketplace";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { CommunityInviteCard } from "@/components/growth/community-invite-card";
 import { toast } from "sonner";
-import { POSTAL_CENTROIDS } from "@/lib/marketplace/postal-centroids";
 
 function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -62,14 +61,6 @@ type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 const PRICE_LIMIT = 200;
 const DISTANCE_MAX = 201;
 
-function normalizePostalCode(value?: string | null) { if (!value) return null; const digits = value.replace(/\D/g, ""); return digits.length >= 5 ? digits.slice(0, 5) : null; }
-function coordsForPostalCode(postalCode?: string | null) { const normalized = normalizePostalCode(postalCode); const point = normalized ? POSTAL_CENTROIDS[normalized] : undefined; return point ? { lat: point[0], lng: point[1] } : null; }
-function calculateDistanceKm(fromPostalCode?: string | null, toPostalCode?: string | null) {
-  const from = coordsForPostalCode(fromPostalCode); const to = coordsForPostalCode(toPostalCode); if (!from || !to) return undefined;
-  const earthRadiusKm = 6371; const dLat = ((to.lat - from.lat) * Math.PI) / 180; const dLng = ((to.lng - from.lng) * Math.PI) / 180; const lat1 = (from.lat * Math.PI) / 180; const lat2 = (to.lat * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return Math.round(earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
 function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   if (filter === "all" || !value) return true; const createdAt = new Date(value).getTime(); if (!Number.isFinite(createdAt)) return true; const start = new Date();
   if (filter === "today") start.setHours(0, 0, 0, 0); if (filter === "7d") start.setDate(start.getDate() - 7); if (filter === "30d") start.setDate(start.getDate() - 30);
@@ -119,9 +110,8 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const observedDemandKeyRef = useRef("");
   const schoolActiveKeyRef = useRef("");
 
-  // Search, category, grade, condition, ISBN, date and price now filter the
-  // FULL server catalogue before pagination. Distance and discount remain
-  // approximate client-side ordering; neither is advertised as global.
+  // All active product criteria and postal radius are filtered server-side
+  // BEFORE pagination. There is no client-side scan of irrelevant pages.
   const feedFilters = useMemo(() => {
     const params = new URLSearchParams();
     if (searchQuery.trim().length >= 2) params.set("q", searchQuery.trim().slice(0, 90));
@@ -133,6 +123,10 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     if (priceRange[0] > 0) params.set("minPrice", String(priceRange[0]));
     if (priceRange[1] < PRICE_LIMIT) params.set("maxPrice", String(priceRange[1]));
     if (sortBy === "price_asc" || sortBy === "price_desc") params.set("sort", sortBy);
+    if (!onlyMyCommunity && distanceKm < DISTANCE_MAX && /^\d{5}$/.test(viewerPostalCode.trim())) {
+      params.set("radiusKm", String(distanceKm));
+      if (sortBy === "distance" || sortBy === "discount") params.set("sort", sortBy);
+    }
     if (publishedDateFilter !== "all") {
       const since = new Date();
       if (publishedDateFilter === "today") since.setHours(0, 0, 0, 0);
@@ -142,7 +136,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     }
     return params.toString();
   }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition,
-      priceRange, sortBy, publishedDateFilter]);
+      priceRange, sortBy, publishedDateFilter, distanceKm, onlyMyCommunity, viewerPostalCode]);
   const [debouncedFeedFilters, setDebouncedFeedFilters] = useState(feedFilters);
   const filterDebouncing = feedFilters !== debouncedFeedFilters;
   useEffect(() => {
@@ -385,7 +379,6 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const explainMissingPostalCode = () => {
     if (onlyMyCommunity || hasViewerPostalCode) return;
     toast("Para usar el filtro de distancia necesitas un código postal", {
-      id: "marketplace-postal-code-required",
       description: "Añádelo en Mi cuenta y podrás explorar anuncios próximos a tu zona.",
       duration: 5000,
       action: {
@@ -395,37 +388,32 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     });
   };
 
-  const hasViewerPostalCode = Boolean(normalizePostalCode(viewerPostalCode));
+  const hasViewerPostalCode = /^\d{5}$/.test(viewerPostalCode.trim());
   const hasSearchIntent = Boolean(searchQuery.trim() || isbnQuery.trim() || category !== "all" || gradeLevel !== "all" || listingType !== "all" || condition !== "all" || onlyMyCommunity || minPrice > 0 || maxPrice < PRICE_LIMIT || (!onlyMyCommunity && maxDistanceKm !== Infinity) || publishedDateFilter !== "all");
-  const listingsWithDistance = useMemo(() => (onlyMyCommunity ? schoolListings : dbListings).map((listing) => ({ ...listing, distance: listing.distance ?? calculateDistanceKm(viewerPostalCode, listing.postalCode) })), [dbListings, schoolListings, onlyMyCommunity, viewerPostalCode]);
+  const listingsWithDistance = useMemo(() => onlyMyCommunity ? schoolListings : dbListings,
+    [dbListings, schoolListings, onlyMyCommunity]);
 
+  const radiusIsActive = !onlyMyCommunity && maxDistanceKm !== Infinity;
   const filteredListings = useMemo(() => {
-    // The backend has already applied text, ISBN, category, grade, type,
-    // condition, price and date to the whole catalogue. Reapplying text here
-    // could hide valid results after its safe server-side normalization.
+    // Server applies product filters plus approximate radius before pagination.
+    // This status check is a defensive UI guard only.
     const filtered = listingsWithDistance.filter((listing) => {
       if (listing.status !== "available") return false;
-      // Distance remains a coarse, postal-prefix estimate until a proper
-      // server-side geospatial search is reviewed.
-      if (!onlyMyCommunity && maxDistanceKm !== Infinity &&
-          (listing.distance === undefined || listing.distance > maxDistanceKm)) {
-        return false;
-      }
       return true;
     });
-    if (sortBy === "distance") {
+    if (sortBy === "distance" && !radiusIsActive) {
       return filtered.sort((a, b) =>
         (a.distance ?? Number.MAX_SAFE_INTEGER) -
         (b.distance ?? Number.MAX_SAFE_INTEGER));
     }
-    if (sortBy === "discount") {
+    if (sortBy === "discount" && !radiusIsActive) {
       return filtered.sort((a, b) =>
         ((b.originalPrice ?? 0) - (b.price ?? 0)) -
         ((a.originalPrice ?? 0) - (a.price ?? 0)));
     }
-    // Newest and price ordering come pre-sorted from the server.
+    // Newest/price (and active-radius distance/discount) come sorted from the server.
     return filtered;
-  }, [listingsWithDistance, onlyMyCommunity, maxDistanceKm, sortBy]);
+  }, [listingsWithDistance, sortBy, onlyMyCommunity, maxDistanceKm]);
 
   useEffect(() => {
     // Record search intent once per settled query, not once for every
@@ -515,9 +503,8 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
       !schoolLoaded || schoolAppliedKey !== debouncedFeedFilters)));
   const emptySchoolView = onlyMyCommunity && !schoolFeedPending && schoolLoaded &&
     schoolAppliedKey === debouncedFeedFilters && filteredListings.length === 0;
-  const radiusIsApproximate = !onlyMyCommunity && maxDistanceKm !== Infinity;
-  const radiusMayHaveUnseenMatches = radiusIsApproximate &&
-    generalHasMore && filteredListings.length === 0;
+  const radiusNoMatches = radiusIsActive && !generalHasMore && filteredListings.length === 0;
+  const widerRadius = [5, 10, 30, 50, 100, 200, DISTANCE_MAX].find((km) => km > distanceKm) ?? DISTANCE_MAX;
 
   const shortSearchTerm =
     searchQuery.trim().length === 1 || isbnQuery.trim().length === 1;
@@ -579,9 +566,5 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     </div>
   );
 
-  return <div className="bg-background"><div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6 lg:px-8">{showSchoolInvite ? <div className="mb-5"><CommunityInviteCard campaign="school_joined" title="Ya formas parte de tu comunidad" description="Si conoces otra familia de tu entorno escolar, puedes invitarla ahora a Wetudy." /></div> : null}<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-2xl font-bold text-foreground">Marketplace</h1><p className="text-sm text-muted-foreground">Comunidad Wetudy · {generalFeedPending || schoolFeedPending ? "buscando" : filteredListings.length} anuncios visibles</p></div><Link href="/marketplace/new" className="hidden sm:block"><Button className="gap-2"><Plus className="h-4 w-4" />Publicar anuncio</Button></Link></div><div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar por título, curso, ISBN o categoría..." className="h-12 pl-10 text-base sm:text-sm" /></div><div className="grid grid-cols-[1fr_auto] gap-2 sm:flex sm:items-center"><Select value={sortBy} onValueChange={setSortBy}><SelectTrigger className="h-11 w-full sm:w-[220px]"><SelectValue placeholder="Ordenar" /></SelectTrigger><SelectContent><SelectItem value="newest">Más recientes</SelectItem><SelectItem value="distance">Más cercanos</SelectItem><SelectItem value="price_asc">Precio: de menor a mayor</SelectItem><SelectItem value="price_desc">Precio: de mayor a menor</SelectItem><SelectItem value="discount">Mayor ahorro</SelectItem></SelectContent></Select><Sheet><SheetTrigger asChild><Button variant="outline" className="h-11 gap-2 lg:hidden"><SlidersHorizontal className="h-4 w-4" /><span>Filtros</span>{activeFiltersCount > 0 ? <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge> : null}</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-6 sm:left-auto sm:right-0 sm:h-full sm:max-h-none sm:w-96 sm:rounded-none sm:border-l"><SheetHeader className="px-0 pt-6"><SheetTitle>Filtros</SheetTitle></SheetHeader><FilterControls /></SheetContent></Sheet></div></div><div className="mt-4 flex flex-wrap gap-2 lg:hidden">{categories.slice(0, 5).map((item) => <Button key={item} type="button" variant={category === item ? "default" : "outline"} size="sm" onClick={() => setCategory(category === item ? "all" : item)} className="rounded-full">{item}</Button>)}</div>{shortSearchTerm ? <p role="status" className="mt-2 text-xs text-muted-foreground">Escribe al menos 2 caracteres para buscar en todos los anuncios.</p> : null}{sortBy === "distance" || sortBy === "discount" ? <p className="mt-2 text-xs text-muted-foreground">Esta ordenación es aproximada entre los anuncios ya cargados; se amplía al desplazarte.</p> : null}<div className="mt-6 flex gap-8"><aside className="hidden w-64 shrink-0 lg:block"><div className="sticky top-24"><h3 className="mb-4 text-sm font-semibold text-foreground">Filtros</h3><FilterControls /></div></aside><div className="flex-1 pb-20 sm:pb-0">{generalFeedPending || schoolFeedPending ? <p role="status" className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{onlyMyCommunity ? "Buscando anuncios de tu colegio…" : "Buscando anuncios en Wetudy…"}</p> : generalInitialError ? <div role="alert" className="rounded-2xl border border-dashed p-8 text-center"><p className="mb-3 text-sm">No se pudo completar la búsqueda.</p><Button variant="outline" onClick={() => setGeneralInitialRetry((n) => n + 1)}>Reintentar búsqueda</Button></div> : schoolLoadError && !schoolLoaded ? <div role="alert" className="rounded-2xl border border-dashed p-8 text-center"><p className="mb-3 text-sm">No se han podido cargar los anuncios de tu colegio.</p><div className="flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => setSchoolInitialRetry((n) => n + 1)}>Reintentar búsqueda</Button><Button onClick={() => setOnlyMyCommunity(false)}>Ver todos los anuncios</Button></div></div> : radiusMayHaveUnseenMatches ? <div role="status" className="rounded-2xl border border-dashed p-8 text-center">
-  <p className="mb-2 text-sm font-medium">Aún no hay coincidencias entre los anuncios revisados</p>
-  <p className="text-sm text-muted-foreground">La distancia se estima por código postal y puede haber otros anuncios en páginas posteriores.</p>
-  <p className="mt-3 text-xs text-muted-foreground">Continuamos examinando las siguientes publicaciones hasta terminar el catálogo…</p>
-</div> : filteredListings.length === 0 ? <Empty className="rounded-2xl border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><PackageSearch /></EmptyMedia><EmptyTitle>{emptySchoolView ? "Aún no hay coincidencias en tu colegio" : hasSearchIntent ? "Todavía no tenemos lo que buscas" : "Todavía no hay anuncios disponibles"}</EmptyTitle><EmptyDescription>{emptySchoolView ? "Tu colegio es solo una parte de Wetudy. Puedes seguir viendo anuncios de otros centros y volver a buscar aquí cuando quieras." : hasSearchIntent ? "Una búsqueda sin resultado es demanda real. Dinos exactamente qué necesitas y te avisaremos si aparece." : "Puedes publicar el primer anuncio o volver más adelante."}</EmptyDescription></EmptyHeader><EmptyContent>{hasSearchIntent ? <div className="mx-auto mb-3 w-full max-w-xl space-y-2 text-left"><Label htmlFor="zero-result-demand" className="text-sm font-medium">¿Qué necesitas exactamente?</Label><Textarea id="zero-result-demand" value={demandDetails} onChange={(event) => setDemandDetails(event.target.value)} maxLength={500} placeholder="Ej. Polo del Colegio X, talla 12, azul marino" className="min-h-20 resize-y bg-background" /><p className="text-xs text-muted-foreground">Los filtros y la búsqueda actuales se guardarán junto con este detalle. Avísame si aparece una coincidencia.</p></div> : null}<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">{hasSearchIntent ? <Button onClick={saveSearch} disabled={saveSearchStatus === "saving" || saveSearchStatus === "saved"} className="gap-2">{saveSearchStatus === "saved" ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}{saveSearchStatus === "saving" ? "Guardando..." : saveSearchStatus === "saved" ? "Demanda guardada" : "Guardar demanda y avisarme"}</Button> : null}{emptySchoolView ? <Button onClick={() => setOnlyMyCommunity(false)}>Ver todos los anuncios</Button> : null}<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button><Link href="/marketplace/new"><Button variant={hasSearchIntent ? "outline" : "default"}>Publicar anuncio</Button></Link></div>{saveSearchStatus === "auth" ? <p className="mt-3 text-center text-sm text-muted-foreground">Para guardar la demanda, <Link href="/auth?next=/marketplace" className="font-medium text-primary underline-offset-4 hover:underline">inicia sesión o crea una cuenta</Link>.</p> : null}{saveSearchStatus === "error" ? <p className="mt-3 text-center text-sm text-destructive">No se pudo guardar la demanda. Prueba de nuevo.</p> : null}{saveSearchStatus === "saved" ? <p className="mt-3 text-center text-sm text-muted-foreground">Demanda registrada. Búsqueda guardada. Te avisaremos si aparece un anuncio compatible.</p> : null}</EmptyContent></Empty> : <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-3">{filteredListings.map((listing) => <ListingCard key={listing.id} listing={listing} currentSchoolId={currentUserSchoolId} />)}</div>}{((onlyMyCommunity && schoolLoaded && schoolHasMore) || (!onlyMyCommunity && generalHasMore)) ? <div ref={feedSentinelRef} aria-hidden="true" className="h-px w-full" /> : null}{((onlyMyCommunity && schoolLoading && schoolLoaded) || (!onlyMyCommunity && generalLoading)) ? <p role="status" aria-live="polite" className="py-5 text-center text-sm text-muted-foreground">Cargando más anuncios…</p> : null}{onlyMyCommunity && schoolLoaded && schoolLoadError ? <div role="alert" className="py-4 text-center"><p className="mb-2 text-sm text-destructive">No se pudieron cargar más anuncios de tu colegio.</p><Button variant="outline" onClick={loadMoreSchoolListings}>Reintentar carga</Button></div> : null}{!onlyMyCommunity && generalLoadError ? <div role="alert" className="py-4 text-center"><p className="mb-2 text-sm text-destructive">No se pudieron cargar más anuncios.</p><Button variant="outline" onClick={loadMoreGeneralListings}>Reintentar carga</Button></div> : null}</div></div><Link href="/marketplace/new" className="fixed bottom-4 right-4 z-30 sm:hidden"><Button className="h-12 rounded-full px-5 shadow-lg"><Plus className="mr-2 h-4 w-4" />Publicar</Button></Link></div></div>;
+  return <div className="bg-background"><div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6 lg:px-8">{showSchoolInvite ? <div className="mb-5"><CommunityInviteCard campaign="school_joined" title="Ya formas parte de tu comunidad" description="Si conoces otra familia de tu entorno escolar, puedes invitarla ahora a Wetudy." /></div> : null}<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-2xl font-bold text-foreground">Marketplace</h1><p className="text-sm text-muted-foreground">Comunidad Wetudy · {generalFeedPending || schoolFeedPending ? "buscando" : filteredListings.length} anuncios visibles</p></div><Link href="/marketplace/new" className="hidden sm:block"><Button className="gap-2"><Plus className="h-4 w-4" />Publicar anuncio</Button></Link></div><div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar por título, curso, ISBN o categoría..." className="h-12 pl-10 text-base sm:text-sm" /></div><div className="grid grid-cols-[1fr_auto] gap-2 sm:flex sm:items-center"><Select value={sortBy} onValueChange={setSortBy}><SelectTrigger className="h-11 w-full sm:w-[220px]"><SelectValue placeholder="Ordenar" /></SelectTrigger><SelectContent><SelectItem value="newest">Más recientes</SelectItem><SelectItem value="distance">Más cercanos</SelectItem><SelectItem value="price_asc">Precio: de menor a mayor</SelectItem><SelectItem value="price_desc">Precio: de mayor a menor</SelectItem><SelectItem value="discount">Mayor ahorro</SelectItem></SelectContent></Select><Sheet><SheetTrigger asChild><Button variant="outline" className="h-11 gap-2 lg:hidden"><SlidersHorizontal className="h-4 w-4" /><span>Filtros</span>{activeFiltersCount > 0 ? <Badge className="ml-1 h-5 w-5 rounded-full p-0 text-xs">{activeFiltersCount}</Badge> : null}</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl px-4 pb-6 sm:left-auto sm:right-0 sm:h-full sm:max-h-none sm:w-96 sm:rounded-none sm:border-l"><SheetHeader className="px-0 pt-6"><SheetTitle>Filtros</SheetTitle></SheetHeader><FilterControls /></SheetContent></Sheet></div></div><div className="mt-4 flex flex-wrap gap-2 lg:hidden">{categories.slice(0, 5).map((item) => <Button key={item} type="button" variant={category === item ? "default" : "outline"} size="sm" onClick={() => setCategory(category === item ? "all" : item)} className="rounded-full">{item}</Button>)}</div>{shortSearchTerm ? <p role="status" className="mt-2 text-xs text-muted-foreground">Escribe al menos 2 caracteres para buscar en todos los anuncios.</p> : null}{sortBy === "distance" || sortBy === "discount" ? <p className="mt-2 text-xs text-muted-foreground">{radiusIsActive ? "Esta ordenación utiliza los anuncios dentro del radio seleccionado." : "Esta ordenación es aproximada entre los anuncios ya cargados; se amplía al desplazarte."}</p> : null}<div className="mt-6 flex gap-8"><aside className="hidden w-64 shrink-0 lg:block"><div className="sticky top-24"><h3 className="mb-4 text-sm font-semibold text-foreground">Filtros</h3><FilterControls /></div></aside><div className="flex-1 pb-20 sm:pb-0">{generalFeedPending || schoolFeedPending ? <p role="status" className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{onlyMyCommunity ? "Buscando anuncios de tu colegio…" : "Buscando anuncios en Wetudy…"}</p> : generalInitialError ? <div role="alert" className="rounded-2xl border border-dashed p-8 text-center"><p className="mb-3 text-sm">No se pudo completar la búsqueda.</p><Button variant="outline" onClick={() => setGeneralInitialRetry((n) => n + 1)}>Reintentar búsqueda</Button></div> : schoolLoadError && !schoolLoaded ? <div role="alert" className="rounded-2xl border border-dashed p-8 text-center"><p className="mb-3 text-sm">No se han podido cargar los anuncios de tu colegio.</p><div className="flex flex-wrap justify-center gap-2"><Button variant="outline" onClick={() => setSchoolInitialRetry((n) => n + 1)}>Reintentar búsqueda</Button><Button onClick={() => setOnlyMyCommunity(false)}>Ver todos los anuncios</Button></div></div> : filteredListings.length === 0 ? <Empty className="rounded-2xl border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><PackageSearch /></EmptyMedia><EmptyTitle>{emptySchoolView ? "Aún no hay coincidencias en tu colegio" : radiusNoMatches ? `No encontramos anuncios a ${distanceKm} km aprox.` : hasSearchIntent ? "Todavía no tenemos lo que buscas" : "Todavía no hay anuncios disponibles"}</EmptyTitle><EmptyDescription>{emptySchoolView ? "Tu colegio es solo una parte de Wetudy. Puedes seguir viendo anuncios de otros centros y volver a buscar aquí cuando quieras." : radiusNoMatches ? "No hay coincidencias dentro del radio seleccionado. Puedes ampliarlo sin perder tu búsqueda ni los demás filtros, o guardar lo que necesitas." : hasSearchIntent ? "Una búsqueda sin resultado es demanda real. Dinos exactamente qué necesitas y te avisaremos si aparece." : "Puedes publicar el primer anuncio o volver más adelante."}</EmptyDescription></EmptyHeader><EmptyContent>{hasSearchIntent ? <div className="mx-auto mb-3 w-full max-w-xl space-y-2 text-left"><Label htmlFor="zero-result-demand" className="text-sm font-medium">¿Qué necesitas exactamente?</Label><Textarea id="zero-result-demand" value={demandDetails} onChange={(event) => setDemandDetails(event.target.value)} maxLength={500} placeholder="Ej. Polo del Colegio X, talla 12, azul marino" className="min-h-20 resize-y bg-background" /><p className="text-xs text-muted-foreground">Los filtros y la búsqueda actuales se guardarán junto con este detalle. Avísame si aparece una coincidencia.</p></div> : null}<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">{hasSearchIntent ? <Button onClick={saveSearch} disabled={saveSearchStatus === "saving" || saveSearchStatus === "saved"} className="gap-2">{saveSearchStatus === "saved" ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}{saveSearchStatus === "saving" ? "Guardando..." : saveSearchStatus === "saved" ? "Demanda guardada" : "Guardar demanda y avisarme"}</Button> : null}{emptySchoolView ? <Button onClick={() => setOnlyMyCommunity(false)}>Ver todos los anuncios</Button> : null}{radiusNoMatches ? <Button onClick={() => setDistanceKm(widerRadius)}>Ampliar distancia</Button> : null}<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button><Link href="/marketplace/new"><Button variant={hasSearchIntent ? "outline" : "default"}>Publicar anuncio</Button></Link></div>{saveSearchStatus === "auth" ? <p className="mt-3 text-center text-sm text-muted-foreground">Para guardar la demanda, <Link href="/auth?next=/marketplace" className="font-medium text-primary underline-offset-4 hover:underline">inicia sesión o crea una cuenta</Link>.</p> : null}{saveSearchStatus === "error" ? <p className="mt-3 text-center text-sm text-destructive">No se pudo guardar la demanda. Prueba de nuevo.</p> : null}{saveSearchStatus === "saved" ? <p className="mt-3 text-center text-sm text-muted-foreground">Demanda registrada. Búsqueda guardada. Te avisaremos si aparece un anuncio compatible.</p> : null}</EmptyContent></Empty> : <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-3">{filteredListings.map((listing) => <ListingCard key={listing.id} listing={listing} currentSchoolId={currentUserSchoolId} />)}</div>}{((onlyMyCommunity && schoolLoaded && schoolHasMore) || (!onlyMyCommunity && generalHasMore)) ? <div ref={feedSentinelRef} aria-hidden="true" className="h-px w-full" /> : null}{((onlyMyCommunity && schoolLoading && schoolLoaded) || (!onlyMyCommunity && generalLoading)) ? <p role="status" aria-live="polite" className="py-5 text-center text-sm text-muted-foreground">Cargando más anuncios…</p> : null}{onlyMyCommunity && schoolLoaded && schoolLoadError ? <div role="alert" className="py-4 text-center"><p className="mb-2 text-sm text-destructive">No se pudieron cargar más anuncios de tu colegio.</p><Button variant="outline" onClick={loadMoreSchoolListings}>Reintentar carga</Button></div> : null}{!onlyMyCommunity && generalLoadError ? <div role="alert" className="py-4 text-center"><p className="mb-2 text-sm text-destructive">No se pudieron cargar más anuncios.</p><Button variant="outline" onClick={loadMoreGeneralListings}>Reintentar carga</Button></div> : null}</div></div><Link href="/marketplace/new" className="fixed bottom-4 right-4 z-30 sm:hidden"><Button className="h-12 rounded-full px-5 shadow-lg"><Plus className="mr-2 h-4 w-4" />Publicar</Button></Link></div></div>;
 }
