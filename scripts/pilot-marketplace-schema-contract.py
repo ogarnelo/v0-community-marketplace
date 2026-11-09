@@ -105,8 +105,8 @@ def main():
         raise AssertionError("Audit failed to detect obsolete offered_price mapping")
     if not check(ddl.replace("url text NOT NULL","image_path text NOT NULL",1)):
         raise AssertionError("Audit failed to detect missing listing_photos.url")
-    if not check(ddl.replace("REFERENCES qa_real_auth.users(id)",
-                             "REFERENCES qa_real_market.profiles(id)",1)):
+    if not check(ddl.replace("seller_id uuid REFERENCES qa_real_auth.users(id)",
+                             "seller_id uuid REFERENCES qa_real_market.profiles(id)",1)):
         raise AssertionError("Audit failed to detect a changed owner FK")
     print(json.dumps({
         "checked_at":"2026-11-09",
