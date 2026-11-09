@@ -20,7 +20,7 @@ create or replace function public.marketplace_nearby_listing_page_v1(
 returns table (listing_id uuid, distance_km double precision)
 language sql stable security invoker
 set search_path = ''
-as $
+as $$
   -- First materialize only the postal zones within the selected radius.
   -- A hash join then matches sellers/listings by CP, preventing the planner
   -- from evaluating thousands of listings times thousands of postal zones.
