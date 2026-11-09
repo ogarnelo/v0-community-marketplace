@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Radio incorrecto." }, { status: 400 });
   }
   const radiusKm = rawRadius === null ? null : Number(rawRadius);
+  const nearestNoRadius = radiusKm === null && params.get("sort") === "distance";
   if (offset > 999999) {
     return NextResponse.json({ error: "Página fuera de rango." }, { status: 400 });
   }
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
     // Read the viewer's postcode from the authenticated account, never a
     // caller-supplied URL parameter (which could expose arbitrary distances).
-    if (radiusKm !== null && !user) {
+    if ((radiusKm !== null || nearestNoRadius) && !user) {
       return NextResponse.json({ error: "Inicia sesión para buscar por distancia." },
         { status: 401, headers: { "Cache-Control": "private, no-store" } });
     }
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
       : { data: null, error: null };
     if (viewerError) throw viewerError;
     const viewerPostalCode = viewerProfile?.postal_code?.trim() || "";
-    if (radiusKm !== null && !hasKnownPostalCode(viewerPostalCode)) {
+    if ((radiusKm !== null || nearestNoRadius) && !hasKnownPostalCode(viewerPostalCode)) {
       return NextResponse.json({ error: "Añade un código postal válido en Mi cuenta." },
         { status: 422, headers: { "Cache-Control": "private, no-store" } });
     }
@@ -64,19 +65,21 @@ export async function GET(request: Request) {
     let rows: ListingRow[];
     let hasMore: boolean;
     const nearbyDistances = new Map<string, number>();
-    if (radiusKm !== null) {
-      // The spatial predicate and all product filters run in the database
+    if (radiusKm !== null || nearestNoRadius) {
+      // The spatial predicate (if radius is active) and all product filters run in the database
       // BEFORE OFFSET/LIMIT. No sequential scan of irrelevant pages in JS.
       const { data: nearby, error: nearbyError } = await admin.rpc(
-        "marketplace_nearby_listing_page_v1", {
+        nearestNoRadius ? "marketplace_nearest_listing_page_v1" :
+          "marketplace_nearby_listing_page_v1", {
           p_postal_code: viewerPostalCode, p_radius_km: radiusKm,
           p_query: filters.text, p_isbn: filters.isbn,
           p_category: filters.category, p_grade_level: filters.gradeLevel,
           p_listing_type: filters.listingType, p_condition: filters.condition,
           p_since: filters.since || null, p_price_min: filters.priceMin,
           p_price_max: filters.priceMax,
-          p_sort: params.get("sort") === "distance" || params.get("sort") === "discount"
-            ? params.get("sort") : filters.sort,
+          p_sort: nearestNoRadius ? "distance" :
+            params.get("sort") === "distance" || params.get("sort") === "discount"
+              ? params.get("sort") : filters.sort,
           p_offset: offset, p_page_size: PAGE_SIZE + 1,
         }
       );
@@ -94,8 +97,8 @@ export async function GET(request: Request) {
         rows = requestedIds.map((id) => byId.get(id)).filter((item): item is ListingRow => !!item);
       } else rows = [];
     } else {
-      // Preserve the existing general feed and its efficient one-extra-row
-      // pagination. No geospatial work is done for users without a radius.
+      // Preserve the efficient regular feed when neither radius nor
+      // nearest sorting is active. No geospatial work for ordinary browsing.
       const query = applyMarketplaceFeedFilters(
         supabase.from("listings").select(FIELDS).eq("status", "available"), filters
       );
