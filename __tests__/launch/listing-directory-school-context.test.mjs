@@ -46,7 +46,7 @@ test("marketplace search separates operational community and national school ide
   assert.match(marketPage, /item\.directory_school_code\s*\?\s*null/);
   assert.match(schoolScope, /linked_school_id/);
   assert.match(schoolScope, /viewerDirectorySchoolCode/);
-  assert.match(marketClient, /api\\/marketplace\\/my-school\\?offset=/);
+  assert.ok(marketClient.includes("/api/marketplace/my-school?offset="));
   assert.match(marketClient, /Solo mi colegio/);
 });
 
@@ -63,7 +63,7 @@ test("marketplace always opens on all schools; school count does not derive from
   assert.match(marketPage, /communityListingCount = result\.count/);
   assert.match(marketPage, /makeMarketplaceSchoolFilter/);
   assert.match(marketPage, /initialCommunityListingCount=\{communityListingCount\}/);
-  assert.match(marketClient, /highlightSchoolShortcut = \(initialCommunityListingCount \?\? 0\) >= 10/);
+  assert.match(marketClient, /highlightSchoolShortcut = \(schoolCount \?\? 0\) >= 10/);
   assert.doesNotMatch(marketClient, /setOnlyMyCommunity\(initialCommunityListingCount/);
 });
 
