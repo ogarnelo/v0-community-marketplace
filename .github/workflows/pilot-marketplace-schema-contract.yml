@@ -1,0 +1,19 @@
+name: Wetudy frozen marketplace production-schema contract
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-marketplace-schema-contract.py"
+      - "scripts/pilot-marketplace-real-shape-recovery.py"
+      - ".github/workflows/pilot-marketplace-schema-contract.yml"
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify selected production column and FK mapping including negative regression tests
+        run: python3 scripts/pilot-marketplace-schema-contract.py
