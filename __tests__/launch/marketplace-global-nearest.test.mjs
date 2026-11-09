@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 const read = (path) => readFileSync(path, "utf8");
 const route = read("app/api/marketplace/feed/route.ts");
 const client = read("components/marketplace/marketplace-client.tsx");
-const migration = read("supabase/migrations/20261109232000_marketplace_global_nearest_v1.sql");
+const migration = read("supabase/migrations/20261109221011_marketplace_global_nearest_v1.sql");
 const centroidData = read("lib/marketplace/postal-centroids.ts");
 
 test("nearest without radius orders the full eligible listing set on the server", () => {
