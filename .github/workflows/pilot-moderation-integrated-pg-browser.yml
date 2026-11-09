@@ -12,6 +12,9 @@ on:
       - "scripts/pilot-school-public-no-stale-id.cjs"
       - "scripts/pilot-ampa-dashboard-entry.cjs"
       - "scripts/pilot-ampa-real-dashboard-chromium.cjs"
+      - "app/onboarding/join-school/page.tsx"
+      - "scripts/pilot-qr-join-consent-entry.cjs"
+      - "scripts/pilot-qr-join-consent-browser.cjs"
       - "components/admin/school-admin-dashboard.tsx"
       - "components/ui/tabs.tsx"
       - "scripts/pilot-moderation-integrated-setup.sh"
@@ -69,3 +72,5 @@ jobs:
         run: node scripts/pilot-school-public-no-stale-id.cjs
       - name: Verify original AMPA dashboard UI in isolated Chromium for three schools
         run: node scripts/pilot-ampa-real-dashboard-chromium.cjs
+      - name: Verify original family QR onboarding explicit school-switch consent
+        run: node scripts/pilot-qr-join-consent-browser.cjs
