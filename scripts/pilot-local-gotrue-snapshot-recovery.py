@@ -5,12 +5,13 @@ The source is a disposable Supabase CLI PostgreSQL, NEVER hosted production.
 Only whitelisted Auth fields, profiles, and student rows are restored into a
 second local database. This does NOT re-create a working GoTrue server/session.
 """
+import base64
 import csv
 import hashlib
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import secrets
 import subprocess
 import tempfile
@@ -98,8 +99,26 @@ def main():
     if sql("select count(*) from public.user_roles") != "0":
         raise AssertionError("Local QR rehearsal must grant no administrative roles")
 
+    # Two deterministic synthetic Storage objects attached to REAL local
+    # GoTrue identities; no hosted Storage bytes are read or contacted.
+    objects = []
+    for user in users:
+        is_first = user["email"] == EMAILS[0]
+        bucket = "listing-photos" if is_first else "chat-attachments"
+        name = user["id"] + ("/example.webp" if is_first else "/receipt.txt")
+        payload = (b"WETUDY-SYNTHETIC-IMAGE-BYTES" if is_first
+                   else b"WETUDY-SYNTHETIC-MESSAGE-BYTES")
+        objects.append({
+            "bucket": bucket, "path": name, "owner_user_id": user["id"],
+            "size": len(payload), "sha256": hashlib.sha256(payload).hexdigest(),
+            "bytes_base64": base64.b64encode(payload).decode("ascii")
+        })
     archive = {"users": users, "identities": identities,
-               "profiles": profiles, "students": students}
+               "profiles": profiles, "students": students,
+               "storage_refs": [
+                   {key: item[key] for key in ("bucket", "path", "owner_user_id", "sha256")}
+                   for item in objects
+               ], "storage_objects": objects}
     with tempfile.TemporaryDirectory(prefix="wetudy-local-auth-restore-") as temporary:
         directory = Path(temporary)
         plain = directory / "auth-synthetic-backup.json"
@@ -157,12 +176,17 @@ def main():
                 id uuid primary key, owner_user_id uuid not null
                 references qa_restored_auth.users(id), alias text,
                 grade_level text, active boolean);
+            create table qa_restored_auth.storage_refs(
+                bucket text not null, path text not null, owner_user_id uuid not null
+                references qa_restored_auth.users(id),
+                sha256 text not null, primary key(bucket,path));
             """, TARGET)
             for table, columns in (
                 ("users", ("id", "email", "password_hash", "confirmed")),
                 ("identities", ("user_id", "provider", "provider_id")),
                 ("profiles", ("id", "school_id", "first_name", "last_name", "postal_code")),
-                ("students", ("id", "owner_user_id", "alias", "grade_level", "active"))
+                ("students", ("id", "owner_user_id", "alias", "grade_level", "active")),
+                ("storage_refs", ("bucket", "path", "owner_user_id", "sha256"))
             ):
                 copy_rows("qa_restored_auth." + table, columns, source[table])
             restored = {
@@ -177,17 +201,45 @@ def main():
                                            "from qa_restored_auth.profiles) x", TARGET)),
                 "students": json.loads(sql("select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb)"
                                            " from (select id::text as id,owner_user_id::text as owner_user_id,"
-                                           "alias,grade_level,active from qa_restored_auth.students) x", TARGET))
+                                           "alias,grade_level,active from qa_restored_auth.students) x", TARGET)),
+                "storage_refs": json.loads(sql("select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb)"
+                                               " from (select bucket,path,"
+                                               "owner_user_id::text as owner_user_id,sha256 "
+                                               "from qa_restored_auth.storage_refs) x", TARGET))
             }
-            for key in source:
+            for key in ("users", "identities", "profiles", "students", "storage_refs"):
                 if sorted(source[key], key=lambda item: json.dumps(item, sort_keys=True)) != sorted(
                         restored[key], key=lambda item: json.dumps(item, sort_keys=True)):
                     raise AssertionError("Local real GoTrue linked snapshot differs: " + key)
+            if len(source["storage_objects"]) != len(users):
+                raise AssertionError("Missing simulated Storage objects")
+            restore_root = directory / "restored-storage"
+            for item in source["storage_objects"]:
+                if item["owner_user_id"] not in user_ids or item["bucket"] not in (
+                        "listing-photos", "chat-attachments"):
+                    raise AssertionError("Untrusted restored storage ownership/bucket")
+                parts = PurePosixPath(item["path"])
+                if parts.is_absolute() or any(part in (".", "..") for part in parts.parts) or (
+                        not parts.parts or parts.parts[0] != item["owner_user_id"]):
+                    raise AssertionError("Untrusted restored storage object path")
+                saved = restore_root / item["bucket"] / parts
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                payload = base64.b64decode(item["bytes_base64"], validate=True)
+                saved.write_bytes(payload)
+                if (len(payload) != item["size"] or
+                        hashlib.sha256(saved.read_bytes()).hexdigest() != item["sha256"]):
+                    raise AssertionError("Restored synthetic Storage bytes failed checksum")
+                matching = [ref for ref in restored["storage_refs"]
+                            if ref["bucket"] == item["bucket"] and ref["path"] == item["path"]]
+                if len(matching) != 1 or matching[0]["sha256"] != item["sha256"]:
+                    raise AssertionError("Restored Storage reference lost byte integrity")
+            print("PASS cross-family synthetic Storage bytes tied to REAL local GoTrue owner ids "
+                  "and restored selective Auth/DB reference rows; two objects match SHA256.")
             print("PASS TWO confirmed REAL local GoTrue QA families: Auth user+identity snapshot, "
                   "profiles and students encrypted and recovered to DISTINCT local DB; "
                   "SHA256, UUID relationships and record parity verified.")
             print("LIMIT: selective logical tables, not a bootable GoTrue Auth restore, "
-                  "not full database/Storage disaster recovery.")
+                  "synthetic Storage bytes, not hosted Storage or full disaster recovery.")
         finally:
             sql("drop database if exists " + TARGET_DB + " with (force)")
 
