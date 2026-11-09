@@ -40,6 +40,7 @@ async function setup(){
  for(const name of ["app/auth/callback/route.ts","app/api/account/students/route.ts",
   "app/api/account/students/[id]/route.ts","app/onboarding/students/page.tsx",
   "app/onboarding/join-school/page.tsx","app/api/schools/public/route.ts",
+  "components/auth/auth-form.tsx","lib/auth/error-messages.ts","lib/auth/public-origin.ts",
   "components/ui/alert.tsx",
   "components/onboarding/account-students-onboarding.tsx",
   "components/account-students/student-context-fields.tsx",
@@ -60,6 +61,22 @@ async function setup(){
  write("lib/mock-data.ts",'export const gradeLevels=["3 Primaria","4 Primaria","5 Primaria"];');
  write("app/marketplace/page.tsx",'export default function Marketplace(){return <main>LOCAL QA MARKETPLACE AFTER QR</main>;}');
  write("qa/analytics.ts",'export function track(_event:string,_data:any){/* no telemetry in local QA */}');
+
+ // Only Cloudflare's external Turnstile is replaced with a visible *manual*
+ // fake button in this isolated fixture. The actual AuthForm logic runs unchanged.
+ write("components/auth/turnstile-widget.tsx",[
+  '"use client";import React from "react";',
+  'export function TurnstileWidget({onTokenChange}:{onTokenChange:(token:string|null)=>void}){',
+  'return <button type="button" data-testid="local-turnstile"',
+  ' onClick={()=>onTokenChange("local-test-captcha-not-cloudflare")}>',
+  'Verificación local QA</button>; }'
+ ].join("\n"));
+ write("app/qa-authform/page.tsx",[
+  'import React,{Suspense} from "react";',
+  'import {AuthForm} from "@/components/auth/auth-form";',
+  'export default function AuthFormQA(){return <Suspense fallback={<p>Cargando...</p>}>',
+  '<main><AuthForm /></main></Suspense>;}'
+ ].join("\n"));
  write("app/api/analytics/acquisition/route.ts",'export async function POST(){return new Response(null,{status:204});}');
  write("tsconfig.json",JSON.stringify({compilerOptions:{
   target:"ES2020",lib:["dom","dom.iterable","esnext"],strict:false,
@@ -128,14 +145,14 @@ async function waitReady(child){
  }
  throw Error("Next local route timed out");
 }
-async function mailLink(){
+async function mailLink(targetEmail=email){
  for(let tries=0;tries<65;tries++){
   try{
    const res=await fetch(mail+"/api/v1/messages",{signal:AbortSignal.timeout(1500)});
    if(res.ok){
     const summary=await res.json();
     const found=(summary.messages||[]).find(x=>
-     JSON.stringify(x.To||x.to||[]).includes(email));
+     JSON.stringify(x.To||x.to||[]).includes(targetEmail));
     if(found){
      const id=encodeURIComponent(found.ID||found.id);
      const r=await fetch(mail+"/api/v1/message/"+id);
@@ -477,6 +494,69 @@ async function mailLink(){
    u.searchParams.get("auth_error")==="invalid_link",{timeout:23000});
   assert.equal(new URL(page.url()).origin,origin,"Invalid code must stay on local origin");
   console.log("PASS original Next callback rejects replayed, missing and invalid codes without offsite redirects.");
+  // Second synthetic family uses the ORIGINAL Wetudy AuthForm, not a signup
+  // JS helper. Only external Turnstile provider is simulated locally.
+  const email2="qa-authform-family@example.invalid";
+  const authUrl=origin+"/qa-authform?mode=signup&next="+encodeURIComponent(qr)+
+    "&utm_source=school&utm_medium=qr&utm_campaign=school_invite";
+  const authView=await page.goto(authUrl,{waitUntil:"domcontentloaded"});
+  console.log("ORIGINAL AUTHFORM QA route",JSON.stringify({
+    status:authView?.status(),pathname:new URL(page.url()).pathname,
+    visibleText:(await page.locator("body").innerText()).slice(0,450)
+  }));
+  await page.locator('[data-slot="card-title"]').getByText("Crear cuenta",{exact:true}).waitFor({timeout:26000});
+  await page.locator("#firstName").fill("Familia");
+  await page.locator("#lastName").fill("UI");
+  await page.locator("#email").fill(email2);
+  await page.locator("#password").fill(password);
+  await page.getByRole("combobox").click();
+  await page.getByRole("option",{name:"Familia / tutor"}).click();
+  await page.locator("#postalCode").fill("00000");
+  await page.locator('input[type="checkbox"]').check();
+  const signupSubmit=page.getByRole("button",{name:"Crear cuenta",exact:true});
+  assert.equal(await signupSubmit.isDisabled(),true,
+    "Real AuthForm must reject signup until captcha token is present");
+  await page.getByTestId("local-turnstile").click();
+  await signupSubmit.click();
+  await page.getByText("Debes indicar un código postal español válido.").waitFor();
+  assert.equal(sql("select count(*) from auth.users where email='"+email2+"'"),"0",
+    "Invalid postal code in original AuthForm must not create local Auth user");
+  await page.locator("#postalCode").fill("37001");
+  await signupSubmit.click();
+  await page.getByText(/te hemos enviado un enlace de confirmación/).waitFor({timeout:23000});
+  assert.equal(sql("select count(*) from auth.users where email='"+email2+"'"),"1",
+    "Original AuthForm signup must create local GoTrue account");
+  const secondId=sql("select id from auth.users where email='"+email2+"'");
+  assert.notEqual(secondId,signed.id);
+  assert.equal(sql("select email_confirmed_at is null from auth.users where id='"+
+    secondId+"'"),"t","Original AuthForm account must require email confirmation");
+  const link2=await mailLink(email2);
+  await page.goto(link2,{waitUntil:"domcontentloaded",timeout:90000});
+  await page.waitForURL(u=>u.origin===origin&&u.pathname==="/onboarding/students"&&
+    u.searchParams.get("next")===qr,{timeout:25000});
+  assert.equal(sql("select count(*) from public.profiles where id='"+secondId+
+    "' and user_type='parent' and postal_code='37001'"),"1");
+  assert.equal(sql("select count(*) from auth.users where id='"+secondId+
+    "' and email_confirmed_at is not null"),"1");
+  await page.getByRole("heading",{name:"Estudiantes"}).waitFor();
+  await page.getByLabel(/Nombre o alias/).fill("Estudiante segunda familia");
+  await page.getByRole("combobox").click();
+  await page.getByRole("option",{name:"4 Primaria"}).click();
+  await page.getByRole("button",{name:"Guardar",exact:true}).click();
+  await page.getByText("Estudiante segunda familia",{exact:true}).waitFor({timeout:25000});
+  assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+
+    secondId+"' and active"),"1",
+    "Original AuthForm family must own its original student record");
+  await page.getByRole("button",{name:"Entrar en Wetudy"}).click();
+  await page.waitForURL(u=>u.origin===origin&&u.pathname==="/marketplace"&&
+    u.searchParams.get("joined")==="1",{timeout:30000});
+  assert.equal(sql("select school_id from public.profiles where id='"+secondId+"'"),school);
+  assert.equal(sql("select count(*) from public.user_roles"),"0");
+  assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+
+    signed.id+"' and alias='Estudiante segunda familia'"),"0");
+  console.log("PASS ORIGINAL AuthForm -> local GoTrue email -> PKCE -> ORIGINAL students UI+API -> ORIGINAL QR join; family isolation and roles safe.");
+  console.log("LIMIT: only Turnstile external service is replaced by manual local QA stub; no hosted Turnstile guarantee.");
+
   console.log("LIMIT: ORIGINAL students UI and QR join run against synthetic locally active school. AuthForm, Turnstile, real colleges and hosted email are NOT covered.");
   await ctx.close();
  }catch(error){
