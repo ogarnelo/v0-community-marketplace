@@ -114,6 +114,45 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const [saveSearchStatus, setSaveSearchStatus] = useState<SaveSearchStatus>("idle");
   const [demandDetails, setDemandDetails] = useState("");
   const [showSchoolInvite, setShowSchoolInvite] = useState(false);
+  const [generalAppliedKey, setGeneralAppliedKey] = useState("");
+  const [schoolAppliedKey, setSchoolAppliedKey] = useState("");
+  const [generalInitialRetry, setGeneralInitialRetry] = useState(0);
+  const [schoolInitialRetry, setSchoolInitialRetry] = useState(0);
+  const generalActiveKeyRef = useRef("");
+  const schoolActiveKeyRef = useRef("");
+
+  // Search, category, grade, condition, ISBN, date and price now filter the
+  // FULL server catalogue before pagination. Distance and discount remain
+  // approximate client-side ordering; neither is advertised as global.
+  const feedFilters = useMemo(() => {
+    const params = new URLSearchParams();
+    if (searchQuery.trim().length >= 2) params.set("q", searchQuery.trim().slice(0, 90));
+    if (isbnQuery.trim().length >= 2) params.set("isbn", isbnQuery.trim().slice(0, 30));
+    if (category !== "all") params.set("category", category);
+    if (gradeLevel !== "all") params.set("gradeLevel", gradeLevel);
+    if (listingType !== "all") params.set("listingType", listingType);
+    if (condition !== "all") params.set("condition", condition);
+    if (priceRange[0] > 0) params.set("minPrice", String(priceRange[0]));
+    if (priceRange[1] < PRICE_LIMIT) params.set("maxPrice", String(priceRange[1]));
+    if (sortBy === "price_asc" || sortBy === "price_desc") params.set("sort", sortBy);
+    if (publishedDateFilter !== "all") {
+      const since = new Date();
+      if (publishedDateFilter === "today") since.setHours(0, 0, 0, 0);
+      if (publishedDateFilter === "7d") since.setDate(since.getDate() - 7);
+      if (publishedDateFilter === "30d") since.setDate(since.getDate() - 30);
+      params.set("since", since.toISOString());
+    }
+    return params.toString();
+  }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition,
+      priceRange, sortBy, publishedDateFilter]);
+  const [debouncedFeedFilters, setDebouncedFeedFilters] = useState(feedFilters);
+  const filterDebouncing = feedFilters !== debouncedFeedFilters;
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedFeedFilters(feedFilters), 350);
+    return () => window.clearTimeout(id);
+  }, [feedFilters]);
+
+
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -129,18 +168,64 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     );
   }, []);
 
-  // Only fetch the user's own school feed on explicit opt-in. The endpoint
-  // resolves the school from the authenticated account, not user parameters.
+  // Keep the full general catalogue server-filtered as the user edits
+  // search controls; cancel stale requests and debounce keystrokes.
+  useEffect(() => {
+    if (onlyMyCommunity) return;
+    const controller = new AbortController();
+    const requestKey = debouncedFeedFilters;
+    generalActiveKeyRef.current = requestKey;
+    if (!requestKey) {
+      setDbListings(initialListings);
+      setGeneralOffset(initialListings.length);
+      setGeneralHasMore(initialGeneralHasMore);
+      setGeneralAppliedKey("");
+      setGeneralLoadError(false);
+      setGeneralLoading(false);
+      return () => controller.abort();
+    }
+    setGeneralLoadError(false);
+    setGeneralLoading(true);
+    fetch("/api/marketplace/feed?offset=0&" + requestKey, {
+      cache: "no-store", signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("filtered_marketplace_request_failed");
+        return response.json();
+      })
+      .then((payload) => {
+        if (controller.signal.aborted || generalActiveKeyRef.current !== requestKey) return;
+        const rows: MarketplaceListing[] = payload.listings || [];
+        setDbListings(rows);
+        setGeneralOffset(rows.length);
+        setGeneralHasMore(Boolean(payload.hasMore) && rows.length > 0);
+        setGeneralAppliedKey(requestKey);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setGeneralLoadError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setGeneralLoading(false);
+      });
+    return () => controller.abort();
+  }, [onlyMyCommunity, debouncedFeedFilters, generalInitialRetry,
+      initialListings, initialGeneralHasMore]);
+
+  // The school scope is resolved using the authenticated account on the
+  // server; only non-school filters are ever sent in query parameters.
   useEffect(() => {
     if (!onlyMyCommunity) return;
     const controller = new AbortController();
+    const requestKey = debouncedFeedFilters;
+    schoolActiveKeyRef.current = requestKey;
     setSchoolListings([]);
     setSchoolOffset(0);
     setSchoolHasMore(false);
     setSchoolLoaded(false);
     setSchoolLoading(true);
     setSchoolLoadError(false);
-    fetch("/api/marketplace/my-school?offset=0", {
+    fetch("/api/marketplace/my-school?offset=0" +
+        (requestKey ? "&" + requestKey : ""), {
       cache: "no-store", signal: controller.signal,
     })
       .then(async (response) => {
@@ -148,11 +233,13 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
         return response.json();
       })
       .then((payload) => {
-        if (controller.signal.aborted) return;
-        setSchoolListings(payload.listings || []);
-        setSchoolOffset((payload.listings || []).length);
-        setSchoolCount(payload.total ?? null);
-        setSchoolHasMore(Boolean(payload.hasMore));
+        if (controller.signal.aborted || schoolActiveKeyRef.current !== requestKey) return;
+        const rows: MarketplaceListing[] = payload.listings || [];
+        setSchoolListings(rows);
+        setSchoolOffset(rows.length);
+        if (!requestKey) setSchoolCount(payload.total ?? null);
+        setSchoolHasMore(Boolean(payload.hasMore) && rows.length > 0);
+        setSchoolAppliedKey(requestKey);
         setSchoolLoaded(true);
       })
       .catch(() => {
@@ -162,21 +249,25 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
         if (!controller.signal.aborted) setSchoolLoading(false);
       });
     return () => controller.abort();
-  }, [onlyMyCommunity]);
+  }, [onlyMyCommunity, debouncedFeedFilters, schoolInitialRetry]);
 
   const loadMoreGeneralListings = useCallback(async () => {
     // A synchronous ref guard prevents duplicate requests from observer events
     // fired before React has flushed the loading state.
     if (onlyMyCommunity || generalLoading || !generalHasMore ||
-        generalRequestInFlight.current) return;
+        generalAppliedKey !== debouncedFeedFilters || filterDebouncing ||
+        generalLoadError || generalRequestInFlight.current) return;
     generalRequestInFlight.current = true;
     setGeneralLoading(true);
     setGeneralLoadError(false);
     try {
+      const requestKey = debouncedFeedFilters;
       const response = await fetch(
-        `/api/marketplace/feed?offset=${generalOffset}`, { cache: "no-store" });
+        `/api/marketplace/feed?offset=${generalOffset}` +
+          (requestKey ? "&" + requestKey : ""), { cache: "no-store" });
       if (!response.ok) throw new Error("catalogue_next_page_failed");
       const payload = await response.json();
+      if (generalActiveKeyRef.current !== requestKey) return;
       const rows: MarketplaceListing[] = payload.listings || [];
       setDbListings((current) => {
         const ids = new Set(current.map((listing) => listing.id));
@@ -191,26 +282,31 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
       generalRequestInFlight.current = false;
       setGeneralLoading(false);
     }
-  }, [onlyMyCommunity, generalLoading, generalHasMore, generalOffset]);
+  }, [onlyMyCommunity, generalLoading, generalHasMore, generalOffset,
+      debouncedFeedFilters, generalAppliedKey, filterDebouncing, generalLoadError]);
 
   const loadMoreSchoolListings = useCallback(async () => {
     if (!onlyMyCommunity || !schoolLoaded || schoolLoading || !schoolHasMore ||
-        schoolRequestInFlight.current) return;
+        schoolAppliedKey !== debouncedFeedFilters || filterDebouncing ||
+        schoolLoadError || schoolRequestInFlight.current) return;
     schoolRequestInFlight.current = true;
     setSchoolLoading(true);
     setSchoolLoadError(false);
     try {
+      const requestKey = debouncedFeedFilters;
       const response = await fetch(
-        `/api/marketplace/my-school?offset=${schoolOffset}`, { cache: "no-store" });
+        `/api/marketplace/my-school?offset=${schoolOffset}` +
+          (requestKey ? "&" + requestKey : ""), { cache: "no-store" });
       if (!response.ok) throw new Error("school_listings_more_failed");
       const payload = await response.json();
+      if (schoolActiveKeyRef.current !== requestKey) return;
       const rows: MarketplaceListing[] = payload.listings || [];
       setSchoolListings((current) => {
         const ids = new Set(current.map((item) => item.id));
         return [...current, ...rows.filter((item) => !ids.has(item.id))];
       });
       setSchoolOffset((current) => current + rows.length);
-      setSchoolCount(payload.total ?? null);
+      if (!requestKey) setSchoolCount(payload.total ?? null);
       setSchoolHasMore(Boolean(payload.hasMore) && rows.length > 0);
     } catch {
       setSchoolLoadError(true);
@@ -218,14 +314,17 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
       schoolRequestInFlight.current = false;
       setSchoolLoading(false);
     }
-  }, [onlyMyCommunity, schoolLoaded, schoolLoading, schoolHasMore, schoolOffset]);
+  }, [onlyMyCommunity, schoolLoaded, schoolLoading, schoolHasMore, schoolOffset,
+      schoolAppliedKey, debouncedFeedFilters, filterDebouncing, schoolLoadError]);
 
   useEffect(() => {
     const target = feedSentinelRef.current;
     if (!target || typeof IntersectionObserver === "undefined") return;
-    const waiting = onlyMyCommunity
-      ? !schoolLoaded || schoolLoading || schoolLoadError || !schoolHasMore
-      : generalLoading || generalLoadError || !generalHasMore;
+    const waiting = filterDebouncing || (onlyMyCommunity
+      ? !schoolLoaded || schoolLoading || schoolLoadError || !schoolHasMore ||
+        schoolAppliedKey !== debouncedFeedFilters
+      : generalLoading || generalLoadError || !generalHasMore ||
+        generalAppliedKey !== debouncedFeedFilters);
     if (waiting) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -240,6 +339,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     return () => observer.disconnect();
   }, [onlyMyCommunity, generalHasMore, generalLoading, generalLoadError,
       schoolLoaded, schoolHasMore, schoolLoading, schoolLoadError,
+      generalAppliedKey, schoolAppliedKey, debouncedFeedFilters, filterDebouncing,
       loadMoreGeneralListings, loadMoreSchoolListings]);
 
   // A small, dismissible invitation when the user's school has enough
