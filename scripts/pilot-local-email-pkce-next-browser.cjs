@@ -589,6 +589,57 @@ async function mailLink(targetEmail=email){
     console.log("PASS ORIGINAL AuthForm fresh-device login: wrong password rejected, correct password restores confirmed owner, school and roles unchanged.");
   }finally{await loginContext.close();}
 
+
+  // STUDENT route: original AuthForm must not send an under-age/unchecked
+  // self-attestation signup to GoTrue. This checks UI attestation, not age.
+  const studentContext=await browser.newContext();
+  const studentPage=await studentContext.newPage();
+  await studentPage.route("**/*",route=>allow.has(new URL(route.request().url()).origin)
+    ?route.continue():route.abort());
+  const studentEmail="qa-student-age-gate@example.invalid";
+  try{
+    await studentPage.goto(origin+"/qa-authform?mode=signup",
+      {waitUntil:"domcontentloaded"});
+    await studentPage.locator("#firstName").fill("Estudiante");
+    await studentPage.locator("#lastName").fill("QA");
+    await studentPage.locator("#email").fill(studentEmail);
+    await studentPage.locator("#password").fill(password);
+    await studentPage.getByRole("combobox").click();
+    await studentPage.getByRole("option",{name:"Estudiante",exact:true}).click();
+    await studentPage.locator("#postalCode").fill("37001");
+    assert.equal(await studentPage.locator('input[type="checkbox"]').count(),2,
+      "Student account must display age and privacy/terms confirmations");
+    await studentPage.locator('input[type="checkbox"]').last().check();
+    await studentPage.getByTestId("local-turnstile").click();
+    await studentPage.getByRole("button",{name:"Crear cuenta",exact:true}).click();
+    assert.equal(sql("select count(*) from auth.users where email='"+studentEmail+"'"),
+      "0","Original student signup must be blocked without 14+ attestation");
+    await studentPage.locator('input[type="checkbox"]').first().check();
+    await studentPage.getByRole("button",{name:"Crear cuenta",exact:true}).click();
+    await studentPage.getByText(/te hemos enviado un enlace de confirmación/).waitFor({timeout:23000});
+    assert.equal(sql("select count(*) from auth.users where email='"+studentEmail+
+      "' and email_confirmed_at is null"),"1");
+    const thirdMail=await mailLink(studentEmail);
+    await studentPage.goto(thirdMail,{waitUntil:"domcontentloaded",timeout:90000});
+    await studentPage.waitForURL(u=>u.origin===origin&&u.pathname==="/onboarding/students",
+      {timeout:25000});
+    const studentUserId=sql("select id from auth.users where email='"+studentEmail+"'");
+    assert.equal(sql("select count(*) from public.profiles where id='"+
+      studentUserId+"' and user_type='student'"),"1");
+    await studentPage.getByRole("heading",{name:"Tu contexto educativo"}).waitFor();
+    await studentPage.getByRole("combobox").click();
+    await studentPage.getByRole("option",{name:"5 Primaria"}).click();
+    await studentPage.getByRole("button",{name:"Guardar",exact:true}).click();
+    await studentPage.getByText(/Tu contexto educativo ya está guardado/).waitFor({timeout:20000});
+    assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+
+      studentUserId+"' and active and grade_level='5 Primaria'"),"1");
+    assert.equal(sql("select school_id is null from public.profiles where id='"+
+      studentUserId+"'"),"t",
+      "Independent student registration must not auto-join a community");
+    assert.equal(sql("select count(*) from public.user_roles"),"0");
+    console.log("PASS ORIGINAL AuthForm student mode: 14+ checkbox and terms gates, email confirmation, student context; no unauthorized school or role.");
+  }finally{await studentContext.close();}
+
   console.log("LIMIT: only Turnstile external service is replaced by manual local QA stub; no hosted Turnstile guarantee.");
 
   console.log("LIMIT: ORIGINAL students UI and QR join run against synthetic locally active school. AuthForm, Turnstile, real colleges and hosted email are NOT covered.");
