@@ -6,6 +6,7 @@ import {
 } from "@/lib/marketplace/feed-filters";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { approximateDistanceKm, hasKnownPostalCode } from "@/lib/marketplace/postal-distance";
 import {
   buildPhotosMap,
   type ListingPhotoRow,
@@ -32,26 +33,81 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Página incorrecta." }, { status: 400 });
   }
   const offset = Number(rawOffset);
+  const rawRadius = params.get("radiusKm");
+  if (rawRadius !== null && (!/^[1-9][0-9]{0,2}$/.test(rawRadius) || Number(rawRadius) > 200)) {
+    return NextResponse.json({ error: "Radio incorrecto." }, { status: 400 });
+  }
+  const radiusKm = rawRadius === null ? null : Number(rawRadius);
   if (offset > 999999) {
     return NextResponse.json({ error: "Página fuera de rango." }, { status: 400 });
   }
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    // Ask for one extra row instead of exact-count scanning on every page.
-    const query = applyMarketplaceFeedFilters(
-      supabase.from("listings").select(FIELDS).eq("status", "available"),
-      filters
-    );
-    const { data, error } = await query.range(offset, offset + PAGE_SIZE);
-    if (error) throw error;
-    const allRows = (data || []) as ListingRow[];
-    const hasMore = allRows.length > PAGE_SIZE;
-    const rows = allRows.slice(0, PAGE_SIZE);
+    const admin = createAdminClient();
+    // Read the viewer's postcode from the authenticated account, never a
+    // caller-supplied URL parameter (which could expose arbitrary distances).
+    if (radiusKm !== null && !user) {
+      return NextResponse.json({ error: "Inicia sesión para buscar por distancia." },
+        { status: 401, headers: { "Cache-Control": "private, no-store" } });
+    }
+    const { data: viewerProfile, error: viewerError } = user
+      ? await supabase.from("profiles").select("postal_code").eq("id", user.id).maybeSingle()
+      : { data: null, error: null };
+    if (viewerError) throw viewerError;
+    const viewerPostalCode = viewerProfile?.postal_code?.trim() || "";
+    if (radiusKm !== null && !hasKnownPostalCode(viewerPostalCode)) {
+      return NextResponse.json({ error: "Añade un código postal válido en Mi cuenta." },
+        { status: 422, headers: { "Cache-Control": "private, no-store" } });
+    }
+
+    let rows: ListingRow[];
+    let hasMore: boolean;
+    const nearbyDistances = new Map<string, number>();
+    if (radiusKm !== null) {
+      // The spatial predicate and all product filters run in the database
+      // BEFORE OFFSET/LIMIT. No sequential scan of irrelevant pages in JS.
+      const { data: nearby, error: nearbyError } = await admin.rpc(
+        "marketplace_nearby_listing_page_v1", {
+          p_postal_code: viewerPostalCode, p_radius_km: radiusKm,
+          p_query: filters.text, p_isbn: filters.isbn,
+          p_category: filters.category, p_grade_level: filters.gradeLevel,
+          p_listing_type: filters.listingType, p_condition: filters.condition,
+          p_since: filters.since || null, p_price_min: filters.priceMin,
+          p_price_max: filters.priceMax,
+          p_sort: params.get("sort") === "distance" || params.get("sort") === "discount"
+            ? params.get("sort") : filters.sort,
+          p_offset: offset, p_page_size: PAGE_SIZE + 1,
+        }
+      );
+      if (nearbyError) throw nearbyError;
+      const matches = (nearby || []) as { listing_id: string; distance_km: number }[];
+      hasMore = matches.length > PAGE_SIZE;
+      const page = matches.slice(0, PAGE_SIZE);
+      for (const match of page) nearbyDistances.set(match.listing_id, match.distance_km);
+      const requestedIds = page.map((match) => match.listing_id);
+      if (requestedIds.length) {
+        const { data, error } = await supabase.from("listings").select(FIELDS)
+          .eq("status", "available").in("id", requestedIds);
+        if (error) throw error;
+        const byId = new Map(((data || []) as ListingRow[]).map((item) => [item.id, item]));
+        rows = requestedIds.map((id) => byId.get(id)).filter((item): item is ListingRow => !!item);
+      } else rows = [];
+    } else {
+      // Preserve the existing general feed and its efficient one-extra-row
+      // pagination. No geospatial work is done for users without a radius.
+      const query = applyMarketplaceFeedFilters(
+        supabase.from("listings").select(FIELDS).eq("status", "available"), filters
+      );
+      const { data, error } = await query.range(offset, offset + PAGE_SIZE);
+      if (error) throw error;
+      const allRows = (data || []) as ListingRow[];
+      hasMore = allRows.length > PAGE_SIZE;
+      rows = allRows.slice(0, PAGE_SIZE);
+    }
     const ids = rows.map((row) => row.id);
     const sellers = Array.from(new Set(rows.map((row) => row.seller_id || row.user_id)
       .filter((id): id is string => typeof id === "string" && Boolean(id))));
-    const admin = createAdminClient();
     const [{ data: photos, error: photoError },
            { data: sellerProfiles, error: sellerError },
            { data: favorites, error: favoriteError }] = await Promise.all([
@@ -99,6 +155,8 @@ export async function GET(request: Request) {
         directorySchoolCode: item.directory_school_code || null,
         postalCode: seller?.postalCode || item.postal_code || null,
         status: item.status, createdAt: item.created_at || null,
+        distance: nearbyDistances.get(item.id) ?? approximateDistanceKm(
+          viewerPostalCode, seller?.postalCode || item.postal_code),
         isFavorite: favoriteIds.has(item.id),
       };
     });

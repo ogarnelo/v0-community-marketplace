@@ -6,6 +6,7 @@ import {
 } from "@/lib/marketplace/feed-filters";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
 import {
   makeMarketplaceSchoolFilter,
   resolveMarketplaceSchoolScope,
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
   const [{ data: profile, error: profileError },
          { data: student, error: studentError },
          { data: schoolAdmin, error: roleError }] = await Promise.all([
-    supabase.from("profiles").select("school_id").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("school_id,postal_code").eq("id", user.id).maybeSingle(),
     supabase.from("account_students")
       .select("school_id,directory_school_code,is_primary,sort_order,created_at")
       .eq("owner_user_id", user.id).eq("active", true)
@@ -136,6 +137,7 @@ export async function GET(request: Request) {
         directorySchoolCode: item.directory_school_code || null,
         postalCode: seller?.postalCode || item.postal_code || null,
         status: item.status, createdAt: item.created_at || null,
+        distance: approximateDistanceKm(profile?.postal_code, seller?.postalCode || item.postal_code),
         isFavorite: favoriteIds.has(item.id),
       };
     });
