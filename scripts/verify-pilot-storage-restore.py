@@ -74,7 +74,7 @@ def validate_archive(archive_file):
                 if len(members) > MAX_FILES + 1:
                     raise ValueError("Too many archived files")
 
-            head = members.pop("manifest.json", None)
+            if sum(member.size for member in members.values()) > MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES:\n                raise ValueError("Backup exceeds safety limit before extraction")\n            head = members.pop("manifest.json", None)
             if head is None or head.size > MAX_MANIFEST_BYTES:
                 raise ValueError("Missing or oversized backup manifest")
             source = archive.extractfile(head)
@@ -83,7 +83,7 @@ def validate_archive(archive_file):
             manifest = json.loads(source.read(MAX_MANIFEST_BYTES + 1))
             if manifest.get("version") != 1 or manifest.get("buckets") is None:
                 raise ValueError("Unexpected manifest version")
-            if set(manifest["buckets"]) != BUCKETS:
+            if not isinstance(manifest["buckets"], list) or set(manifest["buckets"]) != BUCKETS:
                 raise ValueError("Unexpected manifest bucket list")
             files = manifest.get("files")
             if not isinstance(files, list) or not (0 < len(files) <= MAX_FILES):
