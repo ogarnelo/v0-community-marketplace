@@ -107,6 +107,9 @@ async function setup(){
   ' profile:async(id)=>{const {data,error}=await client.from("profiles")',
   ' .select("id,first_name,last_name,user_type,postal_code").eq("id",id).maybeSingle();',
   ' return {data,error:error?.message||null};},',
+  ' setSchool:async(id,schoolId)=>{const {data,error}=await client.from("profiles")',
+  ' .update({school_id:schoolId}).eq("id",id).select("id,school_id");',
+  ' return {data,error:error?.message||null,code:error?.code||null};},',
   ' updateProfile:async(id)=>{const {data,error}=await client.from("profiles")',
   ' .update({postal_code:"99999"}).eq("id",id).select("id");',
   ' return {rows:data?.length||0,error:error?.message||null};},',
@@ -469,6 +472,17 @@ async function mailLink(targetEmail=email){
   assert.equal(inactive.status,200);
   assert.equal(inactive.body.school,null,"Inactive/missing school QR is invisible");
   assert.ok(inactive.cache?.includes("no-store"),"QR school lookup must avoid stale cache");
+  const disabledSchool="33333333-4444-4555-8666-777777777777";
+  sql("insert into public.schools(id,name,city,postal_code,is_test,is_active) values "+
+    "('"+disabledSchool+"','Centro inactivo ficticio','Local','00000',true,false)");
+  const blockedDirect=await page.evaluate(args=>
+    window.__qaEmail.setSchool(args.user,args.school),
+    {user:signed.id,school:disabledSchool});
+  assert.equal(blockedDirect.code,"23514",
+    "Direct PostgREST profile update must not join an inactive school");
+  assert.equal(sql("select coalesce(school_id::text,'') from public.profiles where id='"+
+    signed.id+"'"),"","Denied direct join must not mutate family profile");
+  console.log("PASS direct Supabase profile.school_id mutation to inactive local school is blocked by the candidate DB guard.");
   // Activate ONLY a synthetic, disposable local school after rejection checks.
   sql("insert into public.schools(id,name,city,postal_code,is_test,is_active) values "+
     "('"+school+"','Colegio Ficticio QA','Local','00000',false,true)");
@@ -488,6 +502,14 @@ async function mailLink(targetEmail=email){
     "Original QR flow must link ONLY authenticated family's profile");
   assert.equal(sql("select count(*) from public.user_roles"),"0",
     "Original QR must never grant school admin permissions");
+  // The guard must allow the standard QR-based school selection but still
+  // reject moving a linked profile directly to an inactive school.
+  const blockedReassignment=await page.evaluate(args=>
+    window.__qaEmail.setSchool(args.user,args.school),
+    {user:signed.id,school:disabledSchool});
+  assert.equal(blockedReassignment.code,"23514");
+  assert.equal(sql("select school_id from public.profiles where id='"+signed.id+"'"),
+    school,"Rejected direct reassignment must preserve current active school");
   assert.equal(sql("select count(*) from public.profiles where id='"+foreignId+
     "' and school_id is not null"),"0","QR must not alter second family's school");
   console.log("PASS ORIGINAL students form -> ORIGINAL QR page -> ORIGINAL school API -> local active synthetic school profile link; no privileged role.");
