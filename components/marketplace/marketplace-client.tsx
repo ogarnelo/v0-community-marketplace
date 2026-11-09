@@ -388,7 +388,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const explainMissingPostalCode = () => {
     if (onlyMyCommunity || hasViewerPostalCode) return;
     toast("Para usar el filtro de distancia necesitas un código postal", {
-      id: "marketplace-postal-code-required",
+      // Every attempted interaction should show a fresh five-second notice.
       description: "Añádelo en Mi cuenta y podrás explorar anuncios próximos a tu zona.",
       duration: 5000,
       action: {
