@@ -105,7 +105,7 @@ const qr="/onboarding/join-school?school="+A+
   await page.goto(origin+(realForm?"/auth-real":"/auth")+"?mode="+mode+"&next="+encodeURIComponent(next),
      {waitUntil:"load"});
   await page.getByLabel(realForm?"Email":"Correo").fill(email);
-  await page.getByLabel("Contraseña").fill(password);
+  await page.getByLabel("Contraseña",{exact:true}).fill(password);
   if(realForm){
     await page.getByTestId("local-turnstile-stub").waitFor();
     await page.getByRole("button",{name:"Iniciar sesión",exact:true}).last().click();
@@ -132,7 +132,7 @@ const qr="/onboarding/join-school?school="+A+
    await page.getByRole("link",{name:"Crear cuenta"}).click();
    await page.waitForURL(u=>u.pathname==="/auth");
    await page.getByLabel("Correo").fill("qa-qr-newfamily@example.invalid");
-   await page.getByLabel("Contraseña").fill("Local-QA-qr-newfamily-Test-2026!aZ6");
+   await page.getByLabel("Contraseña",{exact:true}).fill("Local-QA-qr-newfamily-Test-2026!aZ6");
    await page.getByRole("button",{name:"Crear QA"}).click();
    await page.waitForURL(u=>u.pathname==="/onboarding/join-school");
    await page.waitForFunction(()=>window.__qa?.actions?.navigation?.some(x=>
@@ -182,7 +182,7 @@ const qr="/onboarding/join-school?school="+A+
    await page.getByLabel("Nombre *").fill("QA");
    await page.getByLabel("Apellidos *").fill("Familia Prueba");
    await page.getByLabel("Email").fill("qa-qr-authform-signup@example.invalid");
-   await page.getByLabel("Contraseña").fill("Local-QA-authform-signup-Test-2026!aZ6");
+   await page.getByLabel("Contraseña",{exact:true}).fill("Local-QA-authform-signup-Test-2026!aZ6");
    await page.getByRole("combobox").click();
    await page.getByRole("option",{name:"Familia / tutor"}).click();
    await page.getByLabel("Código postal *").fill("37001");
