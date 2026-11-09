@@ -1,0 +1,37 @@
+name: Wetudy safe Vercel QA-only build guard
+on:
+  pull_request:
+    paths:
+      - "vercel.json"
+      - "scripts/vercel-ignore-qa-only.cjs"
+      - ".github/workflows/pilot-vercel-ignore-ci.yml"
+permissions:
+  contents: read
+jobs:
+  check-ignore-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Validate skip guard only ignores isolated pilot QA files
+        run: node scripts/vercel-ignore-qa-only.cjs --self-test
+      - name: Ensure vercel.json preserves deploy/build/cron settings
+        run: |
+          node - <<'NODE'
+          const assert = require("node:assert/strict");
+          const p = require("./vercel.json");
+          assert.equal(p.ignoreCommand, "node scripts/vercel-ignore-qa-only.cjs");
+          assert.equal(p.buildCommand, "npm run build");
+          assert.equal(p.installCommand, "npm install --legacy-peer-deps");
+          assert.equal(p.regions[0], "dub1");
+          assert.deepEqual(
+            p.crons.map(c => c.path).sort(),
+            ["/api/cron/email-health","/api/cron/school-impact-reports","/api/cron/super-admin-reports"].sort()
+          );
+          console.log("PASS production build settings, region and all three cron jobs preserved");
+          NODE
