@@ -7,6 +7,8 @@ on:
       - "scripts/pilot-local-email-pkce-next-browser.cjs"
       - "app/auth/callback/route.ts"
       - "components/auth/auth-form.tsx"
+      - "components/auth/update-password-form.tsx"
+      - "app/auth/update-password/page.tsx"
       - "lib/auth/error-messages.ts"
       - "lib/auth/public-origin.ts"
       - "app/api/account/students/route.ts"
@@ -69,6 +71,8 @@ jobs:
           assert n==1
           data,n=re.subn(r'(?m)^additional_redirect_urls = .*$', 'additional_redirect_urls = ["http://localhost:31421/**"]',data,count=1)
           assert n==1
+          data=data.replace('max_frequency = "1m"', 'max_frequency = "1s"')
+          assert 'max_frequency = "1s"' in data
           p.write_text(data)
           PY
           cleanup(){

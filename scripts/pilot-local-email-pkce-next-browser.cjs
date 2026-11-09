@@ -41,6 +41,7 @@ async function setup(){
   "app/api/account/students/[id]/route.ts","app/onboarding/students/page.tsx",
   "app/onboarding/join-school/page.tsx","app/api/schools/public/route.ts",
   "components/auth/auth-form.tsx","lib/auth/error-messages.ts","lib/auth/public-origin.ts",
+  "app/auth/update-password/page.tsx","components/auth/update-password-form.tsx",
   "components/ui/alert.tsx",
   "components/onboarding/account-students-onboarding.tsx",
   "components/account-students/student-context-fields.tsx",
@@ -682,6 +683,57 @@ async function mailLink(targetEmail=email){
     }
     console.log("PASS ORIGINAL AuthForm student mode: 14+ checkbox and terms gates, email confirmation, student context; no unauthorized school or role.");
   }finally{await studentContext.close();}
+
+  // Original forgot-password + original change-password form + signed-out login.
+  // Do NOT deliver any email outside local Mailpit.
+  const recoverContext=await browser.newContext();
+  const recoverPage=await recoverContext.newPage();
+  await recoverPage.route("**/*",route=>allow.has(new URL(route.request().url()).origin)
+    ?route.continue():route.abort());
+  const changedPass="New-Local-QA-Password-2026!R7";
+  try{
+    const priorHash=sql("select encrypted_password from auth.users where email='"+email2+"'");
+    await recoverPage.goto(origin+"/qa-authform?mode=forgot",
+      {waitUntil:"domcontentloaded"});
+    await recoverPage.locator("#email").fill(email2);
+    await recoverPage.getByTestId("local-turnstile").click();
+    await recoverPage.getByRole("button",{name:"Enviar enlace",exact:true}).click();
+    await recoverPage.getByText("Te hemos enviado un enlace para restablecer tu contraseña.").waitFor({timeout:20000});
+    const link=await mailLink(email2);
+    await recoverPage.goto(link,{waitUntil:"domcontentloaded",timeout:90000});
+    await recoverPage.waitForURL(u=>u.origin===origin&&u.pathname==="/auth/update-password",
+      {timeout:25000});
+    await recoverPage.locator("#new-password").fill(changedPass);
+    await recoverPage.locator("#repeat-password").fill("Different-local-2026!R7");
+    await recoverPage.getByRole("button",{name:"Guardar nueva contraseña"}).click();
+    await recoverPage.getByText("Las contraseñas no coinciden.").waitFor({timeout:15000});
+    assert.equal(sql("select encrypted_password from auth.users where email='"+email2+"'"),
+      priorHash,"Mismatched confirmation must not alter GoTrue password hash");
+    await recoverPage.locator("#repeat-password").fill(changedPass);
+    await recoverPage.getByRole("button",{name:"Guardar nueva contraseña"}).click();
+    await recoverPage.getByText("Contraseña actualizada",{exact:true}).waitFor({timeout:20000});
+    assert.notEqual(sql("select encrypted_password from auth.users where email='"+email2+"'"),
+      priorHash,"Correct recovery must rotate the real local GoTrue password hash");
+    const fresh=await browser.newContext();
+    try{
+      const page2=await fresh.newPage();
+      await page2.route("**/*",route=>allow.has(new URL(route.request().url()).origin)
+        ?route.continue():route.abort());
+      await page2.goto(origin+"/qa-authform?mode=login&next=%2Fmarketplace");
+      await page2.locator("#email").fill(email2);
+      await page2.locator("#password").fill(password);
+      await page2.getByTestId("local-turnstile").click();
+      await page2.getByRole("button",{name:"Iniciar sesión",exact:true}).click();
+      await page2.getByText("Email o contraseña incorrectos.").waitFor({timeout:20000});
+      await page2.locator("#password").fill(changedPass);
+      await page2.getByTestId("local-turnstile").click();
+      await page2.getByRole("button",{name:"Iniciar sesión",exact:true}).click();
+      await page2.waitForURL(u=>u.origin===origin&&u.pathname==="/marketplace",
+        {timeout:25000});
+      assert.equal(sql("select school_id from public.profiles where id='"+secondId+"'"),school);
+      console.log("PASS ORIGINAL forgot-password + local recovery email + original update form: wrong confirmation rejected, hash rotated, old login denied, new login accepted.");
+    }finally{await fresh.close();}
+  }finally{await recoverContext.close();}
 
   console.log("LIMIT: only Turnstile external service is replaced by manual local QA stub; no hosted Turnstile guarantee.");
 
