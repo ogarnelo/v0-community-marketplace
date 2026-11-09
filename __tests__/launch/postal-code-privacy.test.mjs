@@ -14,6 +14,6 @@ test("postal code helpers keep location approximate", () => {
 
 test("marketplace keeps postal code distance free and approximate", () => {
   assert.match(marketplace, /postalCode/);
-  assert.match(marketplace, /Distancia máxima/);
+  assert.match(marketplace, /Distancia aproximada/);
   assert.doesNotMatch(marketplace, /mapbox|google maps|places|autocomplete/i);
 });
