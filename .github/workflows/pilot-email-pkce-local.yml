@@ -4,6 +4,8 @@ on:
     paths:
       - "scripts/pilot-local-email-pkce-fixture.sql"
       - "scripts/pilot-active-school-link-guard.sql"
+      - "scripts/pilot-active-school-release-candidate.sql"
+      - "scripts/pilot-active-school-emergency-rollback.sql"
       - "scripts/pilot-local-gotrue-snapshot-recovery.py"
       - "scripts/pilot-full-local-db-clone-recovery.py"
       - "scripts/pilot-local-email-pkce-next-browser.cjs"
@@ -97,7 +99,7 @@ jobs:
           curl --silent --show-error --fail "$LOCAL_MAILPIT_URL/api/v1/messages" >/dev/null
           cd "$GITHUB_WORKSPACE"
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-local-email-pkce-fixture.sql
-          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-active-school-link-guard.sql
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-active-school-release-candidate.sql
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -c "NOTIFY pgrst, 'reload schema'"
           node scripts/pilot-local-email-pkce-next-browser.cjs
           python3 scripts/pilot-local-gotrue-snapshot-recovery.py

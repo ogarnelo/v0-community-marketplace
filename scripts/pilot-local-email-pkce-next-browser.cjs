@@ -475,6 +475,14 @@ async function mailLink(targetEmail=email){
   const disabledSchool="33333333-4444-4555-8666-777777777777";
   sql("insert into public.schools(id,name,city,postal_code,is_test,is_active) values "+
     "('"+disabledSchool+"','Centro inactivo ficticio','Local','00000',true,false)");
+  const unknownSchool="44444444-5555-4666-8777-888888888888";
+  const missingDirect=await page.evaluate(args=>
+    window.__qaEmail.setSchool(args.user,args.school),
+    {user:signed.id,school:unknownSchool});
+  assert.equal(missingDirect.code,"23514",
+    "Direct join to a nonexistent school must fail at database boundary");
+  assert.equal(sql("select coalesce(school_id::text,'') from public.profiles where id='"+
+    signed.id+"'"),"","Rejected unknown school must leave profile unchanged");
   const blockedDirect=await page.evaluate(args=>
     window.__qaEmail.setSchool(args.user,args.school),
     {user:signed.id,school:disabledSchool});
@@ -510,6 +518,19 @@ async function mailLink(targetEmail=email){
   assert.equal(blockedReassignment.code,"23514");
   assert.equal(sql("select school_id from public.profiles where id='"+signed.id+"'"),
     school,"Rejected direct reassignment must preserve current active school");
+  const unlinkAllowed=await page.evaluate(args=>
+    window.__qaEmail.setSchool(args.user,args.school),
+    {user:signed.id,school:null});
+  assert.equal(unlinkAllowed.error,null,"Unlinking must remain available");
+  assert.equal(sql("select school_id is null from public.profiles where id='"+
+    signed.id+"'"),"t","School must be unlinked");
+  const relinkAllowed=await page.evaluate(args=>
+    window.__qaEmail.setSchool(args.user,args.school),
+    {user:signed.id,school:school});
+  assert.equal(relinkAllowed.error,null,"Active school re-link must remain available");
+  assert.equal(sql("select school_id from public.profiles where id='"+
+    signed.id+"'"),school,"School must be restored for remaining checks");
+
   assert.equal(sql("select count(*) from public.profiles where id='"+foreignId+
     "' and school_id is not null"),"0","QR must not alter second family's school");
   console.log("PASS ORIGINAL students form -> ORIGINAL QR page -> ORIGINAL school API -> local active synthetic school profile link; no privileged role.");
