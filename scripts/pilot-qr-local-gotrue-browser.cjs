@@ -31,7 +31,8 @@ const qr="/onboarding/join-school?school="+A+
   nodePaths:[MOD],
   define:{
    "process.env.NEXT_PUBLIC_SUPABASE_URL":JSON.stringify(api),
-   "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY":JSON.stringify(anon)
+   "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY":JSON.stringify(anon),
+   "process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY":JSON.stringify("qa-local-site-key")
   },
   plugins:[{name:"qa-next-shell",setup(t){
    t.onResolve({filter:/^(?:next\/navigation|next\/link|@vercel\/analytics|@\/components\/auth\/turnstile-widget)$/},
@@ -170,6 +171,33 @@ const qr="/onboarding/join-school?school="+A+
    await ctx.close();
   }
 
+  // Original commercial signup enforces verification even when local
+  // GoTrue offers an immediate session. This does not deliver email.
+  {
+   const {page,ctx}=await context();
+   const q="/auth-real?mode=signup&next="+encodeURIComponent(qr)+
+    "&utm_source=school&utm_medium=qr&utm_campaign=school_invite";
+   await page.goto(origin+q,{waitUntil:"load"});
+   await page.getByRole("heading",{name:"Crear cuenta"}).waitFor();
+   await page.getByLabel("Nombre *").fill("QA");
+   await page.getByLabel("Apellidos *").fill("Familia Prueba");
+   await page.getByLabel("Email").fill("qa-qr-authform-signup@example.invalid");
+   await page.getByLabel("Contraseña").fill("Local-QA-authform-signup-Test-2026!aZ6");
+   await page.getByRole("combobox").click();
+   await page.getByRole("option",{name:"Familia / tutor"}).click();
+   await page.getByLabel("Código postal *").fill("37001");
+   await page.getByRole("checkbox").check();
+   await page.getByTestId("local-turnstile-stub").waitFor();
+   await page.getByRole("button",{name:"Crear cuenta",exact:true}).last().click();
+   await page.getByText(
+     "Wetudy requiere verificar el email antes de iniciar sesión.",
+     {exact:false}).waitFor({timeout:18000});
+   assert.equal(await identity(page),null,
+    "Commercial signup must sign out when local GoTrue returns an immediate session");
+   console.log("PASS real AuthForm signup blocks automatic local session pending email verification.");
+   await ctx.close();
+  }
+
   // A real, unrelated GoTrue JWT cannot inspect/mutate the family's row.
   {
    const {page,ctx}=await context();
@@ -192,8 +220,8 @@ const qr="/onboarding/join-school?school="+A+
    console.log("PASS stranger GoTrue JWT cannot read/change original family's school under local PostgREST RLS.");
    await ctx.close();
   }
-  console.log("PASS commercial AuthForm LOGIN, original QR React UI and real local Supabase GoTrue Auth and RLS combined in Chromium.");
-  console.log("LIMIT: commercial AuthForm login is real, Turnstile token/test navigation are local QA adapters; email-confirmation and hosted callback + public school Next API are not end-to-end verified.");
+  console.log("PASS original commercial AuthForm LOGIN and SIGNUP guard, QR UI and local GoTrue/RLS together in Chromium.");
+  console.log("LIMIT: AuthForm real; Turnstile token/navigation QA adapters; confirmation email/callback and public school Next API NOT end-to-end verified.");
  }finally{
   await browser.close();
   await new Promise(done=>server.close(done));
