@@ -91,7 +91,10 @@ const qr="/onboarding/join-school?school="+A+
  async function identity(page){
   return page.evaluate(async()=>{
    const {data,error}=await window.__qa.supabase.auth.getUser();
-   if(error)throw Error(error.message);
+   // A guest must NOT have a GoTrue session. getUser() signals this as
+   // AuthSessionMissingError; only authenticated sessions require no error.
+   if(error && !(error.name==="AuthSessionMissingError" && !data.user))
+     throw Error(error.message);
    return data.user?.id||null;
   });
  }
