@@ -42,7 +42,8 @@ test("marketplace distance uses account postal codes and excludes unknown locati
   assert.match(marketplacePage, /sellerProfile\?\.postalCode/);
   assert.match(marketplacePage, /postalCode: currentSellerPostalCode/);
   assert.doesNotMatch(marketplacePage, /schoolPostalMap/);
-  assert.match(marketplaceClient, /listing\.distance === undefined \|\| listing\.distance > maxDistanceKm/);
+  assert.match(marketplacePage, /approximateDistanceKm\(viewerPostalCode, currentSellerPostalCode\)/);
+  assert.match(marketplaceClient, /params\.set\("radiusKm", String\(distanceKm\)\)/);
   assert.match(marketplaceClient, /Estimación entre centros de códigos postales/);
 });
 
