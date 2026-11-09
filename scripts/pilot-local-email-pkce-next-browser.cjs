@@ -637,6 +637,23 @@ async function mailLink(targetEmail=email){
       studentUserId+"'"),"t",
       "Independent student registration must not auto-join a community");
     assert.equal(sql("select count(*) from public.user_roles"),"0");
+    // A previously shared QR must become unusable if the center is later
+    // deactivated. Use only the synthetic SQL row, NEVER a hosted school.
+    sql("update public.schools set is_active=false where id='"+school+"'");
+    try{
+      const inactiveQr=await studentPage.goto(origin+qr,
+        {waitUntil:"domcontentloaded",timeout:30000});
+      assert.equal(inactiveQr?.status(),200);
+      await studentPage.getByText(/Este enlace de centro ya no está disponible/).waitFor(
+        {timeout:20000});
+      assert.equal(sql("select school_id is null from public.profiles where id='"+
+        studentUserId+"'"),"t","Deactivated QR must not link third student account");
+      assert.equal(sql("select count(*) from public.user_roles"),"0",
+        "Deactivated QR must not grant any permissions");
+      console.log("PASS ORIGINAL QR page rejects school deactivated after invite was issued; student remains unlinked.");
+    }finally{
+      sql("update public.schools set is_active=true where id='"+school+"'");
+    }
     console.log("PASS ORIGINAL AuthForm student mode: 14+ checkbox and terms gates, email confirmation, student context; no unauthorized school or role.");
   }finally{await studentContext.close();}
 
