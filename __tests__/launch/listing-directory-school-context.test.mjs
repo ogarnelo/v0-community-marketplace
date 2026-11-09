@@ -81,7 +81,8 @@ test("school feed is loaded in authenticated, paginated chunks rather than filte
   assert.match(schoolFeedRoute, /if \(authError \|\| !user\)/);
   assert.match(schoolFeedRoute, /PAGE_SIZE = 60/);
   assert.match(schoolFeedRoute, /\.range\(offset, offset \+ PAGE_SIZE - 1\)/);
-  assert.match(schoolFeedRoute, /\.eq\("status", "available"\)\.or\(expression\)/);
+  assert.match(schoolFeedRoute, /applyMarketplaceFeedFilters\(/);
+  assert.match(schoolFeedRoute, /filters, expression/);
   assert.match(schoolFeedRoute, /hasMore: offset \+ listings\.length < total/);
   assert.doesNotMatch(schoolFeedRoute, /searchParams\.get\("schoolId"\)/);
   assert.match(marketClient, /loadMoreSchoolListings/);
@@ -132,7 +133,8 @@ test("general catalogue continues after sixty cards without forcing school filte
   assert.match(feed, /PAGE_SIZE = 60/);
   assert.match(feed, /\.range\(offset, offset \+ PAGE_SIZE\)/);
   assert.match(feed, /\.eq\("status", "available"\)/);
-  assert.match(feed, /\.order\("id", \{ ascending: false \}\)/);
+  assert.match(feed, /applyMarketplaceFeedFilters\(/);
+  assert.match(read("lib/marketplace/feed-filters.ts"), /\.order\("id", \{ ascending: false \}\)/);
   assert.match(feed, /Cache-Control": "private, no-store"/);
   assert.match(feed, /const hasMore = allRows\.length > PAGE_SIZE/);
   assert.doesNotMatch(feed, /service_role|schoolId=|directorySchoolCode=/);
