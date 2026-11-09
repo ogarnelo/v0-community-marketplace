@@ -48,9 +48,37 @@ CREATE TABLE qa_pilot_app.profiles(
 CREATE TABLE qa_pilot_app.students(
   id uuid PRIMARY KEY, owner_user_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id),
   grade_level text NOT NULL);
+CREATE TABLE qa_pilot_app.listings(
+  id uuid PRIMARY KEY, seller_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id),
+  title text NOT NULL, status text NOT NULL);
+CREATE TABLE qa_pilot_app.conversations(
+  id uuid PRIMARY KEY, listing_id uuid NOT NULL REFERENCES qa_pilot_app.listings(id),
+  buyer_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id),
+  seller_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id));
+CREATE TABLE qa_pilot_app.messages(
+  id uuid PRIMARY KEY, conversation_id uuid NOT NULL REFERENCES qa_pilot_app.conversations(id),
+  sender_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id), body text NOT NULL);
+CREATE TABLE qa_pilot_app.listing_offers(
+  id uuid PRIMARY KEY, listing_id uuid NOT NULL REFERENCES qa_pilot_app.listings(id),
+  buyer_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id),
+  seller_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id),
+  amount_cents integer NOT NULL, status text NOT NULL);
+CREATE TABLE qa_pilot_app.agreements(
+  id uuid PRIMARY KEY, offer_id uuid NOT NULL REFERENCES qa_pilot_app.listing_offers(id),
+  buyer_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id),
+  seller_id uuid NOT NULL REFERENCES qa_pilot_app.profiles(id), status text NOT NULL);
 CREATE TABLE qa_pilot_app.storage_refs(
   bucket text NOT NULL, path text NOT NULL, owner_user_id uuid NOT NULL,
   sha256 text NOT NULL, PRIMARY KEY(bucket,path));
+CREATE TABLE qa_pilot_app.listing_photos(
+  id uuid PRIMARY KEY, listing_id uuid NOT NULL REFERENCES qa_pilot_app.listings(id),
+  bucket text NOT NULL, path text NOT NULL,
+  FOREIGN KEY(bucket,path) REFERENCES qa_pilot_app.storage_refs(bucket,path));
+CREATE TABLE qa_pilot_app.message_attachments(
+  id uuid PRIMARY KEY, message_id uuid NOT NULL REFERENCES qa_pilot_app.messages(id),
+  bucket text NOT NULL, path text NOT NULL,
+  FOREIGN KEY(bucket,path) REFERENCES qa_pilot_app.storage_refs(bucket,path));
+
 INSERT INTO qa_pilot_auth.accounts VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','parent-a@example.invalid'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','parent-b@example.invalid');
@@ -60,6 +88,32 @@ INSERT INTO qa_pilot_app.profiles VALUES
 INSERT INTO qa_pilot_app.students VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','3 Primaria');
+INSERT INTO qa_pilot_app.listings VALUES
+ ('11111111-1111-4111-8111-111111111111',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Libro de texto QA','reserved');
+INSERT INTO qa_pilot_app.conversations VALUES
+ ('22222222-2222-4222-8222-222222222222',
+  '11111111-1111-4111-8111-111111111111',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+INSERT INTO qa_pilot_app.messages VALUES
+ ('33333333-3333-4333-8333-333333333333',
+  '22222222-2222-4222-8222-222222222222',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','¿Disponible?'),
+ ('44444444-4444-4444-8444-444444444444',
+  '22222222-2222-4222-8222-222222222222',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Sí, confirmo');
+INSERT INTO qa_pilot_app.listing_offers VALUES
+ ('55555555-5555-4555-8555-555555555555',
+  '11111111-1111-4111-8111-111111111111',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',1500,'accepted');
+INSERT INTO qa_pilot_app.agreements VALUES
+ ('66666666-6666-4666-8666-666666666666',
+  '55555555-5555-4555-8555-555555555555',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','accepted');
+
 """
 
 
@@ -70,6 +124,19 @@ def snapshot(url):
         "select id||'|'||owner_user_id||'|'||grade_level from qa_pilot_app.students order by id",
         "select bucket||'/'||path||'|'||owner_user_id||'|'||sha256 "
         "from qa_pilot_app.storage_refs order by bucket,path",
+        "select id||'|'||seller_id||'|'||title||'|'||status from qa_pilot_app.listings order by id",
+        "select id||'|'||listing_id||'|'||buyer_id||'|'||seller_id "
+        "from qa_pilot_app.conversations order by id",
+        "select id||'|'||conversation_id||'|'||sender_id||'|'||body "
+        "from qa_pilot_app.messages order by id",
+        "select id||'|'||listing_id||'|'||buyer_id||'|'||seller_id||'|'||amount_cents||'|'||status "
+        "from qa_pilot_app.listing_offers order by id",
+        "select id||'|'||offer_id||'|'||buyer_id||'|'||seller_id||'|'||status "
+        "from qa_pilot_app.agreements order by id",
+        "select id||'|'||listing_id||'|'||bucket||'/'||path "
+        "from qa_pilot_app.listing_photos order by id",
+        "select id||'|'||message_id||'|'||bucket||'/'||path "
+        "from qa_pilot_app.message_attachments order by id",
     )
     return tuple(query(url, statement) for statement in statements)
 
@@ -159,6 +226,14 @@ def main():
         query(SOURCE,
               "insert into qa_pilot_app.storage_refs values "
               f"('{bucket}','{name}','{owner}','{digest}')")
+    query(SOURCE, """INSERT INTO qa_pilot_app.listing_photos VALUES
+     ('77777777-7777-4777-8777-777777777777',
+      '11111111-1111-4111-8111-111111111111',
+      'listing-photos','parent-a/example.webp')""")
+    query(SOURCE, """INSERT INTO qa_pilot_app.message_attachments VALUES
+     ('88888888-8888-4888-8888-888888888888',
+      '33333333-3333-4333-8333-333333333333',
+      'chat-attachments','parent-b/notice.txt')""")
     original = snapshot(SOURCE)
     if len(original[0].splitlines()) != 2 or len(original[2].splitlines()) != 1:
         raise AssertionError("Synthetic source rows are incomplete")
@@ -203,6 +278,20 @@ def main():
             recovered = snapshot(TARGET)
             if recovered != original:
                 raise AssertionError("Recovered PostgreSQL rows differ from source")
+            if any(len(recovered[index].splitlines()) != expected for index, expected
+                   in ((4,1),(5,1),(6,2),(7,1),(8,1),(9,1),(10,1))):
+                raise AssertionError("Synthetic recovered marketplace chain incomplete")
+            # Ensure all recovered buyer/seller and listing/offer references
+            # refer to exactly the same parties and transaction.
+            if query(TARGET, """SELECT count(*) FROM qa_pilot_app.agreements a
+                JOIN qa_pilot_app.listing_offers o ON o.id=a.offer_id
+                JOIN qa_pilot_app.listings l ON l.id=o.listing_id
+                JOIN qa_pilot_app.conversations c ON c.listing_id=l.id
+                WHERE a.buyer_id=o.buyer_id AND a.seller_id=o.seller_id
+                  AND o.seller_id=l.seller_id AND c.buyer_id=o.buyer_id
+                  AND c.seller_id=o.seller_id""") != "1":
+                raise AssertionError("Recovered sale parties/relationships differ")
+
             if query(TARGET,"select count(*) from qa_pilot_app.profiles where school_id is not null") != "0":
                 raise AssertionError("Unexpected active school membership in recovery")
             with tarfile.open(archive, "r:gz") as tar:
@@ -211,7 +300,7 @@ def main():
                     if member is None or member.read() != original_bytes:
                         raise AssertionError("Storage object bytes changed across recovery")
             print("PASS synthetic integrated DR: two account surrogates, two profiles, "
-                  "one student, two storage objects; local pg_dump/pg_restore and "
+                  "one student, listing, conversation, messages, offer, agreement and two linked storage objects; local pg_dump/pg_restore and "
                   "encrypted artifacts round-tripped and byte-for-byte SHA256 verified.")
             print("LIMIT: synthetic account surrogates are NOT Supabase GoTrue users; "
                   "this is NOT a full hosted Auth/DB/Storage restore.")
