@@ -79,6 +79,32 @@ export default async function MarketplacePage() {
     viewerPostalCode = typedProfile?.postal_code?.trim() || "";
   }
 
+  // The count is independent of the first 60 catalogue cards. Never infer
+  // "no listings at this school" from that limited default window.
+  let communityListingCount: number | null = null;
+  if (viewerDirectorySchoolCode || viewerSchoolId) {
+    const countQueries: PromiseLike<{ count: number | null; error: unknown }>[] = [];
+    if (viewerDirectorySchoolCode) {
+      countQueries.push(
+        supabase.from("listings").select("id", { count: "exact", head: true })
+          .eq("status", "available")
+          .eq("directory_school_code", viewerDirectorySchoolCode)
+      );
+    } else if (viewerSchoolId) {
+      countQueries.push(
+        supabase.from("listings").select("id", { count: "exact", head: true })
+          .eq("status", "available")
+          .eq("school_id", viewerSchoolId)
+      );
+    }
+    const results = await Promise.all(countQueries);
+    if (results.every((result) => !result.error && result.count !== null)) {
+      communityListingCount = results.reduce(
+        (sum, result) => sum + (result.count || 0), 0
+      );
+    }
+  }
+
   const { data: listingsData, error: listingsError } = await supabase
     .from("listings")
     .select(
@@ -190,6 +216,7 @@ export default async function MarketplacePage() {
       initialListings={initialListings}
       initialSchoolId={viewerSchoolId}
       initialDirectorySchoolCode={viewerDirectorySchoolCode}
+      initialCommunityListingCount={communityListingCount}
       initialPostalCode={viewerPostalCode}
     />
   );
