@@ -39,6 +39,9 @@ def main():
         raise AssertionError("Scratch database already exists; refusing overwrite")
     psql(SRC,"CREATE DATABASE "+NAME)
     try:
+        # Standalone PostgreSQL does not create Supabase's database roles.
+        # This disposable CI cluster needs them for the EXACT REVOKE SQL.
+        psql(SRC,"CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN")
         psql(TARGET,"CREATE TABLE public.schools(id uuid PRIMARY KEY,is_active boolean);"
              "CREATE TABLE public.profiles(id uuid PRIMARY KEY,school_id uuid);")
         psql(TARGET,"INSERT INTO public.schools VALUES ('"+ACTIVE+"',true),('"+
