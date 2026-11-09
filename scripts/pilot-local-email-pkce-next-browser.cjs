@@ -181,31 +181,6 @@ async function mailLink(targetEmail=email){
  }
  throw Error("Mailpit confirmation message missing");
 }
-async function mailRecoveryLink(recipient){
- // Do not accidentally reuse an earlier signup confirmation for the same email.
- for(let attempt=0;attempt<85;attempt++){
-  const listing=await fetch(mail+"/api/v1/messages").then(r=>r.json());
-  for(const item of (listing.messages||[])){
-   if(!JSON.stringify(item.To||item.to||[]).includes(recipient))continue;
-   const id=encodeURIComponent(item.ID||item.id);
-   const info=await fetch(mail+"/api/v1/message/"+id).then(r=>r.json());
-   const html=await fetch(mail+"/view/"+id+".html").then(r=>r.ok?r.text():"");
-   const body=[info.HTML,info.Text,info.html,info.text,html].filter(Boolean)
-    .join("\n").replaceAll("&amp;","&").replaceAll("&#38;","&");
-   for(const raw of (body.match(/https?:\\/\\/[^\\s"'<>]+/g)||[])){
-    try{
-     const url=new URL(raw.replace(/[),.;]+$/,""));
-     if(local(url.hostname)&&url.port==="54321"&&
-        url.pathname.includes("/auth/v1/verify")&&url.searchParams.get("type")==="recovery")
-       return url.toString();
-    }catch{}
-   }
-  }
-  await new Promise(resolve=>setTimeout(resolve,700));
- }
- throw Error("No locally captured GoTrue recovery email found");
-}
-
 (async()=>{
  await setup();
  const bin=path.join(mods,"next/dist/bin/next");
@@ -724,7 +699,7 @@ async function mailRecoveryLink(recipient){
     await recoverPage.getByTestId("local-turnstile").click();
     await recoverPage.getByRole("button",{name:"Enviar enlace",exact:true}).click();
     await recoverPage.getByText("Te hemos enviado un enlace para restablecer tu contraseña.").waitFor({timeout:20000});
-    const link=await mailRecoveryLink(email2);
+    const link=await mailLink(email2);
     await recoverPage.goto(link,{waitUntil:"domcontentloaded",timeout:90000});
     await recoverPage.waitForURL(u=>u.origin===origin&&u.pathname==="/auth/update-password",
       {timeout:25000});
