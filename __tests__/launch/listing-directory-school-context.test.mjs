@@ -87,3 +87,29 @@ test("school feed is loaded in authenticated, paginated chunks rather than filte
   assert.match(schoolScope, /linked_school_id/);
   assert.match(schoolScope, /Never fall back to an old profile/);
 });
+
+test("school inventory nudge keeps the current layout and opens the filter only by user action", () => {
+  // Opening /marketplace always means opening the full catalogue.
+  assert.match(marketClient, /const \[onlyMyCommunity, setOnlyMyCommunity\] = useState\(false\)/);
+  assert.match(marketClient, /subtleSchoolShortcut = \(schoolCount \?\? 0\) >= 5/);
+  assert.match(marketClient, /highlightSchoolShortcut = \(schoolCount \?\? 0\) >= 10/);
+  assert.match(marketClient, /border-primary\/20 bg-card/);
+  assert.match(marketClient, /border-primary\/40 bg-primary\/5/);
+  assert.match(marketClient, /schoolCount < 10/);
+  assert.match(marketClient, /toast\("¡Tu colegio ya tiene movimiento!"/);
+  assert.match(marketClient, /label: "Ver mi colegio"/);
+  assert.match(marketClient, /onClick: \(\) => setOnlyMyCommunity\(true\)/);
+  assert.doesNotMatch(marketClient, /useEffect\(\(\) => setOnlyMyCommunity\(true\)/);
+  // Reuse the global Sonner toaster, without a new modal or page layout.
+  assert.match(marketClient, /import \{ toast \} from "sonner"/);
+  assert.match(marketClient, /duration: 7500/);
+});
+
+test("school inventory invitation is limited to one per session and school", () => {
+  assert.match(marketClient, /wetudy:school-invite:/);
+  assert.match(marketClient, /sessionStorage\.getItem\(storageKey\)/);
+  assert.match(marketClient, /sessionStorage\.setItem\(storageKey, "seen"\)/);
+  assert.match(marketClient, /onlyMyCommunity \|\| showSchoolInvite/);
+  assert.match(marketClient, /return \(\) => window\.clearTimeout\(handle\)/);
+  assert.match(marketClient, /return;\s*\}\s*toast\(/);
+});
