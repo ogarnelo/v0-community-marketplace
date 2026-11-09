@@ -75,6 +75,54 @@ def security_snapshot(conn):
                 + name + "', 'SELECT')::text")
     return report
 
+def verify_restored_rls_reads():
+    """Use restored policies with a simulated JWT, not the postgres bypass role."""
+    ids = {
+        email: sql(SOURCE, "SELECT id FROM auth.users WHERE email='" + email + "'")
+        for email in (
+            "qa-email-pkce-family@example.invalid",
+            "qa-authform-family@example.invalid",
+        )
+    }
+    if len(set(ids.values())) != 2 or any(not value for value in ids.values()):
+        raise AssertionError("Expected two distinct local confirmed family accounts")
+    first, second = ids.values()
+    for own, other in ((first, second), (second, first)):
+        query = (
+            "BEGIN; SET LOCAL ROLE authenticated; "
+            "SELECT set_config('request.jwt.claim.sub','" + own + "',true); "
+            "SELECT count(*) FROM public.profiles WHERE id='" + own + "'; "
+            "SELECT count(*) FROM public.profiles WHERE id='" + other + "'; "
+            "SELECT count(*) FROM public.account_students WHERE owner_user_id='" + own + "'; "
+            "SELECT count(*) FROM public.account_students WHERE owner_user_id='" + other + "'; "
+            "ROLLBACK;"
+        )
+        observed = run(
+            "psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
+            "--dbname", DEST, "-c", query).splitlines()
+        # SET/BEGIN commands emit textual markers. Inspect numeric SELECT rows.
+        numeric = [line for line in observed if line.isdigit()]
+        if len(numeric) != 4 or numeric[0:2] != ["1", "0"] or (
+                int(numeric[2]) < 1 or numeric[3] != "0"):
+            raise AssertionError("Recovered RLS leaks profiles or students across families")
+    # A family may not write a student belonging to another user; the target
+    # database remains clean even in the unlikely event a policy regresses.
+    hostile = (
+        "BEGIN; SET LOCAL ROLE authenticated; "
+        "SELECT set_config('request.jwt.claim.sub','" + first + "',true); "
+        "INSERT INTO public.account_students (owner_user_id,grade_level) "
+        "VALUES ('" + second + "','3 Primaria'); ROLLBACK;"
+    )
+    rejected = subprocess.run(
+        ["psql", "-X", "-v", "ON_ERROR_STOP=1", "--dbname", DEST, "-c", hostile],
+        capture_output=True, text=True, timeout=25,
+    )
+    if rejected.returncode == 0 or "row-level security policy" not in rejected.stderr:
+        raise AssertionError("Recovered RLS failed to reject hostile student INSERT")
+    print("PASS restored RLS runtime: two local families read only own profiles/students, "
+          "and cross-family INSERT is denied.")
+
+
 def seal_and_verify_archive(plain, directory):
     """Encrypt before restore, test wrong-key rejection and ciphertext tampering."""
     password = secrets.token_hex(32)
@@ -172,6 +220,7 @@ def main():
                         + table).splitlines()[-1]
                     if anonymous_rows != "0":
                         raise AssertionError("Anonymous user can see private " + table)
+            verify_restored_rls_reads()
             if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
                 raise AssertionError("Restored local test center has unexpected admin roles")
             print("PASS ENCRYPTED full LOCAL PUBLIC application schema cold restore: all six "
