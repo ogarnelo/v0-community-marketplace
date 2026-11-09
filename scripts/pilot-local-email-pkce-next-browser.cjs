@@ -37,33 +37,16 @@ function copy(name){
  fs.copyFileSync(path.join(root,name),dest);
 }
 async function setup(){
- for(const name of ["app/auth/callback/route.ts","app/api/account/students/route.ts","lib/supabase/server.ts",
+ for(const name of ["app/auth/callback/route.ts","app/api/account/students/route.ts",
+  "app/api/account/students/[id]/route.ts","lib/supabase/server.ts",
   "lib/supabase/client.ts","lib/supabase/admin.ts","lib/auth/safe-next.ts",
   "lib/users/person-name.ts","lib/growth/attribution.ts"])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
  write("qa/events.ts","export function deferProductEvent(_name:string,_data:any){/* no network telemetry in local QA */}");
  
- // Only the account-students data-layer is simplified; the tested Next API
- // route and its requireUser/email-confirmation guard are ORIGINAL app code.
- write("lib/account-students/server.ts",[
-  'import { createClient } from "@/lib/supabase/server";',
-  'export class AccountStudentError extends Error {',
-  ' constructor(message:string,public status=400,public code="invalid_request"){super(message);}}',
-  'export function parseStudentInput(body:any){',
-  ' if(!body||typeof body.gradeLevel!=="string"||!body.gradeLevel.trim())',
-  ' throw new AccountStudentError("Selecciona un curso válido.");',
-  ' return {alias:typeof body.alias==="string"?body.alias:null,gradeLevel:body.gradeLevel.trim(),',
-  ' schoolId:null,directorySchoolCode:null};}',
-  'export async function listAccountStudents(id:string){',
-  ' const supabase=await createClient();const {data,error}=await supabase.from("account_students")',
-  ' .select("id,owner_user_id,alias,grade_level").eq("owner_user_id",id);',
-  ' if(error)throw error;return data||[];}',
-  'export async function createAccountStudent(id:string,input:any){',
-  ' const supabase=await createClient();const {data,error}=await supabase.from("account_students")',
-  ' .insert({owner_user_id:id,alias:input.alias||"Alumno QA",grade_level:input.gradeLevel})',
-  ' .select("id,owner_user_id,alias,grade_level").single();if(error)throw error;return data;}'
- ].join("\n"));
- write("app/layout.tsx",'import React from "react";export default function Layout({children}:{children:React.ReactNode}){return <html lang="es"><body>{children}<script src="/qa-email-client.js" defer /></body></html>;}');
+ // Test ORIGINAL student service and API against disposable local schema.
+ copy("lib/account-students/server.ts");
+  write("app/layout.tsx",'import React from "react";export default function Layout({children}:{children:React.ReactNode}){return <html lang="es"><body>{children}<script src="/qa-email-client.js" defer /></body></html>;}');
  write("app/page.tsx",'export default function Page(){return <main>LOCAL EMAIL CONFIRMATION QA</main>;}');
  write("app/auth/page.tsx",'export default function Auth(){return <main>LOCAL INVALID AUTH LINK</main>;}');
  write("app/onboarding/students/page.tsx",'export default function Students(){return <main>LOCAL STUDENT ONBOARDING</main>;}');
@@ -307,8 +290,9 @@ async function mailLink(){
   const httpBefore=await page.evaluate(async()=>{const res=await fetch("/api/account/students");
     return {status:res.status,body:await res.json()};});
   assert.equal(httpBefore.status,200);
-  assert.ok(httpBefore.body.students.some(x=>x.owner_user_id===signed.id));
-  assert.ok(httpBefore.body.students.every(x=>x.owner_user_id===signed.id));
+  assert.equal(httpBefore.body.students.length,1);
+  assert.equal(httpBefore.body.students[0].id,studentId,
+    "Real student service must list only the confirmed owner's student");
   const httpInvalid=await page.evaluate(async()=>{const res=await fetch("/api/account/students",{
     method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({gradeLevel:""})});
     return {status:res.status,body:await res.json()};});
@@ -327,9 +311,66 @@ async function mailLink(){
     body:JSON.stringify({gradeLevel:"3 Primaria",alias:"Alumno desde API"})});
     return {status:res.status,body:await res.json()};});
   assert.equal(httpCreated.status,201);
-  assert.equal(httpCreated.body.student.owner_user_id,signed.id);
+  assert.equal(httpCreated.body.student.relationship,"guardian");
+  assert.equal(httpCreated.body.student.alias,"Alumno desde API");
+  assert.equal(sql("select owner_user_id from public.account_students where id='"+
+    httpCreated.body.student.id+"'"),signed.id,"Original student service must persist correct owner");
   assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+signed.id+"'"),"2");
   console.log("PASS original Next /api/account/students GET/POST: preconfirmation 401, owner read 200, invalid 400, creation 201.");
+
+  const requestStudent=async(path,method,body)=>{
+    return page.evaluate(async args=>{
+      const options={method:args.method};
+      if(args.body!==undefined){
+        options.headers={"Content-Type":"application/json"};
+        options.body=JSON.stringify(args.body);
+      }
+      const response=await fetch(args.path,options);
+      return {status:response.status,body:await response.json()};
+    },{path,method,body});
+  };
+  const noSchool=await requestStudent("/api/account/students","POST",
+    {gradeLevel:"4 Primaria",schoolId:school});
+  assert.equal(noSchool.status,400,"Inactive/nonexistent school must never be linked");
+  assert.equal(noSchool.body.code,"school_unavailable");
+  const invalidDirectory=await requestStudent("/api/account/students","POST",
+    {gradeLevel:"4 Primaria",directorySchoolCode:"NOTVALID"});
+  assert.equal(invalidDirectory.status,400);
+  const directoryOnly=await requestStudent("/api/account/students","POST",
+    {gradeLevel:"5 Primaria",directorySchoolCode:"99990001"});
+  assert.equal(directoryOnly.status,201);
+  assert.equal(directoryOnly.body.student.directory_school_code,"99990001");
+  assert.equal(directoryOnly.body.student.school_id,null);
+  assert.equal(sql("select count(*) from public.profiles where id='"+signed.id+
+    "' and school_id is not null"),"0",
+    "Choosing a directory school must NOT activate community membership");
+  const otherStudentPatch=await requestStudent("/api/account/students/"+
+    foreignStudentId,"PATCH",{gradeLevel:"6 Primaria"});
+  assert.equal(otherStudentPatch.status,404,"Cannot patch another family's student");
+  assert.equal(otherStudentPatch.body.code,"student_not_found");
+  const otherStudentDelete=await requestStudent("/api/account/students/"+
+    foreignStudentId,"DELETE");
+  assert.equal(otherStudentDelete.status,404,"Cannot delete another family's student");
+  const edited=await requestStudent("/api/account/students/"+
+    httpCreated.body.student.id,"PATCH",
+    {gradeLevel:"6 Primaria",alias:"Actualizado"});
+  assert.equal(edited.status,200);
+  assert.equal(edited.body.student.alias,"Actualizado");
+  const removed=await requestStudent("/api/account/students/"+
+    httpCreated.body.student.id,"DELETE");
+  assert.equal(removed.status,200);
+  assert.equal(removed.body.student.active,false);
+  assert.equal(sql("select active from public.account_students where id='"+
+    httpCreated.body.student.id+"'"),"f",
+    "Original service must soft-deactivate instead of deleting row");
+  const finalList=await requestStudent("/api/account/students","GET");
+  assert.equal(finalList.status,200);
+  assert.ok(finalList.body.students.every(x=>x.id!==httpCreated.body.student.id),
+    "Soft-deactivated student must disappear from active list");
+  assert.equal(sql("select alias from public.account_students where id='"+
+    foreignStudentId+"'"),"Otra alumna");
+  console.log("PASS ORIGINAL Next routes and ORIGINAL student service: POST/GET/PATCH/DELETE, own vs foreign ownership, nonactive schools, directory-only and soft-delete.");
+
 
 
   // Confirm that the authenticated PKCE session survives navigation/reload
@@ -378,7 +419,7 @@ async function mailLink(){
    u.searchParams.get("auth_error")==="invalid_link",{timeout:23000});
   assert.equal(new URL(page.url()).origin,origin,"Invalid code must stay on local origin");
   console.log("PASS original Next callback rejects replayed, missing and invalid codes without offsite redirects.");
-  console.log("LIMIT: original AuthForm is covered separately; Turnstile external, email provider hosted and full student onboarding are NOT part of this local rehearsal.");
+  console.log("LIMIT: original student API and persistence run locally; original student form, QR UI, AuthForm, Turnstile and hosted mail are not included.");
   await ctx.close();
  }catch(error){
   console.error("EMAIL/PKCE NEXT CALLBACK QA FAILED:",error.stack||error.message);
