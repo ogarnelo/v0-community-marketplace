@@ -286,6 +286,9 @@ test("search signals do not fire from anonymous browsing or every infinite-scrol
   assert.match(client, /!initialIsAuthenticated \|\| filterDebouncing/);
   assert.match(client, /observedDemandKeyRef\.current === key/);
   assert.match(client, /observedDemandKeyRef\.current = key/);
+  assert.match(client, /observedDemandKeyRef\.current = ""/);
+  assert.match(client, /rawSearchQuery\.length === 1 \|\| rawIsbnQuery\.length === 1/);
+  assert.match(client, /controller\.abort\(\)/);
   assert.match(client, /schoolAppliedKey === debouncedFeedFilters/);
   assert.match(client, /generalAppliedKey === debouncedFeedFilters/);
   assert.match(client, /fetch\("\/api\/marketplace\/search-events"/);
