@@ -61,7 +61,7 @@ def security_snapshot(conn):
     for name in TABLES:
         report[name] = sql(
             conn, "SELECT relrowsecurity::text || ':' || "
-            "coalesce((SELECT string_agg(polname || ':' || polcmd, ',' ORDER BY polname) "
+            "coalesce((SELECT string_agg(polname || ':' || polcmd::text, ',' ORDER BY polname) "
             "FROM pg_policy WHERE polrelid=c.oid), '') "
             "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
             "WHERE n.nspname='public' AND c.relname='" + name + "'"
