@@ -2,6 +2,7 @@ import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
+import { makeMarketplaceSchoolFilter, resolveMarketplaceSchoolScope } from "@/lib/marketplace/school-scope";
 import {
   buildPhotosMap,
   type ListingPhotoRow,
@@ -79,29 +80,25 @@ export default async function MarketplacePage() {
     viewerPostalCode = typedProfile?.postal_code?.trim() || "";
   }
 
-  // The count is independent of the first 60 catalogue cards. Never infer
-  // "no listings at this school" from that limited default window.
+  // Exact school count (including older cards) and national-directory ↔
+  // operational-centre continuity. A failed school lookup must not block the
+  // general marketplace from loading.
   let communityListingCount: number | null = null;
   if (viewerDirectorySchoolCode || viewerSchoolId) {
-    const countQueries: PromiseLike<{ count: number | null; error: unknown }>[] = [];
-    if (viewerDirectorySchoolCode) {
-      countQueries.push(
-        supabase.from("listings").select("id", { count: "exact", head: true })
-          .eq("status", "available")
-          .eq("directory_school_code", viewerDirectorySchoolCode)
-      );
-    } else if (viewerSchoolId) {
-      countQueries.push(
-        supabase.from("listings").select("id", { count: "exact", head: true })
-          .eq("status", "available")
-          .eq("school_id", viewerSchoolId)
-      );
-    }
-    const results = await Promise.all(countQueries);
-    if (results.every((result) => !result.error && result.count !== null)) {
-      communityListingCount = results.reduce(
-        (sum, result) => sum + (result.count || 0), 0
-      );
+    try {
+      const scope = await resolveMarketplaceSchoolScope(
+        viewerSchoolId, viewerDirectorySchoolCode);
+      const schoolFilter = makeMarketplaceSchoolFilter(scope);
+      if (schoolFilter) {
+        const result = await supabase.from("listings")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "available").or(schoolFilter);
+        if (!result.error) communityListingCount = result.count;
+      } else {
+        communityListingCount = 0;
+      }
+    } catch (error) {
+      console.error("Error contando anuncios del colegio:", error);
     }
   }
 
