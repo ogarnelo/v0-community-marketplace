@@ -74,6 +74,12 @@ def snapshot(url):
     return tuple(query(url, statement) for statement in statements)
 
 
+def verify_encrypted_checksum(source, expected):
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    if digest != expected:
+        raise ValueError("Encrypted artifact checksum mismatch")
+
+
 def encrypt_then_recover(plain_db, plain_storage, directory):
     # Same AES-256-CBC PBKDF2 iteration count as Wetudy's encrypted backup jobs.
     # The password exists ONLY in this one ephemeral test process.
@@ -95,8 +101,16 @@ def encrypt_then_recover(plain_db, plain_storage, directory):
         # Reject tampering BEFORE attempting decryption.
         altered = bytearray(encrypted.read_bytes())
         altered[-1] ^= 0x01
-        if hashlib.sha256(altered).hexdigest() == expected_digest:
-            raise AssertionError("Encrypted artifact tampering not detected")
+        corrupted = directory / (source.name + ".tampered.enc")
+        corrupted.write_bytes(altered)
+        try:
+            verify_encrypted_checksum(corrupted, expected_digest)
+        except ValueError:
+            pass  # Required: tampering is caught before decryption.
+        else:
+            raise AssertionError("Tampered encrypted artifact was accepted")
+        finally:
+            corrupted.unlink(missing_ok=True)
         source.unlink()
         broken_env = dict(env, WETUDY_QA_ENC_PASS="definitely-wrong-qa-key")
         bad_target = directory / ("bad-" + source.name)
@@ -112,8 +126,7 @@ def encrypt_then_recover(plain_db, plain_storage, directory):
                 raise AssertionError("Wrong password unexpectedly recovered encrypted bytes")
         if bad_target.exists():
             bad_target.unlink()
-        if hashlib.sha256(encrypted.read_bytes()).hexdigest() != expected_digest:
-            raise AssertionError("Encrypted artifact checksum mismatch")
+        verify_encrypted_checksum(encrypted, expected_digest)
         subprocess.run(
             ["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
              "-in", str(encrypted), "-out", str(restored),
@@ -184,23 +197,26 @@ def main():
         verify_archive(archive)
         # A second, distinct LOCAL database must be created before restoration.
         query(SOURCE, "create database wetudy_pilot_dr_restored")
-        run("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
-            "--dbname", TARGET, str(backup))
-        recovered = snapshot(TARGET)
-        if recovered != original:
-            raise AssertionError("Recovered PostgreSQL rows differ from source")
-        if query(TARGET,"select count(*) from qa_pilot_app.profiles where school_id is not null") != "0":
-            raise AssertionError("Unexpected active school membership in recovery")
-        with tarfile.open(archive, "r:gz") as tar:
-            for (bucket, name), original_bytes in fixtures.items():
-                member = tar.extractfile("./" + bucket + "/" + name)
-                if member is None or member.read() != original_bytes:
-                    raise AssertionError("Storage object bytes changed across recovery")
-        print("PASS synthetic integrated DR: two account surrogates, two profiles, "
-              "one student, two storage objects; local pg_dump/pg_restore and "
-              "encrypted artifacts round-tripped and byte-for-byte SHA256 verified.")
-        print("LIMIT: synthetic account surrogates are NOT Supabase GoTrue users; "
-              "this is NOT a full hosted Auth/DB/Storage restore.")
+        try:
+            run("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
+                "--dbname", TARGET, str(backup))
+            recovered = snapshot(TARGET)
+            if recovered != original:
+                raise AssertionError("Recovered PostgreSQL rows differ from source")
+            if query(TARGET,"select count(*) from qa_pilot_app.profiles where school_id is not null") != "0":
+                raise AssertionError("Unexpected active school membership in recovery")
+            with tarfile.open(archive, "r:gz") as tar:
+                for (bucket, name), original_bytes in fixtures.items():
+                    member = tar.extractfile("./" + bucket + "/" + name)
+                    if member is None or member.read() != original_bytes:
+                        raise AssertionError("Storage object bytes changed across recovery")
+            print("PASS synthetic integrated DR: two account surrogates, two profiles, "
+                  "one student, two storage objects; local pg_dump/pg_restore and "
+                  "encrypted artifacts round-tripped and byte-for-byte SHA256 verified.")
+            print("LIMIT: synthetic account surrogates are NOT Supabase GoTrue users; "
+                  "this is NOT a full hosted Auth/DB/Storage restore.")
+        finally:
+            query(SOURCE, "drop database if exists wetudy_pilot_dr_restored with (force)")
 
 
 if __name__ == "__main__":
