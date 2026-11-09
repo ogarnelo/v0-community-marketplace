@@ -66,7 +66,11 @@ async function setup(){
   }},include:["**/*.ts","**/*.tsx",".next/types/**/*.ts"],exclude:["node_modules"]},null,2));
  write("package.json",JSON.stringify({name:"wetudy-local-email-confirm-qa",private:true,
   version:"0.0.0",dependencies:{next:"16.3.5",react:"19.2.4","react-dom":"19.2.4",
-  "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0"}},null,2));
+  "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0",
+  "lucide-react":"0.564.0","@radix-ui/react-slot":"1.2.4",
+  "@radix-ui/react-label":"2.1.8","@radix-ui/react-popover":"1.1.15",
+  "@radix-ui/react-select":"2.2.6","class-variance-authority":"0.7.1",
+  "clsx":"2.1.1","tailwind-merge":"3.3.1"}},null,2));
  const src=[
   'import {createClient} from "./lib/supabase/client.ts";',
   'const client=createClient();',
