@@ -22,8 +22,16 @@ DEST = urlunsplit((parsed.scheme, parsed.netloc, "/" + DEST_NAME, "", ""))
 
 
 def call(*argv):
-    return subprocess.run(argv, text=True, capture_output=True,
-                          check=True, timeout=140).stdout.strip()
+    result = subprocess.run(argv, text=True, capture_output=True,
+                            check=False, timeout=140)
+    if result.returncode:
+        # Do not log full command arguments, connection URLs or potentially
+        # sensitive SQL statements. Only expose the first server error category.
+        lines = [line.strip() for line in result.stderr.splitlines()
+                 if "ERROR:" in line or "pg_restore: error:" in line]
+        detail = (lines[:3] or ["No PostgreSQL diagnostic available"])
+        raise RuntimeError(argv[0] + " failed: " + " | ".join(detail)[:550])
+    return result.stdout.strip()
 
 
 def sql(connection, statement):
