@@ -83,7 +83,8 @@ test("school feed is loaded in authenticated, paginated chunks rather than filte
   assert.match(schoolFeedRoute, /hasMore: offset \+ listings\.length < total/);
   assert.doesNotMatch(schoolFeedRoute, /searchParams\.get\("schoolId"\)/);
   assert.match(marketClient, /loadMoreSchoolListings/);
-  assert.match(marketClient, /Cargar más anuncios de mi colegio/);
+  assert.match(marketClient, /feedSentinelRef/);
+  assert.match(marketClient, /loadMoreSchoolListings/);
   assert.match(schoolScope, /linked_school_id/);
   assert.match(schoolScope, /Never fall back to an old profile/);
 });
@@ -124,7 +125,8 @@ test("general catalogue continues after sixty cards without forcing school filte
   assert.match(page, /\.slice\(0, 60\)/);
   assert.match(client, /const \[onlyMyCommunity, setOnlyMyCommunity\] = useState\(false\)/);
   assert.match(client, /loadMoreGeneralListings/);
-  assert.match(client, /Cargar más anuncios/);
+  assert.match(client, /IntersectionObserver/);
+  assert.match(client, /Cargando más anuncios/);
   assert.match(feed, /PAGE_SIZE = 60/);
   assert.match(feed, /\.range\(offset, offset \+ PAGE_SIZE\)/);
   assert.match(feed, /\.eq\("status", "available"\)/);
@@ -132,4 +134,32 @@ test("general catalogue continues after sixty cards without forcing school filte
   assert.match(feed, /Cache-Control": "private, no-store"/);
   assert.match(feed, /const hasMore = allRows\.length > PAGE_SIZE/);
   assert.doesNotMatch(feed, /service_role|schoolId=|directorySchoolCode=/);
+});
+
+test("both marketplace feeds auto-load on scroll without load-more buttons", () => {
+  assert.match(marketClient, /new IntersectionObserver/);
+  assert.match(marketClient, /rootMargin: "360px 0px"/);
+  assert.match(marketClient, /observer\.observe\(target\)/);
+  assert.match(marketClient, /observer\.disconnect\(\)/);
+  assert.match(marketClient, /entry\?\.isIntersecting/);
+  assert.match(marketClient, /onlyMyCommunity\) void loadMoreSchoolListings\(\)/);
+  assert.match(marketClient, /else void loadMoreGeneralListings\(\)/);
+  assert.match(marketClient, /ref=\{feedSentinelRef\}/);
+  assert.doesNotMatch(marketClient, /Cargar más anuncios de mi colegio/);
+  assert.doesNotMatch(marketClient, />Cargar más anuncios<\/Button>/);
+  assert.match(marketClient, /Cargando más anuncios/);
+});
+
+test("pagination is sequential, de-duplicates cards and pauses on network failures", () => {
+  assert.match(marketClient, /generalRequestInFlight\.current/);
+  assert.match(marketClient, /schoolRequestInFlight\.current/);
+  assert.match(marketClient, /setGeneralOffset\(\(current\) => current \+ rows\.length\)/);
+  assert.match(marketClient, /setSchoolOffset\(\(current\) => current \+ rows\.length\)/);
+  assert.match(marketClient, /!ids\.has\(listing\.id\)/);
+  assert.match(marketClient, /!ids\.has\(item\.id\)/);
+  assert.match(marketClient, /generalLoading \|\| generalLoadError \|\| !generalHasMore/);
+  assert.match(marketClient, /schoolLoading \|\| schoolLoadError \|\| !schoolHasMore/);
+  assert.match(marketClient, /schoolLoadError && !schoolLoaded/);
+  assert.match(marketClient, /Reintentar carga/);
+  assert.match(marketClient, /role="status"/);
 });
