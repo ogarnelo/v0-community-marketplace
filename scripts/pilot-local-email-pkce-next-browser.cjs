@@ -555,6 +555,40 @@ async function mailLink(targetEmail=email){
   assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+
     signed.id+"' and alias='Estudiante segunda familia'"),"0");
   console.log("PASS ORIGINAL AuthForm -> local GoTrue email -> PKCE -> ORIGINAL students UI+API -> ORIGINAL QR join; family isolation and roles safe.");
+  // A separate browser represents a new device with NO prior session.
+  // Verify the ORIGINAL login form rejects a wrong password and then restores
+  // the same family account without granting school administration roles.
+  const loginContext=await browser.newContext();
+  const loginPage=await loginContext.newPage();
+  await loginPage.route("**/*",route=>allow.has(new URL(route.request().url()).origin)
+    ?route.continue():route.abort());
+  try{
+    await loginPage.goto(origin+"/qa-authform?mode=login&next=%2Fmarketplace",
+      {waitUntil:"domcontentloaded"});
+    await loginPage.locator("#email").fill(email2);
+    await loginPage.locator("#password").fill("Incorrect-local-password-2026");
+    await loginPage.getByTestId("local-turnstile").click();
+    await loginPage.getByRole("button",{name:"Iniciar sesión",exact:true}).click();
+    await loginPage.getByText("Email o contraseña incorrectos.").waitFor({timeout:20000});
+    assert.equal(new URL(loginPage.url()).pathname,"/qa-authform",
+      "Wrong password must not redirect from real AuthForm");
+    await loginPage.locator("#password").fill(password);
+    await loginPage.getByTestId("local-turnstile").click();
+    await loginPage.getByRole("button",{name:"Iniciar sesión",exact:true}).click();
+    await loginPage.waitForURL(u=>u.origin===origin&&u.pathname==="/marketplace",
+      {timeout:25000});
+    await loginPage.waitForFunction(()=>typeof window.__qaEmail?.user==="function");
+    const logged=await loginPage.evaluate(()=>window.__qaEmail.user());
+    assert.equal(logged.error,null);
+    assert.equal(logged.id,secondId,"Original AuthForm must restore exact confirmed user");
+    assert.equal(logged.confirmed,true);
+    assert.equal(sql("select count(*) from public.user_roles"),"0",
+      "Re-login must not create privileged school roles");
+    assert.equal(sql("select school_id from public.profiles where id='"+secondId+"'"),
+      school,"Login must preserve the family's chosen local school");
+    console.log("PASS ORIGINAL AuthForm fresh-device login: wrong password rejected, correct password restores confirmed owner, school and roles unchanged.");
+  }finally{await loginContext.close();}
+
   console.log("LIMIT: only Turnstile external service is replaced by manual local QA stub; no hosted Turnstile guarantee.");
 
   console.log("LIMIT: ORIGINAL students UI and QR join run against synthetic locally active school. AuthForm, Turnstile, real colleges and hosted email are NOT covered.");
