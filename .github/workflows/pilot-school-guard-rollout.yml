@@ -1,0 +1,38 @@
+name: Wetudy SQL school guard rollout contract
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-active-school-release-candidate.sql"
+      - "scripts/pilot-active-school-emergency-rollback.sql"
+      - "scripts/pilot-school-guard-rollout-contract.py"
+      - ".github/workflows/pilot-school-guard-rollout.yml"
+permissions:
+  contents: read
+jobs:
+  school-guard-local-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Ensure local PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Verify failed preflight leaves zero changes and rollback is reversible
+        env:
+          LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: python3 scripts/pilot-school-guard-rollout-contract.py
