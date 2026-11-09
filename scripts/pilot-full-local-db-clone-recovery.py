@@ -7,6 +7,8 @@ ONLY restores the complete locally authored public schema and rows.
 Never connect to remote databases, never overwrite an existing restored DB.
 """
 import os
+import hashlib
+import secrets
 from pathlib import Path
 import subprocess
 import tempfile
@@ -73,6 +75,48 @@ def security_snapshot(conn):
                 + name + "', 'SELECT')::text")
     return report
 
+def seal_and_verify_archive(plain, directory):
+    """Encrypt before restore, test wrong-key rejection and ciphertext tampering."""
+    password = secrets.token_hex(32)
+    env = dict(os.environ, WETUDY_QA_BACKUP_PASSWORD=password)
+    encrypted = directory / "public-only.dump.enc"
+    restored = directory / "public-only-recovered.dump"
+    plain_digest = hashlib.sha256(plain.read_bytes()).hexdigest()
+    args = ("openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-iter", "200000")
+    def crypto(extra, environment):
+        result = subprocess.run([*args[:2], *extra], capture_output=True, text=True,
+                                env=environment, timeout=60)
+        return result.returncode
+    assert crypto(("-aes-256-cbc", "-pbkdf2", "-iter", "200000", "-in",
+                   str(plain), "-out", str(encrypted), "-pass",
+                   "env:WETUDY_QA_BACKUP_PASSWORD"), env) == 0
+    sealed_hash = hashlib.sha256(encrypted.read_bytes()).hexdigest()
+    modified = bytearray(encrypted.read_bytes())
+    modified[-1] ^= 1
+    bad = directory / "tampered-public.dump.enc"
+    bad.write_bytes(modified)
+    assert hashlib.sha256(bad.read_bytes()).hexdigest() != sealed_hash
+    bad.unlink()
+    plain.unlink()  # Only encrypted archive exists while awaiting restoration.
+    wrong = dict(env, WETUDY_QA_BACKUP_PASSWORD="invalid-wrong-key-qa")
+    wrong_path = directory / "wrong-password.dump"
+    incorrect = crypto(("-d", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
+                        "-in", str(encrypted), "-out", str(wrong_path), "-pass",
+                        "env:WETUDY_QA_BACKUP_PASSWORD"), wrong)
+    if incorrect == 0 and wrong_path.exists() and (
+            hashlib.sha256(wrong_path.read_bytes()).hexdigest() == plain_digest):
+        raise AssertionError("Incorrect password recovered authentic data")
+    wrong_path.unlink(missing_ok=True)
+    if hashlib.sha256(encrypted.read_bytes()).hexdigest() != sealed_hash:
+        raise AssertionError("Encrypted backup integrity check failed")
+    assert crypto(("-d", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
+                   "-in", str(encrypted), "-out", str(restored), "-pass",
+                   "env:WETUDY_QA_BACKUP_PASSWORD"), env) == 0
+    if hashlib.sha256(restored.read_bytes()).hexdigest() != plain_digest:
+        raise AssertionError("Recovered archive has incorrect SHA256")
+    return restored
+
+
 def main():
     names, original = snapshot(SOURCE)
     original_security = security_snapshot(SOURCE)
@@ -90,6 +134,7 @@ def main():
             "--dbname", SOURCE, "--file", str(archive))
         if archive.stat().st_size < 4096:
             raise AssertionError("Empty public-schema dump")
+        archive = seal_and_verify_archive(archive, Path(temp))
         sql(SOURCE, "CREATE DATABASE " + DEST_NAME + " TEMPLATE template0")
         try:
             # The target is a fresh local, empty database. auth.uid() is a
@@ -129,7 +174,7 @@ def main():
                         raise AssertionError("Anonymous user can see private " + table)
             if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
                 raise AssertionError("Restored local test center has unexpected admin roles")
-            print("PASS full LOCAL PUBLIC application schema cold restore: all six "
+            print("PASS ENCRYPTED full LOCAL PUBLIC application schema cold restore: all six "
                   "tables with row digests, RLS and existing-table GRANT parity; no school admin.")
             print("LIMIT: this restores APPLICATION tables only, not Supabase "
                   "managed Auth, GoTrue runtime, SMTP, Storage bytes or hosted DR.")
