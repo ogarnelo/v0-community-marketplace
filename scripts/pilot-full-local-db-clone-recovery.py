@@ -67,9 +67,10 @@ def security_snapshot(conn):
             "WHERE n.nspname='public' AND c.relname='" + name + "'"
         )
     for name in ("profiles", "account_students", "user_roles", "school_directory"):
-        report["authenticated_select_" + name] = sql(
-            conn, "SELECT has_table_privilege('authenticated', 'public."
-            + name + "', 'SELECT')::text")
+        for role in ("anon", "authenticated"):
+            report[role + "_select_" + name] = sql(
+                conn, "SELECT has_table_privilege('" + role + "', 'public."
+                + name + "', 'SELECT')::text")
     return report
 
 def main():
@@ -117,8 +118,15 @@ def main():
                 raise AssertionError("Public application schema/rows differ after cold restore")
             if security_snapshot(DEST) != original_security:
                 raise AssertionError("Recovered RLS policies or grants differ")
-            if sql(DEST, "SELECT has_table_privilege('anon', 'public.profiles', 'SELECT')") != "f":
-                raise AssertionError("Anonymous access to profiles was granted")
+            # Direct SQL grants and RLS are distinct. If anon has a SELECT
+            # grant, it must still see zero private rows via RLS.
+            for table in ("profiles", "account_students"):
+                if security_snapshot(DEST)["anon_select_" + table] == "t":
+                    anonymous_rows = sql(
+                        DEST, "SET ROLE anon; SELECT count(*) FROM public."
+                        + table).splitlines()[-1]
+                    if anonymous_rows != "0":
+                        raise AssertionError("Anonymous user can see private " + table)
             if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
                 raise AssertionError("Restored local test center has unexpected admin roles")
             print("PASS full LOCAL PUBLIC application schema cold restore: all six "
