@@ -113,3 +113,23 @@ test("school inventory invitation is limited to one per session and school", () 
   assert.match(marketClient, /return \(\) => window\.clearTimeout\(handle\)/);
   assert.match(marketClient, /return;\s*\}\s*toast\(/);
 });
+
+
+test("general catalogue continues after sixty cards without forcing school filter", () => {
+  const page = read("app/marketplace/page.tsx");
+  const client = read("components/marketplace/marketplace-client.tsx");
+  const feed = read("app/api/marketplace/feed/route.ts");
+  assert.match(page, /\.limit\(61\)/);
+  assert.match(page, /initialGeneralHasMore/);
+  assert.match(page, /\.slice\(0, 60\)/);
+  assert.match(client, /const \[onlyMyCommunity, setOnlyMyCommunity\] = useState\(false\)/);
+  assert.match(client, /loadMoreGeneralListings/);
+  assert.match(client, /Cargar más anuncios/);
+  assert.match(feed, /PAGE_SIZE = 60/);
+  assert.match(feed, /\.range\(offset, offset \+ PAGE_SIZE\)/);
+  assert.match(feed, /\.eq\("status", "available"\)/);
+  assert.match(feed, /\.order\("id", \{ ascending: false \}\)/);
+  assert.match(feed, /Cache-Control": "private, no-store"/);
+  assert.match(feed, /const hasMore = allRows\.length > PAGE_SIZE/);
+  assert.doesNotMatch(feed, /service_role|schoolId=|directorySchoolCode=/);
+});

@@ -109,13 +109,15 @@ export default async function MarketplacePage() {
     )
     .eq("status", "available")
     .order("created_at", { ascending: false })
-    .limit(60);
+    .order("id", { ascending: false })
+    .limit(61);
 
   if (listingsError) {
     console.error("Error cargando listings server-first:", listingsError);
   }
 
-  const listingRows = ((listingsData || []) as ListingRow[]) ?? [];
+  const initialGeneralHasMore = (listingsData || []).length > 60;
+  const listingRows = ((listingsData || []) as ListingRow[]).slice(0, 60);
   const listingIds = listingRows.map((item) => item.id);
   const sellerIds = Array.from(
     new Set(
@@ -215,6 +217,7 @@ export default async function MarketplacePage() {
       initialDirectorySchoolCode={viewerDirectorySchoolCode}
       initialCommunityListingCount={communityListingCount}
       initialPostalCode={viewerPostalCode}
+      initialGeneralHasMore={initialGeneralHasMore}
     />
   );
 }
