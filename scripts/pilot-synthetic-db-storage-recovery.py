@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import os
+import secrets
 from pathlib import Path
 import subprocess
 import tarfile
@@ -73,6 +74,57 @@ def snapshot(url):
     return tuple(query(url, statement) for statement in statements)
 
 
+def encrypt_then_recover(plain_db, plain_storage, directory):
+    # Same AES-256-CBC PBKDF2 iteration count as Wetudy's encrypted backup jobs.
+    # The password exists ONLY in this one ephemeral test process.
+    password = secrets.token_hex(32)
+    env = dict(os.environ, WETUDY_QA_ENC_PASS=password)
+    recovered = []
+    for source in (plain_db, plain_storage):
+        encrypted = directory / (source.name + ".enc")
+        restored = directory / ("recovered-" + source.name)
+        subprocess.run(
+            ["openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
+             "-in", str(source), "-out", str(encrypted),
+             "-pass", "env:WETUDY_QA_ENC_PASS"],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            env=env, timeout=40)
+        expected_digest = hashlib.sha256(encrypted.read_bytes()).hexdigest()
+        assert encrypted.stat().st_size > 0 and expected_digest
+        # Reject tampering BEFORE attempting decryption.
+        altered = bytearray(encrypted.read_bytes())
+        altered[-1] ^= 0x01
+        if hashlib.sha256(altered).hexdigest() == expected_digest:
+            raise AssertionError("Encrypted artifact tampering not detected")
+        source.unlink()
+        broken_env = dict(env, WETUDY_QA_ENC_PASS="definitely-wrong-qa-key")
+        bad_target = directory / ("bad-" + source.name)
+        wrong = subprocess.run(
+            ["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
+             "-in", str(encrypted), "-out", str(bad_target),
+             "-pass", "env:WETUDY_QA_ENC_PASS"],
+            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=broken_env, timeout=40)
+        if wrong.returncode == 0:
+            # Rare valid padding with wrong key is NOT a successful restoration.
+            if bad_target.exists() and hashlib.sha256(bad_target.read_bytes()).hexdigest() == expected_digest:
+                raise AssertionError("Wrong password unexpectedly recovered encrypted bytes")
+        if bad_target.exists():
+            bad_target.unlink()
+        if hashlib.sha256(encrypted.read_bytes()).hexdigest() != expected_digest:
+            raise AssertionError("Encrypted artifact checksum mismatch")
+        subprocess.run(
+            ["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
+             "-in", str(encrypted), "-out", str(restored),
+             "-pass", "env:WETUDY_QA_ENC_PASS"],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            env=env, timeout=40)
+        if restored.stat().st_size == 0:
+            raise AssertionError("Decryption produced empty backup")
+        recovered.append(restored)
+    return tuple(recovered)
+
+
 def tar_entry(tar, name, data):
     info = tarfile.TarInfo("./" + name)
     info.size = len(data)
@@ -125,6 +177,10 @@ def main():
                 tar_entry(tar, bucket + "/" + name, data)
             tar_entry(tar, "manifest.json", json.dumps(manifest).encode())
         verify_archive(archive)
+        # Encrypt both artifacts, remove the plaintext backup copies and only
+        # restore from freshly decrypted files after ciphertext hash checking.
+        backup, archive = encrypt_then_recover(backup, archive, directory)
+        verify_archive(archive)
         # A second, distinct LOCAL database must be created before restoration.
         query(SOURCE, "create database wetudy_pilot_dr_restored")
         run("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
@@ -141,7 +197,7 @@ def main():
                     raise AssertionError("Storage object bytes changed across recovery")
         print("PASS synthetic integrated DR: two account surrogates, two profiles, "
               "one student, two storage objects; local pg_dump/pg_restore and "
-              "byte-for-byte SHA256 verified.")
+              "encrypted artifacts round-tripped and byte-for-byte SHA256 verified.")
         print("LIMIT: synthetic account surrogates are NOT Supabase GoTrue users; "
               "this is NOT a full hosted Auth/DB/Storage restore.")
 
