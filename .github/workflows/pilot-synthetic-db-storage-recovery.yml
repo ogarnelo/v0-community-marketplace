@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/pilot-synthetic-db-storage-recovery.py"
+      - "scripts/pilot-marketplace-real-shape-recovery.py"
       - "scripts/verify-pilot-storage-restore.py"
       - ".github/workflows/pilot-synthetic-db-storage-recovery.yml"
 permissions:
@@ -41,3 +42,5 @@ jobs:
           sudo apt-get install -y -qq postgresql-client-17
       - name: Restore synthetic account surrogates, profiles, students and Storage bytes locally
         run: python3 scripts/pilot-synthetic-db-storage-recovery.py
+      - name: Restore production-shaped marketplace relationships and object bytes in second local DB
+        run: python3 scripts/pilot-marketplace-real-shape-recovery.py
