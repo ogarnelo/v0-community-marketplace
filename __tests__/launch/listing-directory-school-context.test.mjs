@@ -277,7 +277,28 @@ test("filtered auto-pagination keeps query parameters through both feeds", () =>
   assert.match(client, /schoolAppliedKey !== debouncedFeedFilters \|\| filterDebouncing/);
   assert.match(client, /observer\.disconnect\(\)/);
   assert.match(client, /Cargando más anuncios/);
-  assert.match(client, /sortBy === "distance" \|\| sortBy === "discount"/);
+  assert.match(client, /sortBy === "distance" \? <p/);
+  assert.match(client, /sortBy === "discount"\) params\.set\("sort", sortBy\)/);
+});
+
+test("global Mayor ahorro ranks the whole matching catalogue before pagination", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  const filters = read("lib/marketplace/feed-filters.ts");
+  const feed = read("app/api/marketplace/feed/route.ts");
+  const school = read("app/api/marketplace/my-school/route.ts");
+  const sql = read("supabase/migrations/20261109214718_marketplace_global_savings_order.sql");
+  assert.match(client, /sortBy === "discount"\) params\.set\("sort", sortBy\)/);
+  assert.doesNotMatch(client, /sortBy === "discount" && !radiusIsActive/);
+  assert.match(filters, /rawSort === "discount"/);
+  assert.match(filters, /query\.order\("savings_amount", \{ ascending: false/);
+  for (const route of [feed, school]) {
+    assert.ok(route.indexOf("applyMarketplaceFeedFilters(") <
+      route.indexOf(".range(offset, offset + PAGE_SIZE"),
+      "Apply filter/order before page range");
+  }
+  assert.match(sql, /generated always as/);
+  assert.match(sql, /coalesce\(original_price, estimated_retail_price, 0\) - coalesce\(price, 0\)/);
+  assert.match(sql, /where status = 'available'/);
 });
 
 test("search signals do not fire from anonymous browsing or every infinite-scroll page", () => {

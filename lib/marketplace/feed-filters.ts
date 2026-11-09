@@ -14,7 +14,7 @@ export type MarketplaceFeedFilters = {
   since: string;
   priceMin: number | null;
   priceMax: number | null;
-  sort: "newest" | "price_asc" | "price_desc";
+  sort: "newest" | "price_asc" | "price_desc" | "discount";
 };
 
 const SEARCH_COLUMNS = [
@@ -70,7 +70,7 @@ export function parseMarketplaceFeedFilters(params: URLSearchParams): Marketplac
   }
   const rawSort = stringField(params, "sort", 20);
   const sort: MarketplaceFeedFilters["sort"] =
-    rawSort === "price_asc" || rawSort === "price_desc" ? rawSort : "newest";
+    rawSort === "price_asc" || rawSort === "price_desc" || rawSort === "discount" ? rawSort : "newest";
   return { text, isbn, category, gradeLevel, listingType: rawType as
     MarketplaceFeedFilters["listingType"], condition, since,
     priceMin, priceMax, sort };
@@ -137,6 +137,11 @@ export function applyMarketplaceFeedFilters(query: any,
   }
   if (filters.sort === "price_desc") {
     return query.order("price", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  }
+  if (filters.sort === "discount") {
+    return query.order("savings_amount", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
   }
