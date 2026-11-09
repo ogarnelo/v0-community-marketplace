@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { diversifyRecentPages } from "../../lib/marketplace/diverse-feed.mjs";
 
 const read = (path) => readFileSync(path, "utf8");
 const migration = read("supabase/migrations/20261108133000_listings_directory_school_context.sql");
@@ -266,6 +267,34 @@ test("marketplace client searches all server-side listings before displaying an 
   assert.match(client, /if \(!requestKey\) setSchoolCount\(payload\.total \?\? null\)/);
   assert.doesNotMatch(client, /normalizeText\(searchQuery\)/);
   assert.match(client, /No se pudo completar la búsqueda/);
+});
+
+test("Explorar shows a stable category mix without changing page size, filters or styles", () => {
+  const card = (id, category) => ({ id, category });
+  const original = [card("a1","Uniformes"), card("a2","Uniformes"), card("a3","Uniformes"),
+    card("a4","Uniformes"), card("b1","Libros"), card("c1","Mochilas")];
+  const mixed = diversifyRecentPages(original, 6);
+  assert.equal(mixed.length, original.length);
+  assert.deepEqual(mixed.slice(0, 4).map((c) => c.category),
+    ["Uniformes","Libros","Uniformes","Mochilas"]);
+  assert.deepEqual(mixed.filter((c) => c.category === "Uniformes").map((c) => c.id),
+    ["a1","a2","a3","a4"], "Keep newest ordering within each category");
+  assert.deepEqual([...mixed.map((c) => c.id)].sort(), [...original.map((c) => c.id)].sort());
+  assert.deepEqual(original.map((c) => c.id), ["a1","a2","a3","a4","b1","c1"],
+    "Do not mutate the server result");
+  assert.deepEqual(diversifyRecentPages(original.slice(0, 4), 6), original.slice(0, 4),
+    "Do not invent diversity if the sample only contains one category");
+  const firstPage = diversifyRecentPages(original.slice(0, 3), 3);
+  assert.deepEqual(diversifyRecentPages(original, 3).slice(0, 3), firstPage,
+    "Loading another page must not reshuffle already displayed cards");
+  assert.throws(() => diversifyRecentPages(original, 0), RangeError);
+
+  const client = read("components/marketplace/marketplace-client.tsx");
+  assert.match(client, /useState\("explore"\)/);
+  assert.match(client, /Explorar \(variedad\)/);
+  assert.match(client, /sortBy === "explore" && !hasSearchIntent/);
+  assert.match(client, /diversifyRecentPages\(filtered\)/);
+  assert.match(client, /<SelectItem value="newest">Más recientes<\/SelectItem>/);
 });
 
 test("filtered auto-pagination keeps query parameters through both feeds", () => {
