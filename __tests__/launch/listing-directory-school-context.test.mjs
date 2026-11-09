@@ -286,7 +286,7 @@ test("global Mayor ahorro ranks the whole matching catalogue before pagination",
   const filters = read("lib/marketplace/feed-filters.ts");
   const feed = read("app/api/marketplace/feed/route.ts");
   const school = read("app/api/marketplace/my-school/route.ts");
-  const sql = read("supabase/migrations/20261109214500_marketplace_global_savings_order.sql");
+  const sql = read("supabase/migrations/20261109214718_marketplace_global_savings_order.sql");
   assert.match(client, /sortBy === "discount"\) params\.set\("sort", sortBy\)/);
   assert.doesNotMatch(client, /sortBy === "discount" && !radiusIsActive/);
   assert.match(filters, /rawSort === "discount"/);
