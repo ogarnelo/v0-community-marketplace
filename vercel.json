@@ -17,5 +17,6 @@
   ],
   "regions": [
     "dub1"
-  ]
+  ],
+  "ignoreCommand": "node scripts/vercel-ignore-qa-only.cjs"
 }
