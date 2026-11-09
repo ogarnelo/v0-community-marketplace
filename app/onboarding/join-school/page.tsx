@@ -38,6 +38,7 @@ export default function JoinSchoolPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [sharedSchoolLoading, setSharedSchoolLoading] = useState(true);
   const [currentLinkedSchool, setCurrentLinkedSchool] = useState<SchoolSearchRow | null>(null);
+  const [currentLinkedSchoolId, setCurrentLinkedSchoolId] = useState<string | null>(null);
   const [changeSchoolMode, setChangeSchoolMode] = useState(false);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -76,6 +77,8 @@ export default function JoinSchoolPage() {
           const linkedSchoolId =
             typeof profile?.school_id === "string" ? profile.school_id.trim() : "";
 
+          setCurrentLinkedSchoolId(linkedSchoolId || null);
+
           if (linkedSchoolId) {
             try {
               const linkedSchool = await resolveSchoolFromId(linkedSchoolId);
@@ -113,7 +116,7 @@ export default function JoinSchoolPage() {
         setFound(payload.school);
         setShowSearch(false);
       } catch (contextError) {
-        setIsAuthenticated(false);
+        // An error resolving a shared school does not invalidate an existing session.
         console.error("Error cargando el contexto del centro:", contextError);
         if (sharedSchoolId) {
           setError("No se pudo abrir el centro compartido. Puedes buscarlo manualmente.");
@@ -228,6 +231,7 @@ export default function JoinSchoolPage() {
 
     if (authError) throw authError;
 
+    setCurrentLinkedSchoolId(activeSchool.id);
     return activeSchool;
   };
 
@@ -266,6 +270,7 @@ export default function JoinSchoolPage() {
       if (authError) throw authError;
 
       setCurrentLinkedSchool(null);
+      setCurrentLinkedSchoolId(null);
       setFound(null);
       setChangeSchoolMode(false);
       setStatusMessage("Ya no tienes un centro seleccionado. Puedes elegir otro cuando quieras.");
@@ -389,7 +394,12 @@ export default function JoinSchoolPage() {
   };
 
   useEffect(() => {
-    if (!found || autoJoinAttempted.current) return;
+    // Do not switch an already-linked family to a different school merely
+    // because they followed a QR URL with join=1 after signing in. Require
+    // an explicit click on the visible "Cambiar a ..." confirmation instead.
+    // Wait for the session/profile lookup before deciding, to avoid a race.
+    if (!found || sharedSchoolLoading || autoJoinAttempted.current) return;
+    if (currentLinkedSchoolId) return;
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("join") !== "1") return;
@@ -430,7 +440,7 @@ export default function JoinSchoolPage() {
     };
 
     void finishPendingJoin();
-  }, [found, router]);
+  }, [found, currentLinkedSchoolId, sharedSchoolLoading, router]);
 
   const filteredSchools = searchResults.filter((school) => {
     const query = searchQuery.trim().toLowerCase();
