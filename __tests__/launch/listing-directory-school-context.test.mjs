@@ -52,3 +52,19 @@ test("listing detail and editor retain and label national directory reference", 
   assert.match(editPage, /directory_school_code/);
   assert.match(editPage, /directorio nacional/);
 });
+
+test("marketplace always opens on all schools; school count does not derive from the first 60 cards", () => {
+  assert.match(marketClient, /const \[onlyMyCommunity, setOnlyMyCommunity\] = useState\(false\)/);
+  assert.match(marketPage, /select\("id", \{ count: "exact", head: true \}\)/);
+  assert.match(marketPage, /communityListingCount = results\.reduce/);
+  assert.match(marketPage, /initialCommunityListingCount=\{communityListingCount\}/);
+  assert.match(marketClient, /highlightSchoolShortcut = \(initialCommunityListingCount \?\? 0\) >= 10/);
+  assert.doesNotMatch(marketClient, /setOnlyMyCommunity\(initialCommunityListingCount/);
+});
+
+test("empty school feed always explains that other schools remain available", () => {
+  assert.match(marketClient, /Aún no hay coincidencias en tu colegio/);
+  assert.match(marketClient, /Puedes seguir viendo anuncios de otros centros/);
+  assert.match(marketClient, /Ver todos los anuncios/);
+  assert.match(marketClient, /setOnlyMyCommunity\(false\)/);
+});
