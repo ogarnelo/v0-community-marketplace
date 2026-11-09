@@ -53,9 +53,20 @@ GRANT SELECT,INSERT,UPDATE,DELETE ON public.account_students TO service_role;
 CREATE TABLE public.schools (
  id uuid PRIMARY KEY,
  name text NOT NULL,
+ city text, postal_code text, is_test boolean NOT NULL DEFAULT false,
  is_active boolean NOT NULL DEFAULT false
 );
 CREATE TABLE public.school_directory (official_code text PRIMARY KEY);
 INSERT INTO public.school_directory(official_code) VALUES ('99990001');
 GRANT SELECT ON public.schools,public.school_directory TO service_role;
 GRANT SELECT ON public.profiles TO service_role;
+
+-- Minimal user_roles table for the ORIGINAL server-rendered student page.
+-- Nobody receives any admin role, and all real schools remain inactive.
+CREATE TABLE public.user_roles (user_id uuid NOT NULL, role text NOT NULL, school_id uuid);
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY qa_roles_own_read ON public.user_roles FOR SELECT TO authenticated
+ USING (user_id=(SELECT auth.uid()));
+GRANT SELECT ON public.user_roles TO authenticated;
+GRANT SELECT ON public.schools TO authenticated;
+GRANT SELECT ON public.account_students TO authenticated;

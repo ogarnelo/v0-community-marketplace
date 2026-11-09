@@ -38,7 +38,13 @@ function copy(name){
 }
 async function setup(){
  for(const name of ["app/auth/callback/route.ts","app/api/account/students/route.ts",
-  "app/api/account/students/[id]/route.ts","lib/supabase/server.ts",
+  "app/api/account/students/[id]/route.ts","app/onboarding/students/page.tsx",
+  "components/onboarding/account-students-onboarding.tsx",
+  "components/account-students/student-context-fields.tsx",
+  "components/ui/button.tsx","components/ui/badge.tsx",
+  "components/ui/card.tsx","components/ui/input.tsx","components/ui/label.tsx",
+  "components/ui/popover.tsx","components/ui/select.tsx","lib/utils.ts",
+  "lib/supabase/server.ts",
   "lib/supabase/client.ts","lib/supabase/admin.ts","lib/auth/safe-next.ts",
   "lib/users/person-name.ts","lib/growth/attribution.ts"])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
@@ -49,7 +55,7 @@ async function setup(){
   write("app/layout.tsx",'import React from "react";export default function Layout({children}:{children:React.ReactNode}){return <html lang="es"><body>{children}<script src="/qa-email-client.js" defer /></body></html>;}');
  write("app/page.tsx",'export default function Page(){return <main>LOCAL EMAIL CONFIRMATION QA</main>;}');
  write("app/auth/page.tsx",'export default function Auth(){return <main>LOCAL INVALID AUTH LINK</main>;}');
- write("app/onboarding/students/page.tsx",'export default function Students(){return <main>LOCAL STUDENT ONBOARDING</main>;}');
+ write("lib/mock-data.ts",'export const gradeLevels=["3 Primaria","4 Primaria","5 Primaria"];');
  write("app/onboarding/join-school/page.tsx",'export default function Join(){return <main>LOCAL QR DESTINATION</main>;}');
  write("tsconfig.json",JSON.stringify({compilerOptions:{
   target:"ES2020",lib:["dom","dom.iterable","esnext"],strict:false,
@@ -60,7 +66,11 @@ async function setup(){
   }},include:["**/*.ts","**/*.tsx",".next/types/**/*.ts"],exclude:["node_modules"]},null,2));
  write("package.json",JSON.stringify({name:"wetudy-local-email-confirm-qa",private:true,
   version:"0.0.0",dependencies:{next:"16.3.5",react:"19.2.4","react-dom":"19.2.4",
-  "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0"}},null,2));
+  "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0",
+  "lucide-react":"0.564.0","@radix-ui/react-slot":"1.2.4",
+  "@radix-ui/react-label":"2.1.8","@radix-ui/react-popover":"1.1.15",
+  "@radix-ui/react-select":"2.2.6","class-variance-authority":"0.7.1",
+  "clsx":"2.1.1","tailwind-merge":"3.3.1"}},null,2));
  const src=[
   'import {createClient} from "./lib/supabase/client.ts";',
   'const client=createClient();',
@@ -373,6 +383,18 @@ async function mailLink(){
 
 
 
+  // Run ORIGINAL SSR students page and ORIGINAL client form in Chromium.
+  await page.getByRole("heading",{name:"Estudiantes"}).waitFor({timeout:20000});
+  await page.getByLabel(/Nombre o alias/).fill("Alumno desde formulario");
+  await page.getByRole("combobox").click();
+  await page.getByRole("option",{name:"3 Primaria"}).click();
+  await page.getByRole("button",{name:"Guardar",exact:true}).click();
+  await page.getByText("Alumno desde formulario",{exact:true}).waitFor({timeout:20000});
+  assert.equal(sql("select count(*) from public.account_students where owner_user_id='"+
+    signed.id+"' and alias='Alumno desde formulario' and active"),"1",
+    "Real browser UI must persist a student using the original service");
+  console.log("PASS ORIGINAL students SSR page + client form + Next API/service persisted browser-selected grade and alias.");
+
   // Confirm that the authenticated PKCE session survives navigation/reload
   // before the parent proceeds to student onboarding and the school QR flow.
   await page.reload({waitUntil:"domcontentloaded"});
@@ -390,6 +412,13 @@ async function mailLink(){
   assert.equal(new URL(page.url()).searchParams.get("next"),qr,
     "Reload must preserve the intended school QR continuation");
   console.log("PASS confirmed parent PKCE session, own-profile RLS and QR continuation survive browser reload.");
+  await page.getByText("Alumno desde formulario",{exact:true}).waitFor({timeout:20000});
+  await page.getByRole("button",{name:"Entrar en Wetudy"}).click();
+  await page.waitForURL(u=>u.origin===origin&&u.pathname==="/onboarding/join-school"&&
+    u.searchParams.get("school")===school&&u.searchParams.get("join")==="1",
+    {timeout:20000});
+  console.log("PASS original student onboarding UI continues to expected QR URL after save and reload (join-school target remains a local placeholder).");
+
 
 
   const attribution=sql("select source,medium,campaign from public.growth_acquisition_events where user_id='"+signed.id+"'");
@@ -419,7 +448,7 @@ async function mailLink(){
    u.searchParams.get("auth_error")==="invalid_link",{timeout:23000});
   assert.equal(new URL(page.url()).origin,origin,"Invalid code must stay on local origin");
   console.log("PASS original Next callback rejects replayed, missing and invalid codes without offsite redirects.");
-  console.log("LIMIT: original student API and persistence run locally; original student form, QR UI, AuthForm, Turnstile and hosted mail are not included.");
+  console.log("LIMIT: ORIGINAL student form runs with synthetic grade list. QR join page is a placeholder; AuthForm, Turnstile and hosted email are not covered.");
   await ctx.close();
  }catch(error){
   console.error("EMAIL/PKCE NEXT CALLBACK QA FAILED:",error.stack||error.message);
