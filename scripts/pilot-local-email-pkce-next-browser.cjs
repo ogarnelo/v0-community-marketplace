@@ -62,7 +62,7 @@ async function setup(){
   ' const supabase=await createClient();const {data,error}=await supabase.from("account_students")',
   ' .insert({owner_user_id:id,alias:input.alias||"Alumno QA",grade_level:input.gradeLevel})',
   ' .select("id,owner_user_id,alias,grade_level").single();if(error)throw error;return data;}'
- ].join("\\n"));
+ ].join("\n"));
  write("app/layout.tsx",'import React from "react";export default function Layout({children}:{children:React.ReactNode}){return <html lang="es"><body>{children}<script src="/qa-email-client.js" defer /></body></html>;}');
  write("app/page.tsx",'export default function Page(){return <main>LOCAL EMAIL CONFIRMATION QA</main>;}');
  write("app/auth/page.tsx",'export default function Auth(){return <main>LOCAL INVALID AUTH LINK</main>;}');
