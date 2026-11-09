@@ -20,7 +20,12 @@ create table public.conversations (
 -- Fictional family association, restricted to the current authenticated UID.
 create table public.profiles (
   id uuid primary key,
-  school_id uuid
+  school_id uuid,
+  first_name text,
+  last_name text,
+  full_name text,
+  user_type text,
+  postal_code text
 );
 alter table public.profiles enable row level security;
 create policy qa_profiles_self_select on public.profiles for select
