@@ -18,21 +18,21 @@ test("marketplace calculates approximate distance from postal codes", () => {
   assert.match(page, /listings[\s\S]*postal_code/);
   assert.match(types, /postalCode\?: string \| null/);
   assert.match(marketplace, /calculateDistanceKm\(viewerPostalCode, listing\.postalCode\)/);
-  assert.match(marketplace, /Usamos tu código postal como zona aproximada/);
-  assert.match(marketplace, /No mostramos direcciones exactas/);
+  assert.match(marketplace, /Estimación basada en centros provinciales/);
+  assert.match(marketplace, /No mostramos direcciones/);
 });
 
 test("marketplace offers distance only outside community mode", () => {
-  assert.match(marketplace, /Distancia máxima/);
-  assert.match(marketplace, /1 km/);
-  assert.match(marketplace, /5 km/);
-  assert.match(marketplace, /10 km/);
-  assert.match(marketplace, /30 km/);
-  assert.match(marketplace, /50 km/);
-  assert.match(marketplace, /100 km/);
-  assert.match(marketplace, /200 km/);
+  assert.match(marketplace, /Distancia aproximada/);
+  assert.match(marketplace, /Slider min=\{1\}/);
+  assert.match(marketplace, /distanceKm/);
+  assert.match(marketplace, /calculateDistanceKm/);
+  assert.match(marketplace, /POSTAL_PREFIX_COORDS/);
+  assert.match(marketplace, /selectedDistanceLabel/);
+  assert.match(marketplace, /DISTANCE_MAX = 201/);
   assert.match(marketplace, /\+200/);
-  assert.match(marketplace, /disabled=\{onlyMyCommunity\}/);
+  assert.match(marketplace, /\+200/);
+  assert.match(marketplace, /disabled=\{onlyMyCommunity \|\| !hasViewerPostalCode\}/);
 });
 
 test("marketplace adds publication date checkboxes", () => {
