@@ -301,3 +301,21 @@ test("search signals do not fire from anonymous browsing or every infinite-scrol
   assert.doesNotMatch(deps, /filteredListings\.length|schoolListings\.length|dbListings\.length/);
   assert.doesNotMatch(deps, /generalOffset|schoolOffset/);
 });
+
+test("approximate radius never declares an empty market while older pages remain", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  assert.match(client, /const radiusMayHaveUnseenMatches = radiusIsApproximate &&/);
+  assert.match(client, /generalHasMore && filteredListings\.length === 0/);
+  assert.match(client, /radiusMayHaveUnseenMatches \? <div role="status"/);
+  assert.match(client, /puede haber otros anuncios en páginas posteriores/);
+  assert.match(client, /Estimación basada en centros provinciales/);
+  assert.match(client, /disabled=\{onlyMyCommunity \|\| !hasViewerPostalCode\}/);
+  assert.match(client, /setDistanceKm\(DISTANCE_MAX\)/);
+  // Stop automatic requests when the 3-page empty-result cap is reached.
+  assert.match(client, /radiusPrefetchCap = !onlyMyCommunity && distanceKm < DISTANCE_MAX/);
+  assert.match(client, /!radiusHasCandidates && generalOffset >= 180/);
+  assert.match(client, /const waiting = radiusPrefetchCap \|\| filterDebouncing/);
+  assert.match(client, /rootMargin: "360px 0px"/);
+  assert.match(client, /Ver anuncios sin límite de distancia/);
+  assert.doesNotMatch(client, />Cargar más anuncios<\/Button>/);
+});
