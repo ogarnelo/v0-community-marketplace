@@ -100,8 +100,10 @@ export function buildMarketplacePostgrestExpression(
     // Donations have no price limit in the existing UX; preserve them.
     const low = filters.priceMin ?? 0;
     const high = filters.priceMax ?? MAX_PRICE;
-    const upper = filters.priceMax !== null ? `,price.lte.${high}` : "";
-    terms.push(`or(type.eq.donation,and(price.gte.${low}${upper}))`);
+    const paid = filters.priceMax !== null
+      ? `and(price.gte.${low},price.lte.${high})`
+      : `price.gte.${low}`;
+    terms.push(`or(type.eq.donation,${paid})`);
   }
   if (terms.length === 0) return null;
   if (terms.length === 1) {
@@ -129,7 +131,7 @@ export function applyMarketplaceFeedFilters(query: any,
     filters, schoolScopeExpression);
   if (expression) query = query.or(expression);
   if (filters.sort === "price_asc") {
-    return query.order("price", { ascending: true, nullsFirst: false })
+    return query.order("price", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
   }
