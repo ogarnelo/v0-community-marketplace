@@ -7,6 +7,8 @@ on:
       - "scripts/pilot-local-email-pkce-next-browser.cjs"
       - "app/auth/callback/route.ts"
       - "components/auth/auth-form.tsx"
+      - "components/auth/update-password-form.tsx"
+      - "app/auth/update-password/page.tsx"
       - "lib/auth/error-messages.ts"
       - "lib/auth/public-origin.ts"
       - "app/api/account/students/route.ts"
@@ -69,6 +71,34 @@ jobs:
           assert n==1
           data,n=re.subn(r'(?m)^additional_redirect_urls = .*$', 'additional_redirect_urls = ["http://localhost:31421/**"]',data,count=1)
           assert n==1
+          data,n=re.subn(r'(?m)^max_frequency = .*
+          PY
+          cleanup(){
+            "$cli" stop --no-backup >/dev/null 2>&1 || true
+            docker network rm wetudy-email-next-qa >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          # Mailpit must NOT be excluded. No SMTP relay configured.
+          "$cli" start --network-id wetudy-email-next-qa \
+            -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          "$cli" status -o env > /tmp/wetudy-email-next.env
+          set -a
+          source /tmp/wetudy-email-next.env
+          set +a
+          export LOCAL_SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
+          export LOCAL_SUPABASE_ANON_KEY="${ANON_KEY:?missing local key}"
+          export LOCAL_SUPABASE_SERVICE_KEY="${SERVICE_ROLE_KEY:?missing local service key}"
+          export LOCAL_DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          export LOCAL_MAILPIT_URL="http://127.0.0.1:54324"
+          curl --silent --show-error --fail "$LOCAL_MAILPIT_URL/api/v1/messages" >/dev/null
+          cd "$GITHUB_WORKSPACE"
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-local-email-pkce-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -c "NOTIFY pgrst, 'reload schema'"
+          node scripts/pilot-local-email-pkce-next-browser.cjs
+          python3 scripts/pilot-local-gotrue-snapshot-recovery.py
+, 'max_frequency = "1s"',data,count=1)
+          if not n:
+            data=data.replace('[auth.email]', '[auth.email]\nmax_frequency = "1s"',1)
           p.write_text(data)
           PY
           cleanup(){
