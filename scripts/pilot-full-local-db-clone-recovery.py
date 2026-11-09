@@ -99,7 +99,18 @@ def main():
                 STABLE AS $qa$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$qa$;""")
             # template0 may already contain an empty public schema.
             sql(DEST, "DROP SCHEMA IF EXISTS public CASCADE")
+            # Supabase CLI's postgres login cannot alter DEFAULT PRIVILEGES
+            # configured by service administrators. Those govern FUTURE tables;
+            # retain and test ACL/GRANT of all EXISTING tables separately.
+            toc = run("pg_restore", "--list", str(archive)).splitlines()
+            filtered = [line for line in toc if " DEFAULT ACL " not in line]
+            removed = len(toc) - len(filtered)
+            if removed > 20:
+                raise AssertionError("Unexpected number of default-ACL entries")
+            toc_path = Path(temp) / "public-restore-toc.list"
+            toc_path.write_text("\n".join(filtered) + "\n", encoding="utf8")
             run("pg_restore", "--exit-on-error", "--no-owner",
+                "--use-list", str(toc_path),
                 "--dbname", DEST, str(archive))
             recovered_names, restored = snapshot(DEST)
             if names != recovered_names or original != restored:
@@ -111,7 +122,7 @@ def main():
             if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
                 raise AssertionError("Restored local test center has unexpected admin roles")
             print("PASS full LOCAL PUBLIC application schema cold restore: all six "
-                  "tables with row digests, RLS and SQL GRANT parity; no school admin.")
+                  "tables with row digests, RLS and existing-table GRANT parity; no school admin.")
             print("LIMIT: this restores APPLICATION tables only, not Supabase "
                   "managed Auth, GoTrue runtime, SMTP, Storage bytes or hosted DR.")
         finally:
