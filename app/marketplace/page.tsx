@@ -2,7 +2,7 @@ import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
-import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
+import { approximateDistanceKm, hasKnownPostalCode } from "@/lib/marketplace/postal-distance";
 import { makeMarketplaceSchoolFilter, resolveMarketplaceSchoolScope } from "@/lib/marketplace/school-scope";
 import {
   buildPhotosMap,
@@ -220,6 +220,7 @@ export default async function MarketplacePage() {
       initialPostalCode={viewerPostalCode}
       initialGeneralHasMore={initialGeneralHasMore}
       initialIsAuthenticated={Boolean(user)}
+      initialHasKnownPostalCode={hasKnownPostalCode(viewerPostalCode)}
     />
   );
 }
