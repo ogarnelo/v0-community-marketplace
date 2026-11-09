@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  applyMarketplaceFeedFilters,
+  parseMarketplaceFeedFilters,
+} from "@/lib/marketplace/feed-filters";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   makeMarketplaceSchoolFilter,
@@ -24,8 +29,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Inicia sesión para ver tu colegio." }, { status: 401 });
   }
 
-  const url = new URL(request.url);
-  const rawOffset = url.searchParams.get("offset") || "0";
+  const params = new URL(request.url).searchParams;
+  let filters;
+  try {
+    filters = parseMarketplaceFeedFilters(params);
+  } catch {
+    return NextResponse.json({ error: "Filtros incorrectos." },
+      { status: 400, headers: { "Cache-Control": "private, no-store" } });
+  }
+  const rawOffset = params.get("offset") || "0";
   if (!/^(0|[1-9][0-9]{0,5})$/.test(rawOffset)) {
     return NextResponse.json({ error: "Página incorrecta." }, { status: 400 });
   }
@@ -64,12 +76,14 @@ export async function GET(request: Request) {
       });
     }
 
-    const { data, count, error } = await supabase.from("listings")
-      .select(FIELDS, { count: "exact" })
-      .eq("status", "available").or(expression)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
+    // The school scope and other OR predicates are composed into one
+    // validated PostgREST expression before filtering and ordering.
+    const query = applyMarketplaceFeedFilters(
+      supabase.from("listings").select(FIELDS, { count: "exact" })
+        .eq("status", "available"),
+      filters, expression
+    );
+    const { data, count, error } = await query.range(offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
     const rows = (data || []) as ListingRow[];
     const ids = rows.map((row) => row.id);
