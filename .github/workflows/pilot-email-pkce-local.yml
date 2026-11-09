@@ -1,0 +1,83 @@
+name: Wetudy local Mailpit email confirmation and real Next PKCE callback
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-local-email-pkce-fixture.sql"
+      - "scripts/pilot-local-email-pkce-next-browser.cjs"
+      - "app/auth/callback/route.ts"
+      - "lib/supabase/server.ts"
+      - "lib/supabase/client.ts"
+      - "lib/auth/safe-next.ts"
+      - ".github/workflows/pilot-email-pkce-local.yml"
+permissions:
+  contents: read
+jobs:
+  local-mailpit-pkce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 34
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned Next, Supabase CLI and Chromium in disposable directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/wetudy-email-next-local --no-save --package-lock=false --no-audit --no-fund \
+            supabase@2.121.0 next@16.3.5 react@19.2.4 react-dom@19.2.4 \
+            @supabase/ssr@0.6.1 @supabase/supabase-js@2.58.0 \
+            playwright@1.65.0 esbuild@0.25.12 typescript@5.9.3 \
+            @types/node@24.10.1 @types/react@19.2.2 @types/react-dom@19.2.2
+          /tmp/wetudy-email-next-local/node_modules/.bin/playwright install --with-deps chromium
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Create localhost-only GoTrue with email confirmation and Mailpit, test original callback
+        shell: bash
+        env:
+          PILOT_EMAIL_MODULES: /tmp/wetudy-email-next-local/node_modules
+          PILOT_EMAIL_FIXTURE: /tmp/wetudy-email-next-local
+        run: |
+          set -euo pipefail
+          cli="/tmp/wetudy-email-next-local/node_modules/.bin/supabase"
+          stack="/tmp/wetudy-email-next-stack"
+          mkdir -p "$stack"
+          docker network create -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 wetudy-email-next-qa
+          cd "$stack"
+          "$cli" init
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("supabase/config.toml")
+          data=p.read_text()
+          assert 'enable_confirmations = false' in data
+          data=data.replace('enable_confirmations = false','enable_confirmations = true',1)
+          data,n=re.subn(r'(?m)^site_url = .*$', 'site_url = "http://localhost:31421"',data,count=1)
+          assert n==1
+          data,n=re.subn(r'(?m)^additional_redirect_urls = .*$', 'additional_redirect_urls = ["http://localhost:31421/**"]',data,count=1)
+          assert n==1
+          p.write_text(data)
+          PY
+          cleanup(){
+            "$cli" stop --no-backup >/dev/null 2>&1 || true
+            docker network rm wetudy-email-next-qa >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          # Mailpit must NOT be excluded. No SMTP relay configured.
+          "$cli" start --network-id wetudy-email-next-qa \
+            -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          "$cli" status -o env > /tmp/wetudy-email-next.env
+          set -a
+          source /tmp/wetudy-email-next.env
+          set +a
+          export LOCAL_SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
+          export LOCAL_SUPABASE_ANON_KEY="${ANON_KEY:?missing local key}"
+          export LOCAL_SUPABASE_SERVICE_KEY="${SERVICE_ROLE_KEY:?missing local service key}"
+          export LOCAL_DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          export LOCAL_MAILPIT_URL="http://127.0.0.1:54324"
+          curl --silent --show-error --fail "$LOCAL_MAILPIT_URL/api/v1/messages" >/dev/null
+          cd "$GITHUB_WORKSPACE"
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-local-email-pkce-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -c "NOTIFY pgrst, 'reload schema'"
+          node scripts/pilot-local-email-pkce-next-browser.cjs
