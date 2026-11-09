@@ -96,7 +96,7 @@ def main():
             # GoTrue or working Auth service is restored by this operation.
             sql(DEST, """CREATE SCHEMA auth;
                 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
-                STABLE AS $SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$;""")
+                STABLE AS $qa$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$qa$;""")
             # template0 may already contain an empty public schema.
             sql(DEST, "DROP SCHEMA IF EXISTS public CASCADE")
             run("pg_restore", "--exit-on-error", "--no-owner",
