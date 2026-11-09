@@ -69,7 +69,10 @@ async function setup(){
   ' return {id:data.user?.id||null,error:error?.message||null};},',
   ' profile:async(id)=>{const {data,error}=await client.from("profiles")',
   ' .select("id,first_name,last_name,user_type,postal_code").eq("id",id).maybeSingle();',
-  ' return {data,error:error?.message||null};}',
+  ' return {data,error:error?.message||null};},',
+  ' updateProfile:async(id)=>{const {data,error}=await client.from("profiles")',
+  ' .update({postal_code:"99999"}).eq("id",id).select("id");',
+  ' return {rows:data?.length||0,error:error?.message||null};}',
   '};'
  ].join("\n");
  write("qa-email-entry.js",src);
@@ -199,6 +202,19 @@ async function mailLink(){
    id:signed.id,first_name:"QA",last_name:"Confirmación",
    user_type:"parent",postal_code:"37001"
   });
+  // A second synthetic family must be invisible and immutable via this user's RLS session.
+  const foreignId="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  sql("insert into public.profiles(id,first_name,last_name,user_type,postal_code) "+
+    "values ('"+foreignId+"','Otra','Familia','parent','28001')");
+  const foreignRead=await page.evaluate(id=>window.__qaEmail.profile(id),foreignId);
+  assert.equal(foreignRead.error,null);
+  assert.equal(foreignRead.data,null,"RLS must hide other families' profiles");
+  const foreignWrite=await page.evaluate(id=>window.__qaEmail.updateProfile(id),foreignId);
+  assert.equal(foreignWrite.error,null);
+  assert.equal(foreignWrite.rows,0,"RLS must prevent updating another family");
+  assert.equal(sql("select postal_code from public.profiles where id='"+foreignId+"'"),
+    "28001","Other family's profile must remain unchanged");
+  console.log("PASS real PostgREST/RLS prevents cross-family profile reads and writes.");
   const attribution=sql("select source,medium,campaign from public.growth_acquisition_events where user_id='"+signed.id+"'");
   assert.equal(attribution,"school|qr|school_invite");
   console.log("PASS actual Mailpit email -> local GoTrue verify -> ORIGINAL Next auth callback with PKCE session cookie, RLS profile and attribution.");
