@@ -278,3 +278,26 @@ test("filtered auto-pagination keeps query parameters through both feeds", () =>
   assert.match(client, /Cargando más anuncios/);
   assert.match(client, /sortBy === "distance" \|\| sortBy === "discount"/);
 });
+
+test("search signals do not fire from anonymous browsing or every infinite-scroll page", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  const page = read("app/marketplace/page.tsx");
+  assert.match(page, /initialIsAuthenticated=\{Boolean\(user\)\}/);
+  assert.match(client, /!initialIsAuthenticated \|\| filterDebouncing/);
+  assert.match(client, /observedDemandKeyRef\.current === key/);
+  assert.match(client, /observedDemandKeyRef\.current = key/);
+  assert.match(client, /observedDemandKeyRef\.current = ""/);
+  assert.match(client, /rawSearchQuery\.length === 1 \|\| rawIsbnQuery\.length === 1/);
+  assert.match(client, /controller\.abort\(\)/);
+  assert.match(client, /schoolAppliedKey === debouncedFeedFilters/);
+  assert.match(client, /generalAppliedKey === debouncedFeedFilters/);
+  assert.match(client, /fetch\("\/api\/marketplace\/search-events"/);
+  assert.match(client, /resultsCount: filteredListings\.length/);
+  const start = client.indexOf('    // Record search intent once per settled query');
+  const stop = client.indexOf('  useEffect(() => {\n    setSaveSearchStatus("idle");', start);
+  assert.ok(start >= 0 && stop > start);
+  const observation = client.slice(start, stop);
+  const deps = observation.slice(observation.lastIndexOf('  }, ['));
+  assert.doesNotMatch(deps, /filteredListings\.length|schoolListings\.length|dbListings\.length/);
+  assert.doesNotMatch(deps, /generalOffset|schoolOffset/);
+});

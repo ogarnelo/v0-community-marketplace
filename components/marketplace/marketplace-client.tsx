@@ -54,7 +54,7 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null; initialGeneralHasMore?: boolean };
+type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null; initialGeneralHasMore?: boolean; initialIsAuthenticated?: boolean };
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error";
 type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 
@@ -79,7 +79,7 @@ function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   return createdAt >= start.getTime();
 }
 
-export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null, initialGeneralHasMore = false }: MarketplaceClientProps) {
+export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null, initialGeneralHasMore = false, initialIsAuthenticated = false }: MarketplaceClientProps) {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>(initialListings);
   const [generalHasMore, setGeneralHasMore] = useState(initialGeneralHasMore);
   const [generalLoading, setGeneralLoading] = useState(false);
@@ -119,6 +119,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   const [generalInitialRetry, setGeneralInitialRetry] = useState(0);
   const [schoolInitialRetry, setSchoolInitialRetry] = useState(0);
   const generalActiveKeyRef = useRef("");
+  const observedDemandKeyRef = useRef("");
   const schoolActiveKeyRef = useRef("");
 
   // Search, category, grade, condition, ISBN, date and price now filter the
@@ -415,25 +416,40 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
   }, [listingsWithDistance, onlyMyCommunity, maxDistanceKm, sortBy]);
 
   useEffect(() => {
-    if (!hasSearchIntent) return;
+    // Record search intent once per settled query, not once for every
+    // infinite-scroll page. Anonymous events are discarded by the API, so
+    // skip those POST requests entirely.
+    if (!hasSearchIntent) {
+      observedDemandKeyRef.current = "";
+      return;
+    }
+    if (!initialIsAuthenticated || filterDebouncing) return;
+    const resultReady = onlyMyCommunity
+      ? schoolLoaded && !schoolLoadError &&
+        schoolAppliedKey === debouncedFeedFilters
+      : !generalLoadError && generalAppliedKey === debouncedFeedFilters;
+    if (!resultReady) return;
 
     const rawSearchQuery = searchQuery.trim();
     const rawIsbnQuery = isbnQuery.trim();
-
-    if (
-      (rawIsbnQuery && isIncompleteIsbnLikeInput(rawIsbnQuery)) ||
-      (!rawIsbnQuery && rawSearchQuery && isIncompleteIsbnLikeInput(rawSearchQuery))
-    ) {
+    if ((rawSearchQuery.length === 1 || rawIsbnQuery.length === 1) ||
+        (rawIsbnQuery && isIncompleteIsbnLikeInput(rawIsbnQuery)) ||
+        (!rawIsbnQuery && rawSearchQuery && isIncompleteIsbnLikeInput(rawSearchQuery))) {
       return;
     }
+    const key = JSON.stringify({
+      filters: debouncedFeedFilters, school: onlyMyCommunity,
+      radius: onlyMyCommunity ? null : maxDistanceKm,
+    });
+    if (observedDemandKeyRef.current === key) return;
 
     const canonicalIsbn =
       (rawIsbnQuery ? normalizeIsbn(rawIsbnQuery)?.canonicalIsbn || null : null) ||
-      extractIsbnFromText(rawSearchQuery)?.canonicalIsbn ||
-      null;
-
+      extractIsbnFromText(rawSearchQuery)?.canonicalIsbn || null;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
+      if (observedDemandKeyRef.current === key) return;
+      observedDemandKeyRef.current = key;
       fetch("/api/marketplace/search-events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -449,6 +465,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
           onlyMyCommunity,
           nearbyMode: !onlyMyCommunity && maxDistanceKm !== Infinity,
           radiusKm: maxDistanceKm === Infinity ? null : maxDistanceKm,
+          // Count the first settled page; later scrolling never records again.
           resultsCount: filteredListings.length,
           sourcePath: "/marketplace",
         }),
@@ -456,12 +473,13 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
         keepalive: true,
       }).catch(() => undefined);
     }, 900);
-
-    return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, minPrice, maxPrice, maxDistanceKm, filteredListings.length, hasSearchIntent]);
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [initialIsAuthenticated, hasSearchIntent, filterDebouncing,
+      debouncedFeedFilters, onlyMyCommunity, maxDistanceKm,
+      generalAppliedKey, generalLoadError,
+      schoolAppliedKey, schoolLoaded, schoolLoadError,
+      searchQuery, isbnQuery, category, gradeLevel,
+      listingType, condition, minPrice, maxPrice]);
   useEffect(() => {
     setSaveSearchStatus("idle");
   }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceRange, distanceKm, publishedDateFilter]);

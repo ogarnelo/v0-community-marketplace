@@ -218,6 +218,7 @@ export default async function MarketplacePage() {
       initialCommunityListingCount={communityListingCount}
       initialPostalCode={viewerPostalCode}
       initialGeneralHasMore={initialGeneralHasMore}
+      initialIsAuthenticated={Boolean(user)}
     />
   );
 }
