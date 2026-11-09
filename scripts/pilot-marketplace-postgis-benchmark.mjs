@@ -63,6 +63,9 @@ const scenarios = [
   ["radius_200km",radialSql(200)],
 ];
 const measured = [];
+// A deliberately generous CI regression budget, not a customer-facing SLO.
+const maxP95Ms = { nearest_global: 1500, radius_10km: 1000,
+  radius_50km: 2000, radius_200km: 3000 };
 for (const [label, query] of scenarios) {
   for (let warm=0;warm<2;warm++) psql("explain (analyze, format json) " + query);
   const times=[];
@@ -78,6 +81,9 @@ for (const [label, query] of scenarios) {
   const p50=times[Math.ceil(times.length*0.50)-1];
   const p95=times[Math.ceil(times.length*0.95)-1];
   measured.push({scenario:label,p50_ms:p50,p95_ms:p95});
+  assert.ok(p95 <= maxP95Ms[label],
+    label + " performance regression: p95 " + p95.toFixed(2) +
+    " ms exceeds CI budget " + maxP95Ms[label] + " ms");
   console.log(label,"Postgres 17/PostGIS isolated: p50",p50.toFixed(2),
     "ms, p95",p95.toFixed(2),"ms; n",times.length);
 }
