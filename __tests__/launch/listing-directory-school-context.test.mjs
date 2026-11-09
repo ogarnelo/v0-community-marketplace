@@ -245,3 +245,36 @@ test("both listing routes apply shared server-side filters before pagination", (
   assert.match(school, /filters, expression/);
   assert.match(school, /supabase\.auth\.getUser/);
 });
+
+test("marketplace client searches all server-side listings before displaying an empty state", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  assert.match(client, /params\.set\("q", searchQuery\.trim\(\)/);
+  for (const name of ["isbn", "category", "gradeLevel", "listingType",
+                      "condition", "minPrice", "maxPrice", "sort", "since"]) {
+    assert.ok(client.includes('params.set("' + name + '"'),
+      "Missing server-side filter parameter " + name);
+  }
+  assert.match(client, /setDebouncedFeedFilters\(feedFilters\)/);
+  assert.match(client, /"\/api\/marketplace\/feed\?offset=0&" \+ requestKey/);
+  assert.match(client, /"\/api\/marketplace\/my-school\?offset=0"/);
+  assert.match(client, /generalFeedPending \|\| schoolFeedPending/);
+  assert.match(client, /generalAppliedKey !== debouncedFeedFilters/);
+  assert.match(client, /schoolAppliedKey !== debouncedFeedFilters/);
+  assert.match(client, /generalActiveKeyRef\.current !== requestKey/);
+  assert.match(client, /schoolActiveKeyRef\.current !== requestKey/);
+  assert.match(client, /if \(!requestKey\) setSchoolCount\(payload\.total \?\? null\)/);
+  assert.doesNotMatch(client, /normalizeText\(searchQuery\)/);
+  assert.match(client, /No se pudo completar la búsqueda/);
+});
+
+test("filtered auto-pagination keeps query parameters through both feeds", () => {
+  const client = read("components/marketplace/marketplace-client.tsx");
+  assert.match(client, /\/api\/marketplace\/feed\?offset=\$\{generalOffset\}/);
+  assert.match(client, /\/api\/marketplace\/my-school\?offset=\$\{schoolOffset\}/);
+  assert.match(client, /requestKey \? "&" \+ requestKey : ""/);
+  assert.match(client, /generalAppliedKey !== debouncedFeedFilters \|\| filterDebouncing/);
+  assert.match(client, /schoolAppliedKey !== debouncedFeedFilters \|\| filterDebouncing/);
+  assert.match(client, /observer\.disconnect\(\)/);
+  assert.match(client, /Cargando más anuncios/);
+  assert.match(client, /sortBy === "distance" \|\| sortBy === "discount"/);
+});
