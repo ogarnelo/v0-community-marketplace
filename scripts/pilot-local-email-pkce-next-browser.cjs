@@ -122,7 +122,10 @@ async function setup(){
   ' .update({alias:"Intrusion"}).eq("id",id).select("id");',
   ' return {data,error:error?.message||null};},',
   ' deleteStudent:async(id)=>{const {data,error}=await client.from("account_students")',
-  ' .delete().eq("id",id).select("id");return {data,error:error?.message||null};}',
+  ' .delete().eq("id",id).select("id");return {data,error:error?.message||null};},',
+  ' transferStudent:async(id,newOwner)=>{const {data,error}=await client.from("account_students")',
+  ' .update({owner_user_id:newOwner}).eq("id",id).select("id");',
+  ' return {data,error:error?.message||null};}',
   '};'
  ].join("\n");
  write("qa-email-entry.js",src);
@@ -361,6 +364,29 @@ async function mailLink(targetEmail=email){
       return {status:response.status,body:await response.json()};
     },{path,method,body});
   };
+  // A hostile client must not be able to assign a student's ownership,
+  // either through extra JSON fields or direct authenticated PostgREST update.
+  const spoofedCreate=await requestStudent("/api/account/students","POST",{
+    alias:"Intento de propietario falso",gradeLevel:"3 Primaria",
+    ownerUserId:foreignId,owner_user_id:foreignId
+  });
+  assert.equal(spoofedCreate.status,201,
+    "Original student service should accept valid fields even with ignored extras");
+  assert.equal(sql("select owner_user_id from public.account_students where id='"+
+    spoofedCreate.body.student.id+"'"),signed.id,
+    "Original API must ignore supplied owner fields and use authenticated user");
+  const directTransfer=await page.evaluate(args=>
+    window.__qaEmail.transferStudent(args.id,args.owner),
+    {id:spoofedCreate.body.student.id,owner:foreignId});
+  assert.ok(directTransfer.error,"RLS WITH CHECK must reject reassignment of student owner");
+  assert.equal(sql("select owner_user_id from public.account_students where id='"+
+    spoofedCreate.body.student.id+"'"),signed.id,
+    "Failed RLS transfer must not update real student owner");
+  const removeSpoof=await requestStudent("/api/account/students/"+
+    spoofedCreate.body.student.id,"DELETE");
+  assert.equal(removeSpoof.status,200);
+  console.log("PASS original student API prevents forged ownership; direct RLS owner transfer is blocked.");
+
   const noSchool=await requestStudent("/api/account/students","POST",
     {gradeLevel:"4 Primaria",schoolId:school});
   assert.equal(noSchool.status,400,"Inactive/nonexistent school must never be linked");
