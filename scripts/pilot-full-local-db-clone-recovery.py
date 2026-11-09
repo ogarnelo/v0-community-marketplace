@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Validate a FULL disposable local Supabase PostgreSQL dump/restore.
+"""Cold restore of every public APPLICATION table from disposable Supabase CLI.
 
-This is a logical database clone only. It does NOT copy hosted Storage bytes,
-reconfigure SMTP/API/JWT secrets, or start a replacement GoTrue service.
-Never use on remotely hosted PostgreSQL.
+Do NOT claim a full Supabase/GoTrue recovery. Supabase managed auth/storage schemas
+require separate recovery procedures and service configuration, so this exercise
+ONLY restores the complete locally authored public schema and rows.
+Never connect to remote databases, never overwrite an existing restored DB.
 """
 import os
 from pathlib import Path
@@ -13,114 +14,85 @@ from urllib.parse import urlsplit, urlunsplit
 
 SOURCE = os.getenv("LOCAL_DB_URL", "")
 parsed = urlsplit(SOURCE)
-if (parsed.scheme not in ("postgres", "postgresql")
-        or parsed.hostname not in ("localhost", "127.0.0.1", "::1")
-        or parsed.path != "/postgres"):
-    raise SystemExit("Refusing full DB drill without exact local Supabase /postgres source")
-DEST_NAME = "wetudy_qa_full_restore_only"
+if (parsed.scheme not in ("postgres", "postgresql") or
+        parsed.hostname not in ("localhost", "127.0.0.1", "::1") or
+        parsed.path != "/postgres"):
+    raise SystemExit("Refusing nonlocal application-schema restore source")
+DEST_NAME = "wetudy_qa_public_restore_only"
 DEST = urlunsplit((parsed.scheme, parsed.netloc, "/" + DEST_NAME, "", ""))
 
+TABLES = (
+    "profiles", "growth_acquisition_events", "account_students",
+    "schools", "school_directory", "user_roles",
+)
 
-def call(*argv):
+def run(*argv):
     result = subprocess.run(argv, text=True, capture_output=True,
-                            check=False, timeout=140)
+                            check=False, timeout=120)
     if result.returncode:
-        # Do not log full command arguments, connection URLs or potentially
-        # sensitive SQL statements. Only expose the first server error category.
-        lines = [line.strip() for line in result.stderr.splitlines()
-                 if "ERROR:" in line or "pg_restore: error:" in line]
-        detail = (lines[:3] or ["No PostgreSQL diagnostic available"])
-        raise RuntimeError(argv[0] + " failed: " + " | ".join(detail)[:550])
+        # No SQL rows, database URLs, password hashes or connection strings
+        # in CI logs, even when a subprocess fails.
+        reasons = [line.strip() for line in result.stderr.splitlines()
+                   if "ERROR:" in line or "pg_restore: error:" in line]
+        raise RuntimeError(argv[0] + " failed: " +
+                           " | ".join(reasons[:2])[:450])
     return result.stdout.strip()
 
+def sql(conn, statement):
+    return run("psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
+               "--dbname", conn, "-c", statement)
 
-def sql(connection, statement):
-    return call("psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
-                "--dbname", connection, "-c", statement)
-
-
-def snapshot(connection):
-    checks = (
-        "select count(*) from auth.users",
-        "select count(*) from auth.identities",
-        "select count(*) from public.profiles",
-        "select count(*) from public.account_students",
-        "select count(*) from public.user_roles",
-        "select count(*) from public.schools",
-        "select count(*) from public.school_directory",
-        "select string_agg(id::text || ':' || email, ',' order by email)"
-        " from auth.users where email like '%@example.invalid'",
-        "select string_agg(user_id::text || ':' || provider, ',' order by user_id,provider)"
-        " from auth.identities",
-        "select string_agg(id::text || ':' || coalesce(school_id::text,''), ',' order by id)"
-        " from public.profiles",
-        "select string_agg(id::text || ':' || owner_user_id::text, ',' order by id)"
-        " from public.account_students",
-    )
-    return tuple(sql(connection, statement) for statement in checks)
-
+def snapshot(conn):
+    # Compare every JSONB column and row for ALL user-authored public tables,
+    # not just sample rows or counts. Aggregates return only checksums.
+    digests = {}
+    for table in TABLES:
+        digests[table] = sql(
+            conn, "SELECT count(*)::text || ':' || "
+            "coalesce(md5(string_agg(row_payload, ',' ORDER BY row_payload)), md5('')) "
+            "FROM (SELECT to_jsonb(t)::text AS row_payload FROM public."
+            + table + " AS t) AS payloads")
+    names = sql(conn, "SELECT string_agg(tablename, ',' ORDER BY tablename) "
+                "FROM pg_tables WHERE schemaname = 'public'")
+    return names, digests
 
 def main():
-    expected_users = (
-        "qa-email-pkce-family@example.invalid",
-        "qa-authform-family@example.invalid",
-        "qa-student-age-gate@example.invalid",
-    )
-    original = snapshot(SOURCE)
-    if int(original[0]) < len(expected_users) or int(original[1]) < len(expected_users):
-        raise AssertionError("Original local GoTrue accounts and identities missing")
-    if any(sql(SOURCE, "select count(*) from auth.users where email='" + address +
-               "' and email_confirmed_at is not null") != "1"
-           for address in expected_users):
-        raise AssertionError("Expected confirmed local GoTrue QA family missing")
-    if sql(SOURCE, "select count(*) from pg_database where datname='" + DEST_NAME + "'") != "0":
-        raise RuntimeError("Refusing to overwrite an existing restored local database")
-
-    with tempfile.TemporaryDirectory(prefix="wetudy-local-full-pg-restore-") as directory:
-        archive = Path(directory) / "full-supabase-local.dump"
-        call("pg_dump", "--format=custom", "--no-owner", "--no-acl",
-             "--dbname", SOURCE, "--file", str(archive))
+    names, original = snapshot(SOURCE)
+    if set(names.split(",")) != set(TABLES):
+        raise AssertionError("Unexpected local public schema: check table inventory")
+    if any(not checksum or checksum.startswith("0:") for name, checksum
+           in original.items() if name not in ("user_roles",)):
+        raise AssertionError("Expected synthetic application data is missing")
+    if sql(SOURCE, "SELECT count(*) FROM pg_database WHERE datname='" +
+           DEST_NAME + "'") != "0":
+        raise RuntimeError("Refusing to overwrite existing local recovery database")
+    with tempfile.TemporaryDirectory(prefix="wetudy-qa-public-restore-") as temp:
+        archive = Path(temp) / "public-only.dump"
+        run("pg_dump", "--format=custom", "--schema=public", "--no-owner",
+            "--no-acl", "--dbname", SOURCE, "--file", str(archive))
         if archive.stat().st_size < 4096:
-            raise AssertionError("Full Supabase PostgreSQL local archive appears empty")
-        sql(SOURCE, "create database " + DEST_NAME)
+            raise AssertionError("Empty public-schema dump")
+        sql(SOURCE, "CREATE DATABASE " + DEST_NAME + " TEMPLATE template0")
         try:
-            # Supabase CLI's 'postgres' login is deliberately not a real
-            # superuser. PostgreSQL's dump includes a SET of the protected
-            # log_min_messages parameter; remove that EXACT statement only.
-            # All remaining SQL is applied with ON_ERROR_STOP (fail closed).
-            restored_sql = Path(directory) / "local-full-restore.sql"
-            call("pg_restore", "--no-owner", "--no-acl", "--file",
-                 str(restored_sql), str(archive))
-            lines = restored_sql.read_text(encoding="utf8").splitlines(keepends=True)
-            forbidden = "SET log_min_messages = warning;"
-            session_lines = [(index, line.strip()[:150]) for index, line in
-                             enumerate(lines, 1) if "log_min_messages" in line.lower()]
-            if session_lines:
-                print("LOCAL RESTORE restricted parameter diagnostics:", session_lines,
-                      flush=True)
-            removed = sum(line.strip() == forbidden for line in lines)
-            if removed > 1:
-                raise RuntimeError("Unexpected repeated restricted PostgreSQL session SET")
-            restored_sql.write_text(
-                "".join(line for line in lines if line.strip() != forbidden),
-                encoding="utf8")
-            call("psql", "-X", "-v", "ON_ERROR_STOP=1", "--dbname", DEST,
-                 "--file", str(restored_sql))
-            recovered = snapshot(DEST)
-            if original != recovered:
-                raise AssertionError("Full local database clone differs in Auth, profile, student or school references")
-            if sql(DEST, "select count(*) from auth.users where email_confirmed_at is not null") != original[0]:
-                # This fixture expects every QA account to have confirmed email.
-                raise AssertionError("Full local clone lost a confirmed Auth account")
-            if sql(DEST, "select count(*) from public.user_roles") != "0":
-                raise AssertionError("Restored test accounts unexpectedly have privileged roles")
-            print("PASS full LOCAL Supabase PostgreSQL logical dump/restore: "
-                  "auth.users, auth.identities, profiles, students, roles, schools and directory parity.")
-            print("LIMIT: DOES NOT prove running GoTrue on the clone, storage object byte restoration, "
-                  "hosted SMTP or a production disaster recovery.")
+            # The target is a fresh local, empty database. auth.uid() is a
+            # minimally scoped compile-time stub for policy DDL; NO real
+            # GoTrue or working Auth service is restored by this operation.
+            sql(DEST, """CREATE SCHEMA auth;
+                CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
+                STABLE AS $$SELECT NULL::uuid$$;""")
+            run("pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
+                "--dbname", DEST, str(archive))
+            recovered_names, restored = snapshot(DEST)
+            if names != recovered_names or original != restored:
+                raise AssertionError("Public application schema/rows differ after cold restore")
+            if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
+                raise AssertionError("Restored local test center has unexpected admin roles")
+            print("PASS full LOCAL PUBLIC application schema cold restore: all six "
+                  "tables with row-level digest parity; no active school admin.")
+            print("LIMIT: this restores APPLICATION tables only, not Supabase "
+                  "managed Auth, GoTrue runtime, SMTP, Storage bytes or hosted DR.")
         finally:
-            sql(SOURCE, "drop database if exists " + DEST_NAME + " with (force)")
-
+            sql(SOURCE, "DROP DATABASE IF EXISTS " + DEST_NAME + " WITH (FORCE)")
 
 if __name__ == "__main__":
     main()
