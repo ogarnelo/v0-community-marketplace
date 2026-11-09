@@ -43,7 +43,7 @@ test("marketplace distance uses account postal codes and excludes unknown locati
   assert.match(marketplacePage, /postalCode: currentSellerPostalCode/);
   assert.doesNotMatch(marketplacePage, /schoolPostalMap/);
   assert.match(marketplaceClient, /listing\.distance === undefined \|\| listing\.distance > maxDistanceKm/);
-  assert.match(marketplaceClient, /código postal de tu cuenta como referencia aproximada/);
+  assert.match(marketplaceClient, /Estimación basada en centros provinciales/);
 });
 
 test("listing cards keep price on the same compact detail row", () => {
