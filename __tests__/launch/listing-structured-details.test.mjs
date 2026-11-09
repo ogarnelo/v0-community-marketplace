@@ -69,8 +69,14 @@ test("edit condition selector shows only the short label when closed", () => {
 
 test("structured fields remain searchable after leaving the description", () => {
   assert.match(marketplace, /subject, specific_type, size_label, brand, model, season/);
-  assert.match(marketplaceClient, /l\.subject/);
-  assert.match(marketplaceClient, /l\.publisher/);
+  const filters = readFileSync("lib/marketplace/feed-filters.ts", "utf8");
+  assert.match(filters, /"subject"/);
+  assert.match(filters, /"publisher"/);
+  assert.match(filters, /"specific_type"/);
+  assert.match(filters, /"size_label"/);
+  assert.match(filters, /"brand"/);
+  assert.match(filters, /"model"/);
+  assert.match(filters, /"season"/);
   assert.match(matcher, /listing\.subject/);
   assert.match(matcher, /listing\.publisher/);
 });
