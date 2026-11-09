@@ -1,0 +1,21 @@
+name: Wetudy official Cloudflare Turnstile dummy contract
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-cloudflare-turnstile-test.cjs"
+      - ".github/workflows/pilot-turnstile-siteverify.yml"
+permissions:
+  contents: read
+jobs:
+  provider-dummy-siteverify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify upstream test-token acceptance, rejection and duplicate handling
+        run: node scripts/pilot-cloudflare-turnstile-test.cjs
