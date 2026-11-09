@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync("lib/marketplace/postal-centroids.ts", "utf8");
 const client = readFileSync("components/marketplace/marketplace-client.tsx", "utf8");
+const distance = readFileSync("lib/marketplace/postal-distance.ts", "utf8");
 
 test("full Spanish postcodes are present, distinct and approximate", () => {
   const entries = [...source.matchAll(/"([0-9]{5})": \[(-?[0-9.]+), (-?[0-9.]+)\]/g)];
@@ -19,7 +20,10 @@ test("full Spanish postcodes are present, distinct and approximate", () => {
   }
 });
 test("distance uses complete postcode, not province prefix or private address", () => {
-  assert.match(client, /POSTAL_CENTROIDS\[normalized\]/);
+  assert.match(distance, /POSTAL_CENTROIDS\[first\]/);
+  assert.match(distance, /POSTAL_CENTROIDS\[second\]/);
+  assert.match(distance, /server-only/);
+  assert.doesNotMatch(client, /POSTAL_CENTROIDS/);
   assert.doesNotMatch(client, /POSTAL_PREFIX_COORDS/);
   assert.match(client, /Estimación entre centros de códigos postales/);
   assert.match(client, /No mostramos direcciones/);
