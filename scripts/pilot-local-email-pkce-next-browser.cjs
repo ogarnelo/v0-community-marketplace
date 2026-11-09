@@ -211,17 +211,20 @@ async function mailLink(){
     u.searchParams.get("auth_error")==="invalid_link",{timeout:20000});
   assert.equal(sql("select count(*) from public.growth_acquisition_events where user_id='"+
     signed.id+"'"),"1","One-time replay must not duplicate attribution");
+  assert.equal(new URL(page.url()).origin,origin,"Spent PKCE code must stay on local origin");
   console.log("PASS replay of spent local PKCE code denied with no duplicate acquisition event.");
   // Missing/forged codes and external destinations must remain safe as well.
   await page.goto(origin+"/auth/callback?next="+
     encodeURIComponent("//external.example/steal"),{waitUntil:"domcontentloaded"});
   await page.waitForURL(u=>u.pathname==="/auth"&&
     u.searchParams.get("auth_error")==="invalid_link",{timeout:20000});
+  assert.equal(new URL(page.url()).origin,origin,"Missing code must stay on local origin");
   console.log("PASS missing code cannot redirect to protocol-relative external origin.");
   await page.goto(origin+"/auth/callback?code=invalid-qa-code&next="+
    encodeURIComponent("https://invalid.example/external"),{waitUntil:"domcontentloaded"});
   await page.waitForURL(u=>u.pathname==="/auth"&&
    u.searchParams.get("auth_error")==="invalid_link",{timeout:23000});
+  assert.equal(new URL(page.url()).origin,origin,"Invalid code must stay on local origin");
   console.log("PASS original Next callback rejects replayed, missing and invalid codes without offsite redirects.");
   console.log("LIMIT: original AuthForm is covered separately; Turnstile external, email provider hosted and full student onboarding are NOT part of this local rehearsal.");
   await ctx.close();
