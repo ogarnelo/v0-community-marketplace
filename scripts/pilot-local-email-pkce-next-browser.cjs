@@ -72,7 +72,7 @@ async function setup(){
   ' return {data,error:error?.message||null};},',
   ' updateProfile:async(id)=>{const {data,error}=await client.from("profiles")',
   ' .update({postal_code:"99999"}).eq("id",id).select("id");',
-  ' return {rows:data?.length||0,error:error?.message||null};}'
+  ' return {rows:data?.length||0,error:error?.message||null};}',
   '};'
  ].join("\n");
  write("qa-email-entry.js",src);
