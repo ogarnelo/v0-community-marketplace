@@ -7,7 +7,7 @@ const fs=require("node:fs"),path=require("node:path");
 const {spawn,execFileSync}=require("node:child_process");
 const mods=process.env.PILOT_EMAIL_MODULES||"/tmp/wetudy-email-next-local/node_modules";
 const fixture=process.env.PILOT_EMAIL_FIXTURE||"/tmp/wetudy-email-next-local";
-const root=process.cwd(),port=31421,origin="http://127.0.0.1:"+port;
+const root=process.cwd(),port=31421,origin="http://localhost:"+port;
 const api=process.env.LOCAL_SUPABASE_URL||"";
 const anon=process.env.LOCAL_SUPABASE_ANON_KEY||"";
 const service=process.env.LOCAL_SUPABASE_SERVICE_KEY||"";
