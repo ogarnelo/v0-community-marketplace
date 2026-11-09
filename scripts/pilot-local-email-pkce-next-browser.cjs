@@ -504,7 +504,7 @@ async function mailLink(targetEmail=email){
     status:authView?.status(),pathname:new URL(page.url()).pathname,
     visibleText:(await page.locator("body").innerText()).slice(0,450)
   }));
-  await page.getByRole("heading",{name:"Crear cuenta"}).waitFor({timeout:26000});
+  await page.locator('[data-slot="card-title"]').getByText("Crear cuenta",{exact:true}).waitFor({timeout:26000});
   await page.locator("#firstName").fill("Familia");
   await page.locator("#lastName").fill("UI");
   await page.locator("#email").fill(email2);
