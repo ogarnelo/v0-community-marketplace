@@ -93,6 +93,11 @@ def main():
                  str(restored_sql), str(archive))
             lines = restored_sql.read_text(encoding="utf8").splitlines(keepends=True)
             forbidden = "SET log_min_messages = warning;"
+            session_lines = [(index, line.strip()[:150]) for index, line in
+                             enumerate(lines, 1) if "log_min_messages" in line.lower()]
+            if session_lines:
+                print("LOCAL RESTORE restricted parameter diagnostics:", session_lines,
+                      flush=True)
             removed = sum(line.strip() == forbidden for line in lines)
             if removed > 1:
                 raise RuntimeError("Unexpected repeated restricted PostgreSQL session SET")
