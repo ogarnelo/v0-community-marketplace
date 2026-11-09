@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
 
 const read = (path) => readFileSync(path, "utf8");
 const migration = read("supabase/migrations/20261108133000_listings_directory_school_context.sql");
@@ -162,4 +164,82 @@ test("pagination is sequential, de-duplicates cards and pauses on network failur
   assert.match(marketClient, /schoolLoadError && !schoolLoaded/);
   assert.match(marketClient, /Reintentar carga/);
   assert.match(marketClient, /role="status"/);
+});
+
+function loadServerFeedFilters() {
+  const source = read("lib/marketplace/feed-filters.ts");
+  const code = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  runInNewContext(code, { exports, URLSearchParams });
+  return exports;
+}
+
+test("server search parses bounded inputs and preserves school scope with text and donated items", () => {
+  const { parseMarketplaceFeedFilters, buildMarketplacePostgrestExpression,
+          applyMarketplaceFeedFilters } = loadServerFeedFilters();
+  const filters = parseMarketplaceFeedFilters(new URLSearchParams({
+    q: "libro),status.eq.sold", category: "books",
+    minPrice: "15", maxPrice: "40", sort: "price_asc",
+    isbn: "978-84-100-9999-1",
+  }));
+  assert.equal(filters.text, "libro status eq sold");
+  assert.equal(filters.isbn, "9788410099991");
+  const scope = "school_id.eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa,directory_school_code.in.(12345678)";
+  const expression = buildMarketplacePostgrestExpression(filters, scope);
+  assert.match(expression, /^and\(or\(school_id\.eq/);
+  assert.match(expression, /or\(title\.ilike\.\*libro status eq sold\*/);
+  assert.match(expression, /or\(type\.eq\.donation,and\(price\.gte\.15,price\.lte\.40\)\)/);
+  assert.doesNotMatch(expression, /status\.eq\.sold/);
+  const calls = [];
+  const query = {
+    eq(...args) { calls.push(["eq", ...args]); return this; },
+    ilike(...args) { calls.push(["ilike", ...args]); return this; },
+    or(...args) { calls.push(["or", ...args]); return this; },
+    gte(...args) { calls.push(["gte", ...args]); return this; },
+    order(...args) { calls.push(["order", ...args]); return this; },
+  };
+  applyMarketplaceFeedFilters(query, filters, scope);
+  assert.equal(calls.filter(([op]) => op === "or").length, 1);
+  assert.ok(calls.some(([op, col, value]) =>
+    op === "ilike" && col === "isbn" && value === "%9788410099991%"));
+  assert.ok(calls.some(([op, col]) => op === "order" && col === "price"));
+});
+
+test("server-side filters fail closed for invalid price, type and date parameters", () => {
+  const { parseMarketplaceFeedFilters, buildMarketplacePostgrestExpression } =
+    loadServerFeedFilters();
+  for (const bad of [
+    { minPrice: "201" }, { minPrice: "90", maxPrice: "10" },
+    { listingType: "user_roles" }, { maxPrice: "-1" },
+    { since: "1900-01-01T00:00:00.000Z" },
+  ]) {
+    assert.throws(() => parseMarketplaceFeedFilters(new URLSearchParams(bad)));
+  }
+  const safe = parseMarketplaceFeedFilters(new URLSearchParams({
+    q: "Polo (talla 12),.or(is_demo.eq.false)%_",
+  }));
+  const expression = buildMarketplacePostgrestExpression(safe);
+  assert.doesNotMatch(expression, /\),\.or\(|is_demo\.eq/);
+  const blank = parseMarketplaceFeedFilters(new URLSearchParams());
+  assert.equal(buildMarketplacePostgrestExpression(blank), null);
+});
+
+test("both listing routes apply shared server-side filters before pagination", () => {
+  for (const path of [
+    "app/api/marketplace/feed/route.ts",
+    "app/api/marketplace/my-school/route.ts",
+  ]) {
+    const source = read(path);
+    assert.match(source, /parseMarketplaceFeedFilters\(params\)/);
+    assert.match(source, /applyMarketplaceFeedFilters\(/);
+    assert.ok(source.indexOf("applyMarketplaceFeedFilters(") <
+      source.indexOf(".range(offset, offset + PAGE_SIZE"));
+    assert.match(source, /status: 400/);
+    assert.match(source, /Cache-Control": "private, no-store"/);
+  }
+  const school = read("app/api/marketplace/my-school/route.ts");
+  assert.match(school, /filters, expression/);
+  assert.match(school, /supabase\.auth\.getUser/);
 });
