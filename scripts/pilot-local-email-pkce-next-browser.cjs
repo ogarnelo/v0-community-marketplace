@@ -75,7 +75,18 @@ async function setup(){
   ' return {rows:data?.length||0,error:error?.message||null};},',
   ' insertProfile:async(id)=>{const {data,error}=await client.from("profiles")',
   ' .insert({id,first_name:"Intrusion",last_name:"QA",user_type:"parent",postal_code:"00000"})',
-  ' .select("id");return {rows:data?.length||0,error:error?.message||null};}',
+  ' .select("id");return {rows:data?.length||0,error:error?.message||null};},',
+  ' students:async(owner)=>{const {data,error}=await client.from("account_students")',
+  ' .select("id,owner_user_id,alias,grade_level").eq("owner_user_id",owner);',
+  ' return {data,error:error?.message||null};},',
+  ' addStudent:async(owner)=>{const {data,error}=await client.from("account_students")',
+  ' .insert({owner_user_id:owner,alias:"QA Alumno",grade_level:"4 Primaria"})',
+  ' .select("id");return {data,error:error?.message||null};},',
+  ' updateStudent:async(id)=>{const {data,error}=await client.from("account_students")',
+  ' .update({alias:"Intrusion"}).eq("id",id).select("id");',
+  ' return {data,error:error?.message||null};},',
+  ' deleteStudent:async(id)=>{const {data,error}=await client.from("account_students")',
+  ' .delete().eq("id",id).select("id");return {data,error:error?.message||null};}',
   '};'
  ].join("\n");
  write("qa-email-entry.js",src);
@@ -230,6 +241,34 @@ async function mailLink(){
   assert.equal(sql("select postal_code from public.profiles where id='"+signed.id+"'"),
     "99999","Legitimate own-profile update must persist");
   console.log("PASS own-profile update allowed, cross-family SELECT/UPDATE/INSERT denied.");
+  // Synthetic students table with real authenticated PostgREST JWT/RLS.
+  // Original API route and complete student schema remain untested here.
+  const ownStudent=await page.evaluate(id=>window.__qaEmail.addStudent(id),signed.id);
+  assert.equal(ownStudent.error,null);
+  assert.equal(ownStudent.data?.length,1,"Confirmed parent can add own student");
+  const studentId=ownStudent.data[0].id;
+  sql("insert into public.account_students(owner_user_id,alias,grade_level) "+
+      "values ('"+foreignId+"','Otra alumna','5 Primaria')");
+  const foreignStudents=await page.evaluate(id=>window.__qaEmail.students(id),foreignId);
+  assert.equal(foreignStudents.error,null);
+  assert.equal(foreignStudents.data?.length,0,"Other family's students must remain private");
+  const forgedStudent=await page.evaluate(id=>window.__qaEmail.addStudent(id),foreignId);
+  assert.equal(forgedStudent.data,null,"Cross-family student INSERT must return no row");
+  assert.ok(forgedStudent.error,"Cross-family student INSERT must be rejected by RLS");
+  const foreignStudentId=sql("select id from public.account_students where owner_user_id='"+foreignId+"'");
+  const unauthorizedUpdate=await page.evaluate(id=>window.__qaEmail.updateStudent(id),foreignStudentId);
+  assert.equal(unauthorizedUpdate.error,null);
+  assert.equal(unauthorizedUpdate.data?.length,0,"No cross-family student UPDATE");
+  const unauthorizedDelete=await page.evaluate(id=>window.__qaEmail.deleteStudent(id),foreignStudentId);
+  assert.equal(unauthorizedDelete.error,null);
+  assert.equal(unauthorizedDelete.data?.length,0,"No cross-family student DELETE");
+  assert.equal(sql("select alias from public.account_students where id='"+foreignStudentId+"'"),
+    "Otra alumna","Foreign student must remain unchanged after attempted mutation");
+  const ownVisible=await page.evaluate(id=>window.__qaEmail.students(id),signed.id);
+  assert.equal(ownVisible.data?.length,1);
+  assert.equal(ownVisible.data[0].id,studentId);
+  console.log("PASS local student ownership RLS: own INSERT/SELECT, foreign SELECT/INSERT/UPDATE/DELETE denied.");
+
   // Confirm that the authenticated PKCE session survives navigation/reload
   // before the parent proceeds to student onboarding and the school QR flow.
   await page.reload({waitUntil:"domcontentloaded"});

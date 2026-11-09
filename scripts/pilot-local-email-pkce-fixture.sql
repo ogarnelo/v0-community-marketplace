@@ -20,3 +20,21 @@ CREATE TABLE public.growth_acquisition_events (
 );
 ALTER TABLE public.growth_acquisition_events ENABLE ROW LEVEL SECURITY;
 GRANT SELECT,INSERT ON public.growth_acquisition_events TO service_role;
+
+-- Minimal synthetic ownership fixture: verifies real PostgREST RLS after PKCE,
+-- NOT the original student API, schema or UI end-to-end.
+CREATE TABLE public.account_students (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ owner_user_id uuid NOT NULL, alias text NOT NULL, grade_level text NOT NULL
+);
+ALTER TABLE public.account_students ENABLE ROW LEVEL SECURITY;
+CREATE POLICY qa_student_read ON public.account_students FOR SELECT TO authenticated
+ USING (owner_user_id=(SELECT auth.uid()));
+CREATE POLICY qa_student_insert ON public.account_students FOR INSERT TO authenticated
+ WITH CHECK (owner_user_id=(SELECT auth.uid()));
+CREATE POLICY qa_student_update ON public.account_students FOR UPDATE TO authenticated
+ USING (owner_user_id=(SELECT auth.uid()))
+ WITH CHECK (owner_user_id=(SELECT auth.uid()));
+CREATE POLICY qa_student_delete ON public.account_students FOR DELETE TO authenticated
+ USING (owner_user_id=(SELECT auth.uid()));
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.account_students TO authenticated;
