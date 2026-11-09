@@ -39,6 +39,8 @@ function copy(name){
 async function setup(){
  for(const name of ["app/auth/callback/route.ts","app/api/account/students/route.ts",
   "app/api/account/students/[id]/route.ts","app/onboarding/students/page.tsx",
+  "app/onboarding/join-school/page.tsx","app/api/schools/public/route.ts",
+  "components/ui/alert.tsx",
   "components/onboarding/account-students-onboarding.tsx",
   "components/account-students/student-context-fields.tsx",
   "components/ui/button.tsx","components/ui/badge.tsx",
@@ -56,13 +58,16 @@ async function setup(){
  write("app/page.tsx",'export default function Page(){return <main>LOCAL EMAIL CONFIRMATION QA</main>;}');
  write("app/auth/page.tsx",'export default function Auth(){return <main>LOCAL INVALID AUTH LINK</main>;}');
  write("lib/mock-data.ts",'export const gradeLevels=["3 Primaria","4 Primaria","5 Primaria"];');
- write("app/onboarding/join-school/page.tsx",'export default function Join(){return <main>LOCAL QR DESTINATION</main>;}');
+ write("app/marketplace/page.tsx",'export default function Marketplace(){return <main>LOCAL QA MARKETPLACE AFTER QR</main>;}');
+ write("qa/analytics.ts",'export function track(_event:string,_data:any){/* no telemetry in local QA */}');
+ write("app/api/analytics/acquisition/route.ts",'export async function POST(){return new Response(null,{status:204});}');
  write("tsconfig.json",JSON.stringify({compilerOptions:{
   target:"ES2020",lib:["dom","dom.iterable","esnext"],strict:false,
   allowJs:true,skipLibCheck:true,noEmit:true,esModuleInterop:true,
   module:"esnext",moduleResolution:"bundler",resolveJsonModule:true,
   isolatedModules:true,jsx:"preserve",baseUrl:".",paths:{
-   "@/lib/analytics/product-events.server":["./qa/events.ts"],"@/*":["./*"]
+   "@/lib/analytics/product-events.server":["./qa/events.ts"],
+   "@vercel/analytics":["./qa/analytics.ts"],"@/*":["./*"]
   }},include:["**/*.ts","**/*.tsx",".next/types/**/*.ts"],exclude:["node_modules"]},null,2));
  write("package.json",JSON.stringify({name:"wetudy-local-email-confirm-qa",private:true,
   version:"0.0.0",dependencies:{next:"16.3.5",react:"19.2.4","react-dom":"19.2.4",
@@ -413,11 +418,35 @@ async function mailLink(){
     "Reload must preserve the intended school QR continuation");
   console.log("PASS confirmed parent PKCE session, own-profile RLS and QR continuation survive browser reload.");
   await page.getByText("Alumno desde formulario",{exact:true}).waitFor({timeout:20000});
+  const inactive=await page.evaluate(async id=>{
+    const res=await fetch("/api/schools/public?id="+encodeURIComponent(id));
+    return {status:res.status,body:await res.json(),cache:res.headers.get("cache-control")};
+  },school);
+  assert.equal(inactive.status,200);
+  assert.equal(inactive.body.school,null,"Inactive/missing school QR is invisible");
+  assert.ok(inactive.cache?.includes("no-store"),"QR school lookup must avoid stale cache");
+  // Activate ONLY a synthetic, disposable local school after rejection checks.
+  sql("insert into public.schools(id,name,city,postal_code,is_test,is_active) values "+
+    "('"+school+"','Colegio Ficticio QA','Local','00000',false,true)");
+  let reachedRealJoin=false;
+  page.on("request",req=>{
+    try{const u=new URL(req.url());
+      if(u.origin===origin&&u.pathname==="/onboarding/join-school"&&
+         u.searchParams.get("school")===school&&u.searchParams.get("join")==="1")
+        reachedRealJoin=true;
+    }catch{}
+  });
   await page.getByRole("button",{name:"Entrar en Wetudy"}).click();
-  await page.waitForURL(u=>u.origin===origin&&u.pathname==="/onboarding/join-school"&&
-    u.searchParams.get("school")===school&&u.searchParams.get("join")==="1",
-    {timeout:20000});
-  console.log("PASS original student onboarding UI continues to expected QR URL after save and reload (join-school target remains a local placeholder).");
+  await page.waitForURL(u=>u.origin===origin&&u.pathname==="/marketplace"&&
+    u.searchParams.get("joined")==="1",{timeout:30000});
+  assert.ok(reachedRealJoin,"Original student UI must navigate via original QR page");
+  assert.equal(sql("select school_id from public.profiles where id='"+signed.id+"'"),school,
+    "Original QR flow must link ONLY authenticated family's profile");
+  assert.equal(sql("select count(*) from public.user_roles"),"0",
+    "Original QR must never grant school admin permissions");
+  assert.equal(sql("select count(*) from public.profiles where id='"+foreignId+
+    "' and school_id is not null"),"0","QR must not alter second family's school");
+  console.log("PASS ORIGINAL students form -> ORIGINAL QR page -> ORIGINAL school API -> local active synthetic school profile link; no privileged role.");
 
 
 
@@ -448,7 +477,7 @@ async function mailLink(){
    u.searchParams.get("auth_error")==="invalid_link",{timeout:23000});
   assert.equal(new URL(page.url()).origin,origin,"Invalid code must stay on local origin");
   console.log("PASS original Next callback rejects replayed, missing and invalid codes without offsite redirects.");
-  console.log("LIMIT: ORIGINAL student form runs with synthetic grade list. QR join page is a placeholder; AuthForm, Turnstile and hosted email are not covered.");
+  console.log("LIMIT: ORIGINAL students UI and QR join run against synthetic locally active school. AuthForm, Turnstile, real colleges and hosted email are NOT covered.");
   await ctx.close();
  }catch(error){
   console.error("EMAIL/PKCE NEXT CALLBACK QA FAILED:",error.stack||error.message);
