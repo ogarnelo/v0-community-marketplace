@@ -5,6 +5,7 @@ import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matchi
 import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
 import { loadAllSortedPages, batchAlertItems } from "@/lib/marketplace/saved-search-batches.mjs";
 import { selectDeliveryPage, summarizeDeliveryProgress } from "@/lib/marketplace/alert-delivery-progress.mjs";
+import { loadPendingDeliveryRows } from "@/lib/marketplace/alert-pending-page.mjs";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -206,16 +207,21 @@ export async function POST(request: Request) {
 
     // Each pending lookup has at most 150 IDs: no giant PostgREST URL and
     // no implicit response-page truncation once there are >1000 matches.
-    const pendingNotifications = [];
-    for (const batch of batchAlertItems(matches)) {
-      const { data, error } = await admin.from("saved_search_matches")
-        .select("id, user_id")
-        .eq("listing_id", listing.id)
-        .in("saved_search_id", batch.map((match) => match.saved_search_id))
-        .is("notified_at", null);
-      if (error) throw error;
-      pendingNotifications.push(...(data || []));
-    }
+    const pendingNotifications = await loadPendingDeliveryRows(
+      matches, isOutboxWorker, async (batch, limit) => {
+        let query = admin.from("saved_search_matches")
+          .select("id, user_id")
+          .eq("listing_id", listing.id)
+          .in("saved_search_id", batch.map((match) => match.saved_search_id))
+          .is("notified_at", null);
+        // Fetch only 12+1 when recovering; the extra row proves there is more.
+        if (limit !== null) {
+          query = query.order("id", { ascending: true }).limit(limit);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      });
 
     const notificationPage = selectDeliveryPage(pendingNotifications, isOutboxWorker);
     let notified = 0;
@@ -243,17 +249,21 @@ export async function POST(request: Request) {
       notified += 1;
     }
 
-    const pendingMatches = [];
-    for (const batch of batchAlertItems(matches)) {
-      const { data, error } = await admin.from("saved_search_matches")
-        .select("id, user_id")
-        .eq("listing_id", listing.id)
-        .in("saved_search_id", batch.map((match) => match.saved_search_id))
-        .is("emailed_at", null)
-        .is("email_skipped_at", null);
-      if (error) throw error;
-      pendingMatches.push(...(data || []));
-    }
+    const pendingMatches = await loadPendingDeliveryRows(
+      matches, isOutboxWorker, async (batch, limit) => {
+        let query = admin.from("saved_search_matches")
+          .select("id, user_id")
+          .eq("listing_id", listing.id)
+          .in("saved_search_id", batch.map((match) => match.saved_search_id))
+          .is("emailed_at", null)
+          .is("email_skipped_at", null);
+        if (limit !== null) {
+          query = query.order("id", { ascending: true }).limit(limit);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      });
 
     const emailPage = selectDeliveryPage(pendingMatches, isOutboxWorker);
     let emailed = 0;
