@@ -8,6 +8,7 @@ type SavedSearchCandidate = {
   condition?: string | null;
   only_my_community?: boolean | null;
   school_id?: string | null;
+  radius_km?: number | null;
 };
 
 type ListingCandidate = {
@@ -47,7 +48,11 @@ function containsText(haystack: string, needle: string | null | undefined) {
   return haystack.includes(cleanNeedle);
 }
 
-export function savedSearchMatchesListing(search: SavedSearchCandidate, listing: ListingCandidate) {
+export function savedSearchMatchesListing(
+  search: SavedSearchCandidate,
+  listing: ListingCandidate,
+  distanceKm?: number
+) {
   const searchableText = normalize([
     listing.title,
     listing.description,
@@ -72,6 +77,9 @@ export function savedSearchMatchesListing(search: SavedSearchCandidate, listing:
   if (search.condition && normalize(search.condition) !== normalize(listing.condition)) return false;
   if (search.isbn_query && normalize(search.isbn_query) !== normalize(listing.isbn)) return false;
   if (search.query && !containsText(searchableText, search.query)) return false;
+  // When a user saved a radius, unknown location must NOT trigger an alert.
+  if (search.radius_km !== null && search.radius_km !== undefined &&
+      (!Number.isFinite(distanceKm) || distanceKm! > search.radius_km)) return false;
 
   return true;
 }
