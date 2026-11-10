@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, is_demo, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, directory_school_code, postal_code, status")
+      .select("id, seller_id, user_id, is_demo, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, directory_school_code, postal_code, status")
       .eq("id", listingId)
       .maybeSingle();
 
@@ -41,10 +41,12 @@ export async function POST(request: Request) {
     if (!listing) return NextResponse.json({ error: "No se encontró el anuncio." }, { status: 404 });
     if (!isOutboxWorker) {
       if (!user) return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
-      if (listing.seller_id !== user.id) {
+      if (listing.seller_id !== user.id && listing.user_id !== user.id) {
         return NextResponse.json({ error: "No puedes procesar este anuncio." }, { status: 403 });
       }
     }
+    const listingOwnerId = listing.seller_id || listing.user_id;
+    if (!listingOwnerId) return NextResponse.json({ error: "Anuncio sin vendedor." }, { status: 409 });
     // Internal reconciliation excludes DEMO content, even if someone set the
     // DEMO flag after an outbox entry was initially created.
     if (isOutboxWorker && listing.is_demo === true) {
@@ -91,7 +93,7 @@ export async function POST(request: Request) {
       let query = admin.from("saved_searches")
         .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id")
         .eq("notifications_enabled", true)
-        .neq("user_id", isOutboxWorker ? listing.seller_id : user!.id)
+        .neq("user_id", listingOwnerId)
         .order("id", { ascending: true })
         .limit(limit);
       if (afterId) query = query.gt("id", afterId);
