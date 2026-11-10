@@ -29,6 +29,8 @@ on:
       - "scripts/pilot-marketplace-alert-manual-reconciliation.sql"
       - "supabase/migrations/20261110224500_marketplace_alert_provider_receipt_unique.sql"
       - "scripts/pilot-marketplace-alert-provider-receipt-unique.sql"
+      - "supabase/migrations/20261110231500_marketplace_alert_expired_lease_fencing.sql"
+      - "scripts/pilot-marketplace-alert-expired-lease-fencing.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -86,3 +88,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-review-hold.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-manual-reconciliation.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-provider-receipt-unique.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-expired-lease-fencing.sql
