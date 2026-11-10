@@ -12,7 +12,7 @@ create table public.listings(
   is_demo boolean
 );
 
-\i supabase/migrations/20261110121000_marketplace_alert_outbox_v1.sql
+\i supabase/migrations/20261110111353_marketplace_alert_outbox_v1.sql
 
 do $$
 begin
