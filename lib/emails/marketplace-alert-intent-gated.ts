@@ -59,6 +59,13 @@ export async function sendGatedMarketplaceAlertWithIntent(
     return {sent:false,reason:"requires_reconciliation"};
   }
 
+  // A durable 'accepted' state without its provider ID is insufficient to
+  // manufacture a legacy receipt. Hold for reconciliation instead.
+  if (typeof result.providerMessageId !== "string" ||
+      !result.providerMessageId.trim()) {
+    return {sent:false,reason:"requires_reconciliation"};
+  }
+
   // Bridge the new durable intent to the prior receipt mechanism so a later
   // non-worker invocation will not initiate a second provider request.
   const {error: receiptError}=await admin.from("transactional_email_deliveries")
@@ -68,7 +75,7 @@ export async function sendGatedMarketplaceAlertWithIntent(
       recipient_email_hash:recipientHash,
       kind:"saved_search_match",
       provider:"resend",
-      provider_message_id:result.providerMessageId || null,
+      provider_message_id:result.providerMessageId,
       sent_at:new Date().toISOString(),
     },{onConflict:"event_key",ignoreDuplicates:true});
   if (receiptError) {

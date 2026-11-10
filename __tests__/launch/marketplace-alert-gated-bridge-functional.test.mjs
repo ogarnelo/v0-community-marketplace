@@ -148,9 +148,16 @@ test("provider accepted but DB receipt bridge failed: hold for reconciliation wi
   assert.equal(db.records.length,1);
 });
 
-test("previously accepted new intent can bridge a receipt without provider message ID",async()=>{
+test("previous acceptance missing provider ID is quarantined without false legacy receipt",async()=>{
   const b=loadBridge({providerResult:{status:"already_accepted"}}), db=fakeAdmin();
+  assert.deepEqual(status(await b.fn(db.admin,input)),{sent:false,reason:"requires_reconciliation"});
+  assert.equal(db.records.length,0);
+  assert.equal(b.providerCalls(),1);
+});
+
+test("previously accepted new intent bridges exact verified provider ID without sending again",async()=>{
+  const b=loadBridge({providerResult:{status:"already_accepted",providerMessageId:"synthetic-confirmed-receipt"}}),db=fakeAdmin();
   assert.deepEqual(status(await b.fn(db.admin,input)),{sent:true});
   assert.equal(db.records.length,1);
-  assert.equal(db.records[0].provider_message_id,null);
+  assert.equal(db.records[0].provider_message_id,"synthetic-confirmed-receipt");
 });

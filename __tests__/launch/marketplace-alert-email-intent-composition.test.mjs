@@ -14,11 +14,13 @@ function mock({legacy=false,failLegacy=false,failAccept=false}={}){
   const intents=new Map();let reservations=0;
   const db={
     from(name){
-      assert.equal(name,"transactional_email_deliveries");
+      assert.ok(["transactional_email_deliveries","marketplace_alert_email_intents"].includes(name));
       const query={
         select(){return query;},
         eq(){return query;},
         async maybeSingle(){
+          if(name==="marketplace_alert_email_intents")
+            return {data:{provider_message_id:intents.get(eventKey)?.providerMessageId??null},error:null};
           if(failLegacy)return {data:null,error:Error("synthetic DB error")};
           return {data:legacy?{sent_at:"2026-11-10"}:null,error:null};
         }
@@ -40,7 +42,7 @@ function mock({legacy=false,failLegacy=false,failAccept=false}={}){
       }
       if(name==="marketplace_alert_email_accept_v1"){
         if(failAccept)return {data:false,error:Error("synthetic acknowledgement lost")};
-        rec.state="accepted";return {data:true,error:null};
+        rec.state="accepted";rec.providerMessageId=p.p_provider_message_id;return {data:true,error:null};
       }
       if(name==="marketplace_alert_email_ambiguous_v1"){
         rec.state="ambiguous";return {data:true,error:null};
@@ -66,7 +68,9 @@ test("composed flow hashes and sends one unchanged payload, then blocks replay",
     return {ok:true,json:async()=>({id:"synthetic-provider"})};
   };
   assert.equal((await run(m,send)).status,"accepted");
-  assert.equal((await run(m,send)).status,"already_accepted");
+  const replay=await run(m,send);
+  assert.equal(replay.status,"already_accepted");
+  assert.equal(replay.providerMessageId,"synthetic-provider");
   assert.equal(calls,1);
 });
 test("historical receipt short-circuits all new intents and provider calls",async()=>{
