@@ -10,12 +10,15 @@ test("signed worker checks both feature flags and all schema readiness before cl
  const table=worker.indexOf('.from("marketplace_alert_email_intents")');
  const intentHealth=worker.indexOf('"marketplace_alert_email_intent_health_v1"');
  const reviewHealth=worker.indexOf('"marketplace_alert_review_count_v1"');
+ const reconciliationHealth=worker.indexOf('"marketplace_alert_reconciliation_health_v1"');
  const claim=worker.indexOf('"marketplace_alert_claim_outbox_v1"');
  assert.ok(flag>=0 && table>flag && intentHealth>table &&
-  reviewHealth>intentHealth && claim>reviewHealth);
+  reviewHealth>intentHealth && reconciliationHealth>reviewHealth &&
+  claim>reconciliationHealth);
  assert.match(worker,/intent_functions_not_ready/);
  assert.match(worker,/email_schema_not_ready/);
  assert.match(worker,/review_schema_not_ready/);
+ assert.match(worker,/reconciliation_schema_not_ready/);
 });
 test("intent readiness RPC is a private aggregate installed after transition RPCs",()=>{
  const prepare=schema.indexOf("create or replace function public.marketplace_alert_email_prepare_v1");

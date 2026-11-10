@@ -12,6 +12,12 @@ test("production migration preflight runs in read-only transaction and exposes a
   assert.match(statements,/count\(\*\) filter \(where state='review_required'\)/);
   assert.match(statements,/relrowsecurity as rls_enabled/);
   assert.match(statements,/is_demo=true/);
+  assert.match(statements,/marketplace_alert_reconciliation_health_v1/);
+  assert.match(statements,/marketplace_alert_reconcile_accepted_v1/);
+  assert.match(statements,/marketplace_alert_email_intents_provider_receipt_uq/);
+  assert.match(statements,/pg_get_functiondef/);
+  assert.match(statements,/checks_lease_expiry/);
+  assert.match(statements,/checks_job_expiry/);
 });
 test("no DDL, DML, secrets or recipient identifiers in production preflight",()=>{
   assert.doesNotMatch(statements,/\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|vacuum|analyze|execute|copy|call|do)\b/i);

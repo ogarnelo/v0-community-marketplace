@@ -12,7 +12,9 @@ select
   (to_regprocedure('public.marketplace_alert_email_accept_v1(text,uuid,text)') is not null) as intent_accept_exists,
   (to_regprocedure('public.marketplace_alert_email_ambiguous_v1(text,uuid)') is not null) as intent_ambiguous_exists,
   (to_regprocedure('public.marketplace_alert_hold_for_review_v1(uuid,uuid)') is not null) as review_hold_exists,
-  (to_regprocedure('public.marketplace_alert_review_count_v1()') is not null) as review_count_exists;
+  (to_regprocedure('public.marketplace_alert_review_count_v1()') is not null) as review_count_exists,
+  (to_regprocedure('public.marketplace_alert_reconciliation_health_v1()') is not null) as reconciliation_health_exists,
+  (to_regprocedure('public.marketplace_alert_reconcile_accepted_v1(text,text,text,text)') is not null) as reconciliation_rpc_exists;
 
 select
   count(*) as total_outbox,
@@ -30,6 +32,29 @@ select
       and c.conname='marketplace_alert_outbox_state_check'
     limit 1
   ), 'missing') as outbox_state_constraint;
+
+-- Read-only catalog inspection of the provider ID uniqueness guard.
+select exists (
+  select 1 from pg_indexes
+  where schemaname='public' and tablename='marketplace_alert_email_intents'
+    and indexname='marketplace_alert_email_intents_provider_receipt_uq'
+    and indexdef ilike '%UNIQUE INDEX%'
+    and indexdef ilike '%provider_message_id%'
+) as provider_receipt_unique_index_exists;
+
+-- Verify that SQL functions actually include expiry fencing after migration.
+-- Do not call the state-changing RPCs during a production preflight.
+select p.proname,
+  pg_get_functiondef(p.oid) like '%lease_until > now()%' as checks_lease_expiry,
+  pg_get_functiondef(p.oid) like '%expires_at > now()%' as checks_job_expiry
+from pg_proc p
+join pg_namespace n on n.oid=p.pronamespace
+where n.nspname='public' and p.proname in (
+  'marketplace_alert_settle_outbox_v1',
+  'marketplace_alert_requeue_progress_v1',
+  'marketplace_alert_defer_readiness_v1'
+)
+order by p.proname;
 
 select
   relname,
