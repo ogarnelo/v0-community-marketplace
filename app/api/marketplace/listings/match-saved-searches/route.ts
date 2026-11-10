@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
 import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
+import { loadAllSortedPages, batchAlertItems } from "@/lib/marketplace/saved-search-batches.mjs";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -64,13 +65,20 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: savedSearches, error: searchesError } = await admin
-      .from("saved_searches")
-      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id")
-      .eq("notifications_enabled", true)
-      .neq("user_id", user.id);
-
-    if (searchesError) throw searchesError;
+    // Supabase's configured maximum row count must never silently truncate
+    // the audience. Stable UUID keyset pages also avoid large OFFSET scans.
+    const savedSearches = await loadAllSortedPages(async (afterId, limit) => {
+      let query = admin.from("saved_searches")
+        .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id")
+        .eq("notifications_enabled", true)
+        .neq("user_id", user.id)
+        .order("id", { ascending: true })
+        .limit(limit);
+      if (afterId) query = query.gt("id", afterId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    });
 
     // Cheap content-only matching runs before any directory or postcode
     // lookup. This avoids fetching irrelevant school links and location
@@ -152,11 +160,13 @@ export async function POST(request: Request) {
 
     if (matches.length === 0) return NextResponse.json({ ok: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
 
-    const { error: insertError } = await admin
-      .from("saved_search_matches")
-      .upsert(matches, { onConflict: "saved_search_id,listing_id", ignoreDuplicates: true });
-
-    if (insertError) throw insertError;
+    // Avoid oversized writes when a popular listing matches many families.
+    for (const batch of batchAlertItems(matches)) {
+      const { error: insertError } = await admin
+        .from("saved_search_matches")
+        .upsert(batch, { onConflict: "saved_search_id,listing_id", ignoreDuplicates: true });
+      if (insertError) throw insertError;
+    }
 
     const matchedSearchIds = new Set(matches.map((match) => match.saved_search_id));
     for (const search of contentCandidates) {
@@ -171,14 +181,18 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: pendingNotifications, error: notificationQueryError } = await admin
-      .from("saved_search_matches")
-      .select("id, user_id")
-      .eq("listing_id", listing.id)
-      .in("saved_search_id", matches.map((match) => match.saved_search_id))
-      .is("notified_at", null);
-
-    if (notificationQueryError) throw notificationQueryError;
+    // Each pending lookup has at most 150 IDs: no giant PostgREST URL and
+    // no implicit response-page truncation once there are >1000 matches.
+    const pendingNotifications = [];
+    for (const batch of batchAlertItems(matches)) {
+      const { data, error } = await admin.from("saved_search_matches")
+        .select("id, user_id")
+        .eq("listing_id", listing.id)
+        .in("saved_search_id", batch.map((match) => match.saved_search_id))
+        .is("notified_at", null);
+      if (error) throw error;
+      pendingNotifications.push(...(data || []));
+    }
 
     let notified = 0;
     for (const match of pendingNotifications || []) {
@@ -205,14 +219,16 @@ export async function POST(request: Request) {
       notified += 1;
     }
 
-    const { data: pendingMatches, error: pendingError } = await admin
-      .from("saved_search_matches")
-      .select("id, user_id")
-      .eq("listing_id", listing.id)
-      .in("saved_search_id", matches.map((match) => match.saved_search_id))
-      .is("emailed_at", null);
-
-    if (pendingError) throw pendingError;
+    const pendingMatches = [];
+    for (const batch of batchAlertItems(matches)) {
+      const { data, error } = await admin.from("saved_search_matches")
+        .select("id, user_id")
+        .eq("listing_id", listing.id)
+        .in("saved_search_id", batch.map((match) => match.saved_search_id))
+        .is("emailed_at", null);
+      if (error) throw error;
+      pendingMatches.push(...(data || []));
+    }
 
     let emailed = 0;
     for (const match of pendingMatches || []) {
