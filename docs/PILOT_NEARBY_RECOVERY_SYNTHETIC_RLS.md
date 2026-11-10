@@ -13,3 +13,5 @@ Al reconstruir la base local, el ensayo vuelve a verificar la misma segregación
 ## Hallazgo del primer ensayo
 
 La primera ejecución encontró que la restauración del subconjunto no había restituido el permiso `USAGE` del esquema al rol QA. El ensayo ahora lo detecta expresamente y reproduce la concesión mínima **solo dentro de la base desechable**, antes de comprobar RLS. Esta corrección del entorno sintético no se aplica a Supabase de producción. La pérdida de permisos de esquema debe considerarse en un procedimiento futuro de recuperación integral.
+
+La siguiente ejecución también encontró que el dump parcial no había conservado los permisos `SELECT` de las tres tablas. El ejercicio los restaura explícitamente para el rol sintético antes de comprobar de nuevo las políticas RLS. Esto no significa que las ACL de la producción se reconstruyan de manera automática: deben formar parte del plan de recuperación real.
