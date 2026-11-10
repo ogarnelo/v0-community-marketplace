@@ -264,7 +264,7 @@ test("marketplace client searches all server-side listings before displaying an 
   assert.match(client, /schoolAppliedKey !== debouncedFeedFilters/);
   assert.match(client, /generalActiveKeyRef\.current !== requestKey/);
   assert.match(client, /schoolActiveKeyRef\.current !== requestKey/);
-  assert.match(client, /if \(!requestKey\) setSchoolCount\(payload\.total \?\? null\)/);
+  assert.match(client, /if \(!requestKey && typeof payload.total === "number"\) setSchoolCount\(payload.total\)/);
   assert.doesNotMatch(client, /normalizeText\(searchQuery\)/);
   assert.match(client, /No se pudo completar la búsqueda/);
 });
