@@ -51,6 +51,16 @@ export async function GET(request: Request) {
     if (reviewSchemaError) {
       return Response.json({ok:false,error:"review_schema_not_ready"}, {status:503});
     }
+    // The table and quarantine RPC alone are not sufficient. Keep the worker
+    // inert if the manual-reconciliation migration has not been applied.
+    // Only aggregate, private, read-only RPCs may be invoked here.
+    const { error: reconciliationSchemaError } = await admin.rpc(
+      "marketplace_alert_reconciliation_health_v1"
+    );
+    if (reconciliationSchemaError) {
+      return Response.json({ok:false,error:"reconciliation_schema_not_ready"}, {status:503});
+    }
+
     // One listing per invocation keeps workload bounded before real-volume QA.
     const { data: jobs, error: claimError } = await admin.rpc(
       "marketplace_alert_claim_outbox_v1", { p_limit: 1, p_lease_seconds: 240 }
