@@ -29,7 +29,7 @@ test("discovery only considers saved searches existing and unchanged before publ
 });
 
 test("outbox delivery excludes disabled and edited searches for BOTH channels",()=>{
-  assert.equal((matcher.match(/saved_searches!inner\(id, notifications_enabled, updated_at, radius_km\)/g)||[]).length,2);
+  assert.equal((matcher.match(/saved_searches!inner\(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code\)/g)||[]).length,2);
   assert.equal((matcher.match(/\.eq\("saved_searches\.notifications_enabled", true\)/g)||[]).length,2);
   assert.equal((matcher.match(/\.lte\("saved_searches\.updated_at", listing\.created_at\)/g)||[]).length,2);
   assert.match(matcher,/\.is\("email_skipped_at", null\)/);
