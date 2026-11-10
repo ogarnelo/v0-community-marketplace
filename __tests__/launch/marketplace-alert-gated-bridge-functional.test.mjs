@@ -40,6 +40,7 @@ function loadBridge({ providerResult={status:"accepted",providerMessageId:"provi
     process:{env:{RESEND_API_KEY:env.apiKey??"synthetic-api-key"}},
     Date,
     Error,
+    fetch:async()=>{throw Error("Unexpected real fetch in isolated test");},
   },{filename:"marketplace-alert-intent-gated.ts",timeout:2000});
   return {fn:exports.sendGatedMarketplaceAlertWithIntent,
     providerCalls:()=>providerCalls,providerMessage:()=>providerMessage};
