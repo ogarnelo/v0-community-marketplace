@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { dispatchPublishedListingAlerts } from "@/lib/marketplace/publish-alert-dispatch.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
 import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
 import { bookFormats, bookLanguages, categories, conditions, gradeLevels } from "@/lib/mock-data";
@@ -871,13 +872,24 @@ export default function NewListingForm({
         console.error("No se pudo limpiar el borrador publicado", draftCleanupError);
       });
 
-      await fetch("/api/marketplace/listings/match-saved-searches", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ listingId, opportunityKey: activationOpportunityKey }),
-}).catch((matchError) => {
-  console.error("No se pudieron procesar los avisos guardados", matchError);
-});
+      // This is an independent, idempotent follow-up to a committed listing.
+      // Do not make the seller wait for every recipient to be matched/emailed.
+      // keepalive permits the small POST to continue across navigation.
+      void dispatchPublishedListingAlerts(() => fetch(
+        "/api/marketplace/listings/match-saved-searches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({ listingId, opportunityKey: activationOpportunityKey }),
+        }
+      )).then((result) => {
+        if (!result.ok) {
+          // Include the HTTP failure type; never log private recipient details.
+          console.error("Avisos guardados pendientes de revisión", result.reason);
+        }
+      }).catch((error) => {
+        console.error("Error inesperado procesando avisos guardados", error);
+      });
 
       void fetch("/api/analytics/acquisition", {
         method: "POST",
