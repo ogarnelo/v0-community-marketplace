@@ -77,6 +77,32 @@ begin
   end if;
 end $$;
 
+-- Recovered deliveries must ignore searches whose revision is newer than
+-- the listing, even when someone opts IN again after opting out.
+insert into public.saved_searches(id,user_id,query,category,notifications_enabled,created_at,updated_at)
+values
+('10000000-0000-4000-8000-000000000022','10000000-0000-4000-8000-000000000001',
+ 'libros tercero','Libros',true,now()-interval '2 days',now()-interval '1 day');
+alter table public.saved_search_matches
+  add column if not exists saved_search_id uuid references public.saved_searches(id);
+insert into public.saved_search_matches(id,saved_search_id) values
+ ('10000000-0000-4000-8000-000000000023','10000000-0000-4000-8000-000000000020'),
+ ('10000000-0000-4000-8000-000000000024','10000000-0000-4000-8000-000000000021'),
+ ('10000000-0000-4000-8000-000000000025','10000000-0000-4000-8000-000000000022');
+do $
+declare
+  eligible_count integer;
+begin
+  select count(*) into eligible_count
+    from public.saved_search_matches m
+    join public.saved_searches s on s.id=m.saved_search_id
+    where s.notifications_enabled is true
+      and s.updated_at <= now()-interval '30 minutes';
+  if eligible_count <> 1 then
+    raise exception 'Old listing opt-out and changed preferences were not excluded';
+  end if;
+end $;
+
 -- Legacy rows that have never changed retain their original timestamp;
 -- migration does not backfill or rewrite any saved search.
 select 'PASS: opt-out/opt-in, changed criteria and anti-timestamp-spoof trigger' as result;
