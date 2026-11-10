@@ -190,6 +190,16 @@ def main():
                 "--dbname",TARGET,str(archive))
             if snapshot(TARGET)!=original:
                 raise AssertionError("Recovered saved-search rows differ")
+            # PostgreSQL scoped dumps may not recreate a schema-level USAGE
+            # grant for roles existing globally in the disposable cluster.
+            # Detect the gap, then explicitly replay the minimal synthetic
+            # schema access grant. Never copy this step to hosted Supabase.
+            if sql(TARGET,
+                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "true":
+                sql(TARGET,"grant usage on schema qa_near_market to qa_near_family")
+            if sql(TARGET,
+                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "true":
+                raise AssertionError("Restored synthetic schema USAGE grant missing")
             verify(TARGET)
             verify_restored_family_isolation(TARGET)
             adversarial=[
