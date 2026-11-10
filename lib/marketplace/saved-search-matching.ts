@@ -44,10 +44,46 @@ function normalize(value: string | null | undefined) {
     .trim();
 }
 
+// Keep alerts conservative: require EVERY meaningful search term, but not
+// necessarily in the same order. This supports natural-language family needs
+// without external AI calls, embeddings, or extra API charges.
+const SEARCH_FILLERS = new Set([
+  "a", "al", "de", "del", "el", "la", "los", "las", "un", "una", "unos",
+  "unas", "en", "mi", "mis", "me", "que", "y", "o", "por", "para",
+  "favor", "necesito", "busco", "buscando", "quiero", "queria",
+  "estoy", "necesitamos", "se", "lo", "le", "su", "sus",
+]);
+const ORDINALS: Record<string, string> = {
+  primero: "1", primera: "1", primer: "1",
+  segundo: "2", segunda: "2",
+  tercero: "3", tercera: "3", tercer: "3",
+  cuarto: "4", cuarta: "4",
+  quinto: "5", quinta: "5",
+  sexto: "6", sexta: "6",
+};
+
+function meaningfulTokens(value: string | null | undefined) {
+  return normalize(value)
+    .replace(/([0-9]+)[ºª°]/g, "$1")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter((token) => token && !SEARCH_FILLERS.has(token))
+    .map((token) => ORDINALS[token] || (token.length > 4 && token.endsWith("s")
+      ? token.slice(0, -1) : token));
+}
+
+export function hasMeaningfulSearchTerms(value: string | null | undefined) {
+  return meaningfulTokens(value).length > 0;
+}
+
 function containsText(haystack: string, needle: string | null | undefined) {
   const cleanNeedle = normalize(needle);
   if (!cleanNeedle) return true;
-  return haystack.includes(cleanNeedle);
+  if (haystack.includes(cleanNeedle)) return true;
+  const terms = meaningfulTokens(needle);
+  if (!terms.length) return false; // Never notify everyone for filler-only text.
+  const available = new Set(meaningfulTokens(haystack));
+  return terms.every((term) => available.has(term));
 }
 
 type SchoolDirectoryLinks = {
