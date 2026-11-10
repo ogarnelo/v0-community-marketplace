@@ -46,9 +46,10 @@ test("school-scoped alerts never match outside their actual school", () => {
 });
 
 test("zero-results descriptions are accepted and used as a matching criterion, not just metadata", () => {
-  assert.match(route, /const matchingQuery = query \|\|/);
+  assert.match(route, /const matchingQuery =/);
+  assert.match(route, /hasMeaningfulSearchTerms\(needDetails\)/);
   assert.match(route, /needDetails\?\.slice\(0, 160\)/);
-  assert.match(route, /!query && !isbnQuery && !category && !gradeLevel && !needDetails/);
+  assert.match(route, /!matchingQuery && !isbnQuery && !category && !gradeLevel/);
   assert.match(route, /query: matchingQuery/);
   assert.match(route, /normalized_query: matchingQuery\?\.toLowerCase/);
   assert.match(client, /setSaveSearchStatus\("details"\)/);
