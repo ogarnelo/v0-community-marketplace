@@ -35,6 +35,20 @@ export async function GET(request: Request) {
       });
     }
     const job = jobs[0];
+    // Once discovery is durably complete, all subsequent invocations deliver
+    // directly from persisted matches, never rescan saved_searches.
+    const { data: discoveryState, error: stateError } = await admin
+      .from("marketplace_alert_outbox")
+      .select("discovery_completed_at")
+      .eq("listing_id", job.listing_id)
+      .eq("lease_token", job.lease_token)
+      .eq("state", "processing")
+      .maybeSingle();
+    if (stateError) throw stateError;
+    if (!discoveryState) {
+      return Response.json({ ok: false, reason: "stale_lease" }, { status: 409 });
+    }
+    const stage = discoveryState.discovery_completed_at ? "deliver" : "discover";
     let success = false;
     let partialProgress = false;
     let awaitingPhotos = false;
@@ -66,7 +80,9 @@ export async function GET(request: Request) {
               "x-wetudy-alert-outbox": "1",
               "content-type": "application/json",
             },
-            body: JSON.stringify({ listingId: job.listing_id }),
+            body: JSON.stringify({
+              listingId: job.listing_id, leaseToken: job.lease_token, stage,
+            }),
             cache: "no-store",
             redirect: "manual",
             signal: AbortSignal.timeout(25000),
