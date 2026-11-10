@@ -79,4 +79,18 @@ begin
     raise exception 'Authenticated can call send begin';
   end if;
 end $$;
+do $
+declare m record;
+begin
+  select * into m from public.marketplace_alert_email_intent_health_v1();
+  if m.total <> 2 or m.ambiguous <> 1 or m.accepted <> 1
+    or m.sending <> 0 or m.prepared <> 0 then
+    raise exception 'Incorrect aggregate email intent health';
+  end if;
+  if has_function_privilege('anon',
+    'public.marketplace_alert_email_intent_health_v1()','EXECUTE') then
+    raise exception 'Anon can execute private email intent health';
+  end if;
+end $;
+
 select 'PASS: durable, fenced, immutable send intents; ambiguous states fail closed' as result;
