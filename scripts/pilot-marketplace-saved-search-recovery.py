@@ -83,6 +83,25 @@ insert into qa_near_market.marketplace_alert_outbox values
 insert into qa_near_market.transactional_email_deliveries values
  ('saved-search-match/synthetic-test','synthetic-provider-receipt',
  '2026-11-10T12:00:00Z');
+
+-- Synthetic role only, not a real Supabase authenticated session.
+create role qa_near_family nologin;
+grant usage on schema qa_near_market to qa_near_family;
+grant select on qa_near_market.user_marketplace_preferences,
+                qa_near_market.saved_searches,
+                qa_near_market.saved_search_matches to qa_near_family;
+alter table qa_near_market.user_marketplace_preferences enable row level security;
+alter table qa_near_market.saved_searches enable row level security;
+alter table qa_near_market.saved_search_matches enable row level security;
+create policy own_preferences on qa_near_market.user_marketplace_preferences
+ for select to qa_near_family
+ using(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
+create policy own_searches on qa_near_market.saved_searches
+ for select to qa_near_family
+ using(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
+create policy own_matches on qa_near_market.saved_search_matches
+ for select to qa_near_family
+ using(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
 """
 
 def run(*args):
@@ -127,13 +146,39 @@ def verify(conn):
     if verified != "1":
         raise AssertionError("Recovered saved search/postcode/receipt chain is inconsistent")
 
+def verify_restored_family_isolation(conn):
+    """RLS checks under a reduced synthetic DB role with a simulated claim."""
+    expected={A:"0:0:1",B:"1:1:1"}
+    for principal,counts in [*expected.items(),("cccccccc-cccc-4ccc-8ccc-cccccccccccc","0:0:0")]:
+        statement = (
+            "begin; set local role qa_near_family; "
+            "select set_config('request.jwt.claim.sub','"+principal+"',true); "
+            "select (select count(*) from qa_near_market.saved_searches)::text||':'||"
+            "(select count(*) from qa_near_market.saved_search_matches)::text||':'||"
+            "(select count(*) from qa_near_market.user_marketplace_preferences)::text; "
+            "rollback;"
+        )
+        result=sql(conn,statement).splitlines()
+        if counts not in result:
+            raise AssertionError("Restored family isolation failed for synthetic account")
+    for name in ("saved_searches","saved_search_matches","user_marketplace_preferences"):
+        guarded=sql(conn,
+            "select c.relrowsecurity::text||':'||"
+            "has_table_privilege('qa_near_family','qa_near_market."+name+"','SELECT')::text "
+            "from pg_class c join pg_namespace n on n.oid=c.relnamespace "
+            "where n.nspname='qa_near_market' and c.relname='"+name+"'")
+        if guarded!="true:true":
+            raise AssertionError("Missing RLS or synthetic role SELECT grant on "+name)
+
+
 def main():
     sql(SOURCE,SQL)
+    verify_restored_family_isolation(SOURCE)
     original=snapshot(SOURCE)
     verify(SOURCE)
     with tempfile.TemporaryDirectory(prefix="wetudy-qa-nearby-") as directory:
         archive=Path(directory)/"synthetic-nearby.dump"
-        run("pg_dump","--dbname",SOURCE,"-Fc","--no-owner","--no-acl",
+        run("pg_dump","--dbname",SOURCE,"-Fc","--no-owner",
             "--schema=qa_near_auth","--schema=qa_near_market","-f",str(archive))
         if archive.stat().st_size < 1024:
             raise AssertionError("Unexpectedly empty synthetic archive")
@@ -145,7 +190,24 @@ def main():
                 "--dbname",TARGET,str(archive))
             if snapshot(TARGET)!=original:
                 raise AssertionError("Recovered saved-search rows differ")
+            # PostgreSQL scoped dumps may not recreate a schema-level USAGE
+            # grant for roles existing globally in the disposable cluster.
+            # Detect the gap, then explicitly replay the minimal synthetic
+            # schema access grant. Never copy this step to hosted Supabase.
+            if sql(TARGET,
+                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "t":
+                sql(TARGET,"grant usage on schema qa_near_market to qa_near_family")
+            if sql(TARGET,
+                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "t":
+                raise AssertionError("Restored synthetic schema USAGE grant missing")
             verify(TARGET)
+            # A filtered logical dump may omit table ACLs too. Replay only
+            # read grants for this synthetic QA role, then enforce RLS.
+            sql(TARGET,
+                "grant select on qa_near_market.user_marketplace_preferences,"
+                " qa_near_market.saved_searches,"
+                " qa_near_market.saved_search_matches to qa_near_family")
+            verify_restored_family_isolation(TARGET)
             adversarial=[
                 ("postcode mismatch",
                  "update qa_near_market.user_marketplace_preferences set postal_code='99999' where user_id='"+
@@ -176,7 +238,7 @@ def main():
                 verify(TARGET)
             if snapshot(TARGET)!=original:
                 raise AssertionError("Synthetic restored data changed after tamper tests")
-            print("PASS synthetic saved-search/postcode/outbox/receipt restore and five adversarial checks.")
+            print("PASS synthetic saved-search/postcode/outbox/receipt restore, five adversarial checks and isolated-family RLS.")
             print("LIMIT: invented data and simplified schema, NOT real Auth/Storage or full production DR.")
         finally:
             sql(SOURCE,"drop database if exists wetudy_pilot_nearby_restored with (force)")
