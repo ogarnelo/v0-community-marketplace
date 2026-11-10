@@ -10,7 +10,7 @@ const matchRoute = read("app/api/marketplace/listings/match-saved-searches/route
 const client = read("components/marketplace/marketplace-client.tsx");
 const account = read("components/account/saved-searches-list.tsx");
 const accountPage = read("app/account/saved-searches/page.tsx");
-const migration = read("supabase/migrations/20261110093000_saved_search_radius_km.sql");
+const migration = read("supabase/migrations/20261110081928_saved_search_radius_km.sql");
 
 const compiled = ts.transpileModule(
   read("lib/marketplace/saved-search-matching.ts"),
