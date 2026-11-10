@@ -87,7 +87,7 @@ test("malformed server response does not cause unbounded retry", async () => {
 test("listing is committed first; alerts run separately and use fetch keepalive", () => {
   const insertIndex = form.indexOf('from("listings").insert(payload)');
   const alertIndex = form.indexOf("void dispatchPublishedListingAlerts(");
-  const navigationIndex = form.indexOf("router.push(");
+  const navigationIndex = form.indexOf("router.push(`/marketplace/listing/${listingId}?published=1`);");
   assert.ok(insertIndex !== -1 && alertIndex > insertIndex);
   assert.ok(navigationIndex > alertIndex);
   assert.match(form, /keepalive: true,[\s\S]*?body: JSON\.stringify\(\{ listingId, opportunityKey: activationOpportunityKey \}\)/);
