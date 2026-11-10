@@ -65,6 +65,17 @@ a las 48 horas. La RPC de reanudación no acepta tokens vencidos ni trabajos
 finalizados. El flujo normal iniciado por el vendedor conserva su alcance
 anterior; solo la recuperación firmada usa lotes acotados.
 
+**Optimización de lectura de pendientes (PR #368):** el recuperador conserva
+su límite de 12 notificaciones y 12 correos por invocación, pero cada fase
+consulta **solo 13 resultados pendientes como máximo**: procesa 12 y
+utiliza el 13.º como centinela para saber si queda trabajo. Si los primeros
+grupos no tienen destinatarios pendientes, recorre los siguientes grupos de
+hasta 150 IDs sin truncar la audiencia. El procesamiento del vendedor
+mantiene la cobertura completa. Esto reduce lecturas repetidas de pendientes,
+especialmente cuando hay muchos avisos por anuncio, pero **no** reduce a
+12 la totalidad de familias que podrán recibir avisos: las demás se atienden
+en continuaciones posteriores una vez activado el worker y tras superar QA.
+
 **Limitación explícita:** en cada invocación todavía se vuelve a consultar
 toda la lista de búsquedas guardadas para determinar las coincidencias del
 anuncio. Antes de un volumen elevado deben persistirse por separado los
