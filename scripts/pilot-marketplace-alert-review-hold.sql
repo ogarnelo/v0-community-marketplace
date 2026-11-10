@@ -4,7 +4,11 @@ insert into public.listings(id,seller_id,status,is_demo)
 values ('90000000-0000-4000-8000-000000000001',
         '10000000-0000-4000-8000-000000000001','available',false);
 
-do $$
+update public.marketplace_alert_outbox
+  set next_attempt_at=now()-interval '2 hours'
+  where listing_id='90000000-0000-4000-8000-000000000001';
+
+do $
 declare
  k uuid := '90000000-0000-4000-8000-000000000001';
  t uuid;
