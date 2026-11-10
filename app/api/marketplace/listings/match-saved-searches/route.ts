@@ -8,6 +8,7 @@ import { selectDeliveryPage, summarizeDeliveryProgress } from "@/lib/marketplace
 import { loadPendingDeliveryRows } from "@/lib/marketplace/alert-pending-page.mjs";
 import { summarizeDiscoveryPage, WORKER_DISCOVERY_PAGE_SIZE } from "@/lib/marketplace/alert-discovery-page.mjs";
 import { hasRadiusConstraint, partitionLiveRadius } from "@/lib/marketplace/alert-live-radius.mjs";
+import { codesForLiveSchoolPage, partitionLiveSchool } from "@/lib/marketplace/alert-live-school.mjs";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -282,7 +283,24 @@ export async function POST(request: Request) {
     // using only the 12-recipient page. Never log or expose any full CP.
     const verifyWorkerRecipients = async (page: any[]) => {
       if (!isWorkerDelivery || page.length === 0) return page;
-      const geoPage = page.filter(hasRadiusConstraint);
+      // Directory links are mutable even when the saved search itself is
+      // unchanged. Re-evaluate only this bounded delivery page against the
+      // live directory before attempting either notification channel.
+      const codes = codesForLiveSchoolPage(page, listing);
+      const directoryLinks = new Map<string, string | null>();
+      if (codes.length > 0) {
+        const { data: currentLinks, error: linksError } = await admin
+          .from("school_directory")
+          .select("official_code, linked_school_id")
+          .in("official_code", codes);
+        if (linksError) throw linksError;
+        for (const link of currentLinks || []) {
+          directoryLinks.set(link.official_code, link.linked_school_id || null);
+        }
+      }
+      const { deliverable: schoolValid, invalidated: schoolInvalid } =
+        partitionLiveSchool(page, listing, directoryLinks, savedSearchMatchesListing);
+      const geoPage = schoolValid.filter(hasRadiusConstraint);
       const profilePostcodes = new Map<string, string | null>();
       let listingZone: string | null = listing.postal_code || null;
       if (geoPage.length > 0) {
@@ -300,18 +318,22 @@ export async function POST(request: Request) {
           listingZone = owner?.postal_code || null;
         }
       }
-      const { deliverable, invalidated } = partitionLiveRadius(
-        page, profilePostcodes, listingZone, approximateDistanceKm,
+      const { deliverable, invalidated: radiusInvalid } = partitionLiveRadius(
+        schoolValid, profilePostcodes, listingZone, approximateDistanceKm,
       );
-      for (const stale of invalidated) {
+      const staleMatches = [
+        ...schoolInvalid.map((match) => ({ match, reason: "school_link_changed" })),
+        ...radiusInvalid.map((match) => ({ match, reason: "radius_changed" })),
+      ];
+      for (const stale of staleMatches) {
         // One terminal invalidation suppresses BOTH notification and email,
-        // avoiding endless requeues and obsolete mail after a profile move.
+        // avoiding endless requeues after school relinking or a profile move.
         const { error: invalidateError } = await admin.from("saved_search_matches")
           .update({
             invalidated_at: new Date().toISOString(),
-            invalidation_reason: "radius_changed",
+            invalidation_reason: stale.reason,
           })
-          .eq("id", stale.id)
+          .eq("id", stale.match.id)
           .is("invalidated_at", null);
         if (invalidateError) throw invalidateError;
       }
@@ -323,7 +345,7 @@ export async function POST(request: Request) {
     const pendingNotifications = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km)")
+            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code)")
             .eq("listing_id", listing.id)
             .eq("saved_searches.notifications_enabled", true)
             .lte("saved_searches.updated_at", listing.created_at)
@@ -380,7 +402,7 @@ export async function POST(request: Request) {
     const pendingMatches = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km)")
+            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code)")
             .eq("listing_id", listing.id)
             .eq("saved_searches.notifications_enabled", true)
             .lte("saved_searches.updated_at", listing.created_at)
