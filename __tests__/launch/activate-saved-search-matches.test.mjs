@@ -14,7 +14,8 @@ test("listing publication triggers saved-search matching", () => {
 
 test("matching hook verifies ownership and avoids self alerts", () => {
   assert.match(route, /listing\.seller_id !== user\.id/);
-  assert.match(route, /\.neq\("user_id", user\.id\)/);
+  assert.match(route, /\.neq\("user_id", listingOwnerId\)/);
+  assert.match(route, /listing\.seller_id !== user\.id && listing\.user_id !== user\.id/);
 });
 
 test("saved-search matches are idempotent", () => {
