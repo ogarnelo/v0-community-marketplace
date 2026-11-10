@@ -56,7 +56,8 @@ test("upserts, pending notifications and email lookups stay within 150 IDs",()=>
 });
 
 test("route uses UUID keyset pagination, bounded matching and existing idempotency",()=>{
-  assert.match(source,/loadAllSortedPages\(async \(afterId, limit\) =>/);
+  assert.match(source,/loadAllSortedPages\(loadSearches\)/);
+  assert.match(source,/const loadSearches = async \(afterId: string \| null, limit: number\)/);
   assert.match(source,/\.order\("id", \{ ascending: true \}\)/);
   assert.match(source,/\.limit\(limit\)/);
   assert.match(source,/if \(afterId\) query = query\.gt\("id", afterId\)/);

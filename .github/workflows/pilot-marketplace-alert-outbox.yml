@@ -13,6 +13,8 @@ on:
       - "scripts/pilot-marketplace-alert-partial-delivery.sql"
       - "supabase/migrations/20261110145531_marketplace_alert_defer_photos_v1.sql"
       - "scripts/pilot-marketplace-alert-defer-photos.sql"
+      - "supabase/migrations/20261110155518_marketplace_alert_discovery_checkpoint_v1.sql"
+      - "scripts/pilot-marketplace-alert-discovery-checkpoint.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -62,3 +64,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-outbox-health.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-partial-delivery.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-defer-photos.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-discovery-checkpoint.sql

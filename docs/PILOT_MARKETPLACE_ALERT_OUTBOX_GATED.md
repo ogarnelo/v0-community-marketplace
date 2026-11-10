@@ -83,6 +83,42 @@ cursosres de exploración y optimizar las consultas repetidas. No interpretar
 este cambio como garantía de entrega a miles de destinatarios dentro de un
 SLA. Sigue pendiente la E2E real controlada con las cuentas QA del piloto.
 
+## Descubrimiento reanudable por búsqueda (checkpoint de 200, NO activado)
+
+La recuperación autorizada trabaja ahora en **dos fases** sin reutilizar las
+búsquedas completas en cada continuación:
+
+1. **Descubrimiento**: reclama el anuncio, comprueba foto y estado, y examina
+   un máximo de **200 búsquedas guardadas activas por invocación**, ordenadas
+   por ID. Incluye únicamente búsquedas creadas hasta la publicación del
+   anuncio, para evitar alertas retroactivas por necesidades nuevas. Aplica
+   los filtros existentes de contenido, ISBN, centro y código postal. Inserta
+   las coincidencias con `onConflict` idempotente. **Solo después** avanza
+   el cursor mediante `marketplace_alert_advance_discovery_v1`, que exige
+   lease válido y coincide exactamente con el cursor anterior. Una
+   interrupción entre inserción y cursor se recupera repitiendo la página,
+   sin duplicar coincidencias.
+2. **Entrega**: cuando el último lote, incluso vacío, queda marcado como
+   `discovery_completed_at`, las siguientes ejecuciones **no vuelven a leer
+   `saved_searches` para descubrir coincidencias**: leen directamente
+   `saved_search_matches` para ese anuncio, de 13 en 13 por canal, y
+   entregan como máximo 12 avisos por canal y ejecución. Los marcadores
+   `notified_at`, `emailed_at` y `email_skipped_at` evitan repetir lo
+   completado. La publicación normal iniciada por el vendedor conserva su
+   comportamiento independiente.
+
+Las dos etapas solo están disponibles con `CRON_SECRET`, la bandera
+`WETUDY_ALERT_OUTBOX_ENABLED=true`, un identificador de lease UUID vigente
+y la etapa correcta del estado almacenado. Los RPC son invocadores con
+`service_role` exclusivo; el trigger de captura y los seis DEMO no cambian.
+No hay cron nuevo. El nuevo cursor no contiene datos de personas, CP ni emails.
+
+**Pendiente antes de activar:** E2E autorizada de cambios/pausas o eliminación
+de búsquedas guardadas mientras hay una entrega pendiente, para evitar enviar
+avisos obsoletos si una familia modifica su preferencia. También habrá que
+comprobar con carga real el número máximo de páginas por ventana de 48 horas.
+Hasta superar estas validaciones, el recuperador debe seguir **desactivado**.
+
 ## Observabilidad de cola sin activar envíos
 
 La función `public.marketplace_alert_outbox_health_v1()` devuelve exclusivamente
