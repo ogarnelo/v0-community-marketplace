@@ -21,6 +21,8 @@ on:
       - "scripts/pilot-marketplace-live-radius-invalidation.sql"
       - "supabase/migrations/20261110194657_marketplace_school_link_invalidation_v2.sql"
       - "scripts/pilot-marketplace-live-school-relink.sql"
+      - "supabase/migrations/20261110211000_marketplace_alert_email_send_intents_v1.sql"
+      - "scripts/pilot-marketplace-alert-email-intents.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -74,3 +76,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-saved-search-optout.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-live-radius-invalidation.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-live-school-relink.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-email-intents.sql
