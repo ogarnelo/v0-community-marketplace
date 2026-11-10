@@ -89,7 +89,7 @@ insert into public.saved_search_matches(id,saved_search_id) values
  ('10000000-0000-4000-8000-000000000023','10000000-0000-4000-8000-000000000020'),
  ('10000000-0000-4000-8000-000000000024','10000000-0000-4000-8000-000000000021'),
  ('10000000-0000-4000-8000-000000000025','10000000-0000-4000-8000-000000000022');
-do $
+do $optout$
 declare
   eligible_count integer;
 begin
@@ -101,7 +101,7 @@ begin
   if eligible_count <> 1 then
     raise exception 'Old listing opt-out and changed preferences were not excluded';
   end if;
-end $;
+end $optout$;
 
 -- Legacy rows that have never changed retain their original timestamp;
 -- migration does not backfill or rewrite any saved search.
