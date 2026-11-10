@@ -4,10 +4,24 @@ import { hashProviderPayload, deliverWithIntent } from "../../lib/marketplace/al
 import { readFileSync } from "node:fs";
 const key="saved-search-match/qa-fixture";
 const body=JSON.stringify({to:["synthetic@example.invalid"],subject:"Test",html:"<b>x</b>"});
-function dbMock({ failAccept=false, failAmbiguous=false }={}){
+function dbMock({ failAccept=false, failAmbiguous=false, legacyReceipt=false, legacyError=false }={}){
   const items=new Map();
   let beginCalls=0;
-  const db={async rpc(name,p){
+  const db={
+    from(table){
+      assert.equal(table,"transactional_email_deliveries");
+      let key;
+      const q={
+        select(fields){assert.equal(fields,"provider_message_id,sent_at");return q;},
+        eq(column,value){assert.equal(column,"event_key");key=value;return q;},
+        async maybeSingle(){
+          if(legacyError)return {data:null,error:new Error("synthetic legacy lookup failure")};
+          return {data:legacyReceipt?{provider_message_id:"legacy-provider",sent_at:"2026-11-10"}:null,error:null};
+        }
+      };
+      return q;
+    },
+    async rpc(name,p){
     const rec=items.get(p.p_event_key);
     if(name==="marketplace_alert_email_prepare_v1"){
       if(!rec){
@@ -103,4 +117,22 @@ test("not wired into production route; no worker cron or feature activation",()=
   assert.doesNotMatch(route,/alert-email-intent-delivery/);
   assert.match(route,/WETUDY_ALERT_OUTBOX_ENABLED === "true"/);
   assert.equal(vercel.crons.filter(c=>c.path.includes("marketplace-alert-outbox")).length,0);
+});
+
+test("existing historical email receipt prevents another provider attempt",async()=>{
+  const m=dbMock({legacyReceipt:true});let sendCount=0;
+  const r=await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send:async()=>{
+    sendCount++;return {id:"unexpected"};}});
+  assert.equal(r.status,"already_accepted");
+  assert.equal(sendCount,0);
+  assert.equal(m.items.size,0,"no new intent created for historical receipt");
+});
+
+test("failed historical receipt lookup prevents reservation and sending",async()=>{
+  const m=dbMock({legacyError:true});let sendCount=0;
+  await assert.rejects(deliverWithIntent(m.db,{
+    eventKey:key,requestBody:body,send:async()=>{sendCount++;return {id:"unexpected"};}
+  }),/legacy_receipt_lookup_failed/);
+  assert.equal(m.items.size,0);
+  assert.equal(sendCount,0);
 });
