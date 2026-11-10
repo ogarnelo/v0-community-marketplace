@@ -7,6 +7,7 @@ import { loadAllSortedPages, batchAlertItems } from "@/lib/marketplace/saved-sea
 import { selectDeliveryPage, summarizeDeliveryProgress } from "@/lib/marketplace/alert-delivery-progress.mjs";
 import { loadPendingDeliveryRows } from "@/lib/marketplace/alert-pending-page.mjs";
 import { summarizeDiscoveryPage, WORKER_DISCOVERY_PAGE_SIZE } from "@/lib/marketplace/alert-discovery-page.mjs";
+import { hasRadiusConstraint, partitionLiveRadius } from "@/lib/marketplace/alert-live-radius.mjs";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -276,15 +277,57 @@ export async function POST(request: Request) {
 
     }
 
+    // A change to profiles.postal_code doesn't update a saved search's
+    // revision. Recheck live distance before EACH outbox delivery channel,
+    // using only the 12-recipient page. Never log or expose any full CP.
+    const verifyWorkerRecipients = async (page: any[]) => {
+      if (!isWorkerDelivery || page.length === 0) return page;
+      const geoPage = page.filter(hasRadiusConstraint);
+      const profilePostcodes = new Map<string, string | null>();
+      let listingZone: string | null = listing.postal_code || null;
+      if (geoPage.length > 0) {
+        const ids = [...new Set(geoPage.map((item) => item.user_id))];
+        const { data: profiles, error: profilesError } = await admin.from("profiles")
+          .select("id, postal_code").in("id", ids);
+        if (profilesError) throw profilesError;
+        for (const p of profiles || []) profilePostcodes.set(p.id, p.postal_code || null);
+        if (!listingZone) {
+          // Old listings may need the same seller-profile fallback used during
+          // their initial match. New listings have an immutable postal zone.
+          const { data: owner, error: ownerError } = await admin.from("profiles")
+            .select("postal_code").eq("id", listingOwnerId).maybeSingle();
+          if (ownerError) throw ownerError;
+          listingZone = owner?.postal_code || null;
+        }
+      }
+      const { deliverable, invalidated } = partitionLiveRadius(
+        page, profilePostcodes, listingZone, approximateDistanceKm,
+      );
+      for (const stale of invalidated) {
+        // One terminal invalidation suppresses BOTH notification and email,
+        // avoiding endless requeues and obsolete mail after a profile move.
+        const { error: invalidateError } = await admin.from("saved_search_matches")
+          .update({
+            invalidated_at: new Date().toISOString(),
+            invalidation_reason: "radius_changed",
+          })
+          .eq("id", stale.id)
+          .is("invalidated_at", null);
+        if (invalidateError) throw invalidateError;
+      }
+      return deliverable;
+    };
+
     // Each pending lookup has at most 150 IDs: no giant PostgREST URL and
     // no implicit response-page truncation once there are >1000 matches.
     const pendingNotifications = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at)")
+            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km)")
             .eq("listing_id", listing.id)
             .eq("saved_searches.notifications_enabled", true)
             .lte("saved_searches.updated_at", listing.created_at)
+            .is("invalidated_at", null)
             .is("notified_at", null)
             .order("id", { ascending: true }).limit(13);
           if (error) throw error;
@@ -296,7 +339,7 @@ export async function POST(request: Request) {
           .select("id, user_id")
           .eq("listing_id", listing.id)
           .in("saved_search_id", batch.map((match) => match.saved_search_id))
-          .is("notified_at", null);
+          .is("notified_at", null).is("invalidated_at", null);
         // Fetch only 12+1 when recovering; the extra row proves there is more.
         if (limit !== null) {
           query = query.order("id", { ascending: true }).limit(limit);
@@ -306,7 +349,9 @@ export async function POST(request: Request) {
         return data || [];
       });
 
-    const notificationPage = selectDeliveryPage(pendingNotifications, isOutboxWorker);
+    const notificationPage = await verifyWorkerRecipients(
+      selectDeliveryPage(pendingNotifications, isOutboxWorker)
+    );
     let notified = 0;
     for (const match of notificationPage) {
       const result = await createNotificationOnce(admin, {
@@ -335,10 +380,11 @@ export async function POST(request: Request) {
     const pendingMatches = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at)")
+            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km)")
             .eq("listing_id", listing.id)
             .eq("saved_searches.notifications_enabled", true)
             .lte("saved_searches.updated_at", listing.created_at)
+            .is("invalidated_at", null)
             .is("emailed_at", null).is("email_skipped_at", null)
             .order("id", { ascending: true }).limit(13);
           if (error) throw error;
@@ -351,7 +397,8 @@ export async function POST(request: Request) {
           .eq("listing_id", listing.id)
           .in("saved_search_id", batch.map((match) => match.saved_search_id))
           .is("emailed_at", null)
-          .is("email_skipped_at", null);
+          .is("email_skipped_at", null)
+          .is("invalidated_at", null);
         if (limit !== null) {
           query = query.order("id", { ascending: true }).limit(limit);
         }
@@ -360,7 +407,9 @@ export async function POST(request: Request) {
         return data || [];
       });
 
-    const emailPage = selectDeliveryPage(pendingMatches, isOutboxWorker);
+    const emailPage = await verifyWorkerRecipients(
+      selectDeliveryPage(pendingMatches, isOutboxWorker)
+    );
     let emailed = 0;
     let emailSkipped = 0;
     let emailFailures = 0;
