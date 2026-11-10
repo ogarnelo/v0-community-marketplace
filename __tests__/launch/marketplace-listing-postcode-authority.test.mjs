@@ -25,5 +25,5 @@ test("global and radial SQL functions agree with published listing postcode", ()
   assert.doesNotMatch(sql, /coalesce\(nullif\(seller\.postal_code, ''\), nullif\(l\.postal_code, ''\)\)/);
   const benchmark=read(".github/workflows/pilot-marketplace-postgis-benchmark.yml");
   assert.match(benchmark, /pilot-marketplace-postcode-authority\.sql/);
-  assert.match(benchmark, /20261110082500_marketplace_listing_cp_first\.sql/);
+  assert.match(benchmark, /20261110074207_marketplace_listing_cp_first\.sql/);
 });
