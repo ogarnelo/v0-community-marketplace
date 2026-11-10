@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
 import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
 import { loadAllSortedPages, batchAlertItems } from "@/lib/marketplace/saved-search-batches.mjs";
+import { selectDeliveryPage, summarizeDeliveryProgress } from "@/lib/marketplace/alert-delivery-progress.mjs";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
     if (candidateUserIds.length && !listingPostalCode) {
       const { data: sellerProfile, error: sellerError } = await admin
         .from("profiles").select("postal_code")
-        .eq("id", user.id).maybeSingle();
+        .eq("id", listingOwnerId).maybeSingle();
       if (sellerError) throw sellerError;
       listingPostalCode = sellerProfile?.postal_code || null;
     }
@@ -180,7 +181,7 @@ export async function POST(request: Request) {
       ))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
-    if (matches.length === 0) return NextResponse.json({ ok: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
+    if (matches.length === 0) return NextResponse.json({ ok: true, complete: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
 
     // Avoid oversized writes when a popular listing matches many families.
     for (const batch of batchAlertItems(matches)) {
@@ -216,8 +217,9 @@ export async function POST(request: Request) {
       pendingNotifications.push(...(data || []));
     }
 
+    const notificationPage = selectDeliveryPage(pendingNotifications, isOutboxWorker);
     let notified = 0;
-    for (const match of pendingNotifications || []) {
+    for (const match of notificationPage) {
       const result = await createNotificationOnce(admin, {
         event_key: `saved-search-match/${match.id}`,
         user_id: match.user_id,
@@ -247,17 +249,33 @@ export async function POST(request: Request) {
         .select("id, user_id")
         .eq("listing_id", listing.id)
         .in("saved_search_id", batch.map((match) => match.saved_search_id))
-        .is("emailed_at", null);
+        .is("emailed_at", null)
+        .is("email_skipped_at", null);
       if (error) throw error;
       pendingMatches.push(...(data || []));
     }
 
+    const emailPage = selectDeliveryPage(pendingMatches, isOutboxWorker);
     let emailed = 0;
-    for (const match of pendingMatches || []) {
+    let emailSkipped = 0;
+    let emailFailures = 0;
+    for (const match of emailPage) {
       try {
         const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(match.user_id);
         if (recipientError) throw recipientError;
-        if (!recipient.user?.email) continue;
+        if (!recipient.user?.email) {
+          // A user without an email address cannot receive this alert.
+          // This is a terminal skip, never a successful email delivery.
+          const { error: skipError } = await admin.from("saved_search_matches")
+            .update({
+              email_skipped_at: new Date().toISOString(),
+              email_skip_reason: "recipient_missing",
+            })
+            .eq("id", match.id).is("email_skipped_at", null);
+          if (skipError) throw skipError;
+          emailSkipped++;
+          continue;
+        }
 
         const emailEventKey = `saved-search-match/${match.id}`;
         const delivery = await sendTransactionalEmailOnce(admin, {
@@ -273,7 +291,23 @@ export async function POST(request: Request) {
               idempotencyKey: emailEventKey,
             }),
         });
-        if (!delivery.sent) continue;
+        if (!delivery.sent) {
+          if (delivery.reason === "suppressed") {
+            const { error: skipError } = await admin.from("saved_search_matches")
+              .update({
+                email_skipped_at: new Date().toISOString(),
+                email_skip_reason: "suppressed",
+              })
+              .eq("id", match.id).is("email_skipped_at", null);
+            if (skipError) throw skipError;
+            emailSkipped++;
+          } else {
+            // Missing provider configuration or a transient delivery failure
+            // MUST be retried, not silently marked as a completed outbox job.
+            emailFailures++;
+          }
+          continue;
+        }
 
         const { error: markError } = await admin
           .from("saved_search_matches")
@@ -283,11 +317,37 @@ export async function POST(request: Request) {
         if (markError) throw markError;
         emailed += 1;
       } catch (emailError) {
-        console.error("No se pudo enviar un aviso de búsqueda guardada", emailError);
+        emailFailures++;
+        // Recipient addresses and provider error bodies must not be logged.
+        console.error("No se pudo enviar un aviso de búsqueda guardada",
+          emailError instanceof Error ? emailError.name : "unknown");
       }
     }
 
-    return NextResponse.json({ ok: true, matched: matches.length, notified, emailed, supplyGenerated });
+    const progress = summarizeDeliveryProgress({
+      isWorker: isOutboxWorker,
+      pendingNotifications: pendingNotifications.length,
+      notificationPage: notificationPage.length,
+      pendingEmails: pendingMatches.length,
+      emailPage: emailPage.length,
+      emailFailures,
+    });
+    const deliveryResponse = {
+      ok: !progress.failed,
+      complete: progress.complete,
+      matched: matches.length,
+      notified,
+      emailed,
+      emailSkipped,
+      emailFailures,
+      supplyGenerated,
+    };
+    if (progress.failed) {
+      // A 503 prevents the worker from settling a partially failed listing
+      // as completed. Existing provider/app idempotency guards remain intact.
+      return NextResponse.json({ ...deliveryResponse, error: "partial_delivery_failed" }, { status: 503 });
+    }
+    return NextResponse.json(deliveryResponse);
   } catch (error: any) {
     console.error("No se pudieron generar los matches de búsquedas guardadas", error);
     return NextResponse.json({ error: error?.message || "No se pudieron generar los avisos." }, { status: 500 });
