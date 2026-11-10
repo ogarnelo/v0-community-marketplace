@@ -137,7 +137,7 @@ export async function GET(request: Request) {
         directorySchoolCode: item.directory_school_code || null,
         postalCode: null, // Client needs only the server-computed approximate distance.
         status: item.status, createdAt: item.created_at || null,
-        distance: approximateDistanceKm(profile?.postal_code, seller?.postalCode || item.postal_code),
+        distance: approximateDistanceKm(profile?.postal_code, item.postal_code || seller?.postalCode),
         isFavorite: favoriteIds.has(item.id),
       };
     });
