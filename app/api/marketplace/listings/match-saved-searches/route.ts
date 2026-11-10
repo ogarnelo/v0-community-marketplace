@@ -12,6 +12,7 @@ import { codesForLiveSchoolPage, partitionLiveSchool } from "@/lib/marketplace/a
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
+import { sendGatedMarketplaceAlertWithIntent } from "@/lib/emails/marketplace-alert-intent-gated";
 import { recordNeedResult } from "@/lib/demand/need-attribution";
 
 export async function POST(request: Request) {
@@ -454,7 +455,19 @@ export async function POST(request: Request) {
         }
 
         const emailEventKey = `saved-search-match/${match.id}`;
-        const delivery = await sendTransactionalEmailOnce(admin, {
+        // Defense in depth: a second flag is required AFTER the signed,
+        // lease-fenced worker gate. Ordinary publisher delivery is unchanged.
+        // With either flag absent, no new intent table is required.
+        const delivery = isWorkerDelivery &&
+          process.env.WETUDY_ALERT_INTENT_DELIVERY_ENABLED === "true"
+          ? await sendGatedMarketplaceAlertWithIntent(admin, {
+              eventKey:emailEventKey,
+              userId:match.user_id,
+              recipientEmail:recipient.user.email!,
+              listingId:listing.id,
+              listingTitle:listing.title,
+            })
+          : await sendTransactionalEmailOnce(admin, {
           eventKey: emailEventKey,
           userId: match.user_id,
           recipientEmail: recipient.user.email!,
