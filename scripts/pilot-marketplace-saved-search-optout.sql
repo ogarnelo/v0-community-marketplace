@@ -18,7 +18,7 @@ create table public.saved_searches(
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-\i supabase/migrations/20261110161700_saved_search_preference_stamp_v1.sql
+\i supabase/migrations/20261110161156_saved_search_preference_stamp_v1.sql
 
 do $$
 begin
