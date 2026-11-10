@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const read=(p)=>readFileSync(p,"utf8");
-const migration=read("supabase/migrations/20261110161700_saved_search_preference_stamp_v1.sql");
+const migration=read("supabase/migrations/20261110161156_saved_search_preference_stamp_v1.sql");
 const fixture=read("scripts/pilot-marketplace-saved-search-optout.sql");
 const matcher=read("app/api/marketplace/listings/match-saved-searches/route.ts");
 const ci=read(".github/workflows/pilot-marketplace-alert-outbox.yml");
