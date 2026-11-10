@@ -1,6 +1,6 @@
 -- Disposable PostgreSQL 17 regression. Loaded after the live-radius
 -- fixture. NEVER run against a live Supabase project.
-\i supabase/migrations/20261110204400_marketplace_school_link_invalidation_v2.sql
+\i supabase/migrations/20261110194657_marketplace_school_link_invalidation_v2.sql
 
 create table if not exists public.school_directory(
   official_code text primary key,
