@@ -332,7 +332,7 @@ export async function POST(request: Request) {
       emailPage: emailPage.length,
       emailFailures,
     });
-    const body = {
+    const deliveryResponse = {
       ok: !progress.failed,
       complete: progress.complete,
       matched: matches.length,
@@ -345,9 +345,9 @@ export async function POST(request: Request) {
     if (progress.failed) {
       // A 503 prevents the worker from settling a partially failed listing
       // as completed. Existing provider/app idempotency guards remain intact.
-      return NextResponse.json({ ...body, error: "partial_delivery_failed" }, { status: 503 });
+      return NextResponse.json({ ...deliveryResponse, error: "partial_delivery_failed" }, { status: 503 });
     }
-    return NextResponse.json(body);
+    return NextResponse.json(deliveryResponse);
   } catch (error: any) {
     console.error("No se pudieron generar los matches de búsquedas guardadas", error);
     return NextResponse.json({ error: error?.message || "No se pudieron generar los avisos." }, { status: 500 });
