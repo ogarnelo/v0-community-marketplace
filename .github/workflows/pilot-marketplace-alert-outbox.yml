@@ -9,7 +9,7 @@ on:
       - "scripts/pilot-marketplace-postcode-snapshot.sql"
       - "supabase/migrations/20261110114223_marketplace_alert_outbox_health_v1.sql"
       - "scripts/pilot-marketplace-alert-outbox-health.sql"
-      - "supabase/migrations/20261110133500_marketplace_alert_delivery_progress.sql"
+      - "supabase/migrations/20261110121643_marketplace_alert_delivery_progress.sql"
       - "scripts/pilot-marketplace-alert-partial-delivery.sql"
   workflow_dispatch:
 permissions:
