@@ -37,8 +37,8 @@ begin
        'marketplace_alert_requeue_progress_v1',
        'marketplace_alert_defer_readiness_v1'
    )
-   and pg_get_functiondef(p.oid) like '%lease_until > now()%'
-   and pg_get_functiondef(p.oid) like '%expires_at > now()%';
+   and regexp_replace(pg_get_functiondef(p.oid),'[[:space:]]+','','g') like '%lease_until>now()%'
+   and regexp_replace(pg_get_functiondef(p.oid),'[[:space:]]+','','g') like '%expires_at>now()%';
  if n<>3 then raise exception 'Expired lease fencing incomplete'; end if;
 
  if has_table_privilege('anon','public.marketplace_alert_email_intents','SELECT')
