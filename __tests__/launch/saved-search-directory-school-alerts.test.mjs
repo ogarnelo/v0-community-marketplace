@@ -87,6 +87,34 @@ test("publishing checks exact directory codes and linked schools once, not one q
   assert.match(matchRoute,/sendTransactionalEmailOnce\(/);
 });
 
+test("content prefilter preserves matches while avoiding unrelated school and geo lookups",()=>{
+  const scenario=[
+    {...base,id:"same-school",directory_school_code:codeA,category:"Uniformes"},
+    {...base,id:"other-school",directory_school_code:codeB,category:"Uniformes"},
+    {...base,id:"other-product",directory_school_code:codeA,category:"Libros"},
+    {...base,id:"too-far",directory_school_code:codeA,category:"Uniformes",radius_km:10},
+    {...base,id:"nearby",directory_school_code:codeA,category:"Uniformes",radius_km:30},
+    {id:"global",query:"Polo",only_my_community:false},
+  ];
+  const item={...listing,directory_school_code:codeA,school_id:null};
+  const distance=(search)=>search.radius_km ? 15 : undefined;
+  const before=scenario.filter(search=>savedSearchMatchesListing(search,item,distance(search)))
+    .map(search=>search.id);
+  const contentCandidates=scenario.filter(search=>savedSearchMatchesListing(
+    {...search,only_my_community:false,radius_km:null},item));
+  const after=contentCandidates.filter(search=>savedSearchMatchesListing(search,item,distance(search)))
+    .map(search=>search.id);
+  assert.deepEqual(before,after);
+  assert.deepEqual(after,["same-school","nearby","global"]);
+  assert.ok(contentCandidates.length<scenario.length);
+  assert.match(matchRoute,/const contentCandidates = \(savedSearches \|\| \[\]\)\.filter/);
+  assert.match(matchRoute,/\.\.\.search, only_my_community: false, radius_km: null/);
+  assert.match(matchRoute,/const radiusCandidates = contentCandidates\.filter/);
+  assert.match(matchRoute,/const matches = contentCandidates/);
+  assert.match(matchRoute,/const matchedSearchIds = new Set/);
+  assert.doesNotMatch(matchRoute,/matches\.some\(\(match\)/);
+});
+
 test("schema only adds nullable official-directory reference, preserving existing RLS/centres",()=>{
   assert.match(migration,/add column if not exists directory_school_code text/);
   assert.match(migration,/references public\.school_directory\(official_code\) on delete set null/);
