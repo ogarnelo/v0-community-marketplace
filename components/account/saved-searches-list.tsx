@@ -18,6 +18,8 @@ type SavedSearch = {
   listing_type: string | null;
   condition: string | null;
   only_my_community: boolean | null;
+  radius_km: number | null;
+  need_details: string | null;
   results_count: number | null;
   notifications_enabled: boolean | null;
   intent_source: string | null;
@@ -34,6 +36,11 @@ function buildMarketplaceHref(search: SavedSearch) {
   if (search.isbn_query) params.set("isbn", search.isbn_query);
   if (search.category) params.set("category", search.category);
   if (search.grade_level) params.set("grade", search.grade_level);
+  if (search.listing_type) params.set("type", search.listing_type);
+  if (search.condition) params.set("condition", search.condition);
+  if (search.only_my_community) params.set("community", "1");
+  if (search.radius_km != null) params.set("radiusKm", String(search.radius_km));
+  if (search.need_details && !search.query && !search.category && !search.grade_level && !search.isbn_query) params.set("q", search.need_details);
   const qs = params.toString();
   return qs ? `/marketplace?${qs}` : "/marketplace";
 }
@@ -44,6 +51,8 @@ function describeSearch(search: SavedSearch) {
     search.isbn_query ? `ISBN ${search.isbn_query}` : null,
     search.category,
     search.grade_level,
+    search.need_details && !search.query ? search.need_details : null,
+    search.radius_km != null ? `Hasta ${search.radius_km} km aprox.` : null,
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(" · ") : "Búsqueda guardada";
