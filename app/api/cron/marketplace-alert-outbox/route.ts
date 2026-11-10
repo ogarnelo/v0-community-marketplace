@@ -18,12 +18,30 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  if (process.env.WETUDY_ALERT_OUTBOX_ENABLED !== "true") {
+  // Require BOTH explicit rollout flags. Enabling only the legacy outbox flag
+  // must never trigger the older, non-intent email delivery path.
+  if (process.env.WETUDY_ALERT_OUTBOX_ENABLED !== "true" ||
+      process.env.WETUDY_ALERT_INTENT_DELIVERY_ENABLED !== "true") {
     return new Response(null, { status: 204 });
   }
 
   try {
     const admin = createAdminClient();
+    // Fail closed BEFORE claiming a listing, creating a notification, or
+    // contacting Resend when either migration has not been applied yet.
+    // Never expose database error details or recipient identifiers in replies.
+    const { error: intentsSchemaError } = await admin
+      .from("marketplace_alert_email_intents")
+      .select("event_key").limit(0);
+    if (intentsSchemaError) {
+      return Response.json({ok:false,error:"email_schema_not_ready"}, {status:503});
+    }
+    const { error: reviewSchemaError } = await admin.rpc(
+      "marketplace_alert_review_count_v1"
+    );
+    if (reviewSchemaError) {
+      return Response.json({ok:false,error:"review_schema_not_ready"}, {status:503});
+    }
     // One listing per invocation keeps workload bounded before real-volume QA.
     const { data: jobs, error: claimError } = await admin.rpc(
       "marketplace_alert_claim_outbox_v1", { p_limit: 1, p_lease_seconds: 240 }
