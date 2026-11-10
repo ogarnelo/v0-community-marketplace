@@ -7,7 +7,7 @@ on:
       - "scripts/pilot-marketplace-alert-outbox-synthetic.sql"
       - "supabase/migrations/20261110113419_marketplace_listing_postal_snapshot_v1.sql"
       - "scripts/pilot-marketplace-postcode-snapshot.sql"
-      - "supabase/migrations/20261110131500_marketplace_alert_outbox_health_v1.sql"
+      - "supabase/migrations/20261110114223_marketplace_alert_outbox_health_v1.sql"
       - "scripts/pilot-marketplace-alert-outbox-health.sql"
   workflow_dispatch:
 permissions:
