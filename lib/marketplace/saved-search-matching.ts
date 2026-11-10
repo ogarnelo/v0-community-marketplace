@@ -81,7 +81,7 @@ function containsText(haystack: string, needle: string | null | undefined) {
   if (!cleanNeedle) return true;
   const terms = meaningfulTokens(needle);
   if (!terms.length) return false; // Never notify everyone for filler-only text.
-  if (haystack.includes(cleanNeedle)) return true;
+  // Whole normalized terms avoid accidental matches inside unrelated words.
   const available = new Set(meaningfulTokens(haystack));
   return terms.every((term) => available.has(term));
 }
