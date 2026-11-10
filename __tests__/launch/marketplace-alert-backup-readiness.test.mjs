@@ -60,3 +60,14 @@ test("does not download archives, restore DB, access secrets or touch production
   assert.doesNotMatch(code,/import requests|urllib\.request|subprocess|pg_restore|pg_dump|psql|SUPABASE_SECRET|BACKUP_ENCRYPTION_PASSWORD/);
   assert.match(code,/only for deterministic tests/);
 });
+
+test("GitHub metadata gate is read-only, scoped to repo, and never touches backup bytes",()=>{
+  const workflow=readFileSync(".github/workflows/pilot-alert-backup-readiness.yml","utf8");
+  assert.match(workflow,/permissions:\s*\n\s*contents: read\s*\n\s*actions: read/);
+  assert.match(workflow,/GITHUB_REPOSITORY.*ogarnelo\/v0-community-marketplace/);
+  assert.match(workflow,/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/artifacts\?name=wetudy-encrypted-postgres-backup/);
+  assert.match(workflow,/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/workflows\/pilot-combined-encrypted-recovery\.yml\/runs/);
+  assert.match(workflow,/scripts\/pilot-alert-encrypted-backup-freshness\.py/);
+  assert.doesNotMatch(workflow,/pg_dump|pg_restore|pg_read_file|supabase db|apply_migration|BACKUP_ENCRYPTION_PASSWORD|RESEND_API_KEY/);
+  assert.doesNotMatch(workflow,/artifact\.zip|download-artifact|curl/);
+});
