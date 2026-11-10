@@ -13,7 +13,7 @@ on:
       - "scripts/pilot-marketplace-alert-partial-delivery.sql"
       - "supabase/migrations/20261110145531_marketplace_alert_defer_photos_v1.sql"
       - "scripts/pilot-marketplace-alert-defer-photos.sql"
-      - "supabase/migrations/20261110152800_marketplace_alert_discovery_checkpoint_v1.sql"
+      - "supabase/migrations/20261110155518_marketplace_alert_discovery_checkpoint_v1.sql"
       - "scripts/pilot-marketplace-alert-discovery-checkpoint.sql"
   workflow_dispatch:
 permissions:
