@@ -154,6 +154,35 @@ que `anon` y `authenticated` no pueden ejecutarla. Las métricas requieren
 escaneo/agrupación de la tabla en un solo query diario. En un crecimiento
 significativo se revisará su tiempo de consulta antes de ampliar frecuencia.
 
+## Validación del radio en el momento de entrega
+
+Una necesidad guardada con radio sigue dependiendo del código postal **actual**
+del destinatario, aunque su búsqueda no cambie. Por ejemplo: si se encontró
+un anuncio cercano a Madrid pero la familia cambia su perfil a Barcelona
+antes de procesar el correo, enviar ese aviso sería incorrecto.
+
+Para el worker (que permanece apagado hasta QA), **cada lote de hasta 12**
+notificaciones y correos comprueba nuevamente las distancias aproximadas
+mediante los centroides postales ya existentes y la zona postal actual del
+destinatario. No realiza una nueva búsqueda global ni añade geocodificación.
+Los avisos fuera de radio o con ubicación desconocida quedan marcados en
+`saved_search_matches.invalidated_at` con razón técnica fija
+`radius_changed`, sin almacenar el CP ni datos de la familia. El marcador
+es terminal para **ambos canales**: una fila invalidada ya no entra en
+las consultas pendientes de notificaciones ni de correo.
+
+La revisión de `saved_searches.notifications_enabled` y `updated_at`
+sigue protegiendo a quienes pausaron o editaron una búsqueda desde la
+publicación del anuncio. El marcado de invalidación es adicional a ese
+control y solo modifica coincidencias que todavía no se han comunicado.
+
+**Limitación y QA pendiente:** una familia podría modificar su CP durante
+los milisegundos entre la validación y la llamada al proveedor de correo.
+Este control reduce los avisos obsoletos, pero no promete una transacción
+atómica sobre el perfil y Resend. También deben validarse cambios de vínculos
+de colegio del directorio antes de activar el recuperador. No se envían
+emails reales ni se activa el worker mediante esta modificación.
+
 ## Costes y límites
 
 No se añade proveedor, extensión ni servicio de pago. El coste marginal antes de activar el worker es una inserción indexada por publicación y un pequeño volumen de almacenamiento en Supabase. El workflow de prueba usa PostgreSQL 17 en el runner de GitHub Actions, **no la base de datos real**. Los minutos de CI sí forman parte del consumo de GitHub.
