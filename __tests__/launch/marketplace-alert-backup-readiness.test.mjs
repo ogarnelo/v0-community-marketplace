@@ -7,18 +7,24 @@ import {join} from "node:path";
 
 const now="2026-11-10T20:00:00Z";
 const backup={id:111,name:"wetudy-encrypted-postgres-backup",expired:false,
-  created_at:"2026-11-10T10:00:00Z",expires_at:"2026-11-17T10:00:00Z"};
+  created_at:"2026-11-10T10:00:00Z",expires_at:"2026-11-17T10:00:00Z",
+  workflow_run:{id:222,head_branch:"main"}};
 const restore={name:"Wetudy combined encrypted backup recovery check",conclusion:"success",
+  path:".github/workflows/pilot-combined-encrypted-recovery.yml",head_branch:"main",
   created_at:"2026-11-10T11:00:00Z"};
-function verify(artifactItems=[backup],runs=[restore]){
+const sourceRun={id:222,name:"Wetudy encrypted database backup",conclusion:"success",
+  path:".github/workflows/wetudy-encrypted-db-backup.yml",head_branch:"main",
+  created_at:"2026-11-10T09:00:00Z"};
+function verify(artifactItems=[backup],runs=[restore],sourceRuns=[sourceRun]){
   const dir=mkdtempSync(join(tmpdir(),"wetudy-backup-metadata-"));
   try{
-    const a=join(dir,"artifacts.json"),r=join(dir,"runs.json");
+    const a=join(dir,"artifacts.json"),r=join(dir,"runs.json"),b=join(dir,"source-runs.json");
     writeFileSync(a,JSON.stringify({artifacts:artifactItems}));
     writeFileSync(r,JSON.stringify({workflow_runs:runs}));
+    writeFileSync(b,JSON.stringify({workflow_runs:sourceRuns}));
     const child=spawnSync("python3",[
       "scripts/pilot-alert-encrypted-backup-freshness.py",
-      "--artifacts-json",a,"--runs-json",r,"--now",now],{
+      "--artifacts-json",a,"--runs-json",r,"--backup-runs-json",b,"--now",now],{
         encoding:"utf8",timeout:5000,env:{PATH:process.env.PATH},
       });
     assert.equal(child.error,undefined);
@@ -38,7 +44,7 @@ test("old artifact cannot authorize a production migration",()=>{
   assert.equal(r.exit,1);assert.equal(r.result.reason,"backup_too_old");
 });
 test("missing or expired artifact fails closed",()=>{
-  assert.equal(verify([]).result.reason,"missing_unexpired_backup");
+  assert.equal(verify([]).result.reason,"missing_verified_backup_provenance");
   assert.equal(verify([{...backup,expired:true}]).exit,1);
 });
 test("archive close to retention expiry fails closed",()=>{
@@ -68,6 +74,34 @@ test("GitHub metadata gate is read-only, scoped to repo, and never touches backu
   assert.match(workflow,/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/artifacts\?name=wetudy-encrypted-postgres-backup/);
   assert.match(workflow,/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/workflows\/pilot-combined-encrypted-recovery\.yml\/runs/);
   assert.match(workflow,/scripts\/pilot-alert-encrypted-backup-freshness\.py/);
+  assert.match(workflow,/wetudy-encrypted-db-backup\.yml\/runs/);
+  assert.match(workflow,/--backup-runs-json/);
   assert.doesNotMatch(workflow,/pg_dump|pg_restore|pg_read_file|supabase db|apply_migration|BACKUP_ENCRYPTION_PASSWORD|RESEND_API_KEY/);
   assert.doesNotMatch(workflow,/artifact\.zip|download-artifact|curl/);
+});
+
+test("only an artifact linked to successful official backup run on main is trusted",()=>{
+  for(const run of [
+    {...sourceRun,conclusion:"failure"},
+    {...sourceRun,head_branch:"other"},
+    {...sourceRun,path:".github/workflows/unknown.yml"},
+    {...sourceRun,id:444},
+    {...sourceRun,created_at:"2026-11-10T12:00:00Z"},
+  ]){
+    const r=verify([backup],[restore],[run]);
+    assert.equal(r.exit,1);
+    assert.equal(r.result.reason,"missing_verified_backup_provenance");
+  }
+  assert.equal(verify([{...backup,workflow_run:{id:222,head_branch:"other"}}]).exit,1);
+});
+test("restore results from a fork/branch or a wrong workflow cannot certify readiness",()=>{
+  for(const badRestore of [
+    {...restore,head_branch:"test"},
+    {...restore,path:".github/workflows/other-restore.yml"},
+    {...restore,created_at:"2026-11-09T11:00:00Z"},
+  ]){
+    const result=verify([backup],[badRestore],[sourceRun]);
+    assert.equal(result.exit,1);
+    assert.equal(result.result.reason,"no_successful_partial_restore_after_backup");
+  }
 });
