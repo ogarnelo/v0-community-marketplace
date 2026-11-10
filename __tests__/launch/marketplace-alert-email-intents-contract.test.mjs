@@ -14,6 +14,8 @@ test("intent schema stores only event key, hash, provider receipt and technical 
 });
 test("only service role executes state transition functions and RLS stays enabled",()=>{
   assert.match(migration,/enable row level security/);
+  assert.match(migration,/marketplace_alert_email_intent_health_v1/);
+  assert.match(fixture,/Incorrect aggregate email intent health/);
   assert.match(migration,/revoke all on public\.marketplace_alert_email_intents from public, anon, authenticated/);
   assert.match(migration,/revoke all on function public\.marketplace_alert_email_prepare_v1\(text,text\) from public,anon,authenticated/);
   assert.match(migration,/grant execute on function public\.marketplace_alert_email_begin_v1\(text,text,uuid\) to service_role/);
