@@ -63,10 +63,11 @@ test("worker rechecks BOTH channels after active-search join and before sending"
   assert.match(matcher,/hasRadiusConstraint, partitionLiveRadius/);
   assert.match(matcher,/const verifyWorkerRecipients = async \(page: any\[\]\)/);
   assert.equal((matcher.match(/await verifyWorkerRecipients\(/g)||[]).length,2);
-  assert.equal((matcher.match(/saved_searches!inner\(id, notifications_enabled, updated_at, radius_km\)/g)||[]).length,2);
+  assert.equal((matcher.match(/saved_searches!inner\(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code\)/g)||[]).length,2);
   assert.equal((matcher.match(/\.is\("invalidated_at", null\)/g)||[]).length,5);
   assert.match(matcher,/\.in\("id", ids\)/);
-  assert.match(matcher,/\.update\(\{[\s\S]*?invalidated_at: new Date\(\)\.toISOString\(\),[\s\S]*?invalidation_reason: "radius_changed"/);
+  assert.match(matcher,/invalidation_reason: stale\.reason/);
+  assert.match(matcher,/radiusInvalid\.map/);
   const filterIndex=matcher.indexOf('const notificationPage = await verifyWorkerRecipients');
   const notificationIndex=matcher.indexOf('await createNotificationOnce(');
   const emailFilter=matcher.indexOf('const emailPage = await verifyWorkerRecipients');
