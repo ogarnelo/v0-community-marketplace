@@ -78,8 +78,8 @@ begin
   if has_function_privilege('authenticated','public.marketplace_alert_email_begin_v1(text,text,uuid)','EXECUTE') then
     raise exception 'Authenticated can call send begin';
   end if;
-end $$;
-do $
+end $;
+do $health_test$
 declare m record;
 begin
   select * into m from public.marketplace_alert_email_intent_health_v1();
@@ -91,6 +91,6 @@ begin
     'public.marketplace_alert_email_intent_health_v1()','EXECUTE') then
     raise exception 'Anon can execute private email intent health';
   end if;
-end $;
+end $health_test$;
 
 select 'PASS: durable, fenced, immutable send intents; ambiguous states fail closed' as result;
