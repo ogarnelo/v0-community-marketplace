@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/pilot-marketplace-alert-outbox.yml"
-      - "supabase/migrations/20261110121000_marketplace_alert_outbox_v1.sql"
+      - "supabase/migrations/20261110111353_marketplace_alert_outbox_v1.sql"
       - "scripts/pilot-marketplace-alert-outbox-synthetic.sql"
   workflow_dispatch:
 permissions:
