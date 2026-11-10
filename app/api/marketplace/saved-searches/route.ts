@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { extractIsbnFromText, normalizeIsbn } from "@/lib/books/isbn";
 import { hasKnownPostalCode } from "@/lib/marketplace/postal-distance";
+import { hasMeaningfulSearchTerms } from "@/lib/marketplace/saved-search-matching";
 
 function cleanText(value: unknown, maxLength = 160) {
   if (typeof value !== "string") return null;
@@ -54,8 +55,13 @@ export async function POST(request: Request) {
     }
     // A described zero-result need is valid even with no text field selected.
     // Persist it as the matching query to prevent broad unrelated alerts.
-    const matchingQuery = query ||
-      (!isbnQuery && !category && !gradeLevel ? needDetails?.slice(0, 160) || null : null);
+    // If the parent describes a precise need, use those meaningful terms
+    // even when a category/grade is also selected. Otherwise an alert for
+    // "polo azul talla 12" would notify on ANY item in "Uniformes".
+    const matchingQuery =
+      (hasMeaningfulSearchTerms(query) ? query : null) ||
+      (!isbnQuery && hasMeaningfulSearchTerms(needDetails)
+        ? needDetails?.slice(0, 160) || null : null);
     const savedSearchName =
       needDetails ||
       query ||
@@ -64,7 +70,7 @@ export async function POST(request: Request) {
       gradeLevel ||
       "Búsqueda guardada";
 
-    if (!query && !isbnQuery && !category && !gradeLevel && !needDetails) {
+    if (!matchingQuery && !isbnQuery && !category && !gradeLevel) {
       return NextResponse.json({ ok: false, error: "search_intent_required" }, { status: 400 });
     }
 
