@@ -195,10 +195,10 @@ def main():
             # Detect the gap, then explicitly replay the minimal synthetic
             # schema access grant. Never copy this step to hosted Supabase.
             if sql(TARGET,
-                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "true":
+                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "t":
                 sql(TARGET,"grant usage on schema qa_near_market to qa_near_family")
             if sql(TARGET,
-                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "true":
+                   "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "t":
                 raise AssertionError("Restored synthetic schema USAGE grant missing")
             verify(TARGET)
             verify_restored_family_isolation(TARGET)
