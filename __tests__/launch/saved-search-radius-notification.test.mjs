@@ -37,6 +37,14 @@ test("saved search radius is enforced for future listing match and missing geoda
   assert.equal(savedSearchMatchesListing({ ...search, query: "Mochila" }, listing, 0), false);
 });
 
+test("school-scoped alerts never match outside their actual school", () => {
+  const base = { id: "s2", query: "Polo", only_my_community: true, school_id: "school-a" };
+  assert.equal(savedSearchMatchesListing(base, { ...listing, school_id: "school-a" }), true);
+  assert.equal(savedSearchMatchesListing(base, { ...listing, school_id: "school-b" }), false);
+  assert.equal(savedSearchMatchesListing({ ...base, school_id: null },
+    { ...listing, school_id: "school-a" }), false);
+});
+
 test("zero-results descriptions are accepted and used as a matching criterion, not just metadata", () => {
   assert.match(route, /const matchingQuery = query \|\|/);
   assert.match(route, /needDetails\?\.slice\(0, 160\)/);
