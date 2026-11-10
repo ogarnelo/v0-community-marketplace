@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { extractIsbnFromText, normalizeIsbn } from "@/lib/books/isbn";
+import { hasKnownPostalCode } from "@/lib/marketplace/postal-distance";
 
 function cleanText(value: unknown, maxLength = 160) {
   if (typeof value !== "string") return null;
@@ -43,6 +44,17 @@ export async function POST(request: Request) {
     const needDetails = cleanText(body.needDetails, 500);
     const intentSource = cleanText(body.intentSource, 40) || "saved_search";
     const resultsCount = cleanNumber(body.resultsCount);
+    // Saved radius must constrain future matching, not merely the initial UI.
+    const rawRadius = body.radiusKm;
+    const radiusKm = rawRadius === null || rawRadius === undefined ? null : rawRadius;
+    if (radiusKm !== null &&
+        (!Number.isInteger(radiusKm) || radiusKm < 1 || radiusKm > 200)) {
+      return NextResponse.json({ ok: false, error: "invalid_radius" }, { status: 400 });
+    }
+    // A described zero-result need is valid even with no text field selected.
+    // Persist it as the matching query to prevent broad unrelated alerts.
+    const matchingQuery = query ||
+      (!isbnQuery && !category && !gradeLevel ? needDetails?.slice(0, 160) || null : null);
     const savedSearchName =
       needDetails ||
       query ||
@@ -51,7 +63,7 @@ export async function POST(request: Request) {
       gradeLevel ||
       "Búsqueda guardada";
 
-    if (!query && !isbnQuery && !category && !gradeLevel) {
+    if (!query && !isbnQuery && !category && !gradeLevel && !needDetails) {
       return NextResponse.json({ ok: false, error: "search_intent_required" }, { status: 400 });
     }
 
@@ -62,7 +74,7 @@ export async function POST(request: Request) {
     ] = await Promise.all([
       supabase
         .from("profiles")
-        .select("school_id")
+        .select("school_id,postal_code")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -86,6 +98,10 @@ export async function POST(request: Request) {
         .maybeSingle(),
     ]);
 
+    if (radiusKm !== null && !hasKnownPostalCode(profile?.postal_code)) {
+      return NextResponse.json({ ok: false, error: "postal_code_required" }, { status: 422 });
+    }
+
     const schoolId =
       schoolAdminRole?.school_id?.trim() ||
       primaryStudentContext?.school_id?.trim() ||
@@ -97,8 +113,9 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         name: savedSearchName,
-        query,
+        query: matchingQuery,
         isbn_query: isbnQuery,
+        radius_km: radiusKm,
         category,
         grade_level: gradeLevel,
         listing_type: listingType,
@@ -129,7 +146,7 @@ export async function POST(request: Request) {
           .insert({
             user_id: user.id,
             title: savedSearchName.slice(0, 160),
-            normalized_query: query?.toLowerCase() || needDetails?.toLowerCase().slice(0, 160) || null,
+            normalized_query: matchingQuery?.toLowerCase() || needDetails?.toLowerCase().slice(0, 160) || null,
             category,
             grade_level: gradeLevel,
             isbn: canonicalIsbn,
@@ -142,7 +159,7 @@ export async function POST(request: Request) {
               listing_type: listingType,
               condition,
               only_my_community: Boolean(body.onlyMyCommunity),
-              radius_km: typeof body.radiusKm === "number" ? body.radiusKm : null,
+              radius_km: radiusKm,
             },
           })
           .select("id")
