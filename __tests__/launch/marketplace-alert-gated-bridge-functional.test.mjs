@@ -141,9 +141,9 @@ test("missing confirmation remains review-required without false receipt",async(
   }
 });
 
-test("if DB receipt write fails after provider acceptance no false success is returned",async()=>{
+test("provider accepted but DB receipt bridge failed: hold for reconciliation without false success",async()=>{
   const b=loadBridge(), db=fakeAdmin({receiptError:true});
-  await assert.rejects(b.fn(db.admin,input),/receipt_bridge_failed/);
+  assert.deepEqual(status(await b.fn(db.admin,input)),{sent:false,reason:"requires_reconciliation"});
   assert.equal(b.providerCalls(),1);
   assert.equal(db.records.length,1);
 });

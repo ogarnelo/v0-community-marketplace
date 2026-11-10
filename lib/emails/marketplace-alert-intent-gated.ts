@@ -71,6 +71,12 @@ export async function sendGatedMarketplaceAlertWithIntent(
       provider_message_id:result.providerMessageId || null,
       sent_at:new Date().toISOString(),
     },{onConflict:"event_key",ignoreDuplicates:true});
-  if (receiptError) throw new Error("receipt_bridge_failed");
+  if (receiptError) {
+    // Resend already accepted this message and the durable intent confirms it.
+    // Treat a failed legacy receipt bridge as a reconciliation hold, not a
+    // transient send failure that could exhaust outbox retry attempts.
+    // Never expose the SQL error or a recipient address in the response.
+    return {sent:false,reason:"requires_reconciliation"};
+  }
   return {sent:true};
 }

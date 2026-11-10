@@ -50,7 +50,8 @@ test("new transport checks historical receipt and recipient suppression before p
 test("unknown results cannot mark emailed, and errors continue to count as failures",()=>{
   assert.match(bridged,/result\.status!=="accepted" && result\.status!=="already_accepted"/);
   assert.match(bridged,/reason:"requires_reconciliation"/);
-  assert.match(bridged,/receipt_bridge_failed/);
+  assert.match(bridged,/if \(receiptError\) \{/);
+  assert.match(bridged,/return \{sent:false,reason:"requires_reconciliation"\}/);
   assert.match(matcher,/if \(!delivery\.sent\)/);
   assert.match(matcher,/emailFailures\+\+/);
   assert.match(matcher,/if \(progress\.failed\)/);
