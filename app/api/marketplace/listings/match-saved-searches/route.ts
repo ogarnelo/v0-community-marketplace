@@ -134,7 +134,8 @@ export async function POST(request: Request) {
       if (isOutboxWorker) {
         // A search created after the listing must not retroactively generate
         // an alert for the older listing when recovery runs much later.
-        query = query.lte("created_at", listing.created_at);
+        query = query.lte("created_at", listing.created_at)
+          .lte("updated_at", listing.created_at);
       }
       if (afterId) query = query.gt("id", afterId);
       const { data, error } = await query;
@@ -280,7 +281,10 @@ export async function POST(request: Request) {
     const pendingNotifications = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id").eq("listing_id", listing.id)
+            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at)")
+            .eq("listing_id", listing.id)
+            .eq("saved_searches.notifications_enabled", true)
+            .lte("saved_searches.updated_at", listing.created_at)
             .is("notified_at", null)
             .order("id", { ascending: true }).limit(13);
           if (error) throw error;
@@ -331,7 +335,10 @@ export async function POST(request: Request) {
     const pendingMatches = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id").eq("listing_id", listing.id)
+            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at)")
+            .eq("listing_id", listing.id)
+            .eq("saved_searches.notifications_enabled", true)
+            .lte("saved_searches.updated_at", listing.created_at)
             .is("emailed_at", null).is("email_skipped_at", null)
             .order("id", { ascending: true }).limit(13);
           if (error) throw error;
