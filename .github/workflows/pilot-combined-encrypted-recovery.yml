@@ -10,6 +10,7 @@ on:
       - "scripts/test_pilot_storage_restore.py"
       - "scripts/pilot-storage-offline-recovery.sh"
       - "scripts/pilot-db-restore-drill.sh"
+      - "scripts/pilot-db-backup-critical-toc.py"
 
 permissions:
   contents: read

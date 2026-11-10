@@ -18,6 +18,7 @@ if url.scheme not in ("postgresql", "postgres") or url.hostname not in ("127.0.0
     raise SystemExit("Refusing to restore to a nonlocal Postgres server")
 PY
 
+repo_root="$(pwd)"
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 cd "$workdir"
@@ -46,7 +47,8 @@ sha256sum -c backup/SHA256SUMS.txt > /dev/null
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
   -in backup/wetudy.dump.enc -out wetudy-restore.dump \
   -pass env:BACKUP_ENCRYPTION_PASSWORD
-pg_restore --list wetudy-restore.dump > /dev/null
+pg_restore --list wetudy-restore.dump > wetudy-restore.toc
+python3 "$repo_root/scripts/pilot-db-backup-critical-toc.py" wetudy-restore.toc
 
 # Only restore the public national-school directory into the ephemeral PG17.
 # This table has no user credentials, messages or school membership data.
