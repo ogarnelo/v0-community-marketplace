@@ -230,7 +230,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
         const rows: MarketplaceListing[] = payload.listings || [];
         setSchoolListings(rows);
         setSchoolOffset(rows.length);
-        if (!requestKey) setSchoolCount(payload.total ?? null);
+        if (!requestKey && typeof payload.total === "number") setSchoolCount(payload.total);
         setSchoolHasMore(Boolean(payload.hasMore) && rows.length > 0);
         setSchoolAppliedKey(requestKey);
         setSchoolLoaded(true);
@@ -299,7 +299,7 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
         return [...current, ...rows.filter((item) => !ids.has(item.id))];
       });
       setSchoolOffset((current) => current + rows.length);
-      if (!requestKey) setSchoolCount(payload.total ?? null);
+      if (!requestKey && typeof payload.total === "number") setSchoolCount(payload.total);
       setSchoolHasMore(Boolean(payload.hasMore) && rows.length > 0);
     } catch {
       setSchoolLoadError(true);

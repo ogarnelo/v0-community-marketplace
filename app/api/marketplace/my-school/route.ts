@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   applyMarketplaceFeedFilters,
+  hasServerMarketplaceFilters,
   parseMarketplaceFeedFilters,
 } from "@/lib/marketplace/feed-filters";
 
@@ -77,16 +78,21 @@ export async function GET(request: Request) {
       });
     }
 
-    // The school scope and other OR predicates are composed into one
-    // validated PostgREST expression before filtering and ordering.
+    // The school scope and product filters are composed before pagination.
+    // An exact total is useful for the initial community count only.
+    // Subsequent scroll pages (and filtered queries) use one extra row,
+    // eliminating an expensive COUNT(*) on every school-feed request.
+    const needsTotal = offset === 0 && !hasServerMarketplaceFilters(filters);
     const query = applyMarketplaceFeedFilters(
-      supabase.from("listings").select(FIELDS, { count: "exact" })
+      supabase.from("listings").select(FIELDS, needsTotal ? { count: "exact" } : {})
         .eq("status", "available"),
       filters, expression
     );
-    const { data, count, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    const { data, count, error } = await query.range(offset, offset + PAGE_SIZE);
     if (error) throw error;
-    const rows = (data || []) as ListingRow[];
+    const pageRows = (data || []) as ListingRow[];
+    const hasMore = pageRows.length > PAGE_SIZE;
+    const rows = pageRows.slice(0, PAGE_SIZE);
     const ids = rows.map((row) => row.id);
     const sellers = Array.from(new Set(rows.map((row) => row.seller_id || row.user_id)
       .filter((id): id is string => typeof id === "string" && Boolean(id))));
@@ -142,10 +148,8 @@ export async function GET(request: Request) {
       };
     });
 
-    const total = count || 0;
     return NextResponse.json({
-      listings, total, offset,
-      hasMore: offset + listings.length < total,
+      listings, total: needsTotal ? count ?? null : null, offset, hasMore,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Error obteniendo anuncios del colegio:", error);
