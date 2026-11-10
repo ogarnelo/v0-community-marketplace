@@ -9,7 +9,7 @@ const matcher=readFileSync("app/api/marketplace/listings/match-saved-searches/ro
 const vercel=JSON.parse(readFileSync("vercel.json","utf8"));
 
 function runWorker({workerFlag="true",intentFlag="true",
-  intentsReady=true,reviewReady=true,auth="Bearer synthetic-qa-cron"}={}){
+  intentsReady=true,intentFunctionsReady=true,reviewReady=true,auth="Bearer synthetic-qa-cron"}={}){
   let dbCreated=0, claimed=0, fetchCalls=0;
   const db={
     from(table){
@@ -23,6 +23,8 @@ function runWorker({workerFlag="true",intentFlag="true",
       return q;
     },
     async rpc(name){
+      if(name==="marketplace_alert_email_intent_health_v1")
+        return {data:[],error:intentFunctionsReady?null:new Error("incomplete intent migration")};
       if(name==="marketplace_alert_review_count_v1")
         return {data:0,error:reviewReady?null:new Error("missing review RPC")};
       if(name==="marketplace_alert_claim_outbox_v1"){
@@ -106,4 +108,12 @@ test("matcher cannot treat one legacy flag as a signed outbox worker",()=>{
   assert.match(matcher,/request\.headers\.get\("x-wetudy-alert-outbox"\) === "1"/);
   assert.match(matcher,/\.gt\("lease_until", new Date\(\)\.toISOString\(\)\)/);
   assert.equal(vercel.crons.filter(x=>x.path.includes("marketplace-alert-outbox")).length,0);
+});
+
+test("partially applied intent migration fails closed before claim",async()=>{
+  const w=runWorker({intentsReady:true,intentFunctionsReady:false,reviewReady:true});
+  const res=await w.response;
+  assert.equal(res.status,503);
+  assert.equal((await res.json()).error,"intent_functions_not_ready");
+  assert.deepEqual(w.calls(),{dbCreated:1,claimed:0,fetchCalls:0});
 });
