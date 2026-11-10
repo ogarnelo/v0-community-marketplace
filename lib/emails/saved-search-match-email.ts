@@ -7,7 +7,7 @@ import {
   sendBrandedEmail,
 } from "@/lib/emails/brand";
 
-export async function sendSavedSearchMatchEmail(params: {
+export function buildSavedSearchMatchEmail(params: {
   to: string;
   listingId: string;
   listingTitle: string;
@@ -16,7 +16,7 @@ export async function sendSavedSearchMatchEmail(params: {
   const url = `${getEmailBaseUrl()}/marketplace/listing/${params.listingId}`;
   const title = escapeEmailHtml(params.listingTitle);
 
-  return sendBrandedEmail({
+  return {
     to: params.to,
     subject: `Nuevo anuncio que coincide con tu búsqueda · ${params.listingTitle}`,
     idempotencyKey: params.idempotencyKey,
@@ -30,5 +30,15 @@ export async function sendSavedSearchMatchEmail(params: {
         ${emailButton("Ver anuncio", url)}
       `,
     }),
-  });
+  };
+}
+
+// Existing publisher path retains the exact same email structure and sender.
+export async function sendSavedSearchMatchEmail(params: {
+  to: string;
+  listingId: string;
+  listingTitle: string;
+  idempotencyKey?: string | null;
+}) {
+  return sendBrandedEmail(buildSavedSearchMatchEmail(params));
 }
