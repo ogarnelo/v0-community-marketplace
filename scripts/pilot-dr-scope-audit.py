@@ -2,7 +2,7 @@
 """Offline contract for Wetudy's disaster-recovery scope.
 
 Inventory: production Supabase information_schema.tables (SELECT only),
-collected 2026-11-09. No production credentials or runtime calls here.
+refreshed read-only 2026-11-10. No production credentials or runtime calls here.
 A successful synthetic six-table restore is NOT a full Wetudy recovery.
 """
 import ast
@@ -18,8 +18,8 @@ course_materials course_needs demand_campaigns demand_events demand_match_notifi
 demand_opportunity_actions demand_requests donation_request_events donation_requests
 favorites growth_acquisition_events hidden_conversations inventory_expansion_events
 listing_boosts listing_drafts listing_offer_events listing_offers listing_packs
-listing_photos listing_signals listing_views listings marketplace_events
-marketplace_search_events messages moderation_flags notifications payment_events
+listing_photos listing_signals listing_views listings marketplace_alert_outbox marketplace_events
+marketplace_postal_centroids marketplace_search_events messages moderation_flags notifications payment_events
 payment_intents payment_shipping_sandbox_runs profiles referrals reports
 resend_webhook_events resend_webhook_secrets reviews saved_search_matches
 saved_searches school_access_codes school_admins school_codes school_directory
@@ -37,6 +37,11 @@ CRITICAL = {
     "listings": {"listings", "listing_photos", "listing_drafts", "listing_offers"},
     "messages": {"conversations", "messages", "notifications"},
     "transactions": {"agreements", "payment_intents", "payment_events", "shipments"},
+    "nearby_search_and_alerts": {
+        "marketplace_postal_centroids", "marketplace_alert_outbox",
+        "saved_searches", "saved_search_matches", "user_marketplace_preferences",
+        "transactional_email_deliveries", "transactional_email_recipient_health",
+    },
 }
 REPO = Path(__file__).resolve().parents[1]
 def covered_tables():
@@ -51,17 +56,20 @@ def covered_tables():
 
 def main():
     covered = covered_tables()
-    assert len(PUBLIC_TABLES) == 77, f"Expected verified inventory of 77, got {len(PUBLIC_TABLES)}"
+    assert len(PUBLIC_TABLES) == 79, f"Expected verified inventory of 77, got {len(PUBLIC_TABLES)}"
     assert covered <= PUBLIC_TABLES, "Restore fixture has unknown production table name"
     assert len(covered) >= 6, "Local restore contract lost protected tables"
     missing = PUBLIC_TABLES - covered
+    restored_app_pct = round(len(covered) * 100 / len(PUBLIC_TABLES), 1)
     findings = {area:sorted(tables-covered) for area,tables in CRITICAL.items()}
     result = {
-        "inventory_as_of": "2026-11-09",
+        "inventory_as_of": "2026-11-10",
         "total_public_tables":len(PUBLIC_TABLES),
         "tested_local_public_tables":len(covered),
+        "tested_public_table_coverage_pct":restored_app_pct,
         "untested_public_tables":len(missing),
         "missing_by_critical_workflow":findings,
+        "restored_critical_workflows": [area for area, missing_tables in findings.items() if not missing_tables],
         "additional_required_components":[
             "GoTrue Auth runtime, users, identities and configuration",
             "Storage physical private object bytes and policies",
