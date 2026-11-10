@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, postal_code, status")
+      .select("id, seller_id, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, directory_school_code, postal_code, status")
       .eq("id", listingId)
       .maybeSingle();
 
@@ -66,17 +66,46 @@ export async function POST(request: Request) {
 
     const { data: savedSearches, error: searchesError } = await admin
       .from("saved_searches")
-      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, radius_km, demand_request_id")
+      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id")
       .eq("notifications_enabled", true)
       .neq("user_id", user.id);
 
     if (searchesError) throw searchesError;
 
+    // Resolve directory↔operational school links once per publishing event.
+    // Database references are authoritative: no school code arrives from the
+    // browser. Directory codes without an explicit link cannot be matched
+    // against arbitrary operational schools.
+    const directoryCodes = [...new Set([
+      listing.directory_school_code,
+      ...(savedSearches || [])
+        .filter((search) => search.only_my_community)
+        .map((search) => search.directory_school_code),
+    ].filter((code): code is string => typeof code === "string" && code.length > 0))];
+    const directoryLinks = new Map<string, string | null>();
+    for (let start = 0; start < directoryCodes.length; start += 150) {
+      const { data: directoryRows, error: directoryError } = await admin
+        .from("school_directory")
+        .select("official_code,linked_school_id")
+        .in("official_code", directoryCodes.slice(start, start + 150));
+      if (directoryError) throw directoryError;
+      for (const school of directoryRows || []) {
+        directoryLinks.set(school.official_code, school.linked_school_id || null);
+      }
+    }
+    const schoolLinksFor = (search: { directory_school_code?: string | null }) => ({
+      savedDirectoryLinkedSchoolId:
+        directoryLinks.get(search.directory_school_code || "") || null,
+      listingDirectoryLinkedSchoolId:
+        directoryLinks.get(listing.directory_school_code || "") || null,
+    });
+
     // Only inspect postcode profiles for geographically bounded searches
     // whose content and other filters already match the new listing.
     const radiusCandidates = (savedSearches || []).filter((search) =>
       search.radius_km !== null && search.radius_km !== undefined &&
-      savedSearchMatchesListing({ ...search, radius_km: null }, listing));
+      savedSearchMatchesListing({ ...search, radius_km: null }, listing,
+        undefined, schoolLinksFor(search)));
     const candidateUserIds = [...new Set(radiusCandidates.map((search) => search.user_id))];
     const viewerPostcodes = new Map<string, string | null>();
     if (candidateUserIds.length) {
@@ -108,7 +137,8 @@ export async function POST(request: Request) {
         search, listing,
         search.radius_km === null || search.radius_km === undefined
           ? undefined
-          : approximateDistanceKm(viewerPostcodes.get(search.user_id), listingPostalCode)
+          : approximateDistanceKm(viewerPostcodes.get(search.user_id), listingPostalCode),
+        schoolLinksFor(search)
       ))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
