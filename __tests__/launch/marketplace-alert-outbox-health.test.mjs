@@ -51,7 +51,7 @@ test("no extra Vercel cron or paid service is registered",()=>{
   assert.equal(vercel.crons.filter(x=>x.path.includes("marketplace-alert-outbox")).length,0);
   assert.equal(vercel.crons.filter(x=>x.path==="/api/cron/email-health").length,1);
   assert.match(ci,/pilot-marketplace-alert-outbox-health\.sql/);
-  assert.match(ci,/20261110131500_marketplace_alert_outbox_health_v1\.sql/);
+  assert.match(ci,/20261110114223_marketplace_alert_outbox_health_v1\.sql/);
   assert.match(fixture,/h\.overdue_leases < 1/);
   assert.match(fixture,/h\.expired_unfinished < 1/);
 });
