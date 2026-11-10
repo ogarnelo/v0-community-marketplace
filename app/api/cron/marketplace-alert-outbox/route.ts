@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     }
     const job = jobs[0];
     let success = false;
+    let partialProgress = false;
     let errorCode = "unknown";
 
     try {
@@ -71,8 +72,9 @@ export async function GET(request: Request) {
           });
           if (response.ok) {
             const body = await response.json();
-            success = body?.ok === true;
-            if (!success) errorCode = "unexpected_matcher_body";
+            success = body?.ok === true && body?.complete === true;
+            partialProgress = body?.ok === true && body?.complete === false;
+            if (!success && !partialProgress) errorCode = "unexpected_matcher_body";
           } else {
             errorCode = response.status >= 500
               ? "matcher_5xx" : "matcher_http_" + response.status;
@@ -84,6 +86,31 @@ export async function GET(request: Request) {
       // Do not log recipient addresses or provider error bodies.
       console.error("El procesamiento de una alerta pendiente falló", processingError instanceof Error
         ? processingError.name : "unknown");
+    }
+
+    if (partialProgress) {
+      // A bounded recipient batch made progress. Requeue WITHOUT consuming
+      // any of the four failure attempts, using the current fencing token.
+      const { data: requeued, error: requeueError } = await admin.rpc(
+        "marketplace_alert_requeue_progress_v1", {
+          p_listing_id: job.listing_id,
+          p_lease_token: job.lease_token,
+        }
+      );
+      if (requeueError) throw requeueError;
+      if (requeued !== true) {
+        return Response.json({ ok: false, reason: "stale_lease" }, { status: 409 });
+      }
+      return Response.json({
+        ok: true,
+        complete: false,
+        claimed: 1,
+        attempts: job.attempts,
+        outcome: "progress_saved",
+      }, {
+        status: 202,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
 
     const { data: settled, error: settleError } = await admin.rpc(
