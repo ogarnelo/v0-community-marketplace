@@ -38,3 +38,21 @@ test("Python fixture compiles without connecting to any database",()=>{
   const p=spawnSync("python3",["-c","import ast,pathlib; ast.parse(pathlib.Path('scripts/pilot-marketplace-saved-search-recovery.py').read_text())"],{encoding:"utf8",timeout:5000});
   assert.equal(p.status,0,p.stderr);
 });
+
+test("synthetic restored RLS keeps two family searches and matches isolated",()=>{
+  assert.match(fixture,/create role qa_near_family nologin/);
+  assert.match(fixture,/set local role qa_near_family/);
+  assert.match(fixture,/request\.jwt\.claim\.sub/);
+  for(const name of ["saved_searches","saved_search_matches","user_marketplace_preferences"]){
+    assert.match(fixture,new RegExp("alter table qa_near_market\\."+name+" enable row level security"));
+  }
+  assert.match(fixture,/verify_restored_family_isolation\(SOURCE\)/);
+  assert.match(fixture,/verify_restored_family_isolation\(TARGET\)/);
+  assert.match(fixture,/B:"1:1:1"/);
+  assert.match(fixture,/A:"0:0:1"/);
+});
+test("dump and restore retain synthetic SQL ACLs and RLS policies",()=>{
+  assert.doesNotMatch(fixture,/pg_dump[^\n]*--no-acl/);
+  assert.match(fixture,/grant select on qa_near_market\.user_marketplace_preferences/);
+  assert.match(fixture,/has_table_privilege\('qa_near_family'/);
+});
