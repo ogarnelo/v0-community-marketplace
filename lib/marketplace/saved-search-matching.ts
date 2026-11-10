@@ -79,9 +79,9 @@ export function hasMeaningfulSearchTerms(value: string | null | undefined) {
 function containsText(haystack: string, needle: string | null | undefined) {
   const cleanNeedle = normalize(needle);
   if (!cleanNeedle) return true;
-  if (haystack.includes(cleanNeedle)) return true;
   const terms = meaningfulTokens(needle);
   if (!terms.length) return false; // Never notify everyone for filler-only text.
+  if (haystack.includes(cleanNeedle)) return true;
   const available = new Set(meaningfulTokens(haystack));
   return terms.every((term) => available.has(term));
 }
