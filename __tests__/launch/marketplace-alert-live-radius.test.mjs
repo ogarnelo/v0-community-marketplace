@@ -5,7 +5,7 @@ import { hasRadiusConstraint, partitionLiveRadius }
   from "../../lib/marketplace/alert-live-radius.mjs";
 
 const matcher=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
-const migration=readFileSync("supabase/migrations/20261110164500_saved_search_match_delivery_invalidation.sql","utf8");
+const migration=readFileSync("supabase/migrations/20261110164742_saved_search_match_delivery_invalidation.sql","utf8");
 const fixture=readFileSync("scripts/pilot-marketplace-live-radius-invalidation.sql","utf8");
 const make=(i,radius=10)=>({
   id:`match-${i}`,user_id:`user-${i}`,
