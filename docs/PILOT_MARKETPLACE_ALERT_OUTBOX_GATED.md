@@ -43,6 +43,29 @@ from public.marketplace_alert_outbox
 group by state;
 ```
 
+## Observabilidad de cola sin activar envíos
+
+La función `public.marketplace_alert_outbox_health_v1()` devuelve exclusivamente
+**recuentos operativos** (`total`, `pending`, `processing`, `completed`,
+`failed`, `due`, `overdue_leases`, `expired_unfinished`,
+`oldest_unfinished_minutes`, `max_attempts`). No devuelve identificadores de
+anuncio, correos ni códigos postales. Solo `service_role` puede ejecutarla.
+
+Se consulta una sola vez dentro del **cron de salud del email ya existente**
+(`/api/cron/email-health`, autorizado mediante `CRON_SECRET`), sin cron nuevo.
+Si falla la consulta de esta función, el cron de email normal continúa:
+el campo `marketplaceAlertOutbox.available` queda `false`.
+Cuando el worker sigue desactivado, los trabajos caducados no producen avisos
+ni advertencias de logs adicionales; se muestran como contadores únicamente
+en la respuesta interna autorizada. Si más adelante se activa el worker, las
+incidencias `failed/overdueLeases/expiredUnfinished` generan una advertencia
+con **solo números**, sin datos personales.
+
+La función es `SECURITY INVOKER`, y el SQL de PostgreSQL 17 en CI verifica
+que `anon` y `authenticated` no pueden ejecutarla. Las métricas requieren
+escaneo/agrupación de la tabla en un solo query diario. En un crecimiento
+significativo se revisará su tiempo de consulta antes de ampliar frecuencia.
+
 ## Costes y límites
 
 No se añade proveedor, extensión ni servicio de pago. El coste marginal antes de activar el worker es una inserción indexada por publicación y un pequeño volumen de almacenamiento en Supabase. El workflow de prueba usa PostgreSQL 17 en el runner de GitHub Actions, **no la base de datos real**. Los minutos de CI sí forman parte del consumo de GitHub.
