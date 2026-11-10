@@ -61,7 +61,8 @@ test("route uses UUID keyset pagination, bounded matching and existing idempoten
   assert.match(source,/\.limit\(limit\)/);
   assert.match(source,/if \(afterId\) query = query\.gt\("id", afterId\)/);
   assert.doesNotMatch(source,/const \{ data: savedSearches, error: searchesError \}/);
-  assert.equal((source.match(/for \(const batch of batchAlertItems\(matches\)\)/g)||[]).length,3);
+  assert.equal((source.match(/for \(const batch of batchAlertItems\(matches\)\)/g)||[]).length,1);
+  assert.equal((source.match(/loadPendingDeliveryRows\(/g)||[]).length,2);
   assert.match(source,/onConflict: "saved_search_id,listing_id", ignoreDuplicates: true/);
   assert.match(source,/createNotificationOnce\(/);
   assert.match(source,/sendTransactionalEmailOnce\(/);
