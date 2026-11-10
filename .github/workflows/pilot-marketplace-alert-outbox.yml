@@ -25,6 +25,8 @@ on:
       - "scripts/pilot-marketplace-alert-email-intents.sql"
       - "supabase/migrations/20261110215000_marketplace_alert_outbox_review_hold_v1.sql"
       - "scripts/pilot-marketplace-alert-review-hold.sql"
+      - "supabase/migrations/20261110223000_marketplace_alert_reconcile_accepted_v1.sql"
+      - "scripts/pilot-marketplace-alert-manual-reconciliation.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -80,3 +82,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-live-school-relink.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-email-intents.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-review-hold.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-manual-reconciliation.sql
