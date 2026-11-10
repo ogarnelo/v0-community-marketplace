@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     // listing ID or caller-supplied school/email information is trusted.
     const cronSecret = process.env.CRON_SECRET;
     const isOutboxWorker = process.env.WETUDY_ALERT_OUTBOX_ENABLED === "true" &&
+      process.env.WETUDY_ALERT_INTENT_DELIVERY_ENABLED === "true" &&
       Boolean(cronSecret) &&
       request.headers.get("authorization") === `Bearer ${cronSecret}` &&
       request.headers.get("x-wetudy-alert-outbox") === "1";
