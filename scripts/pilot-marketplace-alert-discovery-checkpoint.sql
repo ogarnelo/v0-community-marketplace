@@ -1,6 +1,6 @@
 -- Disposable PostgreSQL17 fixture: only run AFTER the other alert outbox
 -- fixtures, in the GitHub Actions local-only service. NO production writes.
-\i supabase/migrations/20261110152800_marketplace_alert_discovery_checkpoint_v1.sql
+\i supabase/migrations/20261110155518_marketplace_alert_discovery_checkpoint_v1.sql
 
 do $$
 begin
