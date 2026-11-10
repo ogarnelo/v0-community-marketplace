@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
+import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, status")
+      .select("id, seller_id, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, postal_code, status")
       .eq("id", listingId)
       .maybeSingle();
 
@@ -65,14 +66,50 @@ export async function POST(request: Request) {
 
     const { data: savedSearches, error: searchesError } = await admin
       .from("saved_searches")
-      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, demand_request_id")
+      .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, radius_km, demand_request_id")
       .eq("notifications_enabled", true)
       .neq("user_id", user.id);
 
     if (searchesError) throw searchesError;
 
+    // Only inspect postcode profiles for geographically bounded searches
+    // whose content and other filters already match the new listing.
+    const radiusCandidates = (savedSearches || []).filter((search) =>
+      search.radius_km !== null && search.radius_km !== undefined &&
+      savedSearchMatchesListing({ ...search, radius_km: null }, listing));
+    const candidateUserIds = [...new Set(radiusCandidates.map((search) => search.user_id))];
+    const viewerPostcodes = new Map<string, string | null>();
+    if (candidateUserIds.length) {
+      // Keep .in() requests bounded to avoid large PostgREST query strings.
+      for (let start = 0; start < candidateUserIds.length; start += 150) {
+        const { data: profiles, error: profilesError } = await admin
+          .from("profiles").select("id,postal_code")
+          .in("id", candidateUserIds.slice(start, start + 150));
+        if (profilesError) throw profilesError;
+        for (const profile of profiles || []) {
+          viewerPostcodes.set(profile.id, profile.postal_code || null);
+        }
+      }
+    }
+
+    // A listing's own published postcode takes precedence over a seller
+    // who may have subsequently moved. Older listings may need fallback.
+    let listingPostalCode: string | null = listing.postal_code || null;
+    if (candidateUserIds.length && !listingPostalCode) {
+      const { data: sellerProfile, error: sellerError } = await admin
+        .from("profiles").select("postal_code")
+        .eq("id", user.id).maybeSingle();
+      if (sellerError) throw sellerError;
+      listingPostalCode = sellerProfile?.postal_code || null;
+    }
+
     const matches = (savedSearches || [])
-      .filter((search) => savedSearchMatchesListing(search, listing))
+      .filter((search) => savedSearchMatchesListing(
+        search, listing,
+        search.radius_km === null || search.radius_km === undefined
+          ? undefined
+          : approximateDistanceKm(viewerPostcodes.get(search.user_id), listingPostalCode)
+      ))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
     if (matches.length === 0) return NextResponse.json({ ok: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
