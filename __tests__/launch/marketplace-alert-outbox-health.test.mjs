@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const read=(p)=>readFileSync(p,"utf8");
-const sql=read("supabase/migrations/20261110131500_marketplace_alert_outbox_health_v1.sql");
+const sql=read("supabase/migrations/20261110114223_marketplace_alert_outbox_health_v1.sql");
 const cron=read("app/api/cron/email-health/route.ts");
 const vercel=JSON.parse(read("vercel.json"));
 const fixture=read("scripts/pilot-marketplace-alert-outbox-health.sql");
