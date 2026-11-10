@@ -3,7 +3,7 @@
 create table public.saved_search_matches (
   id uuid primary key
 );
-\i supabase/migrations/20261110133500_marketplace_alert_delivery_progress.sql
+\i supabase/migrations/20261110121643_marketplace_alert_delivery_progress.sql
 
 do $$
 begin
