@@ -40,7 +40,8 @@ test("recent encrypted artifact + later successful partial restore passes readin
 });
 test("old artifact cannot authorize a production migration",()=>{
   const r=verify([{...backup,created_at:"2026-11-08T10:00:00Z"}],
-    [{...restore,created_at:"2026-11-09T11:00:00Z"}]);
+    [{...restore,created_at:"2026-11-09T11:00:00Z"}],
+    [{...sourceRun,created_at:"2026-11-08T09:00:00Z"}]);
   assert.equal(r.exit,1);assert.equal(r.result.reason,"backup_too_old");
 });
 test("missing or expired artifact fails closed",()=>{
