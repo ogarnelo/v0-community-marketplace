@@ -46,7 +46,8 @@ export async function POST(request: Request) {
     const resultsCount = cleanNumber(body.resultsCount);
     // Saved radius must constrain future matching, not merely the initial UI.
     const rawRadius = body.radiusKm;
-    const radiusKm = rawRadius === null || rawRadius === undefined ? null : rawRadius;
+    const radiusKm = body.onlyMyCommunity || rawRadius === null || rawRadius === undefined
+      ? null : rawRadius;
     if (radiusKm !== null &&
         (!Number.isInteger(radiusKm) || radiusKm < 1 || radiusKm > 200)) {
       return NextResponse.json({ ok: false, error: "invalid_radius" }, { status: 400 });
