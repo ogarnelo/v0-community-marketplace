@@ -17,6 +17,8 @@ on:
       - "scripts/pilot-marketplace-alert-discovery-checkpoint.sql"
       - "supabase/migrations/20261110161156_saved_search_preference_stamp_v1.sql"
       - "scripts/pilot-marketplace-saved-search-optout.sql"
+      - "supabase/migrations/20261110164500_saved_search_match_delivery_invalidation.sql"
+      - "scripts/pilot-marketplace-live-radius-invalidation.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -68,3 +70,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-defer-photos.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-discovery-checkpoint.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-saved-search-optout.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-live-radius-invalidation.sql
