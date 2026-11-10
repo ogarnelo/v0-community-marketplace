@@ -81,10 +81,10 @@ test("school feed is loaded in authenticated, paginated chunks rather than filte
   assert.match(schoolFeedRoute, /supabase\.auth\.getUser\(\)/);
   assert.match(schoolFeedRoute, /if \(authError \|\| !user\)/);
   assert.match(schoolFeedRoute, /PAGE_SIZE = 60/);
-  assert.match(schoolFeedRoute, /\.range\(offset, offset \+ PAGE_SIZE - 1\)/);
+  assert.match(schoolFeedRoute, /\.range\(offset, offset \+ PAGE_SIZE\)/);
   assert.match(schoolFeedRoute, /applyMarketplaceFeedFilters\(/);
   assert.match(schoolFeedRoute, /filters, expression/);
-  assert.match(schoolFeedRoute, /hasMore: offset \+ listings\.length < total/);
+  assert.match(schoolFeedRoute, /const hasMore = pageRows\.length > PAGE_SIZE/);
   assert.doesNotMatch(schoolFeedRoute, /searchParams\.get\("schoolId"\)/);
   assert.match(marketClient, /loadMoreSchoolListings/);
   assert.match(marketClient, /feedSentinelRef/);
