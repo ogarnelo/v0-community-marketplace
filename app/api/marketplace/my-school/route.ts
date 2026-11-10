@@ -135,7 +135,7 @@ export async function GET(request: Request) {
         schoolId: item.directory_school_code ? null :
           item.school_id || seller?.schoolId || null,
         directorySchoolCode: item.directory_school_code || null,
-        postalCode: seller?.postalCode || item.postal_code || null,
+        postalCode: null, // Client needs only the server-computed approximate distance.
         status: item.status, createdAt: item.created_at || null,
         distance: approximateDistanceKm(profile?.postal_code, seller?.postalCode || item.postal_code),
         isFavorite: favoriteIds.has(item.id),

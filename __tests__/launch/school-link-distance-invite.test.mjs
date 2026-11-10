@@ -40,7 +40,7 @@ test("marketplace distance uses account postal codes and excludes unknown locati
   assert.match(marketplacePage, /sellerProfileMap/);
   assert.match(marketplacePage, /viewerPostalCode = typedProfile\?\.postal_code\?\.trim\(\) \|\| ""/);
   assert.match(marketplacePage, /sellerProfile\?\.postalCode/);
-  assert.match(marketplacePage, /postalCode: currentSellerPostalCode/);
+  assert.match(marketplacePage, /postalCode: null, \/\/ Never serialize/);
   assert.doesNotMatch(marketplacePage, /schoolPostalMap/);
   assert.match(marketplacePage, /approximateDistanceKm\(viewerPostalCode, currentSellerPostalCode\)/);
   assert.match(marketplaceClient, /params\.set\("radiusKm", String\(distanceKm\)\)/);
