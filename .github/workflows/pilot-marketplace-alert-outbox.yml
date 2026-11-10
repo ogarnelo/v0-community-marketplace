@@ -5,7 +5,7 @@ on:
       - ".github/workflows/pilot-marketplace-alert-outbox.yml"
       - "supabase/migrations/20261110111353_marketplace_alert_outbox_v1.sql"
       - "scripts/pilot-marketplace-alert-outbox-synthetic.sql"
-      - "supabase/migrations/20261110124000_marketplace_listing_postal_snapshot_v1.sql"
+      - "supabase/migrations/20261110113419_marketplace_listing_postal_snapshot_v1.sql"
       - "scripts/pilot-marketplace-postcode-snapshot.sql"
   workflow_dispatch:
 permissions:
