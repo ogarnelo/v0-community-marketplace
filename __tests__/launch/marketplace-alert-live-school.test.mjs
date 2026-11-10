@@ -5,7 +5,7 @@ import { codesForLiveSchoolPage, partitionLiveSchool }
   from "../../lib/marketplace/alert-live-school.mjs";
 
 const route=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
-const migration=readFileSync("supabase/migrations/20261110204400_marketplace_school_link_invalidation_v2.sql","utf8");
+const migration=readFileSync("supabase/migrations/20261110194657_marketplace_school_link_invalidation_v2.sql","utf8");
 const fixture=readFileSync("scripts/pilot-marketplace-live-school-relink.sql","utf8");
 const code="CENTER-A",school1="00000000-0000-4000-8000-000000000001";
 const school2="00000000-0000-4000-8000-000000000002";
