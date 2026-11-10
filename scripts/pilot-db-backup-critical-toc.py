@@ -8,6 +8,7 @@ TOC existence is NOT proof that data are present or that a full restore works.
 import argparse
 import json
 import re
+import runpy
 import sys
 from pathlib import Path
 
@@ -38,6 +39,15 @@ def parse_toc(content):
             entries.add((match.group(2), match.group(3), match.group(1)))
     return entries
 
+def public_inventory():
+    # Use the verified source of truth. runpy won't call its main() block.
+    audit = runpy.run_path(str(Path(__file__).with_name("pilot-dr-scope-audit.py")))
+    names = audit["PUBLIC_TABLES"]
+    if len(names) != 79:
+        raise RuntimeError("Review DR inventory against read-only production catalog")
+    return names
+
+
 def assess(contents):
     entries = parse_toc(contents)
     missing = {}
@@ -46,6 +56,12 @@ def assess(contents):
             for kind in ("TABLE", "TABLE DATA"):
                 if ("public", name, kind) not in entries:
                     missing.setdefault(area, []).append(name + ":" + kind.lower().replace(" ", "_"))
+    all_public = public_inventory()
+    all_public_missing = sorted(
+        name + ":" + kind.lower().replace(" ", "_")
+        for name in all_public for kind in ("TABLE", "TABLE DATA")
+        if ("public", name, kind) not in entries
+    )
     managed = {
         area: {
             name: all((area,name,kind) in entries for kind in ("TABLE", "TABLE DATA"))
@@ -56,6 +72,9 @@ def assess(contents):
     return {
         "public_toc_sections_checked": sum(map(len, CRITICAL_PUBLIC.values())) * 2,
         "critical_public_toc_ready": not missing,
+        "all_public_toc_sections_checked": len(all_public) * 2,
+        "all_public_toc_ready": not all_public_missing,
+        "missing_public_toc_sections": all_public_missing,
         "missing_critical_public_toc": missing,
         "managed_auth_storage_toc_present": managed,
         "full_disaster_recovery_certified": False,
@@ -68,10 +87,10 @@ def main():
     content = Path(args.toc_path).read_text(encoding="utf-8",errors="replace")
     result = assess(content)
     print(json.dumps(result,sort_keys=True))
-    if not result["critical_public_toc_ready"]:
-        print("BLOCKED: Critical tables missing from encrypted backup TOC",file=sys.stderr)
+    if not result["critical_public_toc_ready"] or not result["all_public_toc_ready"]:
+        print("BLOCKED: Public table definitions or DATA sections missing from backup TOC",file=sys.stderr)
         return 2
-    print("TOC gate PASS: no row data inspected, full DB restore NOT certified")
+    print("TOC gate PASS: 79 public tables catalogued, no rows inspected, full DB restore NOT certified")
     return 0
 
 if __name__ == "__main__":
