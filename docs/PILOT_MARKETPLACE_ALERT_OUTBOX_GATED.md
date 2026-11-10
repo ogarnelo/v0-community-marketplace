@@ -43,6 +43,35 @@ from public.marketplace_alert_outbox
 group by state;
 ```
 
+## Reanudación por destinatarios: preparada, pero todavía desactivada
+
+El recuperador ahora atiende **hasta 12 notificaciones y 12 emails por
+invocación**. Cuando quedan destinatarios pendientes, la ruta de coincidencias
+responde `complete:false`; una RPC exclusiva del servicio libera el lease con
+un token de protección y programa otra ejecución a partir de 15 segundos
+después. El progreso se conserva con los campos ya existentes
+`notified_at` y `emailed_at`, además del nuevo `email_skipped_at`.
+
+Una dirección **suprimida** o una cuenta **sin correo** se registra como salto
+terminal (`email_skip_reason=suppressed` o `recipient_missing`), **no como
+un correo enviado**. Una respuesta de proveedor incompleta o un fallo de
+Resend queda como error reintentable; la API devuelve 503 y el procesador no
+marca la tarea como finalizada. Las notificaciones y emails mantienen claves
+idempotentes, evitando repetir los avisos que sí se procesaron correctamente.
+
+La reanudación de un lote exitoso **no consume** los cuatro intentos
+reservados a fallos, pero cada trabajo conserva su fecha absoluta de caducidad
+a las 48 horas. La RPC de reanudación no acepta tokens vencidos ni trabajos
+finalizados. El flujo normal iniciado por el vendedor conserva su alcance
+anterior; solo la recuperación firmada usa lotes acotados.
+
+**Limitación explícita:** en cada invocación todavía se vuelve a consultar
+toda la lista de búsquedas guardadas para determinar las coincidencias del
+anuncio. Antes de un volumen elevado deben persistirse por separado los
+cursosres de exploración y optimizar las consultas repetidas. No interpretar
+este cambio como garantía de entrega a miles de destinatarios dentro de un
+SLA. Sigue pendiente la E2E real controlada con las cuentas QA del piloto.
+
 ## Observabilidad de cola sin activar envíos
 
 La función `public.marketplace_alert_outbox_health_v1()` devuelve exclusivamente
