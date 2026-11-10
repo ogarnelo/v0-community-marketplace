@@ -17,7 +17,7 @@ test("marketplace cards show approximate distance from listing postal zone, with
 });
 
 test("global and radial SQL functions agree with published listing postcode", () => {
-  const sql=read("supabase/migrations/20261110082500_marketplace_listing_cp_first.sql");
+  const sql=read("supabase/migrations/20261110074207_marketplace_listing_cp_first.sql");
   const target="coalesce(nullif(l.postal_code, ''), nullif(seller.postal_code, ''))";
   assert.equal(sql.split(target).length - 1, 2);
   assert.equal((sql.match(/revoke all on function/g) || []).length, 2);
