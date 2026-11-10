@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const sql = readFileSync("supabase/migrations/20261110121000_marketplace_alert_outbox_v1.sql","utf8");
+const sql = readFileSync("supabase/migrations/20261110111353_marketplace_alert_outbox_v1.sql","utf8");
 const worker = readFileSync("app/api/cron/marketplace-alert-outbox/route.ts","utf8");
 const matcher = readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
 const vercel = JSON.parse(readFileSync("vercel.json","utf8"));
