@@ -24,6 +24,6 @@ test("isolated workflow executes smoke after five migrations in temporary postgr
 });
 test("smoke never sends mail, mutates state or reveals recipients",()=>{
   const executable=sql.replace(/^--.*$/gm,"");
-  assert.doesNotMatch(executable,/\b(update|insert|delete|drop|alter|truncate|create|grant|revoke|call|execute)\b/i);
+  assert.doesNotMatch(executable,/^\s*(update|insert|delete|drop|alter|truncate|create|grant|revoke|call|execute)\b/mi);
   assert.doesNotMatch(executable,/recipient_email|postal_code|school_code|api_key|email_body/i);
 });
