@@ -30,7 +30,7 @@ test("global and radial SQL functions agree with published listing postcode", ()
 
 
 test("authenticated publications snapshot verified profile CP and do not expose it in UI", () => {
-  const migration = read("supabase/migrations/20261110124000_marketplace_listing_postal_snapshot_v1.sql");
+  const migration = read("supabase/migrations/20261110113419_marketplace_listing_postal_snapshot_v1.sql");
   const workflow = read(".github/workflows/pilot-marketplace-alert-outbox.yml");
   const fixture = read("scripts/pilot-marketplace-postcode-snapshot.sql");
   const form = read("components/marketplace/new-listing-form.tsx");
