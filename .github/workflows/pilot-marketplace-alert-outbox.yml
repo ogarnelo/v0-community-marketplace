@@ -1,0 +1,52 @@
+name: Wetudy pilot alert outbox isolated PostgreSQL regression
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pilot-marketplace-alert-outbox.yml"
+      - "supabase/migrations/20261110121000_marketplace_alert_outbox_v1.sql"
+      - "scripts/pilot-marketplace-alert-outbox-synthetic.sql"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  outbox-postgres17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_ci
+          POSTGRES_PASSWORD: wetudy_ci
+          POSTGRES_DB: wetudy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_ci -d wetudy_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://wetudy_ci:wetudy_ci@127.0.0.1:5432/wetudy_ci
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client and assert local-only fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          python3 - <<'PY'
+          from urllib.parse import urlsplit
+          import os
+          url = urlsplit(os.environ["DATABASE_URL"])
+          if url.hostname not in ("127.0.0.1", "localhost", "::1") or url.path != "/wetudy_ci":
+              raise SystemExit("Refusing non-local or non-disposable database")
+          PY
+      - name: Run isolated outbox migration and DB behavior assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-outbox-synthetic.sql
