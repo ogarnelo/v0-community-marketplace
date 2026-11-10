@@ -110,7 +110,8 @@ test("content prefilter preserves matches while avoiding unrelated school and ge
   assert.match(matchRoute,/const contentCandidates = \(savedSearches \|\| \[\]\)\.filter/);
   assert.match(matchRoute,/\.\.\.search, only_my_community: false, radius_km: null/);
   assert.match(matchRoute,/const radiusCandidates = contentCandidates\.filter/);
-  assert.match(matchRoute,/const matches = contentCandidates/);
+  assert.match(matchRoute,/matches = contentCandidates/);
+  assert.match(matchRoute,/if \(!isWorkerDelivery\) \{/);
   assert.match(matchRoute,/const matchedSearchIds = new Set/);
   assert.doesNotMatch(matchRoute,/matches\.some\(\(match\)/);
 });
