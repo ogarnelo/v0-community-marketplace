@@ -10,7 +10,7 @@ import {
 const read = (p) => readFileSync(p,"utf8");
 const matcher=read("app/api/marketplace/listings/match-saved-searches/route.ts");
 const worker=read("app/api/cron/marketplace-alert-outbox/route.ts");
-const migration=read("supabase/migrations/20261110133500_marketplace_alert_delivery_progress.sql");
+const migration=read("supabase/migrations/20261110121643_marketplace_alert_delivery_progress.sql");
 const vercel=JSON.parse(read("vercel.json"));
 
 test("a recoverer processes 2,407 recipients in bounded pages without silent drops",()=>{
