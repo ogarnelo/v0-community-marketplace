@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     const job = jobs[0];
     let success = false;
     let partialProgress = false;
+    let awaitingPhotos = false;
     let errorCode = "unknown";
 
     try {
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
         if (!count) {
           // The seller's listing INSERT and photo rows are not atomic.
           // Only alert for a fully published listing with at least one photo.
-          errorCode = "photos_pending";
+          awaitingPhotos = true;
         } else {
           const response = await fetch(MATCH_ENDPOINT, {
             method: "POST",
@@ -86,6 +87,31 @@ export async function GET(request: Request) {
       // Do not log recipient addresses or provider error bodies.
       console.error("El procesamiento de una alerta pendiente falló", processingError instanceof Error
         ? processingError.name : "unknown");
+    }
+
+    if (awaitingPhotos) {
+      // Uploading the first image is normal publishing progress, not an
+      // email-delivery failure. Release this exact lease, back off five
+      // minutes, and retain the original 48-hour outbox expiry.
+      const { data: deferred, error: deferError } = await admin.rpc(
+        "marketplace_alert_defer_readiness_v1", {
+          p_listing_id: job.listing_id,
+          p_lease_token: job.lease_token,
+        }
+      );
+      if (deferError) throw deferError;
+      if (deferred !== true) {
+        return Response.json({ ok: false, reason: "stale_lease" }, { status: 409 });
+      }
+      return Response.json({
+        ok: true,
+        complete: false,
+        claimed: 1,
+        outcome: "waiting_for_photos",
+      }, {
+        status: 202,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
 
     if (partialProgress) {
