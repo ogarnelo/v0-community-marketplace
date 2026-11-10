@@ -1,7 +1,7 @@
 -- Disposable PostgreSQL17 fixture. Run ONLY after the pilot outbox,
 -- postcode, monitoring and partial-delivery fixtures in isolated GitHub CI.
 -- NEVER run on production or a populated Wetudy database.
-\i supabase/migrations/20261110151000_marketplace_alert_defer_photos_v1.sql
+\i supabase/migrations/20261110145531_marketplace_alert_defer_photos_v1.sql
 
 do $$
 begin
