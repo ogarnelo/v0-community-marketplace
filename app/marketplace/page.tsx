@@ -203,7 +203,7 @@ export default async function MarketplacePage() {
     sellerId,
     schoolId: currentSellerSchoolId,
     directorySchoolCode: item.directory_school_code || null,
-    postalCode: currentSellerPostalCode,
+    postalCode: null, // Never serialize the seller's full CP to the marketplace client.
     status: item.status,
     createdAt: item.created_at || null,
     distance: approximateDistanceKm(viewerPostalCode, currentSellerPostalCode),
