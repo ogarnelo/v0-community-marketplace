@@ -8,7 +8,7 @@ const read=(path)=>readFileSync(path,"utf8");
 const savedRoute=read("app/api/marketplace/saved-searches/route.ts");
 const matchRoute=read("app/api/marketplace/listings/match-saved-searches/route.ts");
 const client=read("components/marketplace/marketplace-client.tsx");
-const migration=read("supabase/migrations/20261110103000_saved_searches_directory_school_context.sql");
+const migration=read("supabase/migrations/20261110094951_saved_searches_directory_school_context.sql");
 const exports={};
 runInNewContext(ts.transpileModule(
   read("lib/marketplace/saved-search-matching.ts"),
