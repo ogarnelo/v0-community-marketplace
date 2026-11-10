@@ -4,17 +4,26 @@ import { hashProviderPayload, deliverWithIntent } from "../../lib/marketplace/al
 import { readFileSync } from "node:fs";
 const key="saved-search-match/qa-fixture";
 const body=JSON.stringify({to:["synthetic@example.invalid"],subject:"Test",html:"<b>x</b>"});
-function dbMock({ failAccept=false, failAmbiguous=false, legacyReceipt=false, legacyError=false }={}){
+function dbMock({ failAccept=false, failAmbiguous=false, legacyReceipt=false, legacyError=false, intentReadError=false }={}){
   const items=new Map();
   let beginCalls=0;
   const db={
     from(table){
-      assert.equal(table,"transactional_email_deliveries");
+      assert.ok(["transactional_email_deliveries","marketplace_alert_email_intents"].includes(table));
       let key;
       const q={
-        select(fields){assert.equal(fields,"provider_message_id,sent_at");return q;},
+        select(fields){
+          assert.equal(fields,table==="marketplace_alert_email_intents"
+            ? "provider_message_id" : "provider_message_id,sent_at");
+          return q;
+        },
         eq(column,value){assert.equal(column,"event_key");key=value;return q;},
         async maybeSingle(){
+          if(table==="marketplace_alert_email_intents"){
+            if(intentReadError)return {data:null,error:Error("synthetic lookup unavailable")};
+            const receipt=items.get(key);
+            return {data:receipt?{provider_message_id:receipt.providerMessageId??null}:null,error:null};
+          }
           if(legacyError)return {data:null,error:new Error("synthetic legacy lookup failure")};
           return {data:legacyReceipt?{provider_message_id:"legacy-provider",sent_at:"2026-11-10"}:null,error:null};
         }
@@ -40,7 +49,7 @@ function dbMock({ failAccept=false, failAmbiguous=false, legacyReceipt=false, le
     if(name==="marketplace_alert_email_accept_v1"){
       if(failAccept)return {data:false,error:new Error("Synthetic DB failure")};
       if(!rec||rec.state!=="sending"||rec.token!==p.p_token)return {data:false,error:null};
-      rec.state="accepted";return {data:true,error:null};
+      rec.state="accepted";rec.providerMessageId=p.p_provider_message_id;return {data:true,error:null};
     }
     if(name==="marketplace_alert_email_ambiguous_v1"){
       if(failAmbiguous)throw Error("Synthetic DB outage");
@@ -64,7 +73,9 @@ test("successful send is durable and replay never contacts provider",async()=>{
     assert.equal(eventKey,key);assert.equal(requestBody,body);calls++;
     return {id:"provider-synthetic-id"};};
   assert.equal((await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send})).status,"accepted");
-  assert.equal((await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send})).status,"already_accepted");
+  const replay=await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send});
+  assert.equal(replay.status,"already_accepted");
+  assert.equal(replay.providerMessageId,"provider-synthetic-id");
   assert.equal(calls,1);
 });
 
@@ -135,4 +146,21 @@ test("failed historical receipt lookup prevents reservation and sending",async()
   }),/legacy_receipt_lookup_failed/);
   assert.equal(m.items.size,0);
   assert.equal(sendCount,0);
+});
+
+test("accepted intent without provider receipt is held, never retried",async()=>{
+  const m=dbMock();let calls=0;
+  const send=async()=>{calls++;return {id:"synthetic-first-accept"};};
+  assert.equal((await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send})).status,"accepted");
+  m.items.get(key).providerMessageId=null;
+  assert.equal((await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send})).status,"requires_reconciliation");
+  assert.equal(calls,1);
+});
+
+test("accepted intent receipt query failure cannot cause another provider request",async()=>{
+  const m=dbMock({intentReadError:true});let calls=0;
+  const send=async()=>{calls++;return {id:"synthetic-first-accept"};};
+  await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send});
+  assert.equal((await deliverWithIntent(m.db,{eventKey:key,requestBody:body,send})).status,"requires_reconciliation");
+  assert.equal(calls,1);
 });
