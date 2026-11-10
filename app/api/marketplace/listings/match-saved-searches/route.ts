@@ -6,6 +6,7 @@ import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
 import { loadAllSortedPages, batchAlertItems } from "@/lib/marketplace/saved-search-batches.mjs";
 import { selectDeliveryPage, summarizeDeliveryProgress } from "@/lib/marketplace/alert-delivery-progress.mjs";
 import { loadPendingDeliveryRows } from "@/lib/marketplace/alert-pending-page.mjs";
+import { summarizeDiscoveryPage, WORKER_DISCOVERY_PAGE_SIZE } from "@/lib/marketplace/alert-discovery-page.mjs";
 import { sendSavedSearchMatchEmail } from "@/lib/emails/saved-search-match-email";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
@@ -30,12 +31,19 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const listingId = typeof body?.listingId === "string" ? body.listingId.trim() : "";
     const opportunityKey = typeof body?.opportunityKey === "string" ? body.opportunityKey.trim() : "";
+    const workerStage = isOutboxWorker ? body?.stage : null;
+    const workerLeaseToken = isOutboxWorker ? body?.leaseToken : null;
+    if (isOutboxWorker && (
+      !["discover", "deliver"].includes(workerStage) ||
+      typeof workerLeaseToken !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workerLeaseToken)
+    )) return NextResponse.json({ error: "Invalid worker lease." }, { status: 400 });
     if (!listingId) return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
 
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, user_id, is_demo, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, directory_school_code, postal_code, status")
+      .select("id, created_at, seller_id, user_id, is_demo, title, description, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, category, grade_level, listing_type, type, condition, school_id, directory_school_code, postal_code, status")
       .eq("id", listingId)
       .maybeSingle();
 
@@ -55,6 +63,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, skipped: true, reason: "demo_listing" });
     }
     if (listing.status !== "available") return NextResponse.json({ ok: true, skipped: true, reason: "listing_not_available" });
+
+    // Every internal stage must hold the *current* unexpired outbox lease;
+    // knowing CRON_SECRET alone cannot bypass its progress/fencing token.
+    let discoveryCursor: string | null = null;
+    if (isOutboxWorker) {
+      const { data: job, error: jobError } = await admin
+        .from("marketplace_alert_outbox")
+        .select("discovery_cursor, discovery_completed_at")
+        .eq("listing_id", listing.id)
+        .eq("lease_token", workerLeaseToken)
+        .eq("state", "processing")
+        .gt("lease_until", new Date().toISOString())
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (jobError) throw jobError;
+      if (!job ||
+        (workerStage === "discover" && job.discovery_completed_at) ||
+        (workerStage === "deliver" && !job.discovery_completed_at)) {
+        return NextResponse.json({ error: "Stale or incorrect worker stage." }, { status: 409 });
+      }
+      discoveryCursor = job.discovery_cursor || null;
+    }
 
     let supplyGenerated = false;
     if (!isOutboxWorker && opportunityKey) {
@@ -89,20 +119,34 @@ export async function POST(request: Request) {
       }
     }
 
+    const isWorkerDelivery = isOutboxWorker && workerStage === "deliver";
+    let matches: { saved_search_id: string; listing_id: string; user_id: string }[] = [];
+    if (!isWorkerDelivery) {
     // Supabase's configured maximum row count must never silently truncate
     // the audience. Stable UUID keyset pages also avoid large OFFSET scans.
-    const savedSearches = await loadAllSortedPages(async (afterId, limit) => {
+    const loadSearches = async (afterId: string | null, limit: number) => {
       let query = admin.from("saved_searches")
         .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id")
         .eq("notifications_enabled", true)
         .neq("user_id", listingOwnerId)
         .order("id", { ascending: true })
         .limit(limit);
+      if (isOutboxWorker) {
+        // A search created after the listing must not retroactively generate
+        // an alert for the older listing when recovery runs much later.
+        query = query.lte("created_at", listing.created_at);
+      }
       if (afterId) query = query.gt("id", afterId);
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
-    });
+    };
+    const savedSearches = isOutboxWorker
+      ? await loadSearches(discoveryCursor, WORKER_DISCOVERY_PAGE_SIZE)
+      : await loadAllSortedPages(loadSearches);
+    const discovery = isOutboxWorker
+      ? summarizeDiscoveryPage(savedSearches, discoveryCursor)
+      : null;
 
     // Cheap content-only matching runs before any directory or postcode
     // lookup. This avoids fetching irrelevant school links and location
@@ -172,7 +216,7 @@ export async function POST(request: Request) {
       listingPostalCode = sellerProfile?.postal_code || null;
     }
 
-    const matches = contentCandidates
+    matches = contentCandidates
       .filter((search) => savedSearchMatchesListing(
         search, listing,
         search.radius_km === null || search.radius_km === undefined
@@ -182,14 +226,38 @@ export async function POST(request: Request) {
       ))
       .map((search) => ({ saved_search_id: search.id, listing_id: listing.id, user_id: search.user_id }));
 
-    if (matches.length === 0) return NextResponse.json({ ok: true, complete: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
-
     // Avoid oversized writes when a popular listing matches many families.
     for (const batch of batchAlertItems(matches)) {
       const { error: insertError } = await admin
         .from("saved_search_matches")
         .upsert(batch, { onConflict: "saved_search_id,listing_id", ignoreDuplicates: true });
       if (insertError) throw insertError;
+    }
+
+    if (isOutboxWorker && discovery) {
+      // All upserts for this page succeeded. Advance its durable cursor with
+      // a fenced compare-and-swap before acknowledging progress.
+      const { data: advanced, error: advanceError } = await admin.rpc(
+        "marketplace_alert_advance_discovery_v1", {
+          p_listing_id: listing.id,
+          p_lease_token: workerLeaseToken,
+          p_expected_cursor: discoveryCursor,
+          p_next_cursor: discovery.nextCursor,
+          p_complete: discovery.complete,
+        }
+      );
+      if (advanceError) throw advanceError;
+      if (advanced !== true) {
+        return NextResponse.json({ error: "Discovery lease changed." }, { status: 409 });
+      }
+      return NextResponse.json({
+        ok: true, complete: false, stage: "discovery",
+        discoveryComplete: discovery.complete, scanned: discovery.scanned,
+        matched: matches.length,
+      });
+    }
+    if (matches.length === 0) {
+      return NextResponse.json({ ok: true, complete: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
     }
 
     const matchedSearchIds = new Set(matches.map((match) => match.saved_search_id));
@@ -205,9 +273,20 @@ export async function POST(request: Request) {
       }
     }
 
+    }
+
     // Each pending lookup has at most 150 IDs: no giant PostgREST URL and
     // no implicit response-page truncation once there are >1000 matches.
-    const pendingNotifications = await loadPendingDeliveryRows(
+    const pendingNotifications = isWorkerDelivery
+      ? await (async () => {
+          const { data, error } = await admin.from("saved_search_matches")
+            .select("id, user_id").eq("listing_id", listing.id)
+            .is("notified_at", null)
+            .order("id", { ascending: true }).limit(13);
+          if (error) throw error;
+          return data || [];
+        })()
+      : await loadPendingDeliveryRows(
       matches, isOutboxWorker, async (batch, limit) => {
         let query = admin.from("saved_search_matches")
           .select("id, user_id")
@@ -249,7 +328,16 @@ export async function POST(request: Request) {
       notified += 1;
     }
 
-    const pendingMatches = await loadPendingDeliveryRows(
+    const pendingMatches = isWorkerDelivery
+      ? await (async () => {
+          const { data, error } = await admin.from("saved_search_matches")
+            .select("id, user_id").eq("listing_id", listing.id)
+            .is("emailed_at", null).is("email_skipped_at", null)
+            .order("id", { ascending: true }).limit(13);
+          if (error) throw error;
+          return data || [];
+        })()
+      : await loadPendingDeliveryRows(
       matches, isOutboxWorker, async (batch, limit) => {
         let query = admin.from("saved_search_matches")
           .select("id, user_id")
@@ -345,7 +433,7 @@ export async function POST(request: Request) {
     const deliveryResponse = {
       ok: !progress.failed,
       complete: progress.complete,
-      matched: matches.length,
+      matched: isWorkerDelivery ? undefined : matches.length,
       notified,
       emailed,
       emailSkipped,
