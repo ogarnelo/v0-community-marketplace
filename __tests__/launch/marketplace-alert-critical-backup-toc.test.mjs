@@ -12,10 +12,15 @@ const critical=[
  "saved_search_matches","transactional_email_deliveries",
  "transactional_email_recipient_health",
 ];
+const inventorySource=readFileSync("scripts/pilot-dr-scope-audit.py","utf8");
+const names=inventorySource.match(/PUBLIC_TABLES = set\("""([\s\S]*?)"""\.split\(\)\)/);
+assert.ok(names,"verified public inventory missing");
+const allPublic=names[1].trim().split(/\s+/);
+assert.equal(allPublic.length,79);
 function fakeToc(missing=[], includeManaged=false){
   let id=100;
   const rows=[];
-  for(const table of critical){
+  for(const table of allPublic){
     for(const kind of ["TABLE","TABLE DATA"]){
       if(!missing.includes(table+":"+kind))
         rows.push(`${id++}; 1259 9876 ${kind} public ${table} wetudy_ci`);
@@ -45,6 +50,8 @@ test("critical public tables need both DDL and DATA TOC entries",()=>{
   assert.equal(r.status,0);
   assert.equal(r.report.critical_public_toc_ready,true);
   assert.equal(r.report.public_toc_sections_checked,36);
+  assert.equal(r.report.all_public_toc_sections_checked,158);
+  assert.equal(r.report.all_public_toc_ready,true);
   assert.equal(r.report.full_disaster_recovery_certified,false);
 });
 test("missing postcode centroids DATA and outbox DDL fail the gate",()=>{
@@ -53,6 +60,7 @@ test("missing postcode centroids DATA and outbox DDL fail the gate",()=>{
   assert.deepEqual(r.report.missing_critical_public_toc.nearby_search_and_alerts,
     ["marketplace_postal_centroids:table_data","marketplace_alert_outbox:table"]);
   assert.match(r.stderr,/BLOCKED/);
+  assert.equal(r.report.all_public_toc_ready,false);
 });
 test("missing conversations or transactions cannot be mistaken for complete backup",()=>{
   const r=verify(fakeToc(["messages:TABLE DATA","payment_events:TABLE DATA"]));
@@ -75,4 +83,12 @@ test("restore workflow remains local-only and requires protected backup artifact
   assert.match(restore,/pilot-db-backup-critical-toc\.py/);
   assert.match(workflow,/pilot-db-backup-critical-toc\.py/);
   assert.doesNotMatch(restore,/BACKUP_DATABASE_URL|pg_restore --clean/);
+});
+
+test("a non-critical public table missing DATA fails the all-table archive check",()=>{
+  const result=verify(fakeToc(["referrals:TABLE DATA"]));
+  assert.equal(result.status,2);
+  assert.equal(result.report.critical_public_toc_ready,true);
+  assert.equal(result.report.all_public_toc_ready,false);
+  assert.ok(result.report.missing_public_toc_sections.includes("referrals:table_data"));
 });
