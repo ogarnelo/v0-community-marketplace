@@ -24,3 +24,7 @@ Se integra en `pilot-db-restore-drill.sh`, que sigue restaurando **solo un subco
 - Que las cinco migraciones de alertas son aptas para producción sin otras puertas.
 
 Para validar estos puntos faltan ensayos de recuperación de alcance completo (sin exposición de datos reales), procedimientos de contingencia y autorización de aplicación controlada. No activar correos ni cerrar #375.
+
+## Cobertura adicional: todas las tablas públicas
+
+Se amplía el mismo control de metadatos para exigir **TABLE + TABLE DATA de las 79 tablas públicas** inventariadas el 10/11 (158 entradas de catálogo), no solo las 18 críticas. La lista se reutiliza de `pilot-dr-scope-audit.py` para evitar divergencias. Si se crea o elimina una tabla y el inventario deja de coincidir con Supabase, hay que actualizarlo tras una consulta de solo lectura. La existencia de las 158 entradas en el catálogo **no demuestra que cada tabla contenga filas ni que se pueda restaurar íntegramente**.
