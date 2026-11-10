@@ -54,5 +54,7 @@ test("synthetic restored RLS keeps two family searches and matches isolated",()=
 test("dump and restore retain synthetic SQL ACLs and RLS policies",()=>{
   assert.doesNotMatch(fixture,/pg_dump[^\n]*--no-acl/);
   assert.match(fixture,/grant select on qa_near_market\.user_marketplace_preferences/);
+  assert.match(fixture,/has_schema_privilege\('qa_near_family'/);
+  assert.match(fixture,/grant usage on schema qa_near_market to qa_near_family/);
   assert.match(fixture,/has_table_privilege\('qa_near_family'/);
 });
