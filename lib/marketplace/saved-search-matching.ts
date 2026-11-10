@@ -70,7 +70,10 @@ export function savedSearchMatchesListing(
   ].filter(Boolean).join(" "));
   const listingType = listing.type || listing.listing_type || null;
 
-  if (search.only_my_community && search.school_id && search.school_id !== listing.school_id) return false;
+  // A missing operational school ID cannot authorize a school-wide alert.
+  // Fail closed rather than notifying a different school's families.
+  if (search.only_my_community &&
+      (!search.school_id || search.school_id !== listing.school_id)) return false;
   if (search.category && normalize(search.category) !== normalize(listing.category)) return false;
   if (search.grade_level && normalize(search.grade_level) !== normalize(listing.grade_level)) return false;
   if (search.listing_type && normalize(search.listing_type) !== normalize(listingType)) return false;
