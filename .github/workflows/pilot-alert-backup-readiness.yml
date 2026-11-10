@@ -1,0 +1,45 @@
+name: Wetudy pilot encrypted backup readiness metadata gate
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/pilot-alert-backup-readiness.yml"
+      - "scripts/pilot-alert-encrypted-backup-freshness.py"
+      - "__tests__/launch/marketplace-alert-backup-readiness.test.mjs"
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify source repository and metadata-only workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "ogarnelo/v0-community-marketplace"
+          test -n "$GH_TOKEN"
+      - name: Validate encrypted backup recency and subsequent partial restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          metadata_dir="$(mktemp -d)"
+          trap 'rm -rf "$metadata_dir"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=wetudy-encrypted-postgres-backup&per_page=100" > "$metadata_dir/artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pilot-combined-encrypted-recovery.yml/runs?per_page=100" > "$metadata_dir/runs.json"
+          python3 scripts/pilot-alert-encrypted-backup-freshness.py \
+            --artifacts-json "$metadata_dir/artifacts.json" \
+            --runs-json "$metadata_dir/runs.json"
+      - name: Confirm result is only metadata, never a full restore certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Metadata readiness gate passed. Full Auth/Storage/database restore NOT certified."
