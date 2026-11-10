@@ -64,7 +64,7 @@ begin
   end if;
 end $$;
 
-do $$
+do $permission_test$
 begin
   if has_table_privilege('anon','public.marketplace_alert_email_intents','SELECT') then
     raise exception 'Anon can read email send intent';
@@ -78,7 +78,7 @@ begin
   if has_function_privilege('authenticated','public.marketplace_alert_email_begin_v1(text,text,uuid)','EXECUTE') then
     raise exception 'Authenticated can call send begin';
   end if;
-end $;
+end $permission_test$;
 do $health_test$
 declare m record;
 begin
