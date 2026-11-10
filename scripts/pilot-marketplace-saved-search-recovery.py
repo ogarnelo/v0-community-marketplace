@@ -201,6 +201,12 @@ def main():
                    "select has_schema_privilege('qa_near_family','qa_near_market','USAGE')") != "t":
                 raise AssertionError("Restored synthetic schema USAGE grant missing")
             verify(TARGET)
+            # A filtered logical dump may omit table ACLs too. Replay only
+            # read grants for this synthetic QA role, then enforce RLS.
+            sql(TARGET,
+                "grant select on qa_near_market.user_marketplace_preferences,"
+                " qa_near_market.saved_searches,"
+                " qa_near_market.saved_search_matches to qa_near_family")
             verify_restored_family_isolation(TARGET)
             adversarial=[
                 ("postcode mismatch",
