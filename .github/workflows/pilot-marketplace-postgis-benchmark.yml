@@ -11,6 +11,8 @@ on:
       - "supabase/migrations/20261109205725_marketplace_postal_fast_sphere.sql"
       - "supabase/migrations/20261109221011_marketplace_global_nearest_v1.sql"
       - "supabase/migrations/20261109222923_marketplace_radius_prefilter_v2.sql"
+      - "supabase/migrations/20261110074207_marketplace_listing_cp_first.sql"
+      - "scripts/pilot-marketplace-postcode-authority.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -62,6 +64,8 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-postgis-before.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/migrations/20261109222923_marketplace_radius_prefilter_v2.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-postgis-after.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f supabase/migrations/20261110074207_marketplace_listing_cp_first.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-postcode-authority.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -c 'analyze public.marketplace_postal_centroids;'
       - name: Verify pagination and permissions, benchmark p50/p95 without production data
         run: node scripts/pilot-marketplace-postgis-benchmark.mjs

@@ -83,6 +83,16 @@ select
   timestamp with time zone '2026-11-09 00:00:00+00' - (n * interval '1 minute')
 from generate_series(1,6000) n;
 
+-- Force a mismatch in the disposable fixture: the published listing belongs
+-- to Madrid but the seller profile has subsequently moved to Barcelona.
+-- This must never affect the listing location.
+update public.profiles
+  set postal_code = '08001'
+  where id = md5('wetudy-ci-seller-1')::uuid;
+update public.listings
+  set postal_code = '28001'
+  where id = md5('wetudy-ci-listing-1')::uuid;
+
 analyze public.profiles;
 analyze public.listings;
 
