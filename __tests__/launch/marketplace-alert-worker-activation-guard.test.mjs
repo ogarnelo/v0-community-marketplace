@@ -9,7 +9,7 @@ const matcher=readFileSync("app/api/marketplace/listings/match-saved-searches/ro
 const vercel=JSON.parse(readFileSync("vercel.json","utf8"));
 
 function runWorker({workerFlag="true",intentFlag="true",
-  intentsReady=true,intentFunctionsReady=true,reviewReady=true,auth="Bearer synthetic-qa-cron"}={}){
+  intentsReady=true,intentFunctionsReady=true,reviewReady=true,reconciliationReady=true,auth="Bearer synthetic-qa-cron"}={}){
   let dbCreated=0, claimed=0, fetchCalls=0;
   const db={
     from(table){
@@ -27,6 +27,8 @@ function runWorker({workerFlag="true",intentFlag="true",
         return {data:[],error:intentFunctionsReady?null:new Error("incomplete intent migration")};
       if(name==="marketplace_alert_review_count_v1")
         return {data:0,error:reviewReady?null:new Error("missing review RPC")};
+      if(name==="marketplace_alert_reconciliation_health_v1")
+        return {data:[],error:reconciliationReady?null:new Error("missing reconciliation RPC")};
       if(name==="marketplace_alert_claim_outbox_v1"){
         claimed++;
         return {data:[],error:null};
@@ -115,5 +117,13 @@ test("partially applied intent migration fails closed before claim",async()=>{
   const res=await w.response;
   assert.equal(res.status,503);
   assert.equal((await res.json()).error,"intent_functions_not_ready");
+  assert.deepEqual(w.calls(),{dbCreated:1,claimed:0,fetchCalls:0});
+});
+
+test("missing manual reconciliation RPC stops before claiming any work",async()=>{
+  const w=runWorker({reconciliationReady:false});
+  const res=await w.response;
+  assert.equal(res.status,503);
+  assert.equal((await res.json()).error,"reconciliation_schema_not_ready");
   assert.deepEqual(w.calls(),{dbCreated:1,claimed:0,fetchCalls:0});
 });
