@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const read=(path)=>readFileSync(path,"utf8");
 const worker=read("app/api/cron/marketplace-alert-outbox/route.ts");
-const migration=read("supabase/migrations/20261110151000_marketplace_alert_defer_photos_v1.sql");
+const migration=read("supabase/migrations/20261110145531_marketplace_alert_defer_photos_v1.sql");
 const fixture=read("scripts/pilot-marketplace-alert-defer-photos.sql");
 const ci=read(".github/workflows/pilot-marketplace-alert-outbox.yml");
 const vercel=JSON.parse(read("vercel.json"));
