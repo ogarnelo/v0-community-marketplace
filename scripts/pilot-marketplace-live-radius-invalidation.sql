@@ -8,7 +8,7 @@ alter table public.saved_search_matches
   add column if not exists notified_at timestamptz,
   add column if not exists emailed_at timestamptz;
 
-\i supabase/migrations/20261110164500_saved_search_match_delivery_invalidation.sql
+\i supabase/migrations/20261110164742_saved_search_match_delivery_invalidation.sql
 
 do $$
 begin
