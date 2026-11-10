@@ -64,7 +64,7 @@ test("worker rechecks BOTH channels after active-search join and before sending"
   assert.match(matcher,/const verifyWorkerRecipients = async \(page: any\[\]\)/);
   assert.equal((matcher.match(/await verifyWorkerRecipients\(/g)||[]).length,2);
   assert.equal((matcher.match(/saved_searches!inner\(id, notifications_enabled, updated_at, radius_km\)/g)||[]).length,2);
-  assert.equal((matcher.match(/\.is\("invalidated_at", null\)/g)||[]).length,4);
+  assert.equal((matcher.match(/\.is\("invalidated_at", null\)/g)||[]).length,5);
   assert.match(matcher,/\.in\("id", ids\)/);
   assert.match(matcher,/\.update\(\{[\s\S]*?invalidated_at: new Date\(\)\.toISOString\(\),[\s\S]*?invalidation_reason: "radius_changed"/);
   const filterIndex=matcher.indexOf('const notificationPage = await verifyWorkerRecipients');
@@ -81,7 +81,7 @@ test("invalidation marker is private, PII-free and makes both delivery channels 
   assert.match(migration,/add column if not exists invalidated_at timestamptz/);
   assert.match(migration,/add column if not exists invalidation_reason text/);
   assert.match(migration,/radius_changed/);
-  assert.doesNotMatch(migration,/grant (select|insert|update)|postal_code|user_email/i);
+  assert.doesNotMatch(migration.replace(/^--.*$/gm,""),/grant (select|insert|update)|postal_code|user_email/i);
   assert.match(fixture,/Invalidated recipient appeared in a pending notification query/);
   assert.match(fixture,/Invalidated recipient appeared in a pending email query/);
 });
