@@ -106,4 +106,26 @@ grant execute on function public.marketplace_alert_email_prepare_v1(text,text) t
 grant execute on function public.marketplace_alert_email_begin_v1(text,text,uuid) to service_role;
 grant execute on function public.marketplace_alert_email_accept_v1(text,uuid,text) to service_role;
 grant execute on function public.marketplace_alert_email_ambiguous_v1(text,uuid) to service_role;
+-- Private counts only: no recipient, event key, provider ID, postcode or school.
+create or replace function public.marketplace_alert_email_intent_health_v1()
+returns table(
+  total bigint, prepared bigint, sending bigint, accepted bigint,
+  ambiguous bigint, oldest_unresolved_minutes integer
+)
+language sql security invoker set search_path = ''
+as $
+  select count(*)::bigint,
+    count(*) filter (where state='prepared')::bigint,
+    count(*) filter (where state='sending')::bigint,
+    count(*) filter (where state='accepted')::bigint,
+    count(*) filter (where state='ambiguous')::bigint,
+    coalesce(floor(extract(epoch from (now()-min(started_at)
+      filter (where state in ('sending','ambiguous'))))/60)::integer,0)
+  from public.marketplace_alert_email_intents;
+$;
+revoke all on function public.marketplace_alert_email_intent_health_v1()
+  from public,anon,authenticated;
+grant execute on function public.marketplace_alert_email_intent_health_v1()
+  to service_role;
+
 notify pgrst, 'reload schema';
