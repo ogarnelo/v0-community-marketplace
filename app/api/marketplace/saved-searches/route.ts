@@ -88,10 +88,9 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("account_students")
-        .select("school_id,is_primary,sort_order,created_at")
+        .select("school_id,directory_school_code,is_primary,sort_order,created_at")
         .eq("owner_user_id", user.id)
         .eq("active", true)
-        .not("school_id", "is", null)
         .order("is_primary", { ascending: false })
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true })
@@ -103,11 +102,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "postal_code_required" }, { status: 422 });
     }
 
+    // Match the exact school context shown on /marketplace:
+    // a selected directory school takes precedence over stale profile.school_id.
+    const directorySchoolCode = schoolAdminRole?.school_id
+      ? null : primaryStudentContext?.directory_school_code?.trim() || null;
     const schoolId =
       schoolAdminRole?.school_id?.trim() ||
-      primaryStudentContext?.school_id?.trim() ||
-      profile?.school_id?.trim() ||
-      null;
+      (primaryStudentContext
+        ? primaryStudentContext.school_id?.trim() || null
+        : profile?.school_id?.trim() || null);
+
+    if (body.onlyMyCommunity && !directorySchoolCode && !schoolId) {
+      return NextResponse.json({ ok: false, error: "school_context_required" }, { status: 409 });
+    }
 
     const { data, error } = await supabase
       .from("saved_searches")
@@ -123,6 +130,7 @@ export async function POST(request: Request) {
         condition,
         only_my_community: Boolean(body.onlyMyCommunity),
         school_id: schoolId,
+        directory_school_code: directorySchoolCode,
         results_count: resultsCount,
         source_path: sourcePath,
         need_details: needDetails,
@@ -160,6 +168,7 @@ export async function POST(request: Request) {
               listing_type: listingType,
               condition,
               only_my_community: Boolean(body.onlyMyCommunity),
+              directory_school_code: directorySchoolCode,
               radius_km: radiusKm,
             },
           })

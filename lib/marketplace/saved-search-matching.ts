@@ -8,6 +8,7 @@ type SavedSearchCandidate = {
   condition?: string | null;
   only_my_community?: boolean | null;
   school_id?: string | null;
+  directory_school_code?: string | null;
   radius_km?: number | null;
 };
 
@@ -32,6 +33,7 @@ type ListingCandidate = {
   type?: string | null;
   condition?: string | null;
   school_id?: string | null;
+  directory_school_code?: string | null;
 };
 
 function normalize(value: string | null | undefined) {
@@ -48,10 +50,16 @@ function containsText(haystack: string, needle: string | null | undefined) {
   return haystack.includes(cleanNeedle);
 }
 
+type SchoolDirectoryLinks = {
+  savedDirectoryLinkedSchoolId?: string | null;
+  listingDirectoryLinkedSchoolId?: string | null;
+};
+
 export function savedSearchMatchesListing(
   search: SavedSearchCandidate,
   listing: ListingCandidate,
-  distanceKm?: number
+  distanceKm?: number,
+  links?: SchoolDirectoryLinks
 ) {
   const searchableText = normalize([
     listing.title,
@@ -70,10 +78,31 @@ export function savedSearchMatchesListing(
   ].filter(Boolean).join(" "));
   const listingType = listing.type || listing.listing_type || null;
 
-  // A missing operational school ID cannot authorize a school-wide alert.
-  // Fail closed rather than notifying a different school's families.
-  if (search.only_my_community &&
-      (!search.school_id || search.school_id !== listing.school_id)) return false;
+  if (search.only_my_community) {
+    const savedCode = search.directory_school_code?.trim() || null;
+    const listingCode = listing.directory_school_code?.trim() || null;
+
+    if (savedCode) {
+      // The explicit national-directory code is authoritative. The listing's
+      // directory reference must win over a stale operational school_id.
+      if (listingCode) {
+        if (savedCode !== listingCode) return false;
+      } else if (!links?.savedDirectoryLinkedSchoolId ||
+                 listing.school_id !== links.savedDirectoryLinkedSchoolId) {
+        return false;
+      }
+    } else if (search.school_id) {
+      if (listingCode) {
+        // A directory-only listing may match an active school's saved alert
+        // only if the directory explicitly links back to that same school.
+        if (!links?.listingDirectoryLinkedSchoolId ||
+            links.listingDirectoryLinkedSchoolId !== search.school_id) return false;
+      } else if (search.school_id !== listing.school_id) return false;
+    } else {
+      // Never turn an unknown school identity into a global alert.
+      return false;
+    }
+  }
   if (search.category && normalize(search.category) !== normalize(listing.category)) return false;
   if (search.grade_level && normalize(search.grade_level) !== normalize(listing.grade_level)) return false;
   if (search.listing_type && normalize(search.listing_type) !== normalize(listingType)) return false;
