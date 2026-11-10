@@ -183,6 +183,38 @@ atómica sobre el perfil y Resend. También deben validarse cambios de vínculos
 de colegio del directorio antes de activar el recuperador. No se envían
 emails reales ni se activa el worker mediante esta modificación.
 
+## Revalidación de vínculos escolares en entrega diferida (PR #372)
+
+El directorio nacional puede asociar un centro a una comunidad operacional
+de Wetudy o cambiar ese vínculo después de que se descubra un anuncio.
+Antes de **cada lote de 12 notificaciones y 12 emails** del recuperador se
+comprueba nuevamente la pertenencia escolar de las coincidencias marcadas
+`only_my_community`. Se reutilizan exactamente las reglas de
+`savedSearchMatchesListing`: el código oficial del directorio es prioritario,
+los IDs escolares operacionales solo se comparan directamente cuando no hay
+un código oficial, y los vínculos entre ambos se consultan a
+`school_directory.linked_school_id` en ese instante.
+
+No se consulta el directorio para una búsqueda global sin escuela, ni se
+vuelve a recorrer todo el catálogo de búsquedas: solo se solicitan los
+códigos oficiales presentes en la página actual de destinatarios. Cuando
+ha desaparecido o cambiado un vínculo necesario, la coincidencia se
+invalida terminalmente mediante `invalidated_at` y el código técnico
+`school_link_changed`, sin guardar el colegio, CP o usuario en el motivo.
+Queda fuera de los pendientes de **notificación interna y email**.
+
+La validación escolar se efectúa **antes de la comprobación del radio**, para
+no cargar perfiles postales de coincidencias escolares descartadas. Continúan
+vigentes los controles de consentimiento y revisión de búsquedas guardadas,
+la exclusión de DEMO y la reanudación por cursores de 200 y envíos de 12.
+
+**Límite:** como el colegio, el perfil y la entrega externa no comparten una
+transacción atómica, un cambio simultáneo tras la consulta no puede eliminar
+por completo la carrera. Además, un aviso enviado anteriormente no puede
+retraerse. La comprobación end-to-end con dos cuentas QA autorizadas sigue
+siendo obligatoria antes de activar el procesador. No se habilita el cron
+ni la variable `WETUDY_ALERT_OUTBOX_ENABLED`.
+
 ## Costes y límites
 
 No se añade proveedor, extensión ni servicio de pago. El coste marginal antes de activar el worker es una inserción indexada por publicación y un pequeño volumen de almacenamiento en Supabase. El workflow de prueba usa PostgreSQL 17 en el runner de GitHub Actions, **no la base de datos real**. Los minutos de CI sí forman parte del consumo de GitHub.
