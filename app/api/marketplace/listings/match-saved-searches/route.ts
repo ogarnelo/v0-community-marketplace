@@ -72,13 +72,21 @@ export async function POST(request: Request) {
 
     if (searchesError) throw searchesError;
 
+    // Cheap content-only matching runs before any directory or postcode
+    // lookup. This avoids fetching irrelevant school links and location
+    // profiles for saved searches that cannot match the new product.
+    const contentCandidates = (savedSearches || []).filter((search) =>
+      savedSearchMatchesListing({
+        ...search, only_my_community: false, radius_km: null,
+      }, listing));
+
     // Resolve directory↔operational school links once per publishing event.
     // Database references are authoritative: no school code arrives from the
     // browser. Directory codes without an explicit link cannot be matched
     // against arbitrary operational schools.
     const directoryCodes = [...new Set([
       listing.directory_school_code,
-      ...(savedSearches || [])
+      ...contentCandidates
         .filter((search) => search.only_my_community)
         .map((search) => search.directory_school_code),
     ].filter((code): code is string => typeof code === "string" && code.length > 0))];
@@ -102,7 +110,7 @@ export async function POST(request: Request) {
 
     // Only inspect postcode profiles for geographically bounded searches
     // whose content and other filters already match the new listing.
-    const radiusCandidates = (savedSearches || []).filter((search) =>
+    const radiusCandidates = contentCandidates.filter((search) =>
       search.radius_km !== null && search.radius_km !== undefined &&
       savedSearchMatchesListing({ ...search, radius_km: null }, listing,
         undefined, schoolLinksFor(search)));
@@ -132,7 +140,7 @@ export async function POST(request: Request) {
       listingPostalCode = sellerProfile?.postal_code || null;
     }
 
-    const matches = (savedSearches || [])
+    const matches = contentCandidates
       .filter((search) => savedSearchMatchesListing(
         search, listing,
         search.radius_km === null || search.radius_km === undefined
@@ -150,9 +158,9 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
 
-    for (const search of savedSearches || []) {
-      if (!search.demand_request_id) continue;
-      if (!matches.some((match) => match.saved_search_id === search.id)) continue;
+    const matchedSearchIds = new Set(matches.map((match) => match.saved_search_id));
+    for (const search of contentCandidates) {
+      if (!search.demand_request_id || !matchedSearchIds.has(search.id)) continue;
       try {
         await recordNeedResult(admin, {
           needId: search.demand_request_id,
