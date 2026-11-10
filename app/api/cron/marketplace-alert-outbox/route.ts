@@ -36,6 +36,15 @@ export async function GET(request: Request) {
     if (intentsSchemaError) {
       return Response.json({ok:false,error:"email_schema_not_ready"}, {status:503});
     }
+    // The intent table alone is insufficient if a migration stopped after
+    // CREATE TABLE but before installing the transition RPCs. The private
+    // health function is installed at the end of that same migration.
+    const { error: intentFunctionsError } = await admin.rpc(
+      "marketplace_alert_email_intent_health_v1"
+    );
+    if (intentFunctionsError) {
+      return Response.json({ok:false,error:"intent_functions_not_ready"}, {status:503});
+    }
     const { error: reviewSchemaError } = await admin.rpc(
       "marketplace_alert_review_count_v1"
     );
