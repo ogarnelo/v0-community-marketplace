@@ -113,7 +113,7 @@ returns table(
   ambiguous bigint, oldest_unresolved_minutes integer
 )
 language sql security invoker set search_path = ''
-as $
+as $health$
   select count(*)::bigint,
     count(*) filter (where state='prepared')::bigint,
     count(*) filter (where state='sending')::bigint,
@@ -122,7 +122,7 @@ as $
     coalesce(floor(extract(epoch from (now()-min(started_at)
       filter (where state in ('sending','ambiguous'))))/60)::integer,0)
   from public.marketplace_alert_email_intents;
-$;
+$health$;
 revoke all on function public.marketplace_alert_email_intent_health_v1()
   from public,anon,authenticated;
 grant execute on function public.marketplace_alert_email_intent_health_v1()
