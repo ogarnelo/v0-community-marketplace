@@ -39,7 +39,7 @@ test("the readiness RPC is service-only, leased and expires safely",()=>{
 
 test("isolated database fixture verifies anti-spoofing and normal readiness delay",()=>{
   assert.match(ci,/pilot-marketplace-alert-defer-photos\.sql/);
-  assert.match(ci,/20261110151000_marketplace_alert_defer_photos_v1\.sql/);
+  assert.match(ci,/20261110145531_marketplace_alert_defer_photos_v1\.sql/);
   assert.match(fixture,/Forged|forged lease token/);
   assert.match(fixture,/Photos pending job was reclaimed before five-minute backoff/);
   assert.match(fixture,/did not retain its full failure budget/);
