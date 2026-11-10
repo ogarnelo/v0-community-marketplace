@@ -113,6 +113,18 @@ y la etapa correcta del estado almacenado. Los RPC son invocadores con
 `service_role` exclusivo; el trigger de captura y los seis DEMO no cambian.
 No hay cron nuevo. El nuevo cursor no contiene datos de personas, CP ni emails.
 
+**Protección de preferencias posteriores al anuncio:** la migración
+`saved_search_preference_stamp_v1` asigna `updated_at=now()` a cualquier
+cambio de consentimiento, filtro, colegio o radio de una búsqueda guardada.
+El descubrimiento solo incluye las creadas y no modificadas después de la
+publicación; la entrega usa la relación con la búsqueda viva y exige
+`notifications_enabled=true` y `updated_at <= listings.created_at` antes
+de enviar **tanto notificaciones como emails**. La eliminación de una
+búsqueda elimina los matches mediante la FK `ON DELETE CASCADE`.
+Por tanto, apagar y reactivar la búsqueda posteriormente no debe rescatar
+avisos de anuncios anteriores. Esto no toca búsquedas existentes ni cambia
+el comportamiento del envío inmediato iniciado por el vendedor.
+
 **Pendiente antes de activar:** E2E autorizada de cambios/pausas o eliminación
 de búsquedas guardadas mientras hay una entrega pendiente, para evitar enviar
 avisos obsoletos si una familia modifica su preferencia. También habrá que
