@@ -173,9 +173,11 @@ export default async function MarketplacePage() {
     const currentSellerSchoolId = item.directory_school_code
       ? null
       : item.school_id || sellerProfile?.schoolId || null;
+    // A listing stays at its published postal zone even if the seller later
+    // changes their account postcode. Use profile as a legacy fallback only.
     const currentSellerPostalCode =
-      sellerProfile?.postalCode ||
       item.postal_code ||
+      sellerProfile?.postalCode ||
       null;
 
     return {
