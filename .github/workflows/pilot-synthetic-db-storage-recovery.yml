@@ -4,6 +4,7 @@ on:
     paths:
       - "scripts/pilot-synthetic-db-storage-recovery.py"
       - "scripts/pilot-marketplace-real-shape-recovery.py"
+      - "scripts/pilot-marketplace-saved-search-recovery.py"
       - "scripts/verify-pilot-storage-restore.py"
       - ".github/workflows/pilot-synthetic-db-storage-recovery.yml"
 permissions:
@@ -44,3 +45,5 @@ jobs:
         run: python3 scripts/pilot-synthetic-db-storage-recovery.py
       - name: Restore production-shaped marketplace relationships and object bytes in second local DB
         run: python3 scripts/pilot-marketplace-real-shape-recovery.py
+      - name: Restore synthetic saved searches and postcode alert records locally
+        run: python3 scripts/pilot-marketplace-saved-search-recovery.py
