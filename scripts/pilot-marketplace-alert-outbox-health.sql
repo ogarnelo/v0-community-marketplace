@@ -1,5 +1,5 @@
 -- Loaded ONLY in disposable CI PostgreSQL 17 service after postal snapshot fixture.
-\i supabase/migrations/20261110131500_marketplace_alert_outbox_health_v1.sql
+\i supabase/migrations/20261110114223_marketplace_alert_outbox_health_v1.sql
 
 do $$
 begin
