@@ -19,7 +19,7 @@ on:
       - "scripts/pilot-marketplace-saved-search-optout.sql"
       - "supabase/migrations/20261110164742_saved_search_match_delivery_invalidation.sql"
       - "scripts/pilot-marketplace-live-radius-invalidation.sql"
-      - "supabase/migrations/20261110204400_marketplace_school_link_invalidation_v2.sql"
+      - "supabase/migrations/20261110194657_marketplace_school_link_invalidation_v2.sql"
       - "scripts/pilot-marketplace-live-school-relink.sql"
   workflow_dispatch:
 permissions:
