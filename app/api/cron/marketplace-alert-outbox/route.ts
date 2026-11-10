@@ -52,6 +52,7 @@ export async function GET(request: Request) {
     let success = false;
     let partialProgress = false;
     let awaitingPhotos = false;
+    let reviewRequired = false;
     let errorCode = "unknown";
 
     try {
@@ -92,6 +93,14 @@ export async function GET(request: Request) {
             success = body?.ok === true && body?.complete === true;
             partialProgress = body?.ok === true && body?.complete === false;
             if (!success && !partialProgress) errorCode = "unexpected_matcher_body";
+          } else if (response.status === 409) {
+            const body = await response.json().catch(() => null);
+            if (body?.review_required === true &&
+                body?.reason === "email_outcome_ambiguous") {
+              reviewRequired = true;
+            } else {
+              errorCode = "matcher_http_409";
+            }
           } else {
             errorCode = response.status >= 500
               ? "matcher_5xx" : "matcher_http_" + response.status;
@@ -103,6 +112,24 @@ export async function GET(request: Request) {
       // Do not log recipient addresses or provider error bodies.
       console.error("El procesamiento de una alerta pendiente falló", processingError instanceof Error
         ? processingError.name : "unknown");
+    }
+
+    if (reviewRequired) {
+      // Final quarantine: do not retry an outcome that Resend may already
+      // have accepted. The RPC uses the CURRENT lease as fencing token.
+      const { data: held, error: holdError } = await admin.rpc(
+        "marketplace_alert_hold_for_review_v1", {
+          p_listing_id: job.listing_id,
+          p_lease_token: job.lease_token,
+        }
+      );
+      if (holdError) throw holdError;
+      if (held !== true) {
+        return Response.json({ok:false,reason:"stale_lease"},{status:409});
+      }
+      return Response.json({
+        ok:false, claimed:1, outcome:"review_required",
+      }, {status:202,headers:{"Cache-Control":"no-store"}});
     }
 
     if (awaitingPhotos) {

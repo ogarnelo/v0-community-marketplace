@@ -437,6 +437,7 @@ export async function POST(request: Request) {
     let emailed = 0;
     let emailSkipped = 0;
     let emailFailures = 0;
+    let emailNeedsReview = false;
     for (const match of emailPage) {
       try {
         const { data: recipient, error: recipientError } = await admin.auth.admin.getUserById(match.user_id);
@@ -492,6 +493,12 @@ export async function POST(request: Request) {
               .eq("id", match.id).is("email_skipped_at", null);
             if (skipError) throw skipError;
             emailSkipped++;
+          } else if (delivery.reason === "requires_reconciliation" && isWorkerDelivery) {
+            // An ambiguous provider result must halt the remaining email page
+            // and quarantine the listing rather than consume four retries.
+            emailNeedsReview = true;
+            emailFailures++;
+            break;
           } else {
             // Missing provider configuration or a transient delivery failure
             // MUST be retried, not silently marked as a completed outbox job.
@@ -513,6 +520,15 @@ export async function POST(request: Request) {
         console.error("No se pudo enviar un aviso de búsqueda guardada",
           emailError instanceof Error ? emailError.name : "unknown");
       }
+    }
+
+    if (emailNeedsReview) {
+      // Only the separately gated worker can produce this response.
+      // The signed caller must atomically hold its current outbox lease.
+      return NextResponse.json({
+        ok: false, complete: false, review_required: true,
+        reason: "email_outcome_ambiguous",
+      }, { status: 409 });
     }
 
     const progress = summarizeDeliveryProgress({
