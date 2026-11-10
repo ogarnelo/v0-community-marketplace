@@ -60,7 +60,7 @@ test("QA A8/A10: 3003 synthetic searches use bounded cursor pages, including exa
   let cursor=null, pages=0, scanned=0, complete=false;
   while(!complete){
     const next=ids.filter(x=>cursor===null||x>cursor).slice(0,WORKER_DISCOVERY_PAGE_SIZE);
-    const checkpoint=summarizeDiscoveryPage(next,cursor);
+    const checkpoint=summarizeDiscoveryPage(next.map(id=>({id})),cursor);
     cursor=checkpoint.nextCursor;
     scanned+=checkpoint.scanned;
     pages++;
