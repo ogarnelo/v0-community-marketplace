@@ -1,21 +1,19 @@
 -- PostgreSQL 17 disposable fixture. Run ONLY after saved-search opt-out
 -- fixture in the GitHub Actions service; never on live Supabase.
-create table public.saved_search_matches (
-  id uuid primary key,
-  saved_search_id uuid not null references public.saved_searches(id) on delete cascade,
-  listing_id uuid not null references public.listings(id) on delete cascade,
-  user_id uuid not null,
-  notified_at timestamptz,
-  emailed_at timestamptz,
-  email_skipped_at timestamptz,
-  unique (saved_search_id, listing_id)
-);
+-- Earlier disposable fixtures have already created saved_search_matches
+-- and its email skip columns. Expand only their synthetic structure here.
+alter table public.saved_search_matches
+  add column if not exists listing_id uuid references public.listings(id),
+  add column if not exists user_id uuid,
+  add column if not exists notified_at timestamptz,
+  add column if not exists emailed_at timestamptz;
 
 \i supabase/migrations/20261110164500_saved_search_match_delivery_invalidation.sql
 
 do $$
 begin
-  if (select count(*) from public.saved_search_matches) <> 0 then
+  if (select count(*) from public.saved_search_matches
+      where invalidated_at is not null or invalidation_reason is not null) <> 0 then
     raise exception 'Migration must not rewrite any existing recipient matches';
   end if;
 end $$;
