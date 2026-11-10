@@ -5,6 +5,8 @@ on:
       - ".github/workflows/pilot-marketplace-alert-outbox.yml"
       - "supabase/migrations/20261110111353_marketplace_alert_outbox_v1.sql"
       - "scripts/pilot-marketplace-alert-outbox-synthetic.sql"
+      - "supabase/migrations/20261110124000_marketplace_listing_postal_snapshot_v1.sql"
+      - "scripts/pilot-marketplace-postcode-snapshot.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -50,3 +52,4 @@ jobs:
         run: |
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-outbox-synthetic.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-postcode-snapshot.sql
