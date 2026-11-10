@@ -44,6 +44,8 @@ test("zero-results descriptions are accepted and used as a matching criterion, n
   assert.match(route, /query: matchingQuery/);
   assert.match(route, /normalized_query: matchingQuery\?\.toLowerCase/);
   assert.match(client, /setSaveSearchStatus\("details"\)/);
+  assert.match(client, /query: searchQuery\.trim\(\) \|\| null/);
+  assert.doesNotMatch(client, /query: demandDetails\.trim\(\) \|\| searchQuery/);
   assert.match(client, /Describe qué material necesitas para poder guardar el aviso/);
 });
 
