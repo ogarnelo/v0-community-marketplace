@@ -15,7 +15,7 @@ on:
       - "scripts/pilot-marketplace-alert-defer-photos.sql"
       - "supabase/migrations/20261110155518_marketplace_alert_discovery_checkpoint_v1.sql"
       - "scripts/pilot-marketplace-alert-discovery-checkpoint.sql"
-      - "supabase/migrations/20261110161700_saved_search_preference_stamp_v1.sql"
+      - "supabase/migrations/20261110161156_saved_search_preference_stamp_v1.sql"
       - "scripts/pilot-marketplace-saved-search-optout.sql"
   workflow_dispatch:
 permissions:
