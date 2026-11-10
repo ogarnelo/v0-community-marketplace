@@ -17,7 +17,7 @@ values ('28001'), ('08001'), ('04001');
 insert into public.profiles(id, postal_code)
 values ('10000000-0000-4000-8000-000000000001', '28001');
 
-\i supabase/migrations/20261110124000_marketplace_listing_postal_snapshot_v1.sql
+\i supabase/migrations/20261110113419_marketplace_listing_postal_snapshot_v1.sql
 
 do $$
 begin
