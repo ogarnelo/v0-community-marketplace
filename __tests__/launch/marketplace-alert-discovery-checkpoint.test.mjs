@@ -8,7 +8,7 @@ import {
 const read=(p)=>readFileSync(p,"utf8");
 const matcher=read("app/api/marketplace/listings/match-saved-searches/route.ts");
 const worker=read("app/api/cron/marketplace-alert-outbox/route.ts");
-const migration=read("supabase/migrations/20261110152800_marketplace_alert_discovery_checkpoint_v1.sql");
+const migration=read("supabase/migrations/20261110155518_marketplace_alert_discovery_checkpoint_v1.sql");
 const fixture=read("scripts/pilot-marketplace-alert-discovery-checkpoint.sql");
 const ci=read(".github/workflows/pilot-marketplace-alert-outbox.yml");
 const vercel=JSON.parse(read("vercel.json","utf8"));
