@@ -7,6 +7,8 @@ on:
       - "scripts/pilot-marketplace-alert-outbox-synthetic.sql"
       - "supabase/migrations/20261110113419_marketplace_listing_postal_snapshot_v1.sql"
       - "scripts/pilot-marketplace-postcode-snapshot.sql"
+      - "supabase/migrations/20261110131500_marketplace_alert_outbox_health_v1.sql"
+      - "scripts/pilot-marketplace-alert-outbox-health.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -53,3 +55,4 @@ jobs:
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-outbox-synthetic.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-postcode-snapshot.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-outbox-health.sql
