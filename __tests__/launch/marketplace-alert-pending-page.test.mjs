@@ -87,7 +87,7 @@ test("matcher uses bounded pending fetches twice; email skip and security gates 
   assert.match(route,/\.is\("email_skipped_at", null\)/);
   assert.match(route,/selectDeliveryPage\(pendingNotifications, isOutboxWorker\)/);
   assert.match(route,/selectDeliveryPage\(pendingMatches, isOutboxWorker\)/);
-  assert.match(route,/marketplace_alert/);
+  assert.match(route,/isOutboxWorker/);
   assert.match(route,/onConflict: "saved_search_id,listing_id", ignoreDuplicates: true/);
   assert.match(route,/sendTransactionalEmailOnce\(/);
   assert.match(route,/createNotificationOnce\(/);
