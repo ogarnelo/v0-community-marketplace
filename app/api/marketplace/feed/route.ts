@@ -159,7 +159,7 @@ export async function GET(request: Request) {
         postalCode: null, // Client needs only the server-computed approximate distance.
         status: item.status, createdAt: item.created_at || null,
         distance: nearbyDistances.get(item.id) ?? approximateDistanceKm(
-          viewerPostalCode, seller?.postalCode || item.postal_code),
+          viewerPostalCode, item.postal_code || seller?.postalCode),
         isFavorite: favoriteIds.has(item.id),
       };
     });
