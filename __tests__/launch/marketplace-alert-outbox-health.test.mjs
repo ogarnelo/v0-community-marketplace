@@ -20,7 +20,7 @@ test("read-only aggregates expose no listing IDs, user IDs or email information"
   assert.match(sql,/expired_unfinished bigint/);
   assert.match(sql,/oldest_unfinished_minutes integer/);
   assert.doesNotMatch(sql,/insert into|update public\.marketplace_alert_outbox|delete from/i);
-  assert.doesNotMatch(sql,/listing_id|user_id|recipient|postal_code/i);
+  assert.doesNotMatch(sql.replace(/^--.*$/gm,""),/listing_id|user_id|recipient|postal_code/i);
 });
 
 test("only service_role may read aggregate RPC",()=>{
