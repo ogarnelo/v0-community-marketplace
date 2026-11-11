@@ -78,4 +78,8 @@ test "$unsafe_count" -eq 0 || {
   exit 1
 }
 echo "Partial PostgreSQL restore PASS: $count national-school records; 0 active school links."
+# Only a GitHub Actions output: consumed by the final proof step after Storage passes.
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  printf "backup_artifact_id=%s\n" "$artifact_id" >> "$GITHUB_OUTPUT"
+fi
 echo "This does NOT certify restore of Auth, chat, listings, transactions or Storage binaries."
