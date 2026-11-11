@@ -86,3 +86,14 @@ test("offline validator has no DB, HTTP or process-execution capability",()=>{
   const code=readFileSync("scripts/pilot-acl-delta-verify.mjs","utf8");
   assert.doesNotMatch(code,/pg_dump|pg_restore|psql|fetch\(|https?:\/\/|child_process|execute_sql|supabase-js/);
 });
+
+test("read-only snapshot SQL emits precisely 176 machine-readable records",()=>{
+  const sql=readFileSync("scripts/pilot-acl-json-snapshot-readonly.sql","utf8");
+  assert.match(sql,/BEGIN TRANSACTION READ ONLY;/);
+  assert.match(sql,/count\(\*\)=176/);
+  assert.match(sql,/jsonb_agg\(to_jsonb\(evidence\)/);
+  assert.match(sql,/INVALID_ACL_SNAPSHOT_INCOMPLETE/);
+  assert.match(sql,/aclexplode\(c\.relacl\)/);
+  assert.match(sql,/has_table_privilege/);
+  assert.doesNotMatch(sql,/^\s*(?:GRANT|REVOKE|ALTER|DROP|TRUNCATE)\b/gmi);
+});
