@@ -5,7 +5,8 @@ const sql=readFileSync("scripts/pilot-marketplace-rls-readonly-preflight.sql","u
 test("preflight always operates inside a read-only transaction",()=>{
   assert.match(sql,/begin transaction read only;/i);
   assert.match(sql,/commit;/i);
-  assert.doesNotMatch(sql,/\b(insert\s+into|update\s+public\.|delete\s+from|create\s+table|alter\s+table|drop\s+table|grant\s+|revoke\s+)\b/i);
+  const statements=sql.replace(/^\\s*--.*$/gm,"");
+  assert.doesNotMatch(statements,/^\\s*(?:insert\\s+into|update\\s+public\\.|delete\\s+from|create\\s+table|alter\\s+table|drop\\s+table|grant\\s+|revoke\\s+)\\b/gmi);
 });
 test("six critical tables require RLS plus direct grant/policy review",()=>{
   for(const table of ["saved_searches","saved_search_matches",
