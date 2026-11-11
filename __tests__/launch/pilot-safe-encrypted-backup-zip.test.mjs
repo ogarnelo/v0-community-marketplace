@@ -58,3 +58,10 @@ test("restore validates ZIP before reading encryption material",()=>{
  const workflow=readFileSync(".github/workflows/pilot-combined-encrypted-recovery.yml","utf8");
  assert.match(workflow,/pilot-safe-encrypted-backup-zip\.py/);
 });
+
+test("manifest and ACL envelope size limits are enforced before extraction",()=>{
+ const code=readFileSync(script,"utf8");
+ assert.match(code,/MAX_MANIFEST_BYTES = 4 \* 1024/);
+ assert.match(code,/MAX_ACL_BYTES = 8 \* 1024 \* 1024/);
+ assert.match(code,/Excessive ZIP expansion ratio/);
+});
