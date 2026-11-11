@@ -60,6 +60,9 @@ jobs:
           cmp backup/wetudy.dump backup/verified.dump
           sha256sum backup/wetudy.dump.enc backup/wetudy-acl-snapshot.json.enc > backup/SHA256SUMS.txt
           rm -f backup/wetudy.dump backup/verified.dump backup/wetudy-acl-snapshot.raw backup/wetudy-acl-snapshot.json backup/wetudy-acl-snapshot.verified
+          # Enforce the same strict manifest format that the offline restore trusts.
+          # The upload step must not publish an archive that cannot pass recovery.
+          python3 scripts/pilot-verify-backup-sha256.py backup
           printf 'Encrypted backup created and decryption verified.\n'
 
       - name: Upload encrypted backup
