@@ -14,6 +14,7 @@ on:
       - "scripts/pilot-db-backup-critical-toc.py"
       - "scripts/pilot-managed-schema-toc-coverage.py"
       - "scripts/pilot-backup-rls-policy-toc-audit.py"
+      - "scripts/pilot-real-policy-restore-drill.py"
       - "scripts/pilot_db_backup_toc_compat.py"
 
 permissions:
