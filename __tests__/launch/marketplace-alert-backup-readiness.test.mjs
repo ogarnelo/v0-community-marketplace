@@ -46,6 +46,7 @@ test("recent encrypted artifact + later successful partial restore passes readin
   assert.equal(r.result.proof_artifact_id,444);
   assert.equal(r.result.acl_snapshot_verified,false);
   assert.equal(r.result.full_disaster_recovery_certified,false);
+  assert.equal(r.result.production_sql_migration_authorized,false);
 });
 test("old artifact cannot authorize a production migration",()=>{
   const r=verify([{...backup,created_at:"2026-11-08T10:00:00Z"}],
@@ -158,6 +159,7 @@ test("ACL witness is separate from successful legacy partial restore",()=>{
  assert.equal(enhanced.exit,0);
  assert.equal(enhanced.result.acl_snapshot_verified,true);
  assert.equal(enhanced.result.full_disaster_recovery_certified,false);
+ assert.equal(enhanced.result.production_sql_migration_authorized,false);
 });
 test("wrong backup, branch, run, ordering and expired ACL proof cannot grant ACL readiness",()=>{
  for(const wrong of [
@@ -184,4 +186,15 @@ test("the ACL witness is only emitted after an encrypted snapshot validates",()=
  const main=readFileSync("scripts/pilot-alert-encrypted-backup-freshness.py","utf8");
  assert.match(main,/"acl_snapshot_verified": restore_run_id in acl_verified_runs/);
  assert.match(main,/"full_disaster_recovery_certified": False/);
+});
+
+test("no partial restore or ACL evidence may authorize production SQL migrations",()=>{
+ for(const proofs of [[proof],[proof,aclProof]]){
+   const r=verify([backup],[restore],[sourceRun],proofs);
+   assert.equal(r.exit,0);
+   assert.equal(r.result.ready,true);
+   assert.equal(r.result.production_sql_migration_authorized,false);
+ }
+ const code=readFileSync("scripts/pilot-alert-encrypted-backup-freshness.py","utf8");
+ assert.match(code,/"production_sql_migration_authorized": False/);
 });
