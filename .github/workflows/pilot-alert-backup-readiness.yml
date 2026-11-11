@@ -1,6 +1,9 @@
 name: Wetudy pilot encrypted backup readiness metadata gate
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Wetudy combined encrypted backup recovery check"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -36,10 +39,12 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=wetudy-encrypted-postgres-backup&per_page=100" > "$metadata_dir/artifacts.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pilot-combined-encrypted-recovery.yml/runs?per_page=100" > "$metadata_dir/runs.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/wetudy-encrypted-db-backup.yml/runs?per_page=100" > "$metadata_dir/backup-runs.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" > "$metadata_dir/proof-artifacts.json"
           python3 scripts/pilot-alert-encrypted-backup-freshness.py \
             --artifacts-json "$metadata_dir/artifacts.json" \
             --runs-json "$metadata_dir/runs.json" \
-            --backup-runs-json "$metadata_dir/backup-runs.json"
+            --backup-runs-json "$metadata_dir/backup-runs.json" \
+            --proof-artifacts-json "$metadata_dir/proof-artifacts.json"
       - name: Confirm result is only metadata, never a full restore certificate
         shell: bash
         run: |
