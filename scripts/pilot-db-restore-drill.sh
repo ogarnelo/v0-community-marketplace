@@ -29,9 +29,7 @@ test -n "$artifact_id" || {
 echo "Using existing encrypted backup artifact #$artifact_id"
 gh api -H "Accept: application/vnd.github+json" \
   "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > artifact.zip
-unzip -tq artifact.zip > /dev/null
-mkdir -m 700 backup
-unzip -qq artifact.zip -d backup
+python3 "$repo_root/scripts/pilot-safe-encrypted-backup-zip.py" artifact.zip backup
 
 # The SHA256SUMS file is created by the existing backup workflow. Its expected
 # path is relative to the workflow runner's root 'backup/' directory.
