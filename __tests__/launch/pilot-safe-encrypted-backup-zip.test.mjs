@@ -15,8 +15,10 @@ with zipfile.ZipFile(path,"w") as z:
   info.external_attr=((stat.S_IFLNK if symlink else stat.S_IFREG)|0o600)<<16
   z.writestr(info,content)
  put("wetudy.dump.enc")
- put("SHA256SUMS.txt")
+ put("SHA256SUMS.txt", b"m"*5000 if mode=="oversized_manifest" else b"x")
  if mode=="acl":put("wetudy-acl-snapshot.json.enc")
+ if mode=="oversized_acl":put("wetudy-acl-snapshot.json.enc",b"a"*(8*1024*1024+1))
+ if mode=="zip_bomb":z.writestr("wetudy-acl-snapshot.json.enc",b"x"*300000,compress_type=zipfile.ZIP_DEFLATED)
  if mode=="unexpected":put("../malicious.txt")
  if mode=="absolute":put("/tmp/malicious.txt")
  if mode=="link":put("wetudy-acl-snapshot.json.enc",b"../x",True)
@@ -60,6 +62,11 @@ test("restore validates ZIP before reading encryption material",()=>{
 });
 
 test("manifest and ACL envelope size limits are enforced before extraction",()=>{
+ for(const kind of ["oversized_manifest","oversized_acl","zip_bomb"]){
+  const result=attempt(kind);
+  assert.equal(result.status,2,kind+" "+result.stderr);
+  assert.match(result.stderr,/BLOCKED/);
+ }
  const code=readFileSync(script,"utf8");
  assert.match(code,/MAX_MANIFEST_BYTES = 4 \* 1024/);
  assert.match(code,/MAX_ACL_BYTES = 8 \* 1024 \* 1024/);
