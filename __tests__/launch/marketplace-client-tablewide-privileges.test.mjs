@@ -4,6 +4,7 @@ import {readFileSync} from "node:fs";
 const migration=readFileSync("supabase/migrations/20261111083000_marketplace_revoke_client_table_wide_privileges.sql","utf8");
 const gate=readFileSync("scripts/pilot-client-tablewide-privileges-preflight.sql","utf8");
 const sqltest=readFileSync("scripts/pilot-client-tablewide-privileges-regression.sql","utf8");
+const runner=readFileSync("scripts/pilot-client-tablewide-privileges-regression.py","utf8");
 test("security migration revokes only non-row-level privileges from anon and authenticated",()=>{
   assert.match(migration,/REVOKE TRUNCATE, REFERENCES, TRIGGER, MAINTAIN/);
   assert.match(migration,/FROM anon, authenticated/);
@@ -28,5 +29,7 @@ test("isolated SQL test demonstrates rejection, preserves DML, and checks repeat
   assert.match(sqltest,/UPDATE/);
   assert.match(sqltest,/DELETE/);
   assert.match(sqltest,/\\ir/);
-  assert.match(sqltest,/REVOKE/);
+  assert.match(runner,/migration/);
+  assert.match(runner,/for p in forbidden\+allowed/);
+  assert.match(runner,/Refusing nonlocal or non-disposable PostgreSQL/);
 });
