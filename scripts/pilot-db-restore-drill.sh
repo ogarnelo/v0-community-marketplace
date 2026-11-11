@@ -69,6 +69,9 @@ python3 "$repo_root/scripts/pilot-db-backup-critical-toc.py" wetudy-restore.toc
 # Metadata-only report on managed schemas; legacy archives may lack these
 # sections. Informational until full Auth/Storage recovery is authorized.
 python3 "$repo_root/scripts/pilot-managed-schema-toc-coverage.py" wetudy-restore.toc
+# Report how many RLS POLICY definitions occur in the same encrypted backup.
+# This is TOC metadata only, NOT a deployed-policy or runtime-RLS test.
+python3 "$repo_root/scripts/pilot-backup-rls-policy-toc-audit.py" wetudy-restore.toc
 
 # Only restore the public national-school directory into the ephemeral PG17.
 # This table has no user credentials, messages or school membership data.
