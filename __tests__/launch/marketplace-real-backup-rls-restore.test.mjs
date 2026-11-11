@@ -88,3 +88,24 @@ test("missing-claim path must use a distinct PostgreSQL connection",()=>{
  assert.ok(code.indexOf("no_claim_checks = psql") < code.indexOf("second_owner_checks = psql"));
  assert.match(code,/SET LOCAL ROLE authenticated;/);
 });
+
+test("real archived-policy drill rejects alternate local users, ports and databases",()=>{
+ const valid="postgresql://wetudy_restore:local_password@127.0.0.1:5432/wetudy_restore";
+ const validate=url=>spawnSync("python3",["-c",
+  "import importlib.util,sys; spec=importlib.util.spec_from_file_location('p',sys.argv[1]);"+
+  "p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p);print(p.check_local(sys.argv[2]))",
+  path,url],{encoding:"utf8",timeout:5000});
+ assert.equal(validate(valid).status,0);
+ for(const url of [
+   valid.replace("127.0.0.1","localhost"),
+   valid.replace(":5432",":6432"),
+   valid.replace("/wetudy_restore","/postgres"),
+   valid.replace("wetudy_restore:","postgres:"),
+   valid+"?options=-cstatement_timeout%3D0",
+   "postgresql://wetudy_restore:pass@prod.example:5432/wetudy_restore"
+ ]){
+   const result=validate(url);
+   assert.notEqual(result.status,0,url);
+   assert.match(result.stderr,/Refusing/,url);
+ }
+});
