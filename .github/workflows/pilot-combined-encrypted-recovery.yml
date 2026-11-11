@@ -10,6 +10,7 @@ on:
       - "scripts/test_pilot_storage_restore.py"
       - "scripts/pilot-storage-offline-recovery.sh"
       - "scripts/pilot-db-restore-drill.sh"
+      - "scripts/pilot-alert-encrypted-backup-freshness.py"
       - "scripts/pilot-db-backup-critical-toc.py"
 
 permissions:
@@ -58,6 +59,25 @@ jobs:
       - name: Test safe offline Storage archive recovery with synthetic data
         run: python3 -m unittest discover -s scripts -p 'test_pilot_storage_restore.py'
       - name: Decrypt and restore existing PostgreSQL archive subset locally
+        id: postgres_restore
         run: bash scripts/pilot-db-restore-drill.sh
       - name: Decrypt and materialize existing Storage archive locally; verify all hashes
         run: bash scripts/pilot-storage-offline-recovery.sh
+      - name: Write metadata-only success witness after both recovery checks
+        id: witness
+        shell: bash
+        env:
+          RESTORED_BACKUP_ARTIFACT_ID: ${{ steps.postgres_restore.outputs.backup_artifact_id }}
+        run: |
+          set -euo pipefail
+          test "$RESTORED_BACKUP_ARTIFACT_ID" != ""
+          [[ "$RESTORED_BACKUP_ARTIFACT_ID" =~ ^[0-9]+$ ]]
+          echo "PARTIAL_ONLY: PostgreSQL directory + Storage check passed" > partial-restore-witness.txt
+          echo "Backup artifact id is encoded in the witness artifact name, not in PII." >> partial-restore-witness.txt
+      - name: Publish metadata-only artifact bound to the restored backup ID
+        uses: actions/upload-artifact@v4
+        with:
+          name: wetudy-partial-restore-proof-db-${{ steps.postgres_restore.outputs.backup_artifact_id }}
+          path: partial-restore-witness.txt
+          if-no-files-found: error
+          retention-days: 7
