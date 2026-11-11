@@ -78,7 +78,7 @@ test("managed auth and storage are reported, never declared fully restored",()=>
 test("restore workflow remains local-only and requires protected backup artifact",()=>{
   const restore=readFileSync("scripts/pilot-db-restore-drill.sh","utf8");
   const workflow=readFileSync(".github/workflows/pilot-combined-encrypted-recovery.yml","utf8");
-  assert.match(restore,/Refusing to restore to a nonlocal Postgres server/);
+  assert.match(restore,/pilot-local-restore-target-check\\.py/);
   assert.match(restore,/wetudy-restore\.toc/);
   assert.match(restore,/pilot-db-backup-critical-toc\.py/);
   assert.match(workflow,/pilot-db-backup-critical-toc\.py/);
