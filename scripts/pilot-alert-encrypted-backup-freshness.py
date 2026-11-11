@@ -151,6 +151,9 @@ def assess(artifact_payload, run_payload, backup_runs_payload, proof_payload, no
             "restore_run_id": restore_run_id, "proof_artifact_id": proof_artifact_id,
             "acl_snapshot_verified": restore_run_id in acl_verified_runs,
             "full_disaster_recovery_certified": False,
+            # A partial restore (even with an ACL snapshot) does not qualify
+            # as operational authorization for production SQL migrations.
+            "production_sql_migration_authorized": False,
             "age_hours": round(age, 2),
             "remaining_hours": round(remaining, 2),
             "partial_restore_at": proof_at.isoformat()}
