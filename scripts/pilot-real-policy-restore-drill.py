@@ -141,8 +141,37 @@ def drill(archive, toc, url):
         if not expected.issubset(set(checks)):
             raise AssertionError(
                 "Restored RLS policies failed mutual owner / missing-JWT checks")
+        # A new PostgreSQL session has no JWT claim at all (as distinct from
+        # the explicit empty subject above). Fail closed for both operations.
+        no_claim_checks = psql(dest, """
+        BEGIN;
+          SET LOCAL ROLE authenticated;
+          SELECT 'absent_jwt_visible='||count(*) FROM public.saved_search_matches;
+          WITH deleted AS (
+            DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
+          SELECT 'absent_jwt_delete='||count(*) FROM deleted;
+        COMMIT;
+        """).splitlines()
+        if not {"absent_jwt_visible=0", "absent_jwt_delete=0"}.issubset(set(no_claim_checks)):
+            raise AssertionError("Restored RLS policies allowed access without a JWT claim")
+
+        # Owner B must also be able to delete their own synthetic record; this
+        # occurs only AFTER the no-claim denial, preserving a target for it.
+        second_owner_checks = psql(dest, """
+        BEGIN;
+          SELECT set_config('request.jwt.claim.sub','""" + ID2 + """',true);
+          SET LOCAL ROLE authenticated;
+          WITH deleted AS (
+            DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
+          SELECT 'owner2_own_delete='||count(*) FROM deleted;
+        COMMIT;
+        SELECT 'remaining_after_both='||count(*)
+          FROM public.saved_search_matches;
+        """).splitlines()
+        if not {"owner2_own_delete=1", "remaining_after_both=0"}.issubset(set(second_owner_checks)):
+            raise AssertionError("Second synthetic owner could not delete their own row")
         print("PASS: two REAL archived policies installed on disposable PG17; "
-              "mutual owner isolation and missing-JWT denial verified with "
+              "mutual owner isolation, both owner deletes and absent-JWT denial verified with "
               "synthetic rows; no real backup rows, Auth or Storage restored.")
     finally:
         psql(url, "drop database if exists " + DB + " with (force)")

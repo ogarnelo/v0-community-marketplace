@@ -70,11 +70,21 @@ test("both synthetic owners and missing JWT must be checked after real policy re
  for(const expected of [
   "owner1_visible=1","owner1_cross_delete=0","owner1_own_delete=1",
   "owner2_visible=1","owner2_cross_delete=0",
-  "missing_jwt_visible=0","missing_jwt_delete=0","remaining=1"
+  "missing_jwt_visible=0","missing_jwt_delete=0","remaining=1",
+  "absent_jwt_visible=0","absent_jwt_delete=0",
+  "owner2_own_delete=1","remaining_after_both=0"
  ])assert.ok(code.includes(expected),expected);
  assert.match(code,/set_config\('request\.jwt\.claim\.sub','',true\)/);
  assert.match(code,/ID2/);
  assert.match(code,/mutual owner \/ missing-JWT checks/);
  assert.match(code,/--schema-only/);
  assert.doesNotMatch(code,/--data-only|INSERT INTO auth\.users/);
+});
+
+test("missing-claim path must use a distinct PostgreSQL connection",()=>{
+ const code=readFileSync(path,"utf8");
+ assert.match(code,/no_claim_checks = psql\(dest/);
+ assert.match(code,/second_owner_checks = psql\(dest/);
+ assert.ok(code.indexOf("no_claim_checks = psql") < code.indexOf("second_owner_checks = psql"));
+ assert.match(code,/SET LOCAL ROLE authenticated;/);
 });
