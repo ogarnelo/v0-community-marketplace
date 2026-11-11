@@ -25,8 +25,9 @@ cd "$workdir"
 
 # Retrieve the latest unexpired encrypted artifact from this same repository.
 # No privileged production DB URL is required for the restore rehearsal.
-artifact_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=wetudy-encrypted-postgres-backup&per_page=100" \
-  --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty')"
+gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=wetudy-encrypted-postgres-backup&per_page=100" > backup-artifacts.json
+gh api "repos/$GITHUB_REPOSITORY/actions/workflows/wetudy-encrypted-db-backup.yml/runs?per_page=100" > backup-runs.json
+artifact_id="$(python3 "$repo_root/scripts/pilot-select-trusted-backup-artifact.py" backup-artifacts.json backup-runs.json)"
 test -n "$artifact_id" || {
   echo "No unexpired encrypted PostgreSQL backup artifact found. Create a new backup first." >&2
   exit 1
