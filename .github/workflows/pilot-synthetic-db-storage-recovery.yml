@@ -11,6 +11,8 @@ on:
       - "scripts/pilot-client-tablewide-privileges-regression.py"
       - "scripts/pilot-client-tablewide-privileges-regression.sql"
       - "scripts/pilot-client-tablewide-privileges-preflight.sql"
+      - "scripts/pilot-client-privilege-function-entrypoints.sql"
+      - "scripts/pilot-client-privilege-function-regression.py"
       - "supabase/migrations/20261111083000_marketplace_revoke_client_table_wide_privileges.sql"
       - "scripts/verify-pilot-storage-restore.py"
       - ".github/workflows/pilot-synthetic-db-storage-recovery.yml"
@@ -58,3 +60,5 @@ jobs:
         run: python3 scripts/pilot-marketplace-rls-drift-regression.py
       - name: Revoke non-RLS client table privileges in disposable PostgreSQL17
         run: python3 scripts/pilot-client-tablewide-privileges-regression.py
+      - name: Audit client EXECUTE grants on synthetic SECURITY DEFINER functions
+        run: python3 scripts/pilot-client-privilege-function-regression.py
