@@ -12,7 +12,7 @@ import sys
 
 REQUIRED = {"wetudy.dump.enc"}
 OPTIONAL = {"wetudy-acl-snapshot.json.enc"}
-PATTERN = re.compile(r"^([0-9a-fA-F]{64})  backup/(wetudy\\.dump\\.enc|wetudy-acl-snapshot\\.json\\.enc)$")
+PATTERN = re.compile(r"^([0-9a-fA-F]{64})  backup/(wetudy\.dump\.enc|wetudy-acl-snapshot\.json\.enc)$")
 
 
 def verify(directory):
