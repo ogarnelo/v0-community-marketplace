@@ -64,5 +64,5 @@ test("restore uses TOC-only script and never requires personal data restoration"
  const restore=readFileSync("scripts/pilot-db-restore-drill.sh","utf8");
  assert.match(restore,/pilot-managed-schema-toc-coverage\.py/);
  assert.match(restore,/wetudy-restore\.toc/);
- assert.doesNotMatch(scriptText,/psql|pg_restore|SUPABASE_SERVICE_ROLE_KEY|BACKUP_ENCRYPTION_PASSWORD|import requests/);
+ assert.doesNotMatch(scriptText,/subprocess|import requests|import psycopg|psql\\s+-|SUPABASE_SERVICE_ROLE_KEY|BACKUP_ENCRYPTION_PASSWORD/);
 });
