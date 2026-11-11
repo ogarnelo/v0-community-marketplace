@@ -79,3 +79,13 @@ Consultas SQL `SELECT` de contadores en Supabase **Education Marketplace** confi
 La consulta reutilizable está en `scripts/pilot-readonly-operational-snapshot.sql`. Es transaccional `READ ONLY` y devuelve únicamente agregados; requiere credenciales autorizadas y revisión de cambios estructurales antes de reutilizarse. Un resultado positivo de esta auditoría no autoriza modificar ACL, activar alertas ni lanzar el piloto.
 
 **Seguridad:** los seis anuncios DEMO permanecen, y no se ha ejecutado SQL de escritura. El estado de los flags/cron se mantiene bloqueado según seguimiento anterior, pero **no se ha inferido** su configuración exclusivamente del outbox vacío.
+
+### Auditoría de avisos Supabase — 11/11/2026, P0 #375
+
+El analizador de seguridad ha devuelto **una advertencia** por protección de contraseñas filtradas desactivada (<https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection>) y **6 informaciones** por tablas con RLS activado sin políticas. La verificación del catálogo y `has_table_privilege` demuestra que las seis tablas internas (outbox de alertas, centroides postales, directorio escolar y tres tablas de informes escolares) tienen RLS ON, **0 políticas** y **0 privilegios efectivos** de SELECT/INSERT/UPDATE/DELETE para `anon` y `authenticated`: **48 celdas comprobadas, 0 violaciones**. Es un cierre intencionadamente restrictivo, no razón para abrir nuevas políticas.
+
+El nuevo `scripts/pilot-readonly-deny-only-rls-audit.sql` permite vigilar con un SELECT agregado esas 48 combinaciones. Una futura desviación bloquearía la evaluación de preparación del piloto y requeriría revisión de accesos antes de introducir permisos. Se probaron los mismos predicados mediante consulta read-only directa, con `deny_only_guard_pass=true`.
+
+El analizador de rendimiento indicó **1 FK no indexada**: `saved_searches.directory_school_code` → `school_directory.official_code` con `ON DELETE SET NULL`. Evaluar `EXPLAIN`, tamaño de tabla, tráfico y coste de escritura antes de proponer `CREATE INDEX CONCURRENTLY`; **no crear índice ahora**. También informó **99 índices sin uso registrado**, que no justifican eliminarlos sin medir un periodo representativo del piloto. No se ha modificado ningún permiso ni índice.
+
+La alerta de contraseñas filtradas exige revisar disponibilidad y efectos en el plan Supabase antes de cambiar una política de Auth: no asumir que está activada ni afirmar un coste o protección que no se haya confirmado.
