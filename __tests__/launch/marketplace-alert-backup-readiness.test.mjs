@@ -48,6 +48,21 @@ test("recent encrypted artifact + later successful partial restore passes readin
   assert.equal(r.result.full_disaster_recovery_certified,false);
   assert.equal(r.result.production_sql_migration_authorized,false);
 });
+test("failed metadata checks explicitly deny SQL migration, ACL and full DR",()=>{
+ for(const inputs of [
+   [[],[restore],[sourceRun],[proof]],
+   [[{...backup,expired:true}],[restore],[sourceRun],[proof]],
+   [[backup],[{...restore,conclusion:"failure"}],[sourceRun],[proof]],
+   [[backup],[restore],[sourceRun],[]],
+ ]) {
+   const result=verify(...inputs);
+   assert.equal(result.exit,1);
+   assert.equal(result.result.ready,false);
+   assert.equal(result.result.production_sql_migration_authorized,false);
+   assert.equal(result.result.acl_snapshot_verified,false);
+   assert.equal(result.result.full_disaster_recovery_certified,false);
+ }
+});
 test("old artifact cannot authorize a production migration",()=>{
   const r=verify([{...backup,created_at:"2026-11-08T10:00:00Z"}],
     [{...restore,created_at:"2026-11-09T11:00:00Z"}],

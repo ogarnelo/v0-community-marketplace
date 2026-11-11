@@ -183,6 +183,11 @@ def main():
     with open(args.proof_artifacts_json, encoding="utf-8") as f:
         proofs = json.load(f)
     result = assess(artifacts, runs, backup_runs, proofs, now, args.max_age_hours, args.min_remaining_hours)
+    # Always emit conservative safety decisions, including on failure.
+    # Callers must not infer migration permission from missing keys.
+    result["production_sql_migration_authorized"] = False
+    result.setdefault("acl_snapshot_verified", False)
+    result.setdefault("full_disaster_recovery_certified", False)
     print(json.dumps(result, sort_keys=True))
     return 0 if result["ready"] else 1
 
