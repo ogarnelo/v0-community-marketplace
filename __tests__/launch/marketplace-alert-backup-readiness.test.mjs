@@ -14,6 +14,8 @@ const restore={id:333,name:"Wetudy combined encrypted backup recovery check",con
   created_at:"2026-11-10T11:00:00Z"};
 const proof={id:444,name:"wetudy-partial-restore-proof-db-111",expired:false,
   created_at:"2026-11-10T12:00:00Z",workflow_run:{id:333,head_branch:"main"}};
+const aclProof={id:445,name:"wetudy-acl-verified-proof-db-111",expired:false,
+  created_at:"2026-11-10T12:01:00Z",workflow_run:{id:333,head_branch:"main"}};
 const sourceRun={id:222,name:"Wetudy encrypted database backup",conclusion:"success",
   path:".github/workflows/wetudy-encrypted-db-backup.yml",head_branch:"main",
   created_at:"2026-11-10T09:00:00Z"};
@@ -42,6 +44,8 @@ test("recent encrypted artifact + later successful partial restore passes readin
   assert.equal(r.result.age_hours,10);
   assert.equal(r.result.restore_run_id,333);
   assert.equal(r.result.proof_artifact_id,444);
+  assert.equal(r.result.acl_snapshot_verified,false);
+  assert.equal(r.result.full_disaster_recovery_certified,false);
 });
 test("old artifact cannot authorize a production migration",()=>{
   const r=verify([{...backup,created_at:"2026-11-08T10:00:00Z"}],
@@ -144,4 +148,40 @@ test("proof is generated only after Storage validation completes",()=>{
   assert.match(combined,/steps\.postgres_restore\.outputs\.backup_artifact_id/);
   assert.match(restoreScript,/backup_artifact_id=%s/);
   assert.doesNotMatch(combined,/upload-artifact[^]*wetudy\.dump\.enc/);
+});
+
+test("ACL witness is separate from successful legacy partial restore",()=>{
+ const legacy=verify();
+ assert.equal(legacy.exit,0);
+ assert.equal(legacy.result.acl_snapshot_verified,false);
+ const enhanced=verify([backup],[restore],[sourceRun],[proof,aclProof]);
+ assert.equal(enhanced.exit,0);
+ assert.equal(enhanced.result.acl_snapshot_verified,true);
+ assert.equal(enhanced.result.full_disaster_recovery_certified,false);
+});
+test("wrong backup, branch, run, ordering and expired ACL proof cannot grant ACL readiness",()=>{
+ for(const wrong of [
+   {...aclProof,name:"wetudy-acl-verified-proof-db-100"},
+   {...aclProof,workflow_run:{id:999,head_branch:"main"}},
+   {...aclProof,workflow_run:{id:333,head_branch:"other"}},
+   {...aclProof,created_at:"2026-11-10T11:30:00Z"},
+   {...aclProof,expired:true},
+ ]){
+   const v=verify([backup],[restore],[sourceRun],[proof,wrong]);
+   assert.equal(v.exit,0);
+   assert.equal(v.result.ready,true);
+   assert.equal(v.result.acl_snapshot_verified,false);
+ }
+});
+test("the ACL witness is only emitted after an encrypted snapshot validates",()=>{
+ const combined=readFileSync(".github/workflows/pilot-combined-encrypted-recovery.yml","utf8");
+ const restoreScript=readFileSync("scripts/pilot-db-restore-drill.sh","utf8");
+ assert.match(combined,/if: steps\.postgres_restore\.outputs\.acl_snapshot_verified == 'true'/);
+ assert.match(combined,/wetudy-acl-verified-proof-db-/);
+ assert.match(restoreScript,/acl_snapshot_verified=false/);
+ assert.match(restoreScript,/acl_snapshot_verified=true/);
+ assert.match(restoreScript,/acl_snapshot_verified=%s/);
+ const main=readFileSync("scripts/pilot-alert-encrypted-backup-freshness.py","utf8");
+ assert.match(main,/"acl_snapshot_verified": restore_run_id in acl_verified_runs/);
+ assert.match(main,/"full_disaster_recovery_certified": False/);
 });

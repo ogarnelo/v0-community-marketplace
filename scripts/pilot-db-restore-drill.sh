@@ -47,6 +47,7 @@ sha256sum -c backup/SHA256SUMS.txt > /dev/null
 # Backward-compatible with the previous seven-day archives, which were made
 # with pg_dump --no-acl and lacked a separate privilege snapshot. Newer
 # archives must validate their encrypted ACL envelope before claiming it exists.
+acl_snapshot_verified=false
 if [[ -s backup/wetudy-acl-snapshot.json.enc ]]; then
   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
     -in backup/wetudy-acl-snapshot.json.enc \
@@ -54,6 +55,7 @@ if [[ -s backup/wetudy-acl-snapshot.json.enc ]]; then
     -pass env:BACKUP_ENCRYPTION_PASSWORD
   python3 "$repo_root/scripts/pilot-backup-acl-snapshot-validate.py" \
     wetudy-acl-restore.json > /dev/null
+  acl_snapshot_verified=true
   echo "Validated encrypted ACL metadata for 11 tables, 176 grants; NO grant replay."
 else
   echo "LEGACY ARCHIVE: ACL evidence unavailable; this backup cannot reconstruct grants."
@@ -96,5 +98,6 @@ echo "Partial PostgreSQL restore PASS: $count national-school records; 0 active 
 # Only a GitHub Actions output: consumed by the final proof step after Storage passes.
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   printf "backup_artifact_id=%s\n" "$artifact_id" >> "$GITHUB_OUTPUT"
+  printf "acl_snapshot_verified=%s\n" "$acl_snapshot_verified" >> "$GITHUB_OUTPUT"
 fi
 echo "This does NOT certify restore of Auth, chat, listings, transactions or Storage binaries."

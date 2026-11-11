@@ -81,3 +81,11 @@ jobs:
           path: partial-restore-witness.txt
           if-no-files-found: error
           retention-days: 7
+      - name: Publish verified-ACL witness bound to exact backup and restore run
+        if: steps.postgres_restore.outputs.acl_snapshot_verified == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wetudy-acl-verified-proof-db-${{ steps.postgres_restore.outputs.backup_artifact_id }}
+          path: partial-restore-witness.txt
+          if-no-files-found: error
+          retention-days: 7
