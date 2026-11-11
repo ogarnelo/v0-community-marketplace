@@ -58,3 +58,24 @@ test("dump and restore retain synthetic SQL ACLs and RLS policies",()=>{
   assert.match(fixture,/grant usage on schema qa_near_market to qa_near_family/);
   assert.match(fixture,/has_table_privilege\('qa_near_family'/);
 });
+
+test("restored synthetic family writes honor owner checks in both source and target",()=>{
+  assert.match(fixture,/verify_restored_family_write_isolation\(SOURCE\)/);
+  assert.match(fixture,/verify_restored_family_write_isolation\(TARGET\)/);
+  assert.match(fixture,/for update to qa_near_family/);
+  assert.match(fixture,/for insert to qa_near_family/);
+  assert.match(fixture,/with check\(user_id=nullif\(current_setting/);
+  for(const text of [
+    "Cross-family update was not blocked",
+    "Cross-family postcode update was not blocked",
+    "RLS failed to reject another family's saved-search INSERT",
+    "Family can mutate protected alert/delivery state",
+    "Synthetic RLS write tests changed restored rows",
+  ]) assert.ok(fixture.includes(text));
+});
+test("no privileged client write path is introduced for matching or alert receipts",()=>{
+  assert.doesNotMatch(fixture,/grant (insert|update|delete).*saved_search_matches to qa_near_family/i);
+  assert.doesNotMatch(fixture,/grant (insert|update|delete).*marketplace_alert_outbox to qa_near_family/i);
+  assert.match(fixture,/grant update\(radius_km\)/);
+  assert.match(fixture,/grant update\(postal_code\)/);
+});
