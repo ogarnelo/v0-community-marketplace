@@ -69,3 +69,13 @@ El backlog de SQL preparado y no ejecutado consta de **7 migraciones**: 5 para i
 5. Documentar restauración/rollback integral de grants, roles, Auth/GoTrue y bytes Storage; planificar ventana de cambio y pruebas QA autorizadas antes de alterar los 88 privilegios. No activar notificaciones ni colegios por obtener solo la copia ACL.
 
 **Limitación de la prueba previa:** se ha verificado con éxito la recuperación parcial de PR #425 (ejecución #43046921066), con ZIP seguro, dos políticas RLS reales y directorio de 34.845 escuelas. El backup legado carece de ACL. La recuperación post-PR #427 **también terminó SUCCESS**, run #43049068967: extracción ZIP, SHA-256 estricto, dos políticas RLS reales y 34.845 centros sin vínculos; el log evidencia todavía `LEGACY ARCHIVE: ACL evidence unavailable`. La recuperación posterior a #428 (#43049818747) permanece pendiente y no debe anticiparse como PASS.
+
+### Verificación operativa no invasiva — 11/11/2026, después de PR #429
+
+Consultas SQL `SELECT` de contadores en Supabase **Education Marketplace** confirmaron: **6** anuncios `is_demo=true`, **0** filas en `marketplace_alert_outbox`, **1** colegio `is_active=true` con `is_test=true`, **0** colegios activos no-test, **0** enlaces activos en `school_directory`, **143** políticas RLS en total y **88/88** privilegios sensibles efectivos en el perímetro ACL de 11 tablas. No se examinaron correos, datos familiares ni identidades.
+
+**Distinción crítica:** el único colegio activo es de PRUEBA; no confundir `schools.is_active=true` con activar alguno de los tres colegios/AMPA del piloto. El directorio público sigue sin vínculos ni publicación activa.
+
+La consulta reutilizable está en `scripts/pilot-readonly-operational-snapshot.sql`. Es transaccional `READ ONLY` y devuelve únicamente agregados; requiere credenciales autorizadas y revisión de cambios estructurales antes de reutilizarse. Un resultado positivo de esta auditoría no autoriza modificar ACL, activar alertas ni lanzar el piloto.
+
+**Seguridad:** los seis anuncios DEMO permanecen, y no se ha ejecutado SQL de escritura. El estado de los flags/cron se mantiene bloqueado según seguimiento anterior, pero **no se ha inferido** su configuración exclusivamente del outbox vacío.
