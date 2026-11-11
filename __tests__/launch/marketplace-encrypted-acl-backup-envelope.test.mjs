@@ -76,3 +76,16 @@ test("restore validates new encrypted ACL without exposing grants or breaking le
   assert.doesNotMatch(restore,/GRANT\s+|REVOKE\s+|ALTER DEFAULT PRIVILEGES/);
   assert.match(sql,/BEGIN TRANSACTION READ ONLY;/);
 });
+
+test("official backup cannot upload an envelope without passing strict manifest validation",()=>{
+ const strict="python3 scripts/pilot-verify-backup-sha256.py backup";
+ const validateAt=backup.indexOf(strict);
+ const removeAt=backup.indexOf("rm -f backup/wetudy.dump");
+ const uploadAt=backup.indexOf("- name: Upload encrypted backup");
+ assert.ok(removeAt>=0 && validateAt>removeAt && uploadAt>validateAt);
+ assert.match(backup,/sha256sum backup\/wetudy\.dump\.enc backup\/wetudy-acl-snapshot\.json\.enc > backup\/SHA256SUMS\.txt/);
+ assert.match(backup,/set -euo pipefail/);
+ const verifier=readFileSync("scripts/pilot-verify-backup-sha256.py","utf8");
+ assert.match(verifier,/Missing|manifest/i);
+ assert.match(verifier,/wetudy-acl-snapshot/);
+});
