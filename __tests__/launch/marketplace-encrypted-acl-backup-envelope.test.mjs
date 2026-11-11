@@ -45,6 +45,9 @@ test("the backup ACL validator rejects truncation, duplicates, foreign role, unk
     sample.map((r,i)=>i===0?{...r,email:"private@example.com"}:r),
     sample.map((r,i)=>i===0?{...r,direct_grant_count:-1}:r),
     sample.map((r,i)=>i===0?{...r,effective_privilege:"true"}:r),
+    sample.map((r,i)=>i===0?{...r,effective_privilege:false}:r),
+    sample.map((r,i)=>i===0?{...r,direct_grant_count:0,direct_grantors:"",
+      direct_grant_option:true}:r),
     "{not json"
   ]){
     const r=run(bad);
