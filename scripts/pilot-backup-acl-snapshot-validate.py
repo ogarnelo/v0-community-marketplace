@@ -36,6 +36,12 @@ def validate(payload):
                 or len(row["direct_grantors"]) > 512
                 or (row["direct_grant_count"] > 0) != bool(row["direct_grantors"])):
             raise ValueError("Malformed ACL grant")
+        # Direct grants are effective for the target role. A grant option
+        # without any direct grant is an internally inconsistent snapshot.
+        if row["direct_grant_count"] > 0 and not row["effective_privilege"]:
+            raise ValueError("Direct ACL grant cannot be ineffective")
+        if row["direct_grant_option"] and row["direct_grant_count"] == 0:
+            raise ValueError("Grant option without direct ACL grant")
         key = (row["table_name"], row["grantee_role"], row["privilege_name"])
         if key in keys:
             raise ValueError("Duplicate ACL tuple")
