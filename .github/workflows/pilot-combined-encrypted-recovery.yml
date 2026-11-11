@@ -13,6 +13,7 @@ on:
       - "scripts/pilot-local-restore-target-check.py"
       - "scripts/pilot-select-trusted-backup-artifact.py"
       - "scripts/pilot-safe-encrypted-backup-zip.py"
+      - "scripts/pilot-verify-backup-sha256.py"
       - "scripts/pilot-alert-encrypted-backup-freshness.py"
       - "scripts/pilot-db-backup-critical-toc.py"
       - "scripts/pilot-managed-schema-toc-coverage.py"
