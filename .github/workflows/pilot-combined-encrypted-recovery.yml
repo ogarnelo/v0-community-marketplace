@@ -13,6 +13,7 @@ on:
       - "scripts/pilot-alert-encrypted-backup-freshness.py"
       - "scripts/pilot-db-backup-critical-toc.py"
       - "scripts/pilot-managed-schema-toc-coverage.py"
+      - "scripts/pilot-backup-rls-policy-toc-audit.py"
       - "scripts/pilot_db_backup_toc_compat.py"
 
 permissions:
