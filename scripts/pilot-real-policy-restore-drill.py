@@ -30,9 +30,17 @@ def psql(url, query, timeout=30):
 
 def check_local(url):
     u = urlsplit(url)
+    try:
+        port = u.port
+    except ValueError:
+        raise SystemExit("Refusing malformed PostgreSQL port")
     if (u.scheme not in ("postgres", "postgresql")
-            or u.hostname not in ("127.0.0.1", "localhost", "::1")
-            or u.path != "/wetudy_restore"):
+            or u.hostname != "127.0.0.1"
+            or port != 5432
+            or u.username != "wetudy_restore"
+            or not u.password
+            or u.path != "/wetudy_restore"
+            or u.query or u.fragment):
         raise SystemExit("Refusing nonlocal or unexpected PostgreSQL source")
     return urlunsplit((u.scheme, u.netloc, "/" + DB, "", ""))
 
