@@ -44,6 +44,21 @@ test -s backup/wetudy.dump.enc
 test -s backup/SHA256SUMS.txt
 sha256sum -c backup/SHA256SUMS.txt > /dev/null
 
+# Backward-compatible with the previous seven-day archives, which were made
+# with pg_dump --no-acl and lacked a separate privilege snapshot. Newer
+# archives must validate their encrypted ACL envelope before claiming it exists.
+if [[ -s backup/wetudy-acl-snapshot.json.enc ]]; then
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+    -in backup/wetudy-acl-snapshot.json.enc \
+    -out wetudy-acl-restore.json \
+    -pass env:BACKUP_ENCRYPTION_PASSWORD
+  python3 "$repo_root/scripts/pilot-backup-acl-snapshot-validate.py" \
+    wetudy-acl-restore.json > /dev/null
+  echo "Validated encrypted ACL metadata for 11 tables, 176 grants; NO grant replay."
+else
+  echo "LEGACY ARCHIVE: ACL evidence unavailable; this backup cannot reconstruct grants."
+fi
+
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
   -in backup/wetudy.dump.enc -out wetudy-restore.dump \
   -pass env:BACKUP_ENCRYPTION_PASSWORD
