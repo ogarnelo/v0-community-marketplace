@@ -1,7 +1,14 @@
 -- Synthetic privileged-clients state matching observed ACL shape.
 -- All tables are empty and created in disposable PostgreSQL17 only.
-CREATE ROLE anon NOLOGIN;
-CREATE ROLE authenticated NOLOGIN;
+DO $roles$
+BEGIN
+  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+END $roles$;
 CREATE TABLE public.saved_searches(id uuid primary key, user_id uuid not null);
 CREATE TABLE public.saved_search_matches(id uuid primary key, user_id uuid not null);
 CREATE TABLE public.user_marketplace_preferences(user_id uuid primary key);
