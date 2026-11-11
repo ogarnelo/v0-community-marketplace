@@ -85,3 +85,5 @@ end
 $wetudy$;
 
 commit;
+
+select 'PASS: RLS metadata and client grants checked without reading family rows' as status;
