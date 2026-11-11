@@ -11,3 +11,9 @@ El modo habitual informa del resultado sin exigir que una copia anterior coincid
 **No concede una falsa certificación:** aunque aparezcan 143 políticas en el índice, no significa que se hayan restaurado ni que las familias queden aisladas con Auth/GoTrue y JWT reales. `pg_dump --no-acl` además excluye grants y no restituye los secretos, los tokens ni los archivos físicos de Storage. El resultado incluye explícitamente `policies_applied_to_restored_database:false`, `rls_runtime_authorization_certified:false` y `full_disaster_recovery_certified:false`.
 
 No toca Supabase, no lee registros privados, no activa colegios ni correos, y no aplica las siete migraciones pendientes. Mantener P0 #375 abierta.
+
+## Interpretación operativa de los resultados
+
+La línea de base 140+3 se tomó del catálogo **vivo** el 11/11/2026, y el respaldo existente se generó el 10/11/2026. Una discrepancia de recuentos requiere investigar la fecha y los cambios de esquema; **no implica por sí sola corrupción del respaldo**. La lista de 11 tablas sensibles se trata como comprobación de cobertura del índice, no como afirmación de que sus políticas funcionan después de recuperar.
+
+El reporte solamente expone cantidades agregadas en los logs de GitHub. No contiene expresiones completas de políticas, identidades, privilegios individuales o registros de menores.
