@@ -90,6 +90,12 @@ grant usage on schema qa_near_market to qa_near_family;
 grant select on qa_near_market.user_marketplace_preferences,
                 qa_near_market.saved_searches,
                 qa_near_market.saved_search_matches to qa_near_family;
+-- Exercise writes with a least-privilege synthetic family role: recipients may
+-- update only their own criteria, not the system-maintained match ledger.
+grant update(postal_code) on qa_near_market.user_marketplace_preferences to qa_near_family;
+grant update(radius_km) on qa_near_market.saved_searches to qa_near_family;
+grant insert(id,user_id,name,radius_km,email_enabled)
+  on qa_near_market.saved_searches to qa_near_family;
 alter table qa_near_market.user_marketplace_preferences enable row level security;
 alter table qa_near_market.saved_searches enable row level security;
 alter table qa_near_market.saved_search_matches enable row level security;
@@ -102,6 +108,17 @@ create policy own_searches on qa_near_market.saved_searches
 create policy own_matches on qa_near_market.saved_search_matches
  for select to qa_near_family
  using(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
+create policy update_own_preferences on qa_near_market.user_marketplace_preferences
+ for update to qa_near_family
+ using(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid)
+ with check(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
+create policy update_own_searches on qa_near_market.saved_searches
+ for update to qa_near_family
+ using(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid)
+ with check(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
+create policy create_own_searches on qa_near_market.saved_searches
+ for insert to qa_near_family
+ with check(user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid);
 """
 
 def run(*args):
@@ -171,9 +188,90 @@ def verify_restored_family_isolation(conn):
             raise AssertionError("Missing RLS or synthetic role SELECT grant on "+name)
 
 
+def verify_restored_family_write_isolation(conn):
+    """Prove owner writes work, cross-account writes fail, no state persists."""
+    before = snapshot(conn)
+    # Read/write transactions are rolled back; these tests cannot alter the
+    # synthetic restored state or invalidate the earlier ciphertext checksum.
+    allowed = sql(conn,
+        "begin; set local role qa_near_family; "
+        "select set_config('request.jwt.claim.sub','"+B+"',true); "
+        "update qa_near_market.saved_searches set radius_km=25 "
+        "where user_id='"+B+"' returning radius_km; rollback;").splitlines()
+    if "25" not in allowed:
+        raise AssertionError("Synthetic owner cannot update own search radius")
+
+    denied_update = sql(conn,
+        "begin; set local role qa_near_family; "
+        "select set_config('request.jwt.claim.sub','"+A+"',true); "
+        "update qa_near_market.saved_searches set radius_km=500 "
+        "where user_id='"+B+"' returning id; rollback;").splitlines()
+    if any(line == "33333333-3333-4333-8333-333333333333" for line in denied_update):
+        raise AssertionError("Cross-family update bypassed restored RLS")
+    if "UPDATE 0" not in denied_update:
+        raise AssertionError("Cross-family update was not blocked by restored RLS")
+
+    allowed_postcode = sql(conn,
+        "begin; set local role qa_near_family; "
+        "select set_config('request.jwt.claim.sub','"+A+"',true); "
+        "update qa_near_market.user_marketplace_preferences "
+        "set postal_code='28014' where user_id='"+A+"' returning postal_code; rollback;").splitlines()
+    if "28014" not in allowed_postcode:
+        raise AssertionError("Synthetic owner cannot change own postcode")
+
+    for principal, target_user in ((A, B), (B, A)):
+        rejected_postcode = sql(conn,
+            "begin; set local role qa_near_family; "
+            "select set_config('request.jwt.claim.sub','"+principal+"',true); "
+            "update qa_near_market.user_marketplace_preferences "
+            "set postal_code='00000' where user_id='"+target_user+"' returning user_id; rollback;").splitlines()
+        if "UPDATE 0" not in rejected_postcode:
+            raise AssertionError("Cross-family postcode update was not blocked")
+
+    # A family can create a saved search only under its own user_id.
+    accepted = sql(conn,
+        "begin; set local role qa_near_family; "
+        "select set_config('request.jwt.claim.sub','"+A+"',true); "
+        "insert into qa_near_market.saved_searches "
+        "(id,user_id,name,radius_km,email_enabled) values "
+        "('55555555-5555-4555-8555-555555555555','"+A+"','QA new search',5,false) "
+        "returning user_id; rollback;").splitlines()
+    if A not in accepted:
+        raise AssertionError("Family could not create own saved search")
+
+    # FOR INSERT ... WITH CHECK must reject an identity spoof.
+    hostile = (
+        "begin; set local role qa_near_family; "
+        "select set_config('request.jwt.claim.sub','"+A+"',true); "
+        "insert into qa_near_market.saved_searches "
+        "(id,user_id,name,radius_km,email_enabled) values "
+        "('66666666-6666-4666-8666-666666666666','"+B+"','QA hostile',5,false); rollback;"
+    )
+    command = subprocess.run(
+        ["psql","-X","-v","ON_ERROR_STOP=1","--dbname",conn,"-c",hostile],
+        capture_output=True,text=True,timeout=20)
+    if command.returncode == 0 or "row-level security policy" not in command.stderr:
+        raise AssertionError("RLS failed to reject another family's saved-search INSERT")
+
+    # The system-owned match ledger has no write access for family clients.
+    for name in ("saved_search_matches", "marketplace_alert_outbox",
+                 "transactional_email_deliveries"):
+        privilege = sql(conn,
+            "select has_table_privilege('qa_near_family','qa_near_market."
+            + name + "','INSERT')::text || ':' || "
+            "has_table_privilege('qa_near_family','qa_near_market."
+            + name + "','UPDATE')::text")
+        if privilege != "false:false":
+            raise AssertionError("Family can mutate protected alert/delivery state: "+name)
+
+    if snapshot(conn) != before:
+        raise AssertionError("Synthetic RLS write tests changed restored rows")
+
+
 def main():
     sql(SOURCE,SQL)
     verify_restored_family_isolation(SOURCE)
+    verify_restored_family_write_isolation(SOURCE)
     original=snapshot(SOURCE)
     verify(SOURCE)
     with tempfile.TemporaryDirectory(prefix="wetudy-qa-nearby-") as directory:
@@ -207,7 +305,16 @@ def main():
                 "grant select on qa_near_market.user_marketplace_preferences,"
                 " qa_near_market.saved_searches,"
                 " qa_near_market.saved_search_matches to qa_near_family")
+            sql(TARGET,
+                "grant update(postal_code) on qa_near_market.user_marketplace_preferences "
+                "to qa_near_family")
+            sql(TARGET,
+                "grant update(radius_km) on qa_near_market.saved_searches to qa_near_family")
+            sql(TARGET,
+                "grant insert(id,user_id,name,radius_km,email_enabled) on "
+                "qa_near_market.saved_searches to qa_near_family")
             verify_restored_family_isolation(TARGET)
+            verify_restored_family_write_isolation(TARGET)
             adversarial=[
                 ("postcode mismatch",
                  "update qa_near_market.user_marketplace_preferences set postal_code='99999' where user_id='"+
@@ -238,7 +345,7 @@ def main():
                 verify(TARGET)
             if snapshot(TARGET)!=original:
                 raise AssertionError("Synthetic restored data changed after tamper tests")
-            print("PASS synthetic saved-search/postcode/outbox/receipt restore, five adversarial checks and isolated-family RLS.")
+            print("PASS synthetic saved-search/postcode/outbox/receipt restore, five adversarial checks and restored read/write family RLS.")
             print("LIMIT: invented data and simplified schema, NOT real Auth/Storage or full production DR.")
         finally:
             sql(SOURCE,"drop database if exists wetudy_pilot_nearby_restored with (force)")
