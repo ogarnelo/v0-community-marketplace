@@ -30,7 +30,7 @@ begin
     select 1 from pg_policies p where p.schemaname='public'
       and p.tablename='saved_search_matches'
       and p.cmd in ('INSERT','UPDATE','ALL')
-      and (p.roles && array['public','authenticated','anon'])
+      and (p.roles::text[] && array['public','authenticated','anon'])
   ) then raise exception 'P0 RLS metadata drift: client match write policy'; end if;
   if not exists (
     select 1 from pg_policies p where p.schemaname='public'
@@ -56,7 +56,7 @@ begin
     if exists (
       select 1 from pg_policies p where p.schemaname='public' and p.tablename=tbl
       and p.cmd in ('INSERT','UPDATE','ALL')
-      and (p.roles && array['public','anon'])
+      and (p.roles::text[] && array['public','anon'])
     ) then raise exception 'P0 RLS metadata drift: broad write policy on %',tbl; end if;
   end loop;
 
@@ -77,7 +77,7 @@ begin
   if exists (
     select 1 from pg_policies p where p.schemaname='public'
       and p.tablename='transactional_email_deliveries'
-      and (p.roles && array['public','anon','authenticated'])
+      and (p.roles::text[] && array['public','anon','authenticated'])
   ) then raise exception 'P0 RLS metadata drift: public email receipt policy'; end if;
 
   raise notice 'PASS WETUDY: RLS metadata/privilege gate, % public tables checked; no family rows read',checked;
