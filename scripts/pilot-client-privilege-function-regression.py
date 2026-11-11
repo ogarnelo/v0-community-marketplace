@@ -12,7 +12,7 @@ dbname="wetudy_pilot_function_grants"
 target=urlunsplit((parsed.scheme,parsed.netloc,"/"+dbname,"",""))
 root=Path(__file__).resolve().parent
 def execsql(uri,query=None,file=None,should_succeed=True):
-    args=["psql","-X","-v","ON_ERROR_STOP=1","--dbname",uri]
+    args=["psql","-X","-A","-t","-v","ON_ERROR_STOP=1","--dbname",uri]
     if query is not None: args+=["-c",query]
     if file is not None: args+=["-f",str(file)]
     x=subprocess.run(args,capture_output=True,text=True,timeout=45)
