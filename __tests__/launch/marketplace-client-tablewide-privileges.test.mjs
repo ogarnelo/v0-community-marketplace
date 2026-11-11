@@ -23,7 +23,7 @@ test("read-only gate rejects the four privileges that bypass or escape RLS",()=>
   assert.match(gate,/COMMIT;/);
 });
 test("isolated SQL test demonstrates rejection, preserves DML, and checks repeatability",()=>{
-  assert.match(sqltest,/has_table_privilege/);
+  assert.match(runner,/has_table_privilege/);
   assert.match(sqltest,/SELECT/);
   assert.match(sqltest,/INSERT/);
   assert.match(sqltest,/UPDATE/);
