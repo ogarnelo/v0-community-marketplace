@@ -28,7 +28,7 @@ test("isolated SQL test demonstrates rejection, preserves DML, and checks repeat
   assert.match(runner,/INSERT/);
   assert.match(runner,/UPDATE/);
   assert.match(runner,/DELETE/);
-  assert.match(sqltest,/\\ir/);
+  assert.match(runner,/run\("-f",migration\)/);
   assert.match(runner,/migration/);
   assert.match(runner,/for p in forbidden\+allowed/);
   assert.match(runner,/Refusing nonlocal or non-disposable PostgreSQL/);
