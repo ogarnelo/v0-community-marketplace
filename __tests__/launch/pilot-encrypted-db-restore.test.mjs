@@ -11,7 +11,7 @@ test("restore drill uses ephemeral local PostgreSQL and an encrypted existing ar
   assert.match(workflow, /image: postgres:17/);
   assert.match(workflow, /LOCAL_RESTORE_URL: postgresql:\/\/wetudy_restore:[^@]+@127\.0\.0\.1:5432\/wetudy_restore/);
   assert.match(workflow, /WETUDY_BACKUP_ENCRYPTION_PASSWORD/);
-  assert.match(script, /pilot-local-restore-target-check\\.py/);
+  assert.match(script, /pilot-local-restore-target-check\.py/);
   assert.match(script, /wetudy-encrypted-postgres-backup/);
   assert.match(script, /sha256sum -c backup\/SHA256SUMS\.txt/);
   assert.match(script, /openssl enc -d -aes-256-cbc -pbkdf2/);
