@@ -64,3 +64,17 @@ test("existing encrypted drill invokes RLS restoration before any directory row 
  const workflow=readFileSync(".github/workflows/pilot-combined-encrypted-recovery.yml","utf8");
  assert.match(workflow,/scripts\/pilot-real-policy-restore-drill\.py/);
 });
+
+test("both synthetic owners and missing JWT must be checked after real policy restore",()=>{
+ const code=readFileSync(path,"utf8");
+ for(const expected of [
+  "owner1_visible=1","owner1_cross_delete=0","owner1_own_delete=1",
+  "owner2_visible=1","owner2_cross_delete=0",
+  "missing_jwt_visible=0","missing_jwt_delete=0","remaining=1"
+ ])assert.ok(code.includes(expected),expected);
+ assert.match(code,/set_config\('request\.jwt\.claim\.sub','',true\)/);
+ assert.match(code,/ID2/);
+ assert.match(code,/mutual owner \/ missing-JWT checks/);
+ assert.match(code,/--schema-only/);
+ assert.doesNotMatch(code,/--data-only|INSERT INTO auth\.users/);
+});
