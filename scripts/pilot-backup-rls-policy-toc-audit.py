@@ -7,6 +7,7 @@ policy after restore. pg_dump --no-acl also omits grants, independent of POLICY.
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 POLICY = re.compile(
@@ -60,7 +61,7 @@ def main():
         and result["storage_policy_count_matches_baseline"]
         and result["important_policy_table_coverage"]
     ):
-        print("BLOCKED: RLS policy TOC baseline drift")
+        print("BLOCKED: RLS policy TOC baseline drift", file=sys.stderr)
         return 2
     return 0
 
