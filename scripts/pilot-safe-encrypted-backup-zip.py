@@ -13,6 +13,10 @@ REQUIRED = {"wetudy.dump.enc", "SHA256SUMS.txt"}
 OPTIONAL = {"wetudy-acl-snapshot.json.enc"}
 MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
+MAX_MANIFEST_BYTES = 4 * 1024
+MAX_ACL_BYTES = 8 * 1024 * 1024
+MAX_ZIP_EXPANSION_RATIO = 100
+
 
 
 def safe_extract(source, dest):
@@ -38,6 +42,12 @@ def safe_extract(source, dest):
                 raise ValueError("ZIP symbolic link or special member denied")
             if member.file_size <= 0 or member.file_size > MAX_MEMBER_BYTES:
                 raise ValueError("Invalid encrypted backup file size")
+            if name == "SHA256SUMS.txt" and member.file_size > MAX_MANIFEST_BYTES:
+                raise ValueError("Checksum manifest exceeds safe metadata size")
+            if name == "wetudy-acl-snapshot.json.enc" and member.file_size > MAX_ACL_BYTES:
+                raise ValueError("ACL envelope exceeds safe metadata size")
+            if member.compress_size <= 0 or member.file_size > MAX_ZIP_EXPANSION_RATIO * member.compress_size:
+                raise ValueError("Excessive ZIP expansion ratio")
             total += member.file_size
             if total > MAX_TOTAL_BYTES:
                 raise ValueError("Backup ZIP uncompressed size exceeds limit")
