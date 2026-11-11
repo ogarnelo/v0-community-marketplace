@@ -14,7 +14,7 @@ function runSelection(lines){
       "import importlib.util,sys,pathlib;sys.path.insert(0,'scripts');"+
       "s=importlib.util.spec_from_file_location('q',sys.argv[1]);"+
       "m=importlib.util.module_from_spec(s);s.loader.exec_module(m);"+
-      "print(m.select_policies(pathlib.Path(sys.argv[2])))",path,file],
+      "print(m.select_policies(pathlib.Path(sys.argv[2]).read_text()))",path,file],
       {encoding:"utf8",timeout:5000});
   }finally{rmSync(dir,{recursive:true,force:true});}
 }
