@@ -72,6 +72,9 @@ python3 "$repo_root/scripts/pilot-managed-schema-toc-coverage.py" wetudy-restore
 # Report how many RLS POLICY definitions occur in the same encrypted backup.
 # This is TOC metadata only, NOT a deployed-policy or runtime-RLS test.
 python3 "$repo_root/scripts/pilot-backup-rls-policy-toc-audit.py" wetudy-restore.toc
+# Restore ONLY two actual archived RLS POLICY definitions in a NEW disposable
+# local PG17 database, with entirely synthetic owner/other-family test rows.
+python3 "$repo_root/scripts/pilot-real-policy-restore-drill.py" wetudy-restore.dump wetudy-restore.toc
 
 # Only restore the public national-school directory into the ephemeral PG17.
 # This table has no user credentials, messages or school membership data.
