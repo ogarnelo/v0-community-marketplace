@@ -80,6 +80,48 @@ begin
       and (p.roles::text[] && array['public','anon','authenticated'])
   ) then raise exception 'P0 RLS metadata drift: public email receipt policy'; end if;
 
+  -- Fail CLOSED on any extra, missing or changed policy: merely finding an
+  -- owner policy is insufficient if another permissive policy ORs in access.
+  -- Snapshot from the production pg_policies catalog, 11 November 2026.
+  -- Any intentional policy change requires a security-reviewed baseline update.
+  if exists (
+    with expected(tablename,policyname,cmd,roles,qual,with_check) as (
+      values
+      ('saved_search_matches','saved_search_matches_delete_own','DELETE',array['authenticated']::text[],'(( SELECT auth.uid() AS uid) = user_id)',null::text),
+      ('saved_search_matches','saved_search_matches_select_own','SELECT',array['authenticated']::text[],'(( SELECT auth.uid() AS uid) = user_id)',null::text),
+      ('saved_searches','saved_searches_delete_own','DELETE',array['authenticated']::text[],'(( SELECT auth.uid() AS uid) = user_id)',null::text),
+      ('saved_searches','saved_searches_insert_own','INSERT',array['authenticated']::text[],null::text,'(( SELECT auth.uid() AS uid) = user_id)'),
+      ('saved_searches','saved_searches_select_authorized','SELECT',array['authenticated']::text[],'((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT is_superadmin() AS is_superadmin))',null::text),
+      ('saved_searches','saved_searches_update_own','UPDATE',array['authenticated']::text[],'(( SELECT auth.uid() AS uid) = user_id)','(( SELECT auth.uid() AS uid) = user_id)'),
+      ('user_marketplace_preferences','Users can insert own marketplace preferences','INSERT',array['authenticated']::text[],null::text,'(( SELECT auth.uid() AS uid) = user_id)'),
+      ('user_marketplace_preferences','Users can read own marketplace preferences','SELECT',array['authenticated']::text[],'(( SELECT auth.uid() AS uid) = user_id)',null::text),
+      ('user_marketplace_preferences','Users can update own marketplace preferences','UPDATE',array['authenticated']::text[],'(( SELECT auth.uid() AS uid) = user_id)','(( SELECT auth.uid() AS uid) = user_id)'),
+      ('transactional_email_deliveries','transactional_email_deliveries_service_role','ALL',array['service_role']::text[],'true','true')
+    ),
+    actual as (
+      select p.tablename,p.policyname,p.cmd,p.roles::text[] as roles,
+             p.qual,p.with_check
+      from pg_policies p
+      where p.schemaname='public'
+        and p.tablename = any(array[
+          'saved_searches','saved_search_matches','user_marketplace_preferences',
+          'marketplace_alert_outbox','marketplace_postal_centroids',
+          'transactional_email_deliveries'])
+    )
+    select 1 from expected e
+    full outer join actual a
+      on e.tablename=a.tablename and e.policyname=a.policyname
+    where e.tablename is null or a.tablename is null
+      or e.cmd is distinct from a.cmd
+      or e.roles is distinct from a.roles
+      or regexp_replace(coalesce(e.qual,''),'[[:space:]]+','','g')
+           is distinct from regexp_replace(coalesce(a.qual,''),'[[:space:]]+','','g')
+      or regexp_replace(coalesce(e.with_check,''),'[[:space:]]+','','g')
+           is distinct from regexp_replace(coalesce(a.with_check,''),'[[:space:]]+','','g')
+  ) then
+    raise exception 'P0 RLS policy drift: unexpected or weakened policy on pilot tables';
+  end if;
+
   raise notice 'PASS WETUDY: RLS metadata/privilege gate, % public tables checked; no family rows read',checked;
 end
 $wetudy$;

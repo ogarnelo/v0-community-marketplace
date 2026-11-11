@@ -5,6 +5,9 @@ on:
       - "scripts/pilot-synthetic-db-storage-recovery.py"
       - "scripts/pilot-marketplace-real-shape-recovery.py"
       - "scripts/pilot-marketplace-saved-search-recovery.py"
+      - "scripts/pilot-marketplace-rls-readonly-preflight.sql"
+      - "scripts/pilot-marketplace-rls-drift-fixture.sql"
+      - "scripts/pilot-marketplace-rls-drift-regression.py"
       - "scripts/verify-pilot-storage-restore.py"
       - ".github/workflows/pilot-synthetic-db-storage-recovery.yml"
 permissions:
@@ -47,3 +50,5 @@ jobs:
         run: python3 scripts/pilot-marketplace-real-shape-recovery.py
       - name: Restore synthetic saved searches and postcode alert records locally
         run: python3 scripts/pilot-marketplace-saved-search-recovery.py
+      - name: Prove production RLS policy drift gate fails for permissive policies
+        run: python3 scripts/pilot-marketplace-rls-drift-regression.py

@@ -31,3 +31,25 @@ test("preflight does not read family rows or accidentally activate email",()=>{
   assert.doesNotMatch(body,/\bfrom\s+public\.(profiles|messages|conversations|saved_searches|saved_search_matches|listings)\b/i);
   assert.doesNotMatch(body,/resend\.com|sendEmail|cron\.schedule|marketplace_alert_claim_outbox_v1|SUPABASE_SERVICE_ROLE_KEY/);
 });
+
+test("policy baseline rejects extra permissive OR policy as well as weakened owner rules",()=>{
+  assert.match(sql,/full outer join actual/);
+  assert.match(sql,/unexpected or weakened policy/);
+  assert.match(sql,/is distinct from a\.cmd/);
+  assert.match(sql,/is distinct from a\.roles/);
+  assert.match(sql,/is distinct from regexp_replace/);
+  const names=[
+    "saved_searches_select_authorized",
+    "saved_search_matches_select_own",
+    "saved_search_matches_delete_own",
+    "transactional_email_deliveries_service_role",
+    "Users can update own marketplace preferences",
+  ];
+  for(const name of names)assert.ok(sql.includes(name));
+  const regression=readFileSync("scripts/pilot-marketplace-rls-drift-regression.py","utf8");
+  for(const attack of ["qa_rogue_select","using (true)",
+    "qa_rogue_postal_read","saved_search_matches_delete_own"]){
+    assert.ok(regression.includes(attack));
+  }
+  assert.match(regression,/Refusing any nonlocal or unexpected PostgreSQL URL/);
+});
