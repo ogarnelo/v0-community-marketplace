@@ -66,6 +66,9 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
   -pass env:BACKUP_ENCRYPTION_PASSWORD
 pg_restore --list wetudy-restore.dump > wetudy-restore.toc
 python3 "$repo_root/scripts/pilot-db-backup-critical-toc.py" wetudy-restore.toc
+# Metadata-only report on managed schemas; legacy archives may lack these
+# sections. Informational until full Auth/Storage recovery is authorized.
+python3 "$repo_root/scripts/pilot-managed-schema-toc-coverage.py" wetudy-restore.toc
 
 # Only restore the public national-school directory into the ephemeral PG17.
 # This table has no user credentials, messages or school membership data.
