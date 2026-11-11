@@ -122,10 +122,35 @@ def assess(artifact_payload, run_payload, backup_runs_payload, proof_payload, no
                 "artifact_id": artifact_id}
 
 
+    # ACL is a separate capability. A correlated partial-restore proof from a
+    # legacy --no-acl archive must NEVER imply its SQL grants were preserved.
+    # Require a second proof emitted conditionally only after decrypting and
+    # validating the 176-entry ACL envelope, in the SAME successful restore run.
+    acl_name = "wetudy-acl-verified-proof-db-" + str(artifact_id)
+    acl_verified_runs = set()
+    correlated_runs = {run_id for _, run_id, _ in matched_proofs}
+    for proof in proofs:
+        if not isinstance(proof, dict) or proof.get("name") != acl_name:
+            continue
+        source = proof.get("workflow_run")
+        acl_created = parse_iso(proof.get("created_at"))
+        if (proof.get("expired") is True or not isinstance(source, dict)
+                or source.get("head_branch") != "main"
+                or not isinstance(source.get("id"), int)
+                or source["id"] not in correlated_runs
+                or acl_created is None or not created <= acl_created <= now):
+            continue
+        # The original exact-backup witness proves the same workflow completed
+        # Postgres and Storage; GitHub links the ACL witness to that run.
+        if any(start <= acl_created for start, rid, _ in matched_proofs
+               if rid == source["id"]):
+            acl_verified_runs.add(source["id"])
     proof_at, restore_run_id, proof_artifact_id = max(matched_proofs)
     return {"ready": True, "reason": "recent_encrypted_backup_and_correlated_partial_restore",
             "artifact_id": artifact_id, "backup_run_id": backup_run_id,
             "restore_run_id": restore_run_id, "proof_artifact_id": proof_artifact_id,
+            "acl_snapshot_verified": restore_run_id in acl_verified_runs,
+            "full_disaster_recovery_certified": False,
             "age_hours": round(age, 2),
             "remaining_hours": round(remaining, 2),
             "partial_restore_at": proof_at.isoformat()}
