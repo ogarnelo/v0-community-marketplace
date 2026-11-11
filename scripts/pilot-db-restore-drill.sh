@@ -10,13 +10,7 @@ umask 077
 : "${BACKUP_ENCRYPTION_PASSWORD:?}"
 : "${LOCAL_RESTORE_URL:?}"
 
-python3 - <<'PY'
-from urllib.parse import urlsplit
-import os
-url = urlsplit(os.environ["LOCAL_RESTORE_URL"])
-if url.scheme not in ("postgresql", "postgres") or url.hostname not in ("127.0.0.1", "localhost", "::1"):
-    raise SystemExit("Refusing to restore to a nonlocal Postgres server")
-PY
+python3 scripts/pilot-local-restore-target-check.py
 
 repo_root="$(pwd)"
 workdir="$(mktemp -d)"
