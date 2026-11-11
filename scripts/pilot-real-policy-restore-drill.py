@@ -98,26 +98,52 @@ def drill(archive, toc, url):
         if count != "2":
             raise AssertionError("Real backup policies absent after restore")
         # Session-local JWT claims are synthetic. No user accounts exist.
+        # Exercise both directions: cross-family SELECT/DELETE must fail even
+        # after the first family legitimately removes its own record.
         checks = psql(dest, """
         BEGIN;
           SELECT set_config('request.jwt.claim.sub','""" + ID1 + """',true);
           SET LOCAL ROLE authenticated;
-          SELECT 'visible='||count(*) FROM public.saved_search_matches;
+          SELECT 'owner1_visible='||count(*) FROM public.saved_search_matches;
           WITH deleted AS (
              DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
-          SELECT 'cross_delete='||count(*) FROM deleted;
+          SELECT 'owner1_cross_delete='||count(*) FROM deleted;
           WITH deleted AS (
              DELETE FROM public.saved_search_matches WHERE id=1 RETURNING id)
-          SELECT 'own_delete='||count(*) FROM deleted;
+          SELECT 'owner1_own_delete='||count(*) FROM deleted;
+        COMMIT;
+
+        BEGIN;
+          SELECT set_config('request.jwt.claim.sub','""" + ID2 + """',true);
+          SET LOCAL ROLE authenticated;
+          SELECT 'owner2_visible='||count(*) FROM public.saved_search_matches;
+          WITH deleted AS (
+             DELETE FROM public.saved_search_matches WHERE id=1 RETURNING id)
+          SELECT 'owner2_cross_delete='||count(*) FROM deleted;
+        COMMIT;
+
+        -- An authenticated role without a JWT subject must not see or delete
+        -- any remaining owner-owned row.
+        BEGIN;
+          SELECT set_config('request.jwt.claim.sub','',true);
+          SET LOCAL ROLE authenticated;
+          SELECT 'missing_jwt_visible='||count(*) FROM public.saved_search_matches;
+          WITH deleted AS (
+             DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
+          SELECT 'missing_jwt_delete='||count(*) FROM deleted;
         COMMIT;
         SELECT 'remaining='||count(*) FROM public.saved_search_matches;
         """).splitlines()
-        expected = {"visible=1", "cross_delete=0", "own_delete=1", "remaining=1"}
+        expected = {
+            "owner1_visible=1", "owner1_cross_delete=0", "owner1_own_delete=1",
+            "owner2_visible=1", "owner2_cross_delete=0",
+            "missing_jwt_visible=0", "missing_jwt_delete=0", "remaining=1"}
         if not expected.issubset(set(checks)):
-            raise AssertionError("Restored RLS policy failed owner isolation checks")
+            raise AssertionError(
+                "Restored RLS policies failed mutual owner / missing-JWT checks")
         print("PASS: two REAL archived policies installed on disposable PG17; "
-              "owner sees/deletes own synthetic row, cross-family row hidden; "
-              "no backup data rows, real Auth or Storage restored.")
+              "mutual owner isolation and missing-JWT denial verified with "
+              "synthetic rows; no real backup rows, Auth or Storage restored.")
     finally:
         psql(url, "drop database if exists " + DB + " with (force)")
 
