@@ -12,6 +12,8 @@ on:
       - "scripts/pilot-db-restore-drill.sh"
       - "scripts/pilot-alert-encrypted-backup-freshness.py"
       - "scripts/pilot-db-backup-critical-toc.py"
+      - "scripts/pilot-managed-schema-toc-coverage.py"
+      - "scripts/pilot_db_backup_toc_compat.py"
 
 permissions:
   contents: read
