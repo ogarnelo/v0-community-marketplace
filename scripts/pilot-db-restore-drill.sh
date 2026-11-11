@@ -35,7 +35,7 @@ python3 "$repo_root/scripts/pilot-safe-encrypted-backup-zip.py" artifact.zip bac
 # path is relative to the workflow runner's root 'backup/' directory.
 test -s backup/wetudy.dump.enc
 test -s backup/SHA256SUMS.txt
-sha256sum -c backup/SHA256SUMS.txt > /dev/null
+python3 "$repo_root/scripts/pilot-verify-backup-sha256.py" backup
 
 # Backward-compatible with the previous seven-day archives, which were made
 # with pg_dump --no-acl and lacked a separate privilege snapshot. Newer

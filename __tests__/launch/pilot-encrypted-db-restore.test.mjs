@@ -13,7 +13,7 @@ test("restore drill uses ephemeral local PostgreSQL and an encrypted existing ar
   assert.match(workflow, /WETUDY_BACKUP_ENCRYPTION_PASSWORD/);
   assert.match(script, /pilot-local-restore-target-check\.py/);
   assert.match(script, /wetudy-encrypted-postgres-backup/);
-  assert.match(script, /sha256sum -c backup\/SHA256SUMS\.txt/);
+  assert.match(script, /pilot-verify-backup-sha256\.py/);
   assert.match(script, /openssl enc -d -aes-256-cbc -pbkdf2/);
   assert.doesNotMatch(script, /WETUDY_BACKUP_DATABASE_URL|CREATE DATABASE.+supabase/);
 });
