@@ -16,6 +16,14 @@ for token in ("relrowsecurity","anon_applicable_select_policies","anon_applicabl
               "REVIEW_ANON_SELECT_RLS_POLICY","REVIEW_ANON_WRITE_RLS_POLICY",
               "CATALOG_PASS_NEEDS_E2E"):
     assert token in sql, "missing fail-closed audit token: "+token
+server_only=("marketplace_alert_outbox","marketplace_postal_centroids","school_directory",
+ "school_impact_report_deliveries","school_impact_report_subscriptions","super_admin_report_subscriptions")
+for table in server_only:
+    assert "('"+table+"')" in sql, "missing private server-only table "+table
+for token in ("PASS_SERVER_ONLY_NO_POLICIES","NO_GO_SERVER_ONLY_GRANT_OR_POLICY_DRIFT",
+              "has_table_privilege('authenticated',c.oid,'SELECT')",
+              "has_table_privilege('service_role',c.oid,'SELECT')"):
+    assert token in sql
 clean="\n".join(line.split("--")[0] for line in sql.splitlines())
 assert not re.search(r"(?im)^\s*(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|GRANT|REVOKE|TRUNCATE)\b",clean)
-print("PASS: 12-table catalog audit read-only, separates effective grants from RLS policies")
+print("PASS: 12-table ACL/RLS audit + 6 server-only table grants, metadata only")
