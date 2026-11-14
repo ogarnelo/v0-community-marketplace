@@ -27,6 +27,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Conversación no encontrada." }, { status: 404 });
   }
 
+  // Defense in depth: never resolve privileged profiles for a nonparticipant,
+  // even if a future RLS migration accidentally broadens conversation SELECT.
+  if (conversation.buyer_id !== user.id && conversation.seller_id !== user.id) {
+    return NextResponse.json({ error: "Conversación no encontrada." }, { status: 404 });
+  }
+
   const otherUserId =
     conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id;
 
