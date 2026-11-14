@@ -15,6 +15,7 @@ import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 import { sendGatedMarketplaceAlertWithIntent } from "@/lib/emails/marketplace-alert-intent-gated";
 import { shouldUseAlertIntentDelivery } from "@/lib/marketplace/alert-intent-feature-gate.mjs";
 import { recordNeedResult } from "@/lib/demand/need-attribution";
+import { savedSearchAlertsEnabled } from "@/lib/marketplace/saved-search-alert-rollout.mjs";
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +29,10 @@ export async function POST(request: Request) {
       Boolean(cronSecret) &&
       request.headers.get("authorization") === `Bearer ${cronSecret}` &&
       request.headers.get("x-wetudy-alert-outbox") === "1";
+    // Paused lease must be requeued, never acknowledged or failed.
+    if (isOutboxWorker && !savedSearchAlertsEnabled()) {
+      return NextResponse.json({ ok: true, complete: false, paused: true, reason: "alerts_disabled" }, { status: 202 });
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user && !isOutboxWorker) {
       return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
@@ -279,6 +284,12 @@ export async function POST(request: Request) {
       }
     }
 
+    }
+
+    // Preserve matching and need attribution, but skip delivery while disabled.
+    if (!savedSearchAlertsEnabled()) {
+      return NextResponse.json({ ok: true, complete: true, alertsDisabled: true,
+        matched: matches.length, notified: 0, emailed: 0, supplyGenerated });
     }
 
     // A change to profiles.postal_code doesn't update a saved search's
