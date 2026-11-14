@@ -44,12 +44,15 @@ export async function POST(request: Request) {
 
     const adminSupabase = createAdminClient();
 
-    const { data: offer } = await adminSupabase
+    const { data: offer, error: offerLookupError } = await adminSupabase
       .from("listing_offers")
       .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, counter_price, status")
       .eq("id", offerId)
       .maybeSingle();
 
+    if (offerLookupError) {
+      return NextResponse.json({ error: "No se pudo verificar la oferta." }, { status: 503 });
+    }
     if (!offer) {
       return NextResponse.json({ error: "Oferta no encontrada." }, { status: 404 });
     }
@@ -74,27 +77,35 @@ export async function POST(request: Request) {
       shipmentTier,
     });
 
-    const { data: listing } = await adminSupabase
+    const { data: listing, error: listingLookupError } = await adminSupabase
       .from("listings")
       .select("id, status")
       .eq("id", offer.listing_id)
       .maybeSingle();
 
+    if (listingLookupError) {
+      return NextResponse.json({ error: "No se pudo verificar el anuncio." }, { status: 503 });
+    }
     if (!listing) {
       return NextResponse.json({ error: "El anuncio ya no está disponible." }, { status: 404 });
     }
 
-    if (!["available", "reserved", "sold"].includes(String(listing.status))) {
+    // Sold listings cannot start another checkout. A reserved listing may
+    // continue only for its already-accepted offer; uniqueness protects retries.
+    if (!["available", "reserved"].includes(String(listing.status))) {
       return NextResponse.json({ error: "El anuncio no permite preparar el pago." }, { status: 400 });
     }
 
-    const { data: conversation } = await adminSupabase
+    const { data: conversation, error: conversationLookupError } = await adminSupabase
       .from("conversations")
       .select("id")
       .eq("listing_id", offer.listing_id)
       .eq("buyer_id", offer.buyer_id)
       .eq("seller_id", offer.seller_id)
       .maybeSingle();
+    if (conversationLookupError) {
+      return NextResponse.json({ error: "No se pudo verificar la conversación." }, { status: 503 });
+    }
 
     const now = new Date().toISOString();
 
@@ -117,10 +128,12 @@ export async function POST(request: Request) {
           buyer_fee_amount: pricing.buyerFeeAmount,
           shipping_amount: pricing.shippingAmount,
           seller_net_amount: pricing.sellerNetAmount,
+          platform_fee_amount: pricing.buyerFeeAmount,
           shipment_tier: pricing.shipmentTier,
           metadata: {
             source: "offer_acceptance",
             delivery_method: pricing.deliveryMethod,
+            total_buyer_amount: pricing.totalBuyerAmount,
           },
           updated_at: now,
         }
@@ -149,11 +162,14 @@ export async function POST(request: Request) {
     }
 
     if (listing.status === "available") {
-      await adminSupabase
+      const { error: reserveError } = await adminSupabase
         .from("listings")
         .update({ status: "reserved" })
         .eq("id", listing.id)
         .eq("status", "available");
+      if (reserveError) {
+        return NextResponse.json({ error: "El pago se registró, pero no se pudo reservar el anuncio." }, { status: 503 });
+      }
     }
 
     return NextResponse.json({
