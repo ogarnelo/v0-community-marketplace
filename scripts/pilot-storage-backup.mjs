@@ -85,8 +85,17 @@ export async function exportBuckets(client, baseDirectory) {
           const raw = Buffer.from(await body.arrayBuffer());
           totalBytes += raw.length;
           if (totalBytes > MAX_BYTES) throw new Error("Storage backup size limit reached");
-          const claimedSize = Number(item.metadata?.size);
-          if (Number.isFinite(claimedSize) && claimedSize > 0 && raw.length !== claimedSize) {
+          // A missing, malformed or zero-sized metadata value must not be
+          // silently accepted as a positive-length object. Otherwise the
+          // encrypted archive can look internally consistent while omitting
+          // an inconsistent upstream Storage object during a disaster.
+          const metadataSize = item.metadata?.size;
+          const claimedSize = Number(metadataSize);
+          if (
+            metadataSize === undefined || metadataSize === null ||
+            metadataSize === "" || !Number.isSafeInteger(claimedSize) ||
+            claimedSize < 0 || raw.length !== claimedSize
+          ) {
             throw new Error("Storage object metadata size mismatch");
           }
           const location = path.join(baseDirectory, bucket, ...objectPath.split("/"));

@@ -78,3 +78,52 @@ test("Storage workflow does not require a non-existent npm lockfile", () => {
   assert.match(w, /@supabase\/supabase-js@2\.119\.0/);
   assert.match(w, /node scripts\/pilot-storage-backup\.mjs/);
 });
+
+test("Storage export rejects missing, malformed, zero-mismatch and negative sizes", async () => {
+  const cases = [
+    { size: undefined, expected: "missing size" },
+    { size: "NaN", expected: "malformed size" },
+    { size: -2, expected: "negative size" },
+    { size: 0, expected: "zero metadata but nonempty download" },
+    { size: 1.5, expected: "fractional size" },
+  ];
+  for (const { size, expected } of cases) {
+    const client = {
+      storage: {
+        from: () => ({
+          list: async () => ({ data: [{ name: "test.webp", id: "fixture", metadata: { size } }], error: null }),
+          download: async () => ({ data: new Blob([Buffer.from("img")]), error: null }),
+        }),
+      },
+    };
+    const dir = await mkdtemp(path.join(os.tmpdir(), "wetudy-storage-size-negative-"));
+    try {
+      await assert.rejects(exportBuckets(client, dir), /metadata size mismatch/, expected);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("Storage export correctly accepts an actual zero-byte object", async () => {
+  const dataByBucket = {
+    "listing-photos": [{ name: "empty.webp", id: "photo", metadata: { size: 0 } }],
+    "chat-attachments": [{ name: "note.txt", id: "note", metadata: { size: 4 } }],
+  };
+  const client = {
+    storage: { from: (bucket) => ({
+      list: async () => ({ data: dataByBucket[bucket], error: null }),
+      download: async () => ({
+        data: new Blob([bucket === "listing-photos" ? Buffer.alloc(0) : Buffer.from("note")]),
+        error: null,
+      }),
+    }) },
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "wetudy-storage-zero-pass-"));
+  try {
+    assert.deepEqual(await exportBuckets(client, dir), { files: 2, bytes: 4 });
+    assert.deepEqual(await verifyStorageDirectory(dir), { objects: 2, bytes: 4 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
