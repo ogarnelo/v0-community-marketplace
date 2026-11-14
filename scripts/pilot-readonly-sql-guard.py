@@ -8,6 +8,7 @@ PATHS = (
     "scripts/pilot-privacy-prod-preflight-readonly.sql",
     "scripts/pilot-dr-prod-inventory-readonly.sql",
     "scripts/pilot-cross-table-anon-acl-readonly.sql",
+    "scripts/pilot-dr-storage-aggregate-readonly.sql",
 )
 
 class UnsafePreflight(ValueError):
