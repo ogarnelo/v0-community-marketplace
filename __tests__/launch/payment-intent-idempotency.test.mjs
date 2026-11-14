@@ -24,3 +24,25 @@ test("local PG17 reproduces partial index conflict and verifies paid state untou
  assert.match(sql,/status FROM qa_payment_intents WHERE offer_id=501/);
  assert.match(ci,/pilot-payment-intent-partial-unique-regression\.sql/);
 });
+
+const service=readFileSync("lib/services/payments.service.ts","utf8");
+const stripe=readFileSync("app/actions/stripe.ts","utf8");
+test("shared service inserts new drafts and rejects duplicate completed payments",()=>{
+ assert.match(service,/\.from\("payment_intents"\)\s*\.insert\(/);
+ assert.doesNotMatch(service,/\.from\("payment_intents"\)\s*\.upsert\(/);
+ assert.match(service,/error\?\.code === "23505"/);
+});
+test("Stripe checkout cannot reset a finalized payment",()=>{
+ assert.match(stripe,/existingPayment\.status !== 'requires_payment_method'/);
+ assert.match(stripe,/\.from\('payment_intents'\)\s*\.update\(pendingUpdate\)/);
+ assert.match(stripe,/\.eq\('status', 'requires_payment_method'\)/);
+ assert.match(stripe,/\.from\('payment_intents'\)\s*\.insert\(paymentPayload\)/);
+ assert.doesNotMatch(stripe,/\.from\('payment_intents'\)\s*\.upsert\(/);
+ assert.doesNotMatch(stripe,/onConflict:\s*['"]offer_id['"]/);
+ assert.match(stripe,/!registeredPayment/);
+});
+test("all four payment entry points are protected",()=>{
+ for(const [name,src] of [["buy",buy],["create",prepare],["service",service],["stripe",stripe]])
+   assert.doesNotMatch(src,/\.from\(["']payment_intents["']\)\s*\.upsert\(/,name);
+ assert.match(sql,/GET DIAGNOSTICS changed_rows = ROW_COUNT/);
+});
