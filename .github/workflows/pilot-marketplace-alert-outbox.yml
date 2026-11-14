@@ -32,6 +32,7 @@ on:
       - "supabase/migrations/20261110231500_marketplace_alert_expired_lease_fencing.sql"
       - "scripts/pilot-marketplace-alert-expired-lease-fencing.sql"
       - "scripts/pilot-marketplace-alert-full-schema-smoke.sql"
+      - "scripts/pilot-marketplace-select-only-dml-contract.sql"
       - "scripts/pilot-marketplace-photo-policy-revoke-qa.sql"
       - "scripts/pilot-auth-listings-sensitive-grants-qa.sql"
       - "scripts/pilot-auth-listings-sensitive-grants-proposal.sql"
@@ -104,4 +105,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-anon-revoke-qa.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-auth-listings-sensitive-grants-qa.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-photo-policy-revoke-qa.sql
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-select-only-dml-contract.sql
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f scripts/pilot-marketplace-alert-full-schema-smoke.sql
