@@ -88,6 +88,7 @@ export async function GET(request: Request) {
     const stage = discoveryState.discovery_completed_at ? "deliver" : "discover";
     let success = false;
     let partialProgress = false;
+    let alertsPaused = false;
     let awaitingPhotos = false;
     let reviewRequired = false;
     let errorCode = "unknown";
@@ -129,6 +130,8 @@ export async function GET(request: Request) {
             const body = await response.json();
             success = body?.ok === true && body?.complete === true;
             partialProgress = body?.ok === true && body?.complete === false;
+            alertsPaused = response.status === 202 && partialProgress &&
+              body?.paused === true && body?.reason === "alerts_disabled";
             if (!success && !partialProgress) errorCode = "unexpected_matcher_body";
           } else if (response.status === 409) {
             const body = await response.json().catch(() => null);
@@ -192,6 +195,24 @@ export async function GET(request: Request) {
         status: 202,
         headers: { "Cache-Control": "no-store" },
       });
+    }
+
+    if (alertsPaused) {
+      // Roll back the claim-only attempt, retain earlier delivery failures,
+      // and wait before checking again. Never acknowledge as delivered.
+      const { data: paused, error: pauseError } = await admin.rpc(
+        "marketplace_alert_pause_outbox_v1", {
+          p_listing_id: job.listing_id,
+          p_lease_token: job.lease_token,
+        }
+      );
+      if (pauseError) throw pauseError;
+      if (paused !== true) {
+        return Response.json({ ok: false, reason: "stale_lease" }, { status: 409 });
+      }
+      return Response.json({ ok: true, complete: false, claimed: 1,
+        outcome: "alerts_paused" }, { status: 202,
+        headers: { "Cache-Control": "no-store" } });
     }
 
     if (partialProgress) {
