@@ -14,6 +14,8 @@ on:
       - "scripts/pilot-privacy-client-surface-gate.mjs"
       - "scripts/pilot-privacy-postgrest-local-qa.sql"
       - "scripts/pilot-privacy-postgrest-local-qa.cjs"
+      - "scripts/pilot-privacy-real-grants-postgrest-qa.sql"
+      - "scripts/pilot-privacy-real-grants-postgrest-qa.cjs"
 permissions:
   contents: read
 jobs:
@@ -77,3 +79,5 @@ jobs:
           node scripts/pilot-three-ampa-real-next-browser.cjs
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-privacy-postgrest-local-qa.sql
           node scripts/pilot-privacy-postgrest-local-qa.cjs
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-privacy-real-grants-postgrest-qa.sql
+          node scripts/pilot-privacy-real-grants-postgrest-qa.cjs
