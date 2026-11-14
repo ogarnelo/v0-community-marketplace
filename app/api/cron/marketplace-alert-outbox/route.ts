@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { alertOutboxWorkerEnabled } from "@/lib/marketplace/saved-search-alert-rollout.mjs";
 
 // No Vercel cron is registered for this route during the pilot QA phase.
 // The worker is inert unless BOTH a signed request and the explicit feature
@@ -20,8 +21,7 @@ export async function GET(request: Request) {
 
   // Require BOTH explicit rollout flags. Enabling only the legacy outbox flag
   // must never trigger the older, non-intent email delivery path.
-  if (process.env.WETUDY_ALERT_OUTBOX_ENABLED !== "true" ||
-      process.env.WETUDY_ALERT_INTENT_DELIVERY_ENABLED !== "true") {
+  if (!alertOutboxWorkerEnabled()) {
     return new Response(null, { status: 204 });
   }
 
