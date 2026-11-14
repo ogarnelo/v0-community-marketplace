@@ -3,8 +3,8 @@
 // WETUDY Free plan: offline code-contract gate. NO network, secrets or production reads.
 // This verifies backup workflows do not silently become scheduled/unencrypted.
 // It is NOT proof an artifact exists, is current or is restorable.
-const assert=require("node:assert/strict");
-const fs=require("node:fs");
+import assert from "node:assert/strict";
+import fs from "node:fs";
 const db=fs.readFileSync(".github/workflows/wetudy-encrypted-db-backup.yml","utf8");
 const st=fs.readFileSync(".github/workflows/wetudy-encrypted-storage-backup.yml","utf8");
 const exportCode=fs.readFileSync("scripts/pilot-storage-backup.mjs","utf8");
