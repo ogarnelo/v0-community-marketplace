@@ -56,6 +56,8 @@ export default function ConversationListingState({
           event: "UPDATE",
           schema: "public",
           table: "listings",
+          // Keep seller location and other fields out of the realtime payload.
+          select: ["id", "status"],
           filter: `id=eq.${listingId}`,
         },
         (payload) => {
