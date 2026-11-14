@@ -9,8 +9,8 @@ const pricing=readFileSync("lib/payments/pricing.ts","utf8");
 test("both checkout paths keep item price in payment_intents.amount and fees separate",()=>{
  for(const [name,source] of [["buy-now",buy],["offer-checkout",offer]]){
    const payload=source.slice(source.indexOf('.from("payment_intents")'));
-   assert.match(payload,/amount: pricing\.itemAmount/,"missing item amount: "+name);
-   assert.doesNotMatch(payload,/amount: pricing\.totalBuyerAmount/,"double counted buyer total: "+name);
+   assert.match(payload,/^\s*amount: pricing\.itemAmount/m,"missing item amount: "+name);
+   assert.doesNotMatch(payload,/^\s*amount: pricing\.totalBuyerAmount/m,"double counted buyer total: "+name);
    assert.match(payload,/buyer_fee_amount: pricing\.buyerFeeAmount/);
    assert.match(payload,/shipping_amount: pricing\.shippingAmount/);
  }
