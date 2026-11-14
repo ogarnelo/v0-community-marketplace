@@ -12,6 +12,7 @@ on:
       - "scripts/pilot-privacy-acl-restore-qa.py"
       - "scripts/pilot-dr-prod-inventory-readonly.sql"
       - "scripts/pilot-dr-prod-inventory-contract.py"
+      - "scripts/pilot-free-plan-backup-contract.mjs"
       - "scripts/pilot-anon-listings-revoke-proposal.sql"
       - "scripts/pilot-auth-listings-sensitive-grants-proposal.sql"
       - "scripts/pilot-wave1-client-privilege-regression.py"
@@ -71,6 +72,8 @@ jobs:
         run: python3 scripts/pilot-wave1-client-privilege-regression.py
       - name: Assert full production DR cannot be certified from synthetic fixtures
         run: python3 scripts/pilot-dr-prod-inventory-contract.py
+      - name: Verify no-cost manual encrypted backup workflow controls
+        run: node scripts/pilot-free-plan-backup-contract.mjs
       - name: Recover synthetic private listing ACLs and RLS into a second local PG17 DB
         run: python3 scripts/pilot-privacy-acl-restore-qa.py
       - name: Audit client EXECUTE grants on synthetic SECURITY DEFINER functions
