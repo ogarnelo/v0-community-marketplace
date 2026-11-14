@@ -5,8 +5,8 @@ const worker=readFileSync("app/api/cron/marketplace-alert-outbox/route.ts","utf8
 const schema=readFileSync("supabase/migrations/20261110211000_marketplace_alert_email_send_intents_v1.sql","utf8");
 const vercel=JSON.parse(readFileSync("vercel.json","utf8"));
 
-test("signed worker checks both feature flags and all schema readiness before claiming",()=>{
- const flag=worker.indexOf('WETUDY_ALERT_INTENT_DELIVERY_ENABLED !== "true"');
+test("signed worker checks all three feature flags and schema readiness before claiming",()=>{
+ const flag=worker.indexOf("if (!alertOutboxWorkerEnabled())");
  const table=worker.indexOf('.from("marketplace_alert_email_intents")');
  const intentHealth=worker.indexOf('"marketplace_alert_email_intent_health_v1"');
  const reviewHealth=worker.indexOf('"marketplace_alert_review_count_v1"');

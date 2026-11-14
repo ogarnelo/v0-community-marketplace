@@ -48,6 +48,8 @@ test("isolated database fixture verifies anti-spoofing and normal readiness dela
 
 test("feature flag and cron remain off; no recipient mail is sent by these changes",()=>{
   assert.equal(vercel.crons.filter(x=>x.path.includes("marketplace-alert-outbox")).length,0);
-  assert.match(worker,/WETUDY_ALERT_OUTBOX_ENABLED !== "true"/);
+  assert.match(worker,/if \(!alertOutboxWorkerEnabled\(\)\)/);
+  assert.ok(worker.indexOf("if (!alertOutboxWorkerEnabled())") <
+    worker.indexOf('"marketplace_alert_claim_outbox_v1"'));
   assert.doesNotMatch(migration,/sendTransactionalEmailOnce|sendSavedSearchMatchEmail/);
 });
