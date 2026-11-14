@@ -9,6 +9,9 @@ on:
       - "scripts/pilot-marketplace-rls-drift-fixture.sql"
       - "scripts/pilot-marketplace-rls-drift-regression.py"
       - "scripts/pilot-client-tablewide-privileges-regression.py"
+      - "scripts/pilot-privacy-acl-restore-qa.py"
+      - "scripts/pilot-anon-listings-revoke-proposal.sql"
+      - "scripts/pilot-auth-listings-sensitive-grants-proposal.sql"
       - "scripts/pilot-wave1-client-privilege-regression.py"
       - "supabase/migrations/20261111084000_pilot_wave1_revoke_client_non_rls_privileges.sql"
       - "scripts/pilot-client-tablewide-privileges-regression.sql"
@@ -64,5 +67,7 @@ jobs:
         run: python3 scripts/pilot-client-tablewide-privileges-regression.py
       - name: Verify wave-1 client privilege revocation in disposable PostgreSQL17
         run: python3 scripts/pilot-wave1-client-privilege-regression.py
+      - name: Recover synthetic private listing ACLs and RLS into a second local PG17 DB
+        run: python3 scripts/pilot-privacy-acl-restore-qa.py
       - name: Audit client EXECUTE grants on synthetic SECURITY DEFINER functions
         run: python3 scripts/pilot-client-privilege-function-regression.py
