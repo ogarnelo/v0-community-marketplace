@@ -32,6 +32,14 @@ for token in ("NO_GO_ADMIN_ROLE_ESCALATION_CATALOG",
               "admin_insert_only","admin_update_only","admin_delete_only"):
     assert token in source, "missing admin-role catalog control: "+token
 assert "tablename='user_roles'" in source
+# A single safe RLS policy is insufficient if another permissive policy is ORed.
+for token in ("NO_GO_ALTERNATIVE_RLS_POLICY","PASS_EXCLUSIVE_POLICY_CATALOG_NEEDS_E2E",
+              "applicable_policy_count=1 AND expected_policy_count=1",
+              "p.cmd IN (e.command,'ALL')","p.roles=ARRAY['authenticated']::name[]",
+              "('conversations','SELECT','chat')","('messages','SELECT','chat')",
+              "('user_roles','INSERT','admin')","('user_roles','UPDATE','admin')",
+              "('user_roles','DELETE','admin')"):
+    assert token in source, "missing alternative policy fail-closed gate: "+token
 # Ignore SQL comments; reject any actual data mutations in this audit script.
 clean="\n".join(line.split("--")[0] for line in source.splitlines())
 assert not re.search(r"(?im)^\s*(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE|TRUNCATE)\b", clean)
