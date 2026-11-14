@@ -59,3 +59,34 @@ BEGIN
  THEN RAISE EXCEPTION 'SELECT-only proposal unexpectedly removed existing DML grants'; END IF;
 END $$;
 NOTIFY pgrst, 'reload schema';
+
+-- Phase 3: reproduce authenticated photo CRUD RLS dependencies on listings.
+GRANT INSERT,UPDATE,DELETE ON public.listing_photos TO authenticated;
+ALTER TABLE public.listing_photos ADD COLUMN IF NOT EXISTS sort_order integer;
+CREATE POLICY qa_photo_insert_owner ON public.listing_photos FOR INSERT TO authenticated
+ WITH CHECK (EXISTS(SELECT 1 FROM public.listings l
+ WHERE l.id=listing_photos.listing_id AND l.seller_id=(SELECT auth.uid())));
+CREATE POLICY qa_photo_update_owner ON public.listing_photos FOR UPDATE TO authenticated
+ USING (EXISTS(SELECT 1 FROM public.listings l
+ WHERE l.id=listing_photos.listing_id AND l.seller_id=(SELECT auth.uid())))
+ WITH CHECK (EXISTS(SELECT 1 FROM public.listings l
+ WHERE l.id=listing_photos.listing_id AND l.seller_id=(SELECT auth.uid())));
+CREATE POLICY qa_photo_delete_owner ON public.listing_photos FOR DELETE TO authenticated
+ USING (EXISTS(SELECT 1 FROM public.listings l
+ WHERE l.id=listing_photos.listing_id AND l.seller_id=(SELECT auth.uid())));
+-- Conversations policy in production references l.id, l.seller_id and l.status.
+CREATE TABLE public.qa_privacy_conversations(
+ id uuid PRIMARY KEY, listing_id uuid NOT NULL, seller_id uuid NOT NULL,
+ buyer_id uuid NOT NULL
+);
+ALTER TABLE public.qa_privacy_conversations ENABLE ROW LEVEL SECURITY;
+GRANT SELECT,INSERT ON public.qa_privacy_conversations TO authenticated;
+CREATE POLICY qa_conversation_participant_read ON public.qa_privacy_conversations
+ FOR SELECT TO authenticated USING (
+ buyer_id=(SELECT auth.uid()) OR seller_id=(SELECT auth.uid()));
+CREATE POLICY qa_conversation_buyer_insert ON public.qa_privacy_conversations
+ FOR INSERT TO authenticated WITH CHECK (
+ buyer_id=(SELECT auth.uid()) AND seller_id<>(SELECT auth.uid())
+ AND EXISTS(SELECT 1 FROM public.listings l WHERE l.id=listing_id
+ AND l.seller_id=qa_privacy_conversations.seller_id AND l.status='available'));
+NOTIFY pgrst, 'reload schema';

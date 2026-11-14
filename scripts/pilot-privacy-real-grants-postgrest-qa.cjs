@@ -71,6 +71,49 @@ const denied=(x,label)=>{
  assert.ifError(r.error);assert.equal(r.data.length,1);
  r=await admin.from("listings").select("id,status").order("id");
  assert.ifError(r.error);assert.equal(r.data.length,6,"school rows, archived row and two owner listings");
+
+ // Phase 3: owner-created photos and buyer-created conversation use real RLS,
+ // with SELECT-only exact grants already applied to listings above.
+ const photoId="88888888-8888-4888-8888-888888888892";
+ r=await owner.c.from("listing_photos").insert({
+   id:photoId,listing_id:id,url:"https://example.invalid/qa-owner-photo",
+   sort_order:0
+ }).select("id,url");
+ assert.ifError(r.error);assert.equal(r.data?.[0]?.id,photoId);
+ r=await outsider.c.from("listing_photos").update({
+   url:"https://example.invalid/unauthorized"
+ }).eq("id",photoId).select("id");
+ assert.ifError(r.error);assert.equal(r.data.length,0,
+   "Outsider must not edit another seller's photo");
+ r=await owner.c.from("listing_photos").update({
+   url:"https://example.invalid/qa-owner-photo-edited"
+ }).eq("id",photoId).select("id,url");
+ assert.ifError(r.error);
+ assert.equal(r.data?.[0]?.url,"https://example.invalid/qa-owner-photo-edited");
+ r=await outsider.c.from("listing_photos").delete().eq("id",photoId).select("id");
+ assert.ifError(r.error);assert.equal(r.data.length,0,
+   "Outsider must not delete another seller's photo");
+ const conversationId="88888888-8888-4888-8888-888888888893";
+ r=await outsider.c.from("qa_privacy_conversations").insert({
+   id:conversationId,listing_id:id,seller_id:owner.user.id,
+   buyer_id:outsider.user.id
+ }).select("id");
+ assert.ifError(r.error);assert.equal(r.data?.[0]?.id,conversationId);
+ r=await owner.c.from("qa_privacy_conversations").select("id,buyer_id")
+ .eq("id",conversationId);
+ assert.ifError(r.error);assert.equal(r.data.length,1);
+ r=await outsider.c.from("qa_privacy_conversations").insert({
+   id:"88888888-8888-4888-8888-888888888894",listing_id:id,
+   seller_id:outsider.user.id,buyer_id:outsider.user.id
+ }).select("id");
+ denied(r,"Buyer must not invent a different seller or converse with self");
+ r=await owner.c.from("listing_photos").delete().eq("id",photoId).select("id");
+ assert.ifError(r.error);assert.equal(r.data?.[0]?.id,photoId);
+ r=await admin.from("listing_photos").select("id").eq("id",photoId);
+ assert.ifError(r.error);assert.equal(r.data.length,0);
+ console.log("PASS phase3 RLS owner photos INSERT/UPDATE/DELETE, outsider denied,"+
+ " buyer conversation inserts, forged seller denied under exact 33-column SELECT");
+
  console.log("PASS phase2 exact SELECT-only grant: owner creates and edits postcode,"+
  " other user and anon cannot mutate, 33-column reads, photos, service data intact");
 })().catch(e=>{console.error("Local PostgREST exact-proposal phase2 failed:",e.message);
