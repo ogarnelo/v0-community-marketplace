@@ -32,13 +32,15 @@ try:
     sql=open("scripts/pilot-anon-listings-dml-hardening-proposal.sql",encoding="utf8").read()
     p=subprocess.run(["psql","-X","-v","ON_ERROR_STOP=1","--dbname",dburl(name)],
                      input=sql,text=True,capture_output=True,timeout=50)
-    if p.returncode==0 or "NO_GO: anon still has listings table/column DML privileges" not in p.stderr:
-        raise AssertionError("proposal did not produce expected NO_GO: rc="+str(p.returncode)+"; stderr_tail="+repr(p.stderr[-600:]))
-    run(name,"REVOKE INSERT(id), UPDATE(postal_code) ON public.listings FROM anon")
-    # With no surviving column privileges, the same review proposal must pass.
-    p=subprocess.run(["psql","-X","-v","ON_ERROR_STOP=1","--dbname",dburl(name)],
-                     input=sql,text=True,capture_output=True,timeout=50)
-    if p.returncode!=0: raise AssertionError("proposal rejects clean permission state")
-    print("PASS PG17: column-only anon INSERT/UPDATE causes NO_GO; cleaned state passes")
+    if p.returncode!=0:
+        raise AssertionError("review-only proposal rejected column-grant fixture: "+repr(p.stderr[-300:]))
+    cleared=run(name,"SELECT NOT has_any_column_privilege('anon','public.listings','INSERT') AND NOT has_any_column_privilege('anon','public.listings','UPDATE') AND NOT has_table_privilege('anon','public.listings','DELETE') AND has_column_privilege('authenticated','public.listings','postal_code','UPDATE')")
+    if cleared.strip()!="t": raise AssertionError("table REVOKE left column DML privileges or damaged seller permissions")
+    # Simulate drift AFTER proposal: a new column grant must reopen the NO_GO gate.
+    run(name,"GRANT INSERT(id), UPDATE(postal_code) ON public.listings TO anon")
+    drift=run(name,"SELECT CASE WHEN has_table_privilege('anon','public.listings','INSERT') OR has_table_privilege('anon','public.listings','UPDATE') OR has_table_privilege('anon','public.listings','DELETE') OR has_any_column_privilege('anon','public.listings','INSERT') OR has_any_column_privilege('anon','public.listings','UPDATE') THEN 'NO_GO_ANON_DML_GRANTS' ELSE 'PASS_ANON_DML_GRANTS_REVOKED' END")
+    if drift.strip()!="NO_GO_ANON_DML_GRANTS":
+        raise AssertionError("drift gate missed reintroduced anon column grants")
+    print("PASS PG17: table REVOKE removes column DML; seller UPDATE preserved; later grant yields NO_GO")
 finally:
     run("wetudy_pilot_dr_source","DROP DATABASE IF EXISTS "+name+" WITH (FORCE)")
