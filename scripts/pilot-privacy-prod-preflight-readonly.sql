@@ -128,4 +128,56 @@ LEFT JOIN LATERAL aclexplode(a.attacl) AS grants ON true
 WHERE a.attrelid='public.listings'::regclass
   AND a.attnum>0 AND NOT a.attisdropped;
 
+
+-- P0 catalog-only guard against accidental admin-role escalation.
+-- RLS policy signatures are necessary but not sufficient: E2E with an unprivileged
+-- authenticated account must still attempt INSERT/UPDATE/DELETE in user_roles.
+WITH policy_flags AS (
+ SELECT
+   bool_or(cmd='INSERT' AND 'authenticated'=ANY(roles)
+     AND with_check ILIKE '%is_superadmin%') AS admin_insert_only,
+   bool_or(cmd='UPDATE' AND 'authenticated'=ANY(roles)
+     AND qual ILIKE '%is_superadmin%'
+     AND with_check ILIKE '%is_superadmin%') AS admin_update_only,
+   bool_or(cmd='DELETE' AND 'authenticated'=ANY(roles)
+     AND qual ILIKE '%is_superadmin%') AS admin_delete_only
+ FROM pg_policies
+ WHERE schemaname='public' AND tablename='user_roles'
+), helper AS (
+ SELECT
+   p.prosecdef AS private_security_definer,
+   pg_get_functiondef(p.oid) ILIKE '%auth.uid()%' AS private_uid_check,
+   pg_get_functiondef(p.oid) ILIKE '%super_admin%' AS private_role_check,
+   has_function_privilege('anon',p.oid,'EXECUTE') AS private_anon_execute
+ FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='private' AND p.proname='is_superadmin'
+   AND pg_get_function_identity_arguments(p.oid)=''
+), wrapper AS (
+ SELECT
+   (NOT p.prosecdef) AS public_security_invoker,
+   has_function_privilege('anon',p.oid,'EXECUTE') AS public_anon_execute,
+   has_function_privilege('authenticated',p.oid,'EXECUTE') AS public_auth_execute
+ FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='public' AND p.proname='is_superadmin'
+   AND pg_get_function_identity_arguments(p.oid)=''
+)
+SELECT
+ COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass('public.user_roles')),false) AS rls_enabled,
+ COALESCE((SELECT admin_insert_only FROM policy_flags),false) AS admin_insert_only,
+ COALESCE((SELECT admin_update_only FROM policy_flags),false) AS admin_update_only,
+ COALESCE((SELECT admin_delete_only FROM policy_flags),false) AS admin_delete_only,
+ CASE WHEN COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass('public.user_roles')),false)
+   AND COALESCE((SELECT admin_insert_only FROM policy_flags),false)
+   AND COALESCE((SELECT admin_update_only FROM policy_flags),false)
+   AND COALESCE((SELECT admin_delete_only FROM policy_flags),false)
+   AND COALESCE((SELECT private_security_definer FROM helper),false)
+   AND COALESCE((SELECT private_uid_check FROM helper),false)
+   AND COALESCE((SELECT private_role_check FROM helper),false)
+   AND COALESCE((SELECT NOT private_anon_execute FROM helper),false)
+   AND COALESCE((SELECT public_security_invoker FROM wrapper),false)
+   AND COALESCE((SELECT NOT public_anon_execute FROM wrapper),false)
+   AND COALESCE((SELECT public_auth_execute FROM wrapper),false)
+ THEN 'PASS_ADMIN_RLS_CATALOG_NEEDS_E2E'
+ ELSE 'NO_GO_ADMIN_ROLE_ESCALATION_CATALOG' END AS admin_role_gate;
+
 ROLLBACK;
