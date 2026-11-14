@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "La etiqueta requiere conciliación antes de reintentar." }, { status: 409 });
   }
 
-  if (!["draft", "quoted", "label_pending"].includes(String(shipment.status))) {
+  if (!["draft", "quoted"].includes(String(shipment.status))) {
     return NextResponse.json(
       { error: "Este envío ya no admite crear una etiqueta." },
       { status: 409 }
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", shipment.id)
-    .in("status", ["draft", "quoted", "label_pending"])
+    .in("status", ["draft", "quoted"])
     .is("label_url", null)
     .select("id")
     .maybeSingle();
