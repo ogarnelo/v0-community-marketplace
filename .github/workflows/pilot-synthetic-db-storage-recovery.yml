@@ -14,6 +14,7 @@ on:
       - "scripts/pilot-dr-prod-inventory-contract.py"
       - "scripts/pilot-free-plan-backup-contract.mjs"
       - "scripts/pilot-privacy-prod-readonly-contract.py"
+      - "scripts/pilot-anon-column-grants-negative-pg17.py"
       - "scripts/pilot-readonly-sql-guard.py"
       - "scripts/pilot-chat-rls-prod-readonly-contract.py"
       - "scripts/pilot-privacy-prod-preflight-readonly.sql"
@@ -81,6 +82,8 @@ jobs:
         run: python3 scripts/pilot-dr-prod-inventory-contract.py
       - name: Fail closed on unsafe SQL in read-only production preflights
         run: python3 scripts/pilot-readonly-sql-guard.py
+      - name: Prove PG17 column-level anon DML grants fail review-only proposal
+        run: python3 scripts/pilot-anon-column-grants-negative-pg17.py
       - name: Check that the production privacy preflight reports anon DML grants explicitly
         run: python3 scripts/pilot-privacy-prod-readonly-contract.py
       - name: Assert chat membership RLS policies are covered by read-only preflight
