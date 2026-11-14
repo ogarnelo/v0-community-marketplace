@@ -35,4 +35,13 @@ REVOKE SELECT ON public.listings FROM anon;
 REVOKE SELECT ON public.listings FROM authenticated;
 GRANT SELECT (id,title,status,school_id,seller_id)
  ON public.listings TO authenticated;
+-- Validate that restricting SELECT does not break authorized owner writes.
+REVOKE INSERT, UPDATE ON public.listings FROM authenticated;
+GRANT INSERT (id,title,status,seller_id) ON public.listings TO authenticated;
+GRANT UPDATE (title) ON public.listings TO authenticated;
+CREATE POLICY qa_owner_insert ON public.listings FOR INSERT TO authenticated
+ WITH CHECK (seller_id=(select auth.uid()));
+CREATE POLICY qa_owner_update ON public.listings FOR UPDATE TO authenticated
+ USING (seller_id=(select auth.uid()))
+ WITH CHECK (seller_id=(select auth.uid()));
 NOTIFY pgrst, 'reload schema';
