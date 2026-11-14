@@ -42,7 +42,10 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
   const [{ data: listing }, { data: profile }, { data: latestMessage }] = await Promise.all([
-    supabase
+    // The participant check above is mandatory before a service-role lookup.
+    // Buyers must still see the title when a negotiated listing is reserved
+    // or sold: the public available-only RLS predicate no longer matches it.
+    admin
       .from("listings")
       .select("title")
       .eq("id", conversation.listing_id)
