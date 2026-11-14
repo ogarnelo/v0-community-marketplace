@@ -1,4 +1,4 @@
--- PHASE 2: exact SELECT-only proposed migration on disposable local Supabase CLI.
+-- PHASE 2: exact atomic SELECT + anon DML proposal on disposable local Supabase CLI.
 -- This follows (does not replace) phase-1 "write-denied" fixture. Hosted credentials refused by runner.
 -- Recreates full production-shaped 36-column surface only in isolated local database.
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS id uuid;
@@ -41,10 +41,9 @@ ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lng double precision;
 GRANT INSERT, UPDATE, DELETE ON public.listings TO anon, authenticated;
 -- Phase 1 already changed authenticated SELECT; restore the actual broad production
 -- SELECT baseline before running the independent anon proposal precondition.
-GRANT SELECT ON public.listings TO authenticated, service_role;
--- Exact anon and auth SELECT proposals from PR #438, including all 33 columns.
-\i scripts/pilot-anon-listings-revoke-proposal.sql
-\i scripts/pilot-auth-listings-sensitive-grants-proposal.sql
+GRANT SELECT ON public.listings TO anon, authenticated, service_role;
+-- New transaction: exact 36-column baseline -> 33 auth SELECT, no anon SELECT/DML.
+\i scripts/pilot-listings-atomic-acl-review-only.sql
 DO $$
 BEGIN
  IF has_table_privilege('anon','public.listings','SELECT')
@@ -55,8 +54,10 @@ BEGIN
  THEN RAISE EXCEPTION 'Exactly proposed SELECT ACLs were not applied'; END IF;
  IF NOT has_table_privilege('authenticated','public.listings','UPDATE')
  OR NOT has_column_privilege('authenticated','public.listings','postal_code','UPDATE')
- OR NOT has_table_privilege('anon','public.listings','UPDATE')
- THEN RAISE EXCEPTION 'SELECT-only proposal unexpectedly removed existing DML grants'; END IF;
+ OR has_table_privilege('anon','public.listings','UPDATE')
+ OR has_table_privilege('anon','public.listings','INSERT')
+ OR has_table_privilege('anon','public.listings','DELETE')
+ THEN RAISE EXCEPTION 'Atomic proposal did not revoke anon DML or preserve owner DML'; END IF;
 END $$;
 NOTIFY pgrst, 'reload schema';
 
