@@ -65,6 +65,42 @@ function denied(error,label){
  r=await admin.from("listing_photos").select("id,listing_id");
  assert.ifError(r.error);
  assert.equal(r.data.length,1);
- console.log("PASS real local PostgREST: anon listings/photos denied; authenticated 3 available rows, 1 photo, exact location and wildcard denied; server 4 rows.");
+
+ // Actual authenticated owner INSERT/UPDATE after SELECT is column-restricted.
+ const ownId="88888888-8888-4888-8888-888888888881";
+ r=await user.from("listings").insert({
+   id:ownId,title:"Synthetic owned listing",status:"available",seller_id:login.user.id
+ }).select("id,title,status");
+ assert.ifError(r.error);
+ assert.equal(r.data?.[0]?.id,ownId);
+ r=await user.from("listings").update({title:"Synthetic listing edited"})
+   .eq("id",ownId).eq("seller_id",login.user.id).select("id,title");
+ assert.ifError(r.error);
+ assert.equal(r.data?.[0]?.title,"Synthetic listing edited");
+ r=await user.from("listings").update({postal_code:"28099"}).eq("id",ownId);
+ denied(r.error,"authenticated cannot rewrite CP via a restricted update grant");
+
+ // Even with a valid account, a non-owner cannot edit another user's listing.
+ const outsider=client(anon);
+ const otherEmail="qa-postgrest-outsider-"+process.pid+"@example.invalid";
+ const {error:otherSignUp}=await outsider.auth.signUp({
+   email:otherEmail,password:"QA-PostgREST-2026-Safe!X39"
+ });
+ assert.ifError(otherSignUp);
+ const {error:otherLogin}=await outsider.auth.signInWithPassword({
+   email:otherEmail,password:"QA-PostgREST-2026-Safe!X39"
+ });
+ assert.ifError(otherLogin);
+ r=await outsider.from("listings").update({title:"Unauthorized overwrite"})
+   .eq("id",ownId).select("id,title");
+ assert.ifError(r.error);
+ assert.equal(r.data?.length||0,0,"RLS must block non-owner updates");
+ r=await admin.from("listings").select("id,title").eq("id",ownId).single();
+ assert.ifError(r.error);
+ assert.equal(r.data.title,"Synthetic listing edited");
+ console.log("PASS local PostgREST owner INSERT/UPDATE, non-owner denied and location UPDATE denied.");
+
+ console.log("PASS real local PostgREST: anon listings/photos denied; authenticated 3 available rows, 1 photo, exact location and wildcard denied; server 4 baseline rows.");
+
  console.log("Synthetic identities and photos only; hosted Supabase not contacted. Production privileges untouched.");
 })().catch(e=>{console.error("Local PostgREST privacy test failed:",e.message);process.exitCode=1});
