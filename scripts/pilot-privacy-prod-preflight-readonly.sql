@@ -43,4 +43,32 @@ FROM pg_policies WHERE schemaname='public' AND tablename='listing_photos';
 SELECT EXISTS(SELECT 1 FROM pg_publication_tables
  WHERE schemaname='public' AND tablename='listings')
  AS realtime_listing_published;
+-- The server calls postal-distance RPCs using service_role only.
+-- Prevent a future direct Data API call from selecting an arbitrary viewer CP.
+WITH expected(fn) AS (
+ VALUES ('marketplace_nearest_listing_page_v1'),
+        ('marketplace_nearby_listing_page_v1')
+), actual AS (
+ SELECT e.fn, p.oid, p.prosecdef,
+   COALESCE(has_function_privilege('anon',p.oid,'EXECUTE'),false) AS anon_exec,
+   COALESCE(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) AS auth_exec,
+   COALESCE(has_function_privilege('service_role',p.oid,'EXECUTE'),false) AS server_exec
+ FROM expected e
+ LEFT JOIN pg_proc p ON p.proname=e.fn
+   AND p.pronamespace='public'::regnamespace
+)
+SELECT fn,anon_exec,auth_exec,server_exec,
+       CASE WHEN oid IS NULL OR prosecdef IS DISTINCT FROM false
+          OR anon_exec OR auth_exec OR NOT server_exec
+        THEN 'NO_GO_GEO_RPC'
+        ELSE 'PASS_GEO_RPC_SERVER_ONLY' END AS gate
+FROM actual ORDER BY fn;
+SELECT has_table_privilege('anon','public.marketplace_postal_centroids','SELECT')
+  AS anon_centroid_select,
+ has_table_privilege('authenticated','public.marketplace_postal_centroids','SELECT')
+  AS auth_centroid_select,
+ CASE WHEN has_table_privilege('anon','public.marketplace_postal_centroids','SELECT')
+        OR has_table_privilege('authenticated','public.marketplace_postal_centroids','SELECT')
+      THEN 'NO_GO_POSTAL_CENTROIDS' ELSE 'PASS_POSTAL_CENTROIDS_PRIVATE' END AS gate;
+
 ROLLBACK;
