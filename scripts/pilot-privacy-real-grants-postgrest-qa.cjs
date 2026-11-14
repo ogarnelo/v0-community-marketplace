@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 // PHASE 2 real Supabase CLI PostgREST: production-equivalent 33-column SELECT,
-// owner UPDATE CP retained, nonowner RLS denied, anon DML grants insufficient.
+// owner UPDATE CP retained, nonowner RLS denied, anon SELECT and DML revoked.
 // Test confined to localhost/127.0.0.1, with synthetic credentials and rows.
 const assert=require("node:assert/strict");
 const path=require("node:path");
@@ -38,7 +38,9 @@ const denied=(x,label)=>{
  denied(r,"anon may not read direct listing even after DML grants");
  r=await guest.from("listings").insert({id,title:"Forbidden anon insert",
    status:"available",seller_id:owner.user.id});
- denied(r,"anon may not insert despite tablewide DML grant");
+ denied(r,"anon may not insert after atomic DML revocation");
+ r=await guest.from("listings").delete().eq("id",id).select("id");
+ denied(r,"anon may not delete after atomic DML revocation");
  r=await owner.c.from("listings").select("id,title,status,seller_id")
    .eq("status","available").order("id");
  assert.ifError(r.error);assert.equal(r.data.length,4,"three school rows plus phase-1 owner listing");
@@ -66,7 +68,7 @@ const denied=(x,label)=>{
  r=await guest.from("listings").update({title:"Anon hijacked"})
    .eq("id",id).select("id");
  // Some clients return 42501 (no SELECT), others return zero changed rows.
- if(r.error)denied(r,"anon cannot update"); else assert.equal(r.data.length,0);
+ if(r.error)denied(r,"anon update denied after grant removal"); else assert.equal(r.data.length,0);
  r=await owner.c.from("listing_photos").select("id,listing_id");
  assert.ifError(r.error);assert.equal(r.data.length,1);
  r=await admin.from("listings").select("id,status").order("id");
@@ -115,6 +117,6 @@ const denied=(x,label)=>{
  " buyer conversation inserts, forged seller denied under exact 33-column SELECT");
 
  console.log("PASS phase2 exact SELECT-only grant: owner creates and edits postcode,"+
- " other user and anon cannot mutate, 33-column reads, photos, service data intact");
+ " anon SELECT/DML revoked, other user cannot mutate, 33-column reads, photos and service data intact");
 })().catch(e=>{console.error("Local PostgREST exact-proposal phase2 failed:",e.message);
  process.exitCode=1});
