@@ -98,9 +98,12 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
 
+    // A partial unique index enforces one payment intent per non-null offer.
+    // Never UPSERT here: retries must not overwrite an existing payment
+    // (especially processing or succeeded) with requires_payment_method.
     const { data: paymentIntent, error } = await adminSupabase
       .from("payment_intents")
-      .upsert(
+      .insert(
         {
           listing_id: offer.listing_id,
           conversation_id: conversation?.id || null,
@@ -120,14 +123,29 @@ export async function POST(request: Request) {
             delivery_method: pricing.deliveryMethod,
           },
           updated_at: now,
-        },
-        { onConflict: "offer_id" }
+        }
       )
       .select("id, status, amount, currency, buyer_fee_amount, shipping_amount, seller_net_amount, shipment_tier, metadata")
       .single();
 
+    if (error?.code === "23505") {
+      const { data: existingPayment, error: existingError } = await adminSupabase
+        .from("payment_intents")
+        .select("id, status")
+        .eq("offer_id", offer.id)
+        .maybeSingle();
+      if (existingError || !existingPayment) {
+        return NextResponse.json({ error: "No se pudo recuperar el pago existente." }, { status: 503 });
+      }
+      return NextResponse.json({
+        error: "Ya existe una operación de pago para esta oferta. Consulta su estado antes de reintentar.",
+        alreadyExists: true,
+        paymentIntentId: existingPayment.id,
+        paymentStatus: existingPayment.status,
+      }, { status: 409 });
+    }
     if (error || !paymentIntent) {
-      return NextResponse.json({ error: error?.message || "No se pudo preparar el pago." }, { status: 400 });
+      return NextResponse.json({ error: "No se pudo preparar el pago." }, { status: 400 });
     }
 
     if (listing.status === "available") {
