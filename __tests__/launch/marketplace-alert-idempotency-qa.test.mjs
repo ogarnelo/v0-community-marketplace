@@ -44,7 +44,7 @@ test("QA A11: disabled recipients and unavailable email never count as delivered
 });
 
 test("QA A12: outbox requires signed flag and only requeues bounded partial progress",()=>{
-  assert.match(worker,/process\.env\.WETUDY_ALERT_OUTBOX_ENABLED !== "true"/);
+  assert.match(worker,/if \(!alertOutboxWorkerEnabled\(\)\)/);
   assert.match(worker,/request\.headers\.get\("authorization"\) !== `Bearer \$\{cronSecret\}`/);
   assert.match(worker,/p_limit: 1, p_lease_seconds: 240/);
   assert.match(worker,/AbortSignal\.timeout\(25000\)/);

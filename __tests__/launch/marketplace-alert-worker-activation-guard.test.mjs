@@ -3,14 +3,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { alertOutboxWorkerEnabled } from "../../lib/marketplace/saved-search-alert-rollout.mjs";
 
 const source=readFileSync("app/api/cron/marketplace-alert-outbox/route.ts","utf8");
 const matcher=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
 const vercel=JSON.parse(readFileSync("vercel.json","utf8"));
 
-function runWorker({workerFlag="true",intentFlag="true",
+function runWorker({globalFlag="true",workerFlag="true",intentFlag="true",
   intentsReady=true,intentFunctionsReady=true,reviewReady=true,reconciliationReady=true,auth="Bearer synthetic-qa-cron"}={}){
   let dbCreated=0, claimed=0, fetchCalls=0;
+  const env={
+    CRON_SECRET:"synthetic-qa-cron",
+    WETUDY_SAVED_SEARCH_ALERTS_ENABLED:globalFlag,
+    WETUDY_ALERT_OUTBOX_ENABLED:workerFlag,
+    WETUDY_ALERT_INTENT_DELIVERY_ENABLED:intentFlag,
+  };
   const db={
     from(table){
       assert.equal(table,"marketplace_alert_email_intents");
@@ -43,14 +50,13 @@ function runWorker({workerFlag="true",intentFlag="true",
   runInNewContext(compiled,{
     exports,
     require(id){
-      assert.equal(id,"@/lib/supabase/admin");
-      return {createAdminClient:()=>{dbCreated++;return db;}};
+      if(id==="@/lib/supabase/admin")
+        return {createAdminClient:()=>{dbCreated++;return db;}};
+      if(id==="@/lib/marketplace/saved-search-alert-rollout.mjs")
+        return {alertOutboxWorkerEnabled:()=>alertOutboxWorkerEnabled(env)};
+      throw new Error("Unexpected module "+id);
     },
-    process:{env:{
-      CRON_SECRET:"synthetic-qa-cron",
-      WETUDY_ALERT_OUTBOX_ENABLED:workerFlag,
-      WETUDY_ALERT_INTENT_DELIVERY_ENABLED:intentFlag,
-    }},
+    process:{env},
     Response,Request,AbortSignal,
     fetch:async()=>{fetchCalls++;throw Error("Network forbidden in isolated worker test");},
     console:{error(){}},
@@ -63,6 +69,8 @@ function runWorker({workerFlag="true",intentFlag="true",
 
 test("either rollout flag missing returns 204 before any database or email action",async()=>{
   for(const flags of [
+    {globalFlag:"false",workerFlag:"true",intentFlag:"true"},
+    {globalFlag:"",workerFlag:"true",intentFlag:"true"},
     {workerFlag:"false",intentFlag:"true"},
     {workerFlag:"true",intentFlag:"false"},
     {workerFlag:"true",intentFlag:""},

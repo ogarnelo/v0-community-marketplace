@@ -46,7 +46,7 @@ test("workers cannot reprocess concurrently or overwrite one another after lease
 test("worker has two independent security gates and cannot leak the secret to a forged host",()=>{
   assert.match(worker,/process\.env\.CRON_SECRET/);
   assert.match(worker,/request\.headers\.get\("authorization"\) !== `Bearer \$\{cronSecret\}`/);
-  assert.match(worker,/process\.env\.WETUDY_ALERT_OUTBOX_ENABLED !== "true"/);
+  assert.match(worker,/if \(!alertOutboxWorkerEnabled\(\)\)/);
   assert.match(worker,/p_limit: 1, p_lease_seconds: 240/);
   assert.match(worker,/https:\/\/www\.wetudy\.com\/api\/marketplace\/listings\/match-saved-searches/);
   assert.doesNotMatch(worker,/request\.headers\.get\("host"\)|new URL\(request\.url\)\.origin/);

@@ -32,6 +32,6 @@ test("durable intent rejects changed payload and never automatically resets ambi
 test("isolated PostgreSQL workflow includes the fixture, while production worker stays off",()=>{
   assert.match(workflow,/pilot-marketplace-alert-email-intents\.sql/);
   assert.match(workflow,/127\.0\.0\.1/);
-  assert.match(worker,/WETUDY_ALERT_OUTBOX_ENABLED !== "true"/);
+  assert.match(worker,/if \(!alertOutboxWorkerEnabled\(\)\)/);
   assert.equal(vercel.crons.filter(x=>x.path.includes("marketplace-alert-outbox")).length,0);
 });
