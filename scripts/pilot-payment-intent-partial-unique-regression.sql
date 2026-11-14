@@ -10,7 +10,7 @@ CREATE UNIQUE INDEX qa_payment_intents_offer_unique_idx
  ON qa_payment_intents(offer_id) WHERE offer_id IS NOT NULL;
 INSERT INTO qa_payment_intents VALUES(1,501,'succeeded',2500);
 DO $$
-DECLARE upsert_rejected boolean:=false; duplicate_rejected boolean:=false;
+DECLARE upsert_rejected boolean:=false; duplicate_rejected boolean:=false; changed_rows int:=0;
 BEGIN
   -- An ON CONFLICT(offer_id) inference cannot match ONLY a partial index
   -- without a matching predicate, so the old app code cannot be relied on.
@@ -32,6 +32,13 @@ BEGIN
   END;
   IF NOT duplicate_rejected THEN
     RAISE EXCEPTION 'NO_GO: duplicate INSERT not rejected';
+  END IF;
+  -- Race protection: a pending-only UPDATE cannot touch an already-paid row.
+  UPDATE qa_payment_intents SET amount=1
+  WHERE offer_id=501 AND status='requires_payment_method';
+  GET DIAGNOSTICS changed_rows = ROW_COUNT;
+  IF changed_rows<>0 THEN
+    RAISE EXCEPTION 'NO_GO: pending-only checkout update changed finalized payment';
   END IF;
   IF (SELECT status FROM qa_payment_intents WHERE offer_id=501) <> 'succeeded'
    OR (SELECT amount FROM qa_payment_intents WHERE offer_id=501) <> 2500
