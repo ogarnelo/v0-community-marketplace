@@ -21,6 +21,14 @@ SELECT counted.*,
  has_table_privilege('anon','public.listings','SELECT') AS anon_tablewide_select,
  has_table_privilege('authenticated','public.listings','SELECT') AS auth_tablewide_select,
  has_table_privilege('service_role','public.listings','SELECT') AS service_tablewide_select,
+ has_table_privilege('anon','public.listings','INSERT') AS anon_insert,
+ has_table_privilege('anon','public.listings','UPDATE') AS anon_update,
+ has_table_privilege('anon','public.listings','DELETE') AS anon_delete,
+ CASE WHEN has_table_privilege('anon','public.listings','INSERT')
+    OR has_table_privilege('anon','public.listings','UPDATE')
+    OR has_table_privilege('anon','public.listings','DELETE')
+ THEN 'NO_GO_ANON_DML_GRANTS'
+ ELSE 'PASS_ANON_DML_GRANTS_REVOKED' END AS anon_dml_gate,
  has_table_privilege('authenticated','public.listings','INSERT') AS auth_insert,
  has_table_privilege('authenticated','public.listings','UPDATE') AS auth_update,
  has_table_privilege('authenticated','public.listings','DELETE') AS auth_delete,
