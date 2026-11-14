@@ -11,6 +11,7 @@ on:
       - "scripts/pilot-three-ampa-real-next-browser.cjs"
       - "supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql"
       - ".github/workflows/pilot-three-ampa-real-next-browser.yml"
+      - "scripts/pilot-privacy-client-surface-gate.mjs"
 permissions:
   contents: read
 jobs:
@@ -35,6 +36,8 @@ jobs:
             @types/node@24.10.1 @types/react@19.2.2 @types/react-dom@19.2.2
           /tmp/wetudy-ampa-next-local/node_modules/.bin/playwright install --with-deps chromium
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Check marketplace privacy source gates before local school E2E
+        run: node scripts/pilot-privacy-client-surface-gate.mjs
       - name: Start local GoTrue, Storage, PostgREST and actual Next admin school page
         shell: bash
         env:
