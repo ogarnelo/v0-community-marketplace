@@ -8,11 +8,20 @@ assert "BEGIN TRANSACTION READ ONLY" in source
 assert source.rstrip().endswith("ROLLBACK;")
 for word in ("anon_insert", "anon_update", "anon_delete", "anon_dml_gate",
              "NO_GO_ANON_DML_GRANTS", "PASS_ANON_DML_GRANTS_REVOKED",
+             "anon_insert_columnwise", "anon_update_columnwise",
+             "has_any_column_privilege",
              "auth_insert", "auth_update", "auth_delete", "NO_GO_PRIVACY",
              "anon_centroid_select", "NO_GO_GEO_RPC"):
     assert word in source, "Missing privacy gate: " + word
 for op in ("INSERT","UPDATE","DELETE"):
     assert f"has_table_privilege('anon','public.listings','{op}')" in source
+# Column grants must be included in the effective NO-GO CASE, not just reported.
+dml_case = source.split("CASE WHEN has_table_privilege('anon','public.listings','INSERT')",1)[1].split("END AS anon_dml_gate",1)[0]
+for op in ("INSERT","UPDATE"):
+    assert f"has_any_column_privilege('anon','public.listings','{op}')" in dml_case
+proposal=Path("scripts/pilot-anon-listings-dml-hardening-proposal.sql").read_text()
+for op in ("INSERT","UPDATE"):
+    assert f"has_any_column_privilege('anon','public.listings','{op}')" in proposal
 # Ignore SQL comments; reject any actual data mutations in this audit script.
 clean="\n".join(line.split("--")[0] for line in source.splitlines())
 assert not re.search(r"(?im)^\s*(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE|TRUNCATE)\b", clean)

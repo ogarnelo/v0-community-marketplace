@@ -8,7 +8,9 @@ BEGIN
  IF has_table_privilege('anon','public.listings','INSERT')
     OR has_table_privilege('anon','public.listings','UPDATE')
     OR has_table_privilege('anon','public.listings','DELETE')
- THEN RAISE EXCEPTION 'NO_GO: anon still has listings table DML privileges'; END IF;
+    OR has_any_column_privilege('anon','public.listings','INSERT')
+    OR has_any_column_privilege('anon','public.listings','UPDATE')
+ THEN RAISE EXCEPTION 'NO_GO: anon still has listings table/column DML privileges'; END IF;
  IF NOT has_table_privilege('authenticated','public.listings','INSERT')
     OR NOT has_table_privilege('authenticated','public.listings','UPDATE')
     OR NOT has_table_privilege('authenticated','public.listings','DELETE')
