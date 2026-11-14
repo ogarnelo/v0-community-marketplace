@@ -25,7 +25,9 @@ export function normalizeCheckoutSelection(input: {
     return { deliveryMethod, shipmentTier: "none" as const };
   }
 
-  return { deliveryMethod, shipmentTier };
+  // A forged shipping request may explicitly select "none": do not waive
+  // transport charges even if this helper is called without the pricing layer.
+  return { deliveryMethod, shipmentTier: shipmentTier === "none" ? "small" as const : shipmentTier };
 }
 
 export async function getAcceptedOfferForBuyer(params: {
