@@ -15,6 +15,8 @@ on:
       - "scripts/pilot-privacy-postgrest-local-qa.sql"
       - "scripts/pilot-privacy-postgrest-local-qa.cjs"
       - "scripts/pilot-privacy-real-grants-postgrest-qa.sql"
+      - "scripts/pilot-listings-atomic-acl-review-only.sql"
+      - "scripts/pilot-listings-atomic-acl-pg17.py"
       - "scripts/pilot-privacy-real-grants-postgrest-qa.cjs"
       - "scripts/pilot-buyer-seller-messages-rls-qa.sql"
       - "scripts/pilot-buyer-seller-messages-rls-qa.cjs"
