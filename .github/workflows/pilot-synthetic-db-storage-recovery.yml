@@ -20,6 +20,7 @@ on:
       - "scripts/pilot-offline-backup-zip-verify.py"
       - "scripts/pilot-offline-backup-zip-verify-tests.py"
       - "scripts/pilot-anon-listings-revoke-proposal.sql"
+      - "scripts/pilot-anon-listings-dml-hardening-proposal.sql"
       - "scripts/pilot-auth-listings-sensitive-grants-proposal.sql"
       - "scripts/pilot-wave1-client-privilege-regression.py"
       - "supabase/migrations/20261111084000_pilot_wave1_revoke_client_non_rls_privileges.sql"
