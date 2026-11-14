@@ -5,6 +5,8 @@ on:
       - "scripts/pilot-founder-local-backup-preflight.py"
       - "scripts/pilot-founder-local-drill.py"
       - "scripts/pilot-founder-macos-offline-drill.py"
+      - "scripts/pilot-founder-macos-pg17-toc.py"
+      - "scripts/test_pilot_founder_macos_pg17_toc.py"
       - "scripts/test_pilot_founder_macos_offline_drill.py"
       - "scripts/test_pilot_founder_local_backup_preflight.py"
       - "scripts/test_pilot_founder_local_drill.py"
@@ -26,9 +28,11 @@ jobs:
         run: python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
       - name: Test synthetic AES-256-CBC PBKDF2 decryption without production data
         run: python3 -m unittest scripts/test_pilot_founder_macos_offline_drill.py -v
+      - name: Test synthetic PostgreSQL 17 TOC coverage without databases
+        run: python3 -m unittest scripts/test_pilot_founder_macos_pg17_toc.py -v
       - name: Prohibit any hosted DB or real credentials in the synthetic test
         shell: bash
         run: |
           set -euo pipefail
           ! grep -RE 'https://jpsljmakoscqevssimtk|SUPABASE_SERVICE_ROLE_KEY|WETUDY_BACKUP_ENCRYPTION_PASSWORD' \
-            scripts/pilot-founder-local-backup-preflight.py scripts/pilot-founder-local-drill.py scripts/pilot-founder-macos-offline-drill.py
+            scripts/pilot-founder-local-backup-preflight.py scripts/pilot-founder-local-drill.py scripts/pilot-founder-macos-offline-drill.py scripts/pilot-founder-macos-pg17-toc.py
