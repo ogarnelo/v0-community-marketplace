@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from "@/lib/payments/pricing";
+import { getAcceptedOfferAmount } from "@/lib/payments/offer-amount";
 import { buildOfferChatBody } from "@/lib/offers/chat-message";
 import { createNotifications } from "@/lib/notifications";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes comprar tu propio anuncio." }, { status: 400 });
     }
 
-    const itemAmount = Number(listing.price ?? 0);
+    let itemAmount = Number(listing.price ?? 0);
     if (!Number.isFinite(itemAmount) || itemAmount <= 0) {
       return NextResponse.json({ error: "El anuncio no tiene un precio válido." }, { status: 400 });
     }
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
 
     const { data: activeOffer, error: activeOfferError } = await admin
       .from("listing_offers")
-      .select("id, status")
+      .select("id, status, accepted_amount, current_amount, counter_price, offered_price")
       .eq("listing_id", listingId)
       .eq("buyer_id", user.id)
       .eq("seller_id", listing.seller_id)
@@ -126,6 +127,16 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (activeOfferError) {
       return NextResponse.json({ error: "No se pudo verificar la negociación existente." }, { status: 503 });
+    }
+
+    // A buyer may already have an accepted negotiated offer below list price.
+    // Reusing its offer_id MUST also reuse the agreed price; never silently
+    // charge the public listing price on a checkout retry.
+    if (activeOffer?.status === "accepted") {
+      itemAmount = getAcceptedOfferAmount(activeOffer);
+      if (!Number.isFinite(itemAmount) || itemAmount <= 0) {
+        return NextResponse.json({ error: "La oferta aceptada tiene un importe inválido." }, { status: 409 });
+      }
     }
 
     let offerId = activeOffer?.id || null;
