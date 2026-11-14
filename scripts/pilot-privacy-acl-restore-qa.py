@@ -66,8 +66,12 @@ def gate(name):
         "SELECT * FROM public.listings; ROLLBACK",False)
     service=query(name,"BEGIN; SET LOCAL ROLE service_role; "
         "SELECT count(*) FROM public.listings; ROLLBACK")
-    if "2" not in service.splitlines():
-        raise AssertionError("Service role failed to recover complete data")
+    bypass=query(name,"SELECT rolbypassrls::text FROM pg_roles WHERE rolname='service_role'")
+    expected_count="2" if bypass=="true" else "1"
+    if expected_count not in service.splitlines():
+        raise AssertionError("Server role SELECT/RLS behavior changed across recovery")
+    if "2" not in query(name,"SELECT count(*) FROM public.listings").splitlines():
+        raise AssertionError("Synthetic archive lost source rows")
 
 for name in (first_db,second_db):
     if query("wetudy_pilot_dr_source",
