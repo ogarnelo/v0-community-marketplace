@@ -5,7 +5,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -22,8 +22,37 @@ export function safeStorageName(name) {
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
+// Never follow symlinks from a decrypted/unpacked backup. Even a valid
+// manifest digest cannot authorize reads outside the chosen restore directory.
+async function regularFileWithoutSymlink(filePath, root) {
+  const relative = path.relative(root, filePath);
+  if (relative === ".." || relative.startsWith(".." + path.sep) ||
+      path.isAbsolute(relative)) {
+    throw new Error("Unsafe backup path");
+  }
+  let cursor = root;
+  const rootStat = await lstat(cursor);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new Error("Unsafe backup directory");
+  }
+  const segments = relative.split(path.sep);
+  for (let i = 0; i < segments.length; i++) {
+    cursor = path.join(cursor, segments[i]);
+    const entry = await lstat(cursor);
+    if (entry.isSymbolicLink()) throw new Error("Unsafe backup symlink");
+    if (i < segments.length - 1 && !entry.isDirectory()) {
+      throw new Error("Unsafe backup directory");
+    }
+    if (i === segments.length - 1 && !entry.isFile()) {
+      throw new Error("Unsafe backup file type");
+    }
+  }
+}
+
 export async function verifyStorageDirectory(baseDirectory) {
-  const manifestPath = path.join(baseDirectory, "manifest.json");
+  const root = path.resolve(baseDirectory);
+  const manifestPath = path.join(root, "manifest.json");
+  await regularFileWithoutSymlink(manifestPath, root);
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.version !== 1 || !Array.isArray(manifest.files) ||
       manifest.files.length > MAX_OBJECTS) {
@@ -41,11 +70,19 @@ export async function verifyStorageDirectory(baseDirectory) {
     const key = item.bucket + "/" + item.path;
     if (seen.has(key)) throw new Error("Duplicate object in manifest");
     seen.add(key);
-    const raw = await readFile(path.join(baseDirectory, item.bucket, ...segments));
+    if (!Number.isSafeInteger(item.size) || item.size < 0 ||
+        item.size > MAX_BYTES || typeof item.sha256 !== "string" ||
+        !/^[0-9a-f]{64}$/.test(item.sha256)) {
+      throw new Error("Invalid backup manifest entry");
+    }
+    const objectPath = path.join(root, item.bucket, ...segments);
+    await regularFileWithoutSymlink(objectPath, root);
+    const raw = await readFile(objectPath);
     if (raw.length !== item.size || sha256(raw) !== item.sha256) {
       throw new Error("Storage backup verification failed");
     }
     bytes += raw.length;
+    if (bytes > MAX_BYTES) throw new Error("Storage backup exceeds safety limit");
   }
   if (bytes !== manifest.totalBytes || seen.size !== manifest.fileCount) {
     throw new Error("Storage backup totals do not match");
