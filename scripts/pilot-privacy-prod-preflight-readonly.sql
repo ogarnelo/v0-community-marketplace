@@ -24,9 +24,13 @@ SELECT counted.*,
  has_table_privilege('anon','public.listings','INSERT') AS anon_insert,
  has_table_privilege('anon','public.listings','UPDATE') AS anon_update,
  has_table_privilege('anon','public.listings','DELETE') AS anon_delete,
+ has_any_column_privilege('anon','public.listings','INSERT') AS anon_insert_columnwise,
+ has_any_column_privilege('anon','public.listings','UPDATE') AS anon_update_columnwise,
  CASE WHEN has_table_privilege('anon','public.listings','INSERT')
     OR has_table_privilege('anon','public.listings','UPDATE')
     OR has_table_privilege('anon','public.listings','DELETE')
+    OR has_any_column_privilege('anon','public.listings','INSERT')
+    OR has_any_column_privilege('anon','public.listings','UPDATE')
  THEN 'NO_GO_ANON_DML_GRANTS'
  ELSE 'PASS_ANON_DML_GRANTS_REVOKED' END AS anon_dml_gate,
  has_table_privilege('authenticated','public.listings','INSERT') AS auth_insert,
