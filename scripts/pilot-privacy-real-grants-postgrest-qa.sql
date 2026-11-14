@@ -39,6 +39,9 @@ ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lat double precision;
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lng double precision;
 -- Reset the synthetic phase-1 DML restrictions to the grants currently found in prod.
 GRANT INSERT, UPDATE, DELETE ON public.listings TO anon, authenticated;
+-- Phase 1 already changed authenticated SELECT; restore the actual broad production
+-- SELECT baseline before running the independent anon proposal precondition.
+GRANT SELECT ON public.listings TO authenticated, service_role;
 -- Exact anon and auth SELECT proposals from PR #438, including all 33 columns.
 \i scripts/pilot-anon-listings-revoke-proposal.sql
 \i scripts/pilot-auth-listings-sensitive-grants-proposal.sql
