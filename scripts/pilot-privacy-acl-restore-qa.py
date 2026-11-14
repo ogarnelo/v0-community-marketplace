@@ -46,9 +46,16 @@ def gate(name):
       || ':' || has_column_privilege('authenticated','public.listings','lat','SELECT')::text
       || ':' || has_column_privilege('authenticated','public.listings','lng','SELECT')::text
       || ':' || has_table_privilege('service_role','public.listings','SELECT')::text
+      || ':' || has_table_privilege('anon','public.listings','INSERT')::text
+      || ':' || has_table_privilege('anon','public.listings','UPDATE')::text
+      || ':' || has_table_privilege('anon','public.listings','DELETE')::text
+      || ':' || has_table_privilege('authenticated','public.listings','INSERT')::text
+      || ':' || has_table_privilege('authenticated','public.listings','UPDATE')::text
+      || ':' || has_table_privilege('authenticated','public.listings','DELETE')::text
+      || ':' || has_column_privilege('authenticated','public.listings','postal_code','UPDATE')::text
       || ':' || (SELECT md5(string_agg(id::text||':'||status,',' ORDER BY id))
                    FROM public.listings)""")
-    if fingerprint != "true:1:false:false:true:false:false:false:true:" + (
+    if fingerprint != "true:1:false:false:true:false:false:false:true:true:true:true:true:true:true:true:" + (
         query(name,"SELECT md5(string_agg(id::text||':'||status,',' ORDER BY id)) FROM public.listings")
     ):
         raise AssertionError("Restored ACL, RLS or synthetic data fingerprint mismatch")
@@ -92,7 +99,10 @@ try:
     query(first_db,"ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY")
     query(first_db,"CREATE POLICY qa_available_listing ON public.listings FOR SELECT TO PUBLIC USING (status='available')")
     query(first_db,"GRANT USAGE ON SCHEMA public TO anon,authenticated,service_role")
-    query(first_db,"GRANT SELECT ON TABLE public.listings TO anon,authenticated,service_role")
+    # Production-compatible wide DML grant baseline: SELECT-only migration must not alter it.
+    # RLS remains a separate authorization check for writing rows.
+    query(first_db,"GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE public.listings TO anon,authenticated")
+    query(first_db,"GRANT SELECT ON TABLE public.listings TO service_role")
     query(first_db,"INSERT INTO public.listings (id,status,postal_code) VALUES "
       "('88000000-0000-4000-8000-000000000001','available','28001'),"
       "('88000000-0000-4000-8000-000000000002','archived','28002')")
@@ -109,7 +119,8 @@ try:
              "--exit-on-error","--dbname",db_url(second_db),archive])
         gate(second_db)
     print("PASS synthetic PG17 privacy restore: anon denied, auth 33-column grant,"
-          " postal/geo denied, RLS available-only, server reads preserved")
+          " postal/geo denied, RLS available-only, server reads preserved,"
+          " prior anon/auth INSERT/UPDATE/DELETE grants preserved across dump/restore")
 finally:
     for name in reversed(created):
         query("wetudy_pilot_dr_source","DROP DATABASE IF EXISTS "+name+" WITH (FORCE)")
