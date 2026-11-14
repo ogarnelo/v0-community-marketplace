@@ -15,6 +15,8 @@ import tempfile
 import zipfile
 
 HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
 PREFLIGHT = runpy.run_path(str(HERE / "pilot-founder-local-backup-preflight.py"))
 DECRYPT = runpy.run_path(str(HERE / "pilot-founder-macos-offline-drill.py"))["decrypt_from_zip"]
 CRITICAL = runpy.run_path(str(HERE / "pilot-db-backup-critical-toc.py"))
