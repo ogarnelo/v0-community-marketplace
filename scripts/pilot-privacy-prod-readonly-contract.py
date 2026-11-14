@@ -10,6 +10,8 @@ for word in ("anon_insert", "anon_update", "anon_delete", "anon_dml_gate",
              "NO_GO_ANON_DML_GRANTS", "PASS_ANON_DML_GRANTS_REVOKED",
              "anon_insert_columnwise", "anon_update_columnwise",
              "has_any_column_privilege",
+             "direct_anon_public_column_insert_grants",
+             "direct_anon_public_column_update_grants", "aclexplode(a.attacl)",
              "auth_insert", "auth_update", "auth_delete", "NO_GO_PRIVACY",
              "anon_centroid_select", "NO_GO_GEO_RPC"):
     assert word in source, "Missing privacy gate: " + word

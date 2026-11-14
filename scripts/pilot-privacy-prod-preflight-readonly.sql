@@ -113,4 +113,19 @@ SELECT table_name,rls_enabled,anon_table_read,auth_table_read,member_scoped_poli
    ELSE 'NO_GO_CHAT_RLS_CATALOG' END AS gate
 FROM privacy ORDER BY table_name;
 
+-- Diagnostic only: has_any_column_privilege also returns true for a TABLE grant.
+-- Distinguish explicitly recorded per-column ACL entries from effective rights.
+-- Direct anon/PUBLIC column ACL counts do NOT audit inherited grants from other roles.
+SELECT
+ count(*) FILTER (WHERE grants.privilege_type='INSERT'
+     AND grants.grantee IN (0,(SELECT oid FROM pg_roles WHERE rolname='anon')))::int
+   AS direct_anon_public_column_insert_grants,
+ count(*) FILTER (WHERE grants.privilege_type='UPDATE'
+     AND grants.grantee IN (0,(SELECT oid FROM pg_roles WHERE rolname='anon')))::int
+   AS direct_anon_public_column_update_grants
+FROM pg_attribute a
+LEFT JOIN LATERAL aclexplode(a.attacl) AS grants ON true
+WHERE a.attrelid='public.listings'::regclass
+  AND a.attnum>0 AND NOT a.attisdropped;
+
 ROLLBACK;
