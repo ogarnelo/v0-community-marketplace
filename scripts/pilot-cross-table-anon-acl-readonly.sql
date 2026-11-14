@@ -68,7 +68,7 @@ SELECT name,
  THEN 'PASS_SERVER_ONLY_NO_POLICIES'
  ELSE 'NO_GO_SERVER_ONLY_GRANT_OR_POLICY_DRIFT' END AS server_only_gate
 FROM server_only
-JOIN pg_class c ON c.oid=to_regclass('public.'||server_only.name)
+LEFT JOIN pg_class c ON c.oid=to_regclass('public.'||server_only.name)
 ORDER BY name;
 
 ROLLBACK;
