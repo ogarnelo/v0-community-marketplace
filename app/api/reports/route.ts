@@ -69,13 +69,35 @@ export async function POST(request: Request) {
     if (targetType === "listing") {
       const { data: listing, error: listingError } = await admin
         .from("listings")
-        .select("id")
+        .select("id, status, seller_id")
         .eq("id", targetId)
         .maybeSingle();
 
       if (listingError) throw listingError;
       if (!listing) {
         return NextResponse.json({ error: "El anuncio ya no existe." }, { status: 404 });
+      }
+
+      // The privileged lookup above establishes existence, not authorization.
+      // A hidden, reserved, sold or archived listing may be reported only by
+      // its owner or a real participant in its conversation. The user-scoped
+      // client enforces conversation RLS and we also check buyer/seller IDs.
+      if (listing.status !== "available" && listing.seller_id !== user.id) {
+        const { data: participantConversation, error: participantError } = await supabase
+          .from("conversations")
+          .select("id, buyer_id, seller_id")
+          .eq("listing_id", targetId)
+          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+          .limit(1)
+          .maybeSingle();
+        if (
+          participantError ||
+          !participantConversation ||
+          (participantConversation.buyer_id !== user.id &&
+            participantConversation.seller_id !== user.id)
+        ) {
+          return NextResponse.json({ error: "El anuncio ya no existe." }, { status: 404 });
+        }
       }
     } else {
       const { data: conversation, error: conversationError } = await admin
