@@ -41,7 +41,7 @@ const denied=(x,label)=>{
  denied(r,"anon may not insert despite tablewide DML grant");
  r=await owner.c.from("listings").select("id,title,status,seller_id")
    .eq("status","available").order("id");
- assert.ifError(r.error);assert.equal(r.data.length,3);
+ assert.ifError(r.error);assert.equal(r.data.length,4,"three school rows plus phase-1 owner listing");
  for(const col of ["postal_code","lat","lng","*"]){
   r=await owner.c.from("listings").select(col);
   denied(r,"authenticated read "+col);
@@ -70,7 +70,7 @@ const denied=(x,label)=>{
  r=await owner.c.from("listing_photos").select("id,listing_id");
  assert.ifError(r.error);assert.equal(r.data.length,1);
  r=await admin.from("listings").select("id,status").order("id");
- assert.ifError(r.error);assert.equal(r.data.length,5);
+ assert.ifError(r.error);assert.equal(r.data.length,6,"school rows, archived row and two owner listings");
  console.log("PASS phase2 exact SELECT-only grant: owner creates and edits postcode,"+
  " other user and anon cannot mutate, 33-column reads, photos, service data intact");
 })().catch(e=>{console.error("Local PostgREST exact-proposal phase2 failed:",e.message);
