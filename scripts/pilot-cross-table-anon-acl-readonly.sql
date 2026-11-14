@@ -46,4 +46,29 @@ SELECT r.table_name, r.sensitivity,
    ELSE 'CATALOG_PASS_NEEDS_E2E' END AS catalog_gate
 FROM relations r JOIN policy_summary s USING(table_name)
 ORDER BY r.table_name;
+
+-- Six intentionally server-only tables from Security Advisor INFO.
+-- A new client SELECT grant would be a regression, not a fix for the INFO lint.
+WITH server_only(name) AS (
+ VALUES ('marketplace_alert_outbox'), ('marketplace_postal_centroids'),
+ ('school_directory'), ('school_impact_report_deliveries'),
+ ('school_impact_report_subscriptions'), ('super_admin_report_subscriptions')
+)
+SELECT name,
+ c.relrowsecurity AS rls_enabled,
+ has_table_privilege('anon',c.oid,'SELECT') AS anon_select,
+ has_table_privilege('authenticated',c.oid,'SELECT') AS auth_select,
+ has_table_privilege('service_role',c.oid,'SELECT') AS service_select,
+ CASE WHEN c.relrowsecurity IS TRUE
+      AND NOT has_table_privilege('anon',c.oid,'SELECT')
+      AND NOT has_table_privilege('authenticated',c.oid,'SELECT')
+      AND has_table_privilege('service_role',c.oid,'SELECT')
+      AND NOT EXISTS (SELECT 1 FROM pg_policies p
+                      WHERE p.schemaname='public' AND p.tablename=server_only.name)
+ THEN 'PASS_SERVER_ONLY_NO_POLICIES'
+ ELSE 'NO_GO_SERVER_ONLY_GRANT_OR_POLICY_DRIFT' END AS server_only_gate
+FROM server_only
+JOIN pg_class c ON c.oid=to_regclass('public.'||server_only.name)
+ORDER BY name;
+
 ROLLBACK;
