@@ -12,6 +12,8 @@ on:
       - "supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql"
       - ".github/workflows/pilot-three-ampa-real-next-browser.yml"
       - "scripts/pilot-privacy-client-surface-gate.mjs"
+      - "scripts/pilot-privacy-postgrest-local-qa.sql"
+      - "scripts/pilot-privacy-postgrest-local-qa.cjs"
 permissions:
   contents: read
 jobs:
@@ -73,3 +75,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-three-ampa-next-real-fixture.sql
           psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql
           node scripts/pilot-three-ampa-real-next-browser.cjs
+          psql -X -v ON_ERROR_STOP=1 "$LOCAL_DB_URL" -f scripts/pilot-privacy-postgrest-local-qa.sql
+          node scripts/pilot-privacy-postgrest-local-qa.cjs
