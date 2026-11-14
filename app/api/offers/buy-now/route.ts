@@ -214,18 +214,24 @@ export async function POST(request: Request) {
           buyer_id: user.id,
           seller_id: listing.seller_id,
           school_id: listing.school_id || null,
-          amount: pricing.totalBuyerAmount,
+          // payment_intents.amount is the ITEM price. Other checkout,
+          // refund and shipping readers add buyer_fee_amount +
+          // shipping_amount separately; storing the buyer total here
+          // doubles fees on refunds and misstates shipping item value.
+          amount: pricing.itemAmount,
           currency: "EUR",
           provider: "stripe",
           status: "requires_payment_method",
           buyer_fee_amount: pricing.buyerFeeAmount,
           shipping_amount: pricing.shippingAmount,
           seller_net_amount: pricing.sellerNetAmount,
+          platform_fee_amount: pricing.buyerFeeAmount,
           shipment_tier: pricing.shipmentTier,
           metadata: {
             source: "buy_now",
             delivery_method: deliveryMethod,
             item_amount: pricing.itemAmount,
+            total_buyer_amount: pricing.totalBuyerAmount,
           },
           updated_at: now,
         }
