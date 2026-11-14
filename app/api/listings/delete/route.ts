@@ -115,16 +115,26 @@ export async function POST(request: Request) {
       });
     }
 
-    await Promise.allSettled([
-      admin.from("favorites").delete().eq("listing_id", listingId),
-      admin.from("listing_photos").delete().eq("listing_id", listingId),
-      admin.from("listing_views").delete().eq("listing_id", listingId),
-    ]);
+    // Delete the parent FIRST. PostgreSQL enforces referential integrity:
+    // relations with ON DELETE CASCADE are removed atomically, while a
+    // restrictive relation aborts the DELETE without discarding photos,
+    // favorites or views. Never delete those children before knowing the
+    // parent can be removed; archiving must preserve them if DELETE fails.
+    const { data: deletedRows, error: deleteError } = await admin
+      .from("listings")
+      .delete()
+      .eq("id", listingId)
+      .eq("seller_id", user.id)
+      .select("id");
 
-    const { error: deleteError } = await admin.from("listings").delete().eq("id", listingId);
-
-    if (!deleteError) {
+    if (!deleteError && deletedRows?.length === 1) {
       return NextResponse.json({ ok: true, mode: "deleted" });
+    }
+    if (!deleteError) {
+      return NextResponse.json(
+        { error: "El anuncio ya no está disponible para eliminar." },
+        { status: 409 }
+      );
     }
 
     const { error: archiveError } = await admin
