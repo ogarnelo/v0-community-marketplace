@@ -199,9 +199,14 @@ export async function POST(request: Request) {
       shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
     });
 
+    // payment_intents.offer_id has a PARTIAL unique index in production.
+    // ON CONFLICT (offer_id) cannot target that index without its predicate;
+    // more importantly UPDATE on conflict could reset a completed payment.
+    // INSERT is the safe, concurrency-aware operation: 23505 means reuse
+    // the existing checkout without modifying its status, amount or ledger.
     const { data: paymentIntent, error: paymentError } = await admin
       .from("payment_intents")
-      .upsert(
+      .insert(
         {
           listing_id: listingId,
           conversation_id: conversationId,
@@ -223,14 +228,31 @@ export async function POST(request: Request) {
             item_amount: pricing.itemAmount,
           },
           updated_at: now,
-        },
-        { onConflict: "offer_id" }
+        }
       )
       .select("id, amount, currency, status")
       .single();
 
+    if (paymentError?.code === "23505") {
+      // Unique offer ID already has a checkout. Never reset an existing
+      // processing, succeeded, refunded or canceled payment on retry.
+      const { data: existingPayment, error: lookupError } = await admin
+        .from("payment_intents")
+        .select("id, status")
+        .eq("offer_id", offerId)
+        .maybeSingle();
+      if (lookupError || !existingPayment) {
+        return NextResponse.json({ error: "No se pudo recuperar el pago existente." }, { status: 503 });
+      }
+      return NextResponse.json({
+        error: "Ya existe un pago asociado a esta oferta. Continúa desde el chat.",
+        alreadyExists: true,
+        conversationId,
+        redirectTo: conversationId ? `/messages/${conversationId}` : `/marketplace/listing/${listingId}`,
+      }, { status: 409 });
+    }
     if (paymentError || !paymentIntent) {
-      return NextResponse.json({ error: paymentError?.message || "No se pudo preparar el checkout." }, { status: 400 });
+      return NextResponse.json({ error: "No se pudo preparar el checkout." }, { status: 400 });
     }
 
     if (conversationId) {
