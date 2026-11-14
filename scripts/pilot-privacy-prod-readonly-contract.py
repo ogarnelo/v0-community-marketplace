@@ -24,6 +24,14 @@ for op in ("INSERT","UPDATE"):
 proposal=Path("scripts/pilot-anon-listings-dml-hardening-proposal.sql").read_text()
 for op in ("INSERT","UPDATE"):
     assert f"has_any_column_privilege('anon','public.listings','{op}')" in proposal
+# Admin role grants may exist at table level; RLS + helper must still gate escalation.
+for token in ("NO_GO_ADMIN_ROLE_ESCALATION_CATALOG",
+              "PASS_ADMIN_RLS_CATALOG_NEEDS_E2E","private_security_definer",
+              "private_uid_check","private_role_check","private_anon_execute",
+              "public_security_invoker","public_anon_execute",
+              "admin_insert_only","admin_update_only","admin_delete_only"):
+    assert token in source, "missing admin-role catalog control: "+token
+assert "tablename='user_roles'" in source
 # Ignore SQL comments; reject any actual data mutations in this audit script.
 clean="\n".join(line.split("--")[0] for line in source.splitlines())
 assert not re.search(r"(?im)^\s*(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE|TRUNCATE)\b", clean)
