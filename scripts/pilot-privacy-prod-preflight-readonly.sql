@@ -180,4 +180,49 @@ SELECT
  THEN 'PASS_ADMIN_RLS_CATALOG_NEEDS_E2E'
  ELSE 'NO_GO_ADMIN_ROLE_ESCALATION_CATALOG' END AS admin_role_gate;
 
+
+-- Fail closed on ALTERNATIVE permissive policies: mere existence of one
+-- membership/superadmin policy is insufficient when PostgreSQL ORs policies.
+-- Strict catalog baseline (2026-11-14): exactly one SELECT policy per chat
+-- table, and exactly one INSERT/UPDATE/DELETE policy on user_roles.
+-- Changes require a fresh human review; matching names/text are NOT E2E proof.
+WITH expected(tablename,command,required_signature) AS (
+ VALUES ('conversations','SELECT','chat'),
+        ('messages','SELECT','chat'),
+        ('user_roles','INSERT','admin'),
+        ('user_roles','UPDATE','admin'),
+        ('user_roles','DELETE','admin')
+), aggregate_policies AS (
+ SELECT e.tablename,e.command,e.required_signature,
+   count(p.policyname)::int AS applicable_policy_count,
+   count(p.policyname) FILTER (
+     WHERE p.cmd=e.command AND p.roles=ARRAY['authenticated']::name[]
+       AND p.permissive='PERMISSIVE'
+       AND CASE WHEN e.required_signature='admin'
+         THEN (CASE WHEN e.command='INSERT'
+                THEN coalesce(p.with_check,'') ILIKE '%is_superadmin%'
+                WHEN e.command='DELETE'
+                THEN coalesce(p.qual,'') ILIKE '%is_superadmin%'
+                ELSE coalesce(p.qual,'') ILIKE '%is_superadmin%'
+                 AND coalesce(p.with_check,'') ILIKE '%is_superadmin%' END)
+         WHEN e.tablename='conversations'
+         THEN coalesce(p.qual,'') ILIKE '%auth.uid%'
+              AND coalesce(p.qual,'') ILIKE '%buyer_id%'
+              AND coalesce(p.qual,'') ILIKE '%seller_id%'
+         ELSE coalesce(p.qual,'') ILIKE '%auth.uid%'
+              AND coalesce(p.qual,'') ILIKE '%conversations%'
+              AND coalesce(p.qual,'') ILIKE '%buyer_id%'
+              AND coalesce(p.qual,'') ILIKE '%seller_id%' END
+   )::int AS expected_policy_count
+ FROM expected e LEFT JOIN pg_policies p
+ ON p.schemaname='public' AND p.tablename=e.tablename
+ AND p.cmd IN (e.command,'ALL')
+ GROUP BY e.tablename,e.command,e.required_signature
+)
+SELECT tablename,command,applicable_policy_count,expected_policy_count,
+ CASE WHEN applicable_policy_count=1 AND expected_policy_count=1
+ THEN 'PASS_EXCLUSIVE_POLICY_CATALOG_NEEDS_E2E'
+ ELSE 'NO_GO_ALTERNATIVE_RLS_POLICY' END AS exclusive_policy_gate
+FROM aggregate_policies ORDER BY tablename,command;
+
 ROLLBACK;
