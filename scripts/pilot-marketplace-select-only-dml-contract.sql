@@ -156,7 +156,7 @@ INSERT INTO public.qa_dep_photos VALUES (
  '97777777-7777-4777-8777-777777777772','qa-image');
 UPDATE public.qa_dep_photos SET url='qa-image-updated'
  WHERE id='97777777-7777-4777-8777-777777777776';
-DO $
+DO $qa$
 BEGIN
  IF (SELECT count(*) FROM public.qa_dep_conversations)<>1
  OR (SELECT count(*) FROM public.qa_dep_reports)<>1
@@ -167,20 +167,20 @@ BEGIN
  OR has_column_privilege('authenticated','public.listings','lat','SELECT')
  OR has_column_privilege('authenticated','public.listings','lng','SELECT')
  THEN RAISE EXCEPTION 'Sensitive listing locations were leaked to authenticated'; END IF;
-END $;
+END $qa$;
 RESET ROLE;
 -- Removing school_id now breaks the report RLS subquery even though reports
 -- itself remains granted. This is why the 33-column projection must keep it.
 REVOKE SELECT (school_id) ON public.listings FROM authenticated;
 SET LOCAL ROLE authenticated;
-DO $
+DO $qa$
 BEGIN
  BEGIN
   PERFORM count(*) FROM public.qa_dep_reports;
   RAISE EXCEPTION 'Removing school_id did not break report policy as expected';
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
-END $;
+END $qa$;
 RESET ROLE;
 GRANT SELECT(school_id) ON public.listings TO authenticated;
 
