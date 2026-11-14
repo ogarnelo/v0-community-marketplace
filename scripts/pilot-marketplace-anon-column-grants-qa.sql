@@ -3,9 +3,9 @@
 -- while documenting the explicit SELECT * compatibility break.
 -- Earlier CI creates the tiny, synthetic public.listings fixture and anon role.
 BEGIN;
-ALTER TABLE public.listings ADD COLUMN postal_code text;
-ALTER TABLE public.listings ADD COLUMN lat double precision;
-ALTER TABLE public.listings ADD COLUMN lng double precision;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS postal_code text;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lat double precision;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lng double precision;
 GRANT SELECT ON public.listings TO anon;
 DO $$
 BEGIN
