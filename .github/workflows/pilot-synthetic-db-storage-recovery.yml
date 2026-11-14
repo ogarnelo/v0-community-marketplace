@@ -14,6 +14,8 @@ on:
       - "scripts/pilot-dr-prod-inventory-contract.py"
       - "scripts/pilot-free-plan-backup-contract.mjs"
       - "scripts/pilot-privacy-prod-readonly-contract.py"
+      - "scripts/pilot-listings-atomic-acl-review-only.sql"
+      - "scripts/pilot-listings-atomic-acl-pg17.py"
       - "scripts/pilot-rls-alternative-permissive-pg17.py"
       - "scripts/pilot-cross-table-anon-acl-readonly.sql"
       - "scripts/pilot-cross-table-anon-acl-contract.py"
@@ -91,6 +93,8 @@ jobs:
         run: python3 scripts/pilot-cross-table-anon-acl-contract.py
       - name: Demonstrate RLS permissive policy OR bypass in isolated PostgreSQL17
         run: python3 scripts/pilot-rls-alternative-permissive-pg17.py
+      - name: Prove atomic privacy grant transaction plus rollback in PG17
+        run: python3 scripts/pilot-listings-atomic-acl-pg17.py
       - name: Check that the production privacy preflight reports anon DML grants explicitly
         run: python3 scripts/pilot-privacy-prod-readonly-contract.py
       - name: Assert chat membership RLS policies are covered by read-only preflight
