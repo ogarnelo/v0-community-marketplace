@@ -326,13 +326,21 @@ export async function confirmPaymentComplete(params: {
 
   const { data: paymentIntent, error: paymentLookupError } = await adminSupabase
     .from('payment_intents')
-    .select('id, status, listing_id, metadata')
+    .select('id, status, listing_id, seller_id, metadata')
     .eq('offer_id', offerId)
     .eq('buyer_id', user.id)
     .maybeSingle()
 
   if (paymentLookupError || !paymentIntent) {
     throw new Error(paymentLookupError?.message || 'No se encontró el intent de pago.')
+  }
+
+  // This fallback must obey the same terminal-state guard as the webhook.
+  // A delayed confirmation is never allowed to resurrect refunded/cancelled
+  // payments or overwrite a succeeded payment.
+  const pendingStates = ['requires_payment_method', 'requires_confirmation', 'requires_capture', 'processing']
+  if (!pendingStates.includes(paymentIntent.status)) {
+    throw new Error('El pago ya está cerrado y no admite otra confirmación.')
   }
 
   const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
@@ -352,14 +360,20 @@ export async function confirmPaymentComplete(params: {
     throw new Error('El pago aún no se ha completado en Stripe.')
   }
 
-  if (session.metadata?.offer_id !== offerId || session.metadata?.buyer_id !== user.id) {
+  if (
+    session.id !== sessionId ||
+    session.metadata?.offer_id !== offerId ||
+    session.metadata?.buyer_id !== user.id ||
+    session.metadata?.listing_id !== paymentIntent.listing_id ||
+    session.metadata?.seller_id !== paymentIntent.seller_id
+  ) {
     throw new Error('La sesión de Stripe no corresponde a esta operación.')
   }
 
   const expectedTotal = Number(paymentIntent.metadata?.total_buyer_amount)
   if (
-    Number.isFinite(expectedTotal) &&
-    expectedTotal > 0 &&
+    !Number.isFinite(expectedTotal) ||
+    expectedTotal <= 0 ||
     session.amount_total !== Math.round(expectedTotal * 100)
   ) {
     throw new Error('El importe confirmado por Stripe no coincide con la operación.')
@@ -367,7 +381,8 @@ export async function confirmPaymentComplete(params: {
 
   const now = new Date().toISOString()
 
-  const { error: paymentUpdateError } = await adminSupabase
+  // CAS protects a refund/cancel racing with Stripe retrieval.
+  const { data: confirmedPayment, error: paymentUpdateError } = await adminSupabase
     .from('payment_intents')
     .update({
       status: 'succeeded',
@@ -375,9 +390,12 @@ export async function confirmPaymentComplete(params: {
     })
     .eq('id', paymentIntent.id)
     .eq('buyer_id', user.id)
+    .eq('status', paymentIntent.status)
+    .select('id')
+    .maybeSingle()
 
-  if (paymentUpdateError) {
-    throw new Error(paymentUpdateError.message || 'No se pudo actualizar el estado del pago.')
+  if (paymentUpdateError || !confirmedPayment) {
+    throw new Error('El estado del pago ha cambiado. Consulta la operación antes de continuar.')
   }
 
   const { error: offerUpdateError } = await adminSupabase
