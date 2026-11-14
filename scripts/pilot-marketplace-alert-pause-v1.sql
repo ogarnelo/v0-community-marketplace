@@ -8,7 +8,12 @@ BEGIN
   IF NOT has_function_privilege('service_role','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE')
      OR has_function_privilege('anon','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE')
      OR has_function_privilege('authenticated','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE')
-     OR has_function_privilege('PUBLIC','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE')
+     OR EXISTS (
+       SELECT 1 FROM pg_proc p
+       CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) acl
+       WHERE p.oid='public.marketplace_alert_pause_outbox_v1(uuid,uuid)'::regprocedure
+         AND acl.grantee=0 AND acl.privilege_type='EXECUTE'
+     )
   THEN RAISE EXCEPTION 'Pause RPC privilege gate failed'; END IF;
   IF (SELECT prosecdef FROM pg_proc WHERE oid='public.marketplace_alert_pause_outbox_v1(uuid,uuid)'::regprocedure) THEN
     RAISE EXCEPTION 'Pause RPC must not be SECURITY DEFINER';
