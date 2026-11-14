@@ -79,4 +79,34 @@ SELECT has_table_privilege('anon','public.marketplace_postal_centroids','SELECT'
         OR has_table_privilege('authenticated','public.marketplace_postal_centroids','SELECT')
       THEN 'NO_GO_POSTAL_CENTROIDS' ELSE 'PASS_POSTAL_CENTROIDS_PRIVATE' END AS gate;
 
+-- Fail-closed *catalog signature* for chat privacy, not proof of every
+-- effective RLS path. Existing production SELECT policies are member-scoped.
+WITH chat_tables(table_name) AS (
+ VALUES ('conversations'), ('messages')
+), privacy AS (
+ SELECT c.table_name,
+   t.relrowsecurity AS rls_enabled,
+   has_table_privilege('anon',t.oid,'SELECT') AS anon_table_read,
+   has_table_privilege('authenticated',t.oid,'SELECT') AS auth_table_read,
+   EXISTS (
+     SELECT 1 FROM pg_policies p
+     WHERE p.schemaname='public' AND p.tablename=c.table_name
+     AND p.cmd='SELECT' AND 'authenticated'=ANY(p.roles)
+     AND p.qual ILIKE '%auth.uid%'
+     AND (c.table_name<>'conversations'
+          OR (p.qual ILIKE '%buyer_id%' AND p.qual ILIKE '%seller_id%'))
+     AND (c.table_name<>'messages'
+          OR (p.qual ILIKE '%conversations%' AND p.qual ILIKE '%buyer_id%'
+              AND p.qual ILIKE '%seller_id%'))
+   ) AS member_scoped_policy
+ FROM chat_tables c
+ LEFT JOIN pg_class t ON t.oid=to_regclass('public.'||c.table_name)
+)
+SELECT table_name,rls_enabled,anon_table_read,auth_table_read,member_scoped_policy,
+ CASE WHEN rls_enabled IS TRUE AND anon_table_read IS FALSE
+     AND auth_table_read IS TRUE AND member_scoped_policy IS TRUE
+   THEN 'PASS_CHAT_RLS_CATALOG'
+   ELSE 'NO_GO_CHAT_RLS_CATALOG' END AS gate
+FROM privacy ORDER BY table_name;
+
 ROLLBACK;

@@ -14,6 +14,7 @@ on:
       - "scripts/pilot-dr-prod-inventory-contract.py"
       - "scripts/pilot-free-plan-backup-contract.mjs"
       - "scripts/pilot-privacy-prod-readonly-contract.py"
+      - "scripts/pilot-chat-rls-prod-readonly-contract.py"
       - "scripts/pilot-privacy-prod-preflight-readonly.sql"
       - "scripts/pilot-offline-backup-zip-verify.py"
       - "scripts/pilot-offline-backup-zip-verify-tests.py"
@@ -78,6 +79,8 @@ jobs:
         run: python3 scripts/pilot-dr-prod-inventory-contract.py
       - name: Check that the production privacy preflight reports anon DML grants explicitly
         run: python3 scripts/pilot-privacy-prod-readonly-contract.py
+      - name: Assert chat membership RLS policies are covered by read-only preflight
+        run: python3 scripts/pilot-chat-rls-prod-readonly-contract.py
       - name: Verify no-cost manual encrypted backup workflow controls
         run: node scripts/pilot-free-plan-backup-contract.mjs
       - name: Validate offline backup ZIP checker against synthetic good/bad ZIPs
