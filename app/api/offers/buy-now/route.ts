@@ -74,13 +74,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "El anuncio no tiene un precio válido." }, { status: 400 });
     }
 
-    const { data: existingConversation } = await admin
+    const { data: existingConversation, error: existingConversationError } = await admin
       .from("conversations")
       .select("id")
       .eq("listing_id", listingId)
       .eq("buyer_id", user.id)
       .eq("seller_id", listing.seller_id)
       .maybeSingle();
+    if (existingConversationError) {
+      return NextResponse.json({ error: "No se pudo verificar el chat existente." }, { status: 503 });
+    }
 
     let conversationId = existingConversation?.id || null;
 
@@ -111,7 +114,7 @@ export async function POST(request: Request) {
         .in("user_id", [user.id, listing.seller_id]);
     }
 
-    const { data: activeOffer } = await admin
+    const { data: activeOffer, error: activeOfferError } = await admin
       .from("listing_offers")
       .select("id, status")
       .eq("listing_id", listingId)
@@ -119,7 +122,11 @@ export async function POST(request: Request) {
       .eq("seller_id", listing.seller_id)
       .in("status", ["pending", "countered", "accepted"])
       .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
+    if (activeOfferError) {
+      return NextResponse.json({ error: "No se pudo verificar la negociación existente." }, { status: 503 });
+    }
 
     let offerId = activeOffer?.id || null;
     const now = new Date().toISOString();
