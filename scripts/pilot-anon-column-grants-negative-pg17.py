@@ -33,7 +33,7 @@ try:
     p=subprocess.run(["psql","-X","-v","ON_ERROR_STOP=1","--dbname",dburl(name)],
                      input=sql,text=True,capture_output=True,timeout=50)
     if p.returncode==0 or "NO_GO: anon still has listings table/column DML privileges" not in p.stderr:
-        raise AssertionError("proposal failed to block surviving column DML grants")
+        raise AssertionError("proposal did not produce expected NO_GO: rc="+str(p.returncode)+"; stderr_tail="+repr(p.stderr[-600:]))
     run(name,"REVOKE INSERT(id), UPDATE(postal_code) ON public.listings FROM anon")
     # With no surviving column privileges, the same review proposal must pass.
     p=subprocess.run(["psql","-X","-v","ON_ERROR_STOP=1","--dbname",dburl(name)],
