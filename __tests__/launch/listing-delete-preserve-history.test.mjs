@@ -22,10 +22,11 @@ test("only confirmed parent DELETE succeeds; no premature child deletion", () =>
 });
 
 test("payment, accepted offer, and donation prevent hard deletion", () => {
-  const gate = source.indexOf("if ((payments || []).length > 0 || acceptedOffer || approvedDonation)");
+  const gate = source.indexOf("if (\n      anyRows(paymentsResult)");
   assert.ok(gate >= 0 && gate < deletion);
-  assert.match(source, /"requires_capture"/);
-  assert.match(source, /"succeeded"/);
+  assert.match(source, /anyRows\(paymentsResult\)/);
+  assert.match(source, /anyRows\(acceptedOfferResult\)/);
+  assert.match(source, /anyRows\(approvedDonationResult\)/);
 });
 
 test("moderation/conversation history must archive instead of deleting", () => {
