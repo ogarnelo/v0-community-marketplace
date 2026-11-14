@@ -1,6 +1,9 @@
 -- Disposable PostgreSQL17 CI ONLY. Tests proposed anon REVOKE without writing production.
 -- Existing synthetic listings fixture and anon/authenticated/service_role roles are created earlier.
 BEGIN;
+-- Synthetic alert fixtures do not define geo columns; create them within rollback scope.
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lat double precision;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lng double precision;
 GRANT SELECT ON TABLE public.listings TO anon, authenticated, service_role;
 -- Simulate old dangerous grant. Role privileges are isolated to this transaction.
 DO $$
