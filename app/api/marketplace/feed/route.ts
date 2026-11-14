@@ -90,7 +90,7 @@ export async function GET(request: Request) {
       for (const match of page) nearbyDistances.set(match.listing_id, match.distance_km);
       const requestedIds = page.map((match) => match.listing_id);
       if (requestedIds.length) {
-        const { data, error } = await supabase.from("listings").select(FIELDS)
+        const { data, error } = await admin.from("listings").select(FIELDS)
           .eq("status", "available").in("id", requestedIds);
         if (error) throw error;
         const byId = new Map(((data || []) as ListingRow[]).map((item) => [item.id, item]));
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
       // Preserve the efficient regular feed when neither radius nor
       // nearest sorting is active. No geospatial work for ordinary browsing.
       const query = applyMarketplaceFeedFilters(
-        supabase.from("listings").select(FIELDS).eq("status", "available"), filters
+        admin.from("listings").select(FIELDS).eq("status", "available"), filters
       );
       const { data, error } = await query.range(offset, offset + PAGE_SIZE);
       if (error) throw error;

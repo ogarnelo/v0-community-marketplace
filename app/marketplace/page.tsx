@@ -91,7 +91,7 @@ export default async function MarketplacePage() {
         viewerSchoolId, viewerDirectorySchoolCode);
       const schoolFilter = makeMarketplaceSchoolFilter(scope);
       if (schoolFilter) {
-        const result = await supabase.from("listings")
+        const result = await admin.from("listings")
           .select("id", { count: "exact", head: true })
           .eq("status", "available").or(schoolFilter);
         if (!result.error) communityListingCount = result.count;
@@ -103,7 +103,9 @@ export default async function MarketplacePage() {
     }
   }
 
-  const { data: listingsData, error: listingsError } = await supabase
+  // Public SSR reads are served from the server-only client; anon has no direct listings SELECT.
+  // Keep the available-only predicate below: service_role bypasses RLS.
+  const { data: listingsData, error: listingsError } = await admin
     .from("listings")
     .select(
       "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, directory_school_code, postal_code, status, created_at"
