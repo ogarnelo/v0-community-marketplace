@@ -69,11 +69,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: existingRefund } = await admin
+    const { data: existingRefund, error: existingRefundError } = await admin
       .from("commerce_refunds")
       .select("id, status, provider_refund_id")
       .eq("payment_intent_id", payment.id)
       .maybeSingle();
+    if (existingRefundError) throw existingRefundError;
 
     if (existingRefund) {
       return NextResponse.json(
@@ -92,11 +93,12 @@ export async function POST(request: Request) {
 
     const deliveryMethod = payment.metadata?.delivery_method;
     if (deliveryMethod === "shipping") {
-      const { data: shipment } = await admin
+      const { data: shipment, error: shipmentLookupError } = await admin
         .from("shipments")
         .select("id, status")
         .eq("payment_intent_id", payment.id)
         .maybeSingle();
+      if (shipmentLookupError) throw shipmentLookupError;
 
       if (!shipment || shipment.status !== "delivered") {
         return NextResponse.json(
@@ -106,11 +108,12 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: connectRow } = await admin
+    const { data: connectRow, error: connectLookupError } = await admin
       .from("seller_connect_accounts")
       .select("stripe_account_id")
       .eq("user_id", payment.seller_id)
       .maybeSingle();
+    if (connectLookupError) throw connectLookupError;
 
     if (!connectRow?.stripe_account_id) {
       return NextResponse.json(
@@ -131,11 +134,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: existingTransfer } = await admin
+    const { data: existingTransfer, error: transferLookupError } = await admin
       .from("commerce_transfers")
       .select("*")
       .eq("payment_intent_id", payment.id)
       .maybeSingle();
+    if (transferLookupError) throw transferLookupError;
 
     if (existingTransfer?.status === "released") {
       return NextResponse.json({ ok: true, transfer: existingTransfer, existing: true });
