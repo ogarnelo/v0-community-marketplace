@@ -154,7 +154,8 @@ export default async function MarketplacePage() {
   }
 
   if (listingIds.length > 0) {
-    const { data: listingPhotos, error: listingPhotosError } = await supabase
+    // Catalog photos are loaded server-side from the approved available listing IDs.
+    const { data: listingPhotos, error: listingPhotosError } = await admin
       .from("listing_photos")
       .select("id, listing_id, url, sort_order")
       .in("listing_id", listingIds)
