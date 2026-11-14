@@ -11,7 +11,7 @@ if u.scheme not in ("postgresql","postgres") or u.hostname not in ("localhost","
 def dburl(database):
     return urlunsplit((u.scheme,u.netloc,"/"+database,"",""))
 def run(database,sql,expect=True):
-    p=subprocess.run(["psql","-X","-q","-v","ON_ERROR_STOP=1","--dbname",dburl(database),"-c",sql],
+    p=subprocess.run(["psql","-X","-A","-t","-q","-v","ON_ERROR_STOP=1","--dbname",dburl(database),"-c",sql],
                      capture_output=True,text=True,timeout=50)
     if (p.returncode==0)!=expect: raise AssertionError("PG17 expected exit status mismatch")
     return p.stdout.strip()
