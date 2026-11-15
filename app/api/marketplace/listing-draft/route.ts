@@ -71,6 +71,24 @@ async function filterDraftPhotosSafeToRemove(
           protectedByListing = true;
           break;
         }
+
+        // listings.photos may be stale after a partial edit, while the
+        // authoritative listing_photos row still references this object.
+        // A read failure must not be interpreted as "safe to delete".
+        const { data: photoRow, error: photoError } = await admin
+          .from("listing_photos")
+          .select("id")
+          .eq("url", url)
+          .limit(1)
+          .maybeSingle();
+        if (photoError) {
+          lookupFailed = true;
+          break;
+        }
+        if (photoRow) {
+          protectedByListing = true;
+          break;
+        }
       } catch {
         lookupFailed = true;
         break;
