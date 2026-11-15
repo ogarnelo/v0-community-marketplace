@@ -842,10 +842,10 @@ export default function EditListingForm({
             style={keyboardOffset > 0 ? { bottom: `${keyboardOffset}px` } : undefined}
           >
             <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2 sm:flex sm:justify-end">
-              <Button type="button" variant="outline" className="min-h-12" disabled={saving} onClick={() => router.push(`/marketplace/listing/${initialListing.id}`)}>
+              <Button type="button" variant="outline" className="min-h-12" disabled={saving || restoringPhotoMetadata} onClick={() => router.push(`/marketplace/listing/${initialListing.id}`)}>
                 Cancelar
               </Button>
-              <Button type="submit" className="min-h-12 sm:px-8" disabled={saving}>
+              <Button type="submit" className="min-h-12 sm:px-8" disabled={saving || restoringPhotoMetadata}>
                 {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : "Guardar cambios"}
               </Button>
             </div>
