@@ -94,7 +94,10 @@ def gate_local_target(psql, password):
 SELECT 'database=' || current_database();
 SELECT 'user=' || current_user;
 SELECT 'superuser=' || rolsuper FROM pg_roles WHERE rolname=current_user;
-SELECT 'server_addr=' || inet_server_addr();
+SELECT 'loopback=' || (
+  host(inet_server_addr()) = '127.0.0.1'
+  AND host(inet_client_addr()) = '127.0.0.1'
+);
 SELECT 'listen=' || current_setting('listen_addresses');
 SELECT 'can_set_authenticated=' || pg_has_role(current_user,'authenticated','SET');
 SELECT 'auth_role_no_login=' || NOT rolcanlogin FROM pg_roles WHERE rolname='authenticated';
@@ -108,7 +111,7 @@ SELECT 'target_table_absent=' || (to_regclass('public.saved_search_matches') IS 
         ("DATABASE", "database=" + DB),
         ("ROLE", "user=" + USER),
         ("NON_SUPERUSER", "superuser=false"),
-        ("LOOPBACK", "server_addr=127.0.0.1"),
+        ("LOOPBACK", "loopback=true"),
         ("LOCAL_LISTEN", "listen=localhost"),
         ("ROLE_SET", "can_set_authenticated=true"),
         ("AUTH_NOLOGIN", "auth_role_no_login=true"),
