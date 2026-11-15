@@ -125,7 +125,7 @@ export default async function PublicProfilePage({
     ])
   );
 
-  const { data: activeListingsData } = await supabase
+  const { data: activeListingsData, error: activeListingsError } = await supabase
     .from("listings")
     .select(
       "id, title, category, grade_level, condition, type, listing_type, price, status, created_at"
@@ -134,18 +134,20 @@ export default async function PublicProfilePage({
     .eq("status", "available")
     .order("created_at", { ascending: false });
 
+  if (activeListingsError) throw new Error("profile_listings_unavailable");
   const activeListings = (activeListingsData || []) as ListingRow[];
   const activeListingIds = activeListings.map((listing) => listing.id);
 
   const firstPhotoMap = new Map<string, string>();
 
   if (activeListingIds.length > 0) {
-    const { data: photosData } = await supabase
+    const { data: photosData, error: photosError } = await supabase
       .from("listing_photos")
       .select("id, listing_id, url, sort_order")
       .in("listing_id", activeListingIds)
       .order("sort_order", { ascending: true });
 
+    if (photosError) throw new Error("profile_listing_photos_unavailable");
     for (const photo of (photosData || []) as ListingPhotoRow[]) {
       if (!firstPhotoMap.has(photo.listing_id)) {
         firstPhotoMap.set(photo.listing_id, photo.url);
