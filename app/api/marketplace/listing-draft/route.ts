@@ -31,6 +31,60 @@ function cleanPhotos(value: unknown, userId: string): ListingDraftPhoto[] {
     .filter((item): item is ListingDraftPhoto => Boolean(item));
 }
 
+// A draft photo may already be referenced by a published listing. The
+// browser's preservePhotoPaths hint is not a security boundary. Query only
+// the existence of an exact persisted listing.photos URL before deletion.
+// Fail closed on any ambiguity: leaving a file is safer than breaking a listing.
+async function filterDraftPhotosSafeToRemove(
+  admin: ReturnType<typeof createAdminClient>,
+  candidates: ListingDraftPhoto[]
+): Promise<{ removable: string[]; unknown: boolean }> {
+  const removable: string[] = [];
+  let unknown = false;
+  for (const photo of candidates) {
+    let canonicalUrl = "";
+    try {
+      canonicalUrl = admin.storage.from(STORAGE_BUCKET).getPublicUrl(photo.path).data?.publicUrl || "";
+    } catch {
+      unknown = true;
+      continue;
+    }
+    if (!canonicalUrl) {
+      unknown = true;
+      continue;
+    }
+    const checkUrls = [...new Set([canonicalUrl, photo.url].filter(Boolean))];
+    let protectedByListing = false;
+    let lookupFailed = false;
+    for (const url of checkUrls) {
+      try {
+        const { data, error } = await admin.from("listings")
+          .select("id")
+          .contains("photos", [url])
+          .limit(1)
+          .maybeSingle();
+        if (error) {
+          lookupFailed = true;
+          break;
+        }
+        if (data) {
+          protectedByListing = true;
+          break;
+        }
+      } catch {
+        lookupFailed = true;
+        break;
+      }
+    }
+    if (lookupFailed) {
+      unknown = true;
+    } else if (!protectedByListing) {
+      removable.push(photo.path);
+    }
+  }
+  return { removable, unknown };
+}
+
 async function getAuthenticatedUser() {
   const supabase = await createClient();
   const {
@@ -87,9 +141,8 @@ export async function PUT(request: Request) {
   if (existingError) return privateJson({ error: "No se pudo guardar el borrador." }, 503);
   const previousPhotos = cleanPhotos(existing?.photos, user.id);
   const nextPaths = new Set(photos.map((photo) => photo.path));
-  const removedPaths = previousPhotos
-    .map((photo) => photo.path)
-    .filter((path) => !nextPaths.has(path));
+  const removedPhotos = previousPhotos
+    .filter((photo) => !nextPaths.has(photo.path));
 
   const { data, error } = await admin
     .from("listing_drafts")
@@ -111,11 +164,13 @@ export async function PUT(request: Request) {
 
   // Persist the new draft before deleting formerly referenced photos.
   // Storage cleanup failure is non-destructive: the saved draft remains valid.
-  if (removedPaths.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
+  const cleanup = await filterDraftPhotosSafeToRemove(admin, removedPhotos);
+  if (cleanup.removable.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(cleanup.removable);
     if (storageError) console.error("draft_photo_cleanup_failed");
   }
-  return privateJson({ draft: data });
+  if (cleanup.unknown) console.error("draft_photo_reference_check_unavailable");
+  return privateJson({ draft: data, ...(cleanup.unknown ? { cleanupPending: true } : {}) });
 }
 
 export async function DELETE(request: Request) {
@@ -143,9 +198,8 @@ export async function DELETE(request: Request) {
 
   if (existingError) return privateJson({ error: "No se pudo descartar el borrador." }, 503);
   const existingPhotos = cleanPhotos(existing?.photos, user.id);
-  const pathsToRemove = existingPhotos
-    .map((photo) => photo.path)
-    .filter((path) => !preservePaths.has(path));
+  const photosToConsider = existingPhotos
+    .filter((photo) => !preservePaths.has(photo.path));
 
   // Delete the draft record first. Otherwise a database failure after storage
   // removal would leave a live draft referencing photographs that no longer exist.
@@ -154,14 +208,17 @@ export async function DELETE(request: Request) {
     return privateJson({ error: "No se pudo descartar el borrador." }, 500);
   }
 
-  if (pathsToRemove.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
+  const cleanup = await filterDraftPhotosSafeToRemove(admin, photosToConsider);
+  let cleanupPending = cleanup.unknown;
+  if (cleanup.removable.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(cleanup.removable);
     if (storageError) {
       console.error("discarded_draft_photo_cleanup_failed");
-      // The database has already committed. Do not falsely report that the
-      // draft still exists and prompt a user to retry a destructive operation.
-      return privateJson({ ok: true, cleanupPending: true });
+      cleanupPending = true;
     }
   }
-  return privateJson({ ok: true });
+  if (cleanup.unknown) console.error("draft_photo_reference_check_unavailable");
+  // The draft deletion has already committed; report the successful DB
+  // operation without asking the seller to repeat a destructive action.
+  return privateJson({ ok: true, ...(cleanupPending ? { cleanupPending: true } : {}) });
 }
