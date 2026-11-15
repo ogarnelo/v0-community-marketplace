@@ -75,7 +75,7 @@ class ArchivedRLSReplayTests(unittest.TestCase):
     def test_archived_predicate_shape_is_fixed_label_only(self):
         shapes = (
             ("(user_id = (SELECT auth.uid() AS uid))", "SELECT_UID_ALIAS"),
-            ("(user_id = (SELECT auth.uid()))", "SELECT_UID_OTHER"),
+            ("(user_id = (SELECT auth.uid() AS owner))", "SELECT_UID_OTHER"),
             ("(user_id = auth.uid() = true)", "UID_OTHER"),
             ("(something_else = user_id)", "NO_UID_REFERENCE"),
         )
