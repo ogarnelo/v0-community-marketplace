@@ -133,6 +133,17 @@ SELECT 'POLICIES_PRESENT=' || count(*)
  WHERE schemaname='public' AND tablename='saved_search_matches'
    AND policyname IN ('saved_search_matches_select_own','saved_search_matches_delete_own')
    AND roles='{authenticated}';
+SET LOCAL ROLE authenticated;
+SELECT 'NO_JWT_VISIBLE=' || count(*) FROM public.saved_search_matches;
+WITH d AS (DELETE FROM public.saved_search_matches RETURNING id)
+SELECT 'NO_JWT_DELETE_BLOCKED=' || (count(*)=0) FROM d;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','',true);
+SET LOCAL ROLE authenticated;
+SELECT 'EMPTY_JWT_VISIBLE=' || count(*) FROM public.saved_search_matches;
+WITH d AS (DELETE FROM public.saved_search_matches RETURNING id)
+SELECT 'EMPTY_JWT_DELETE_BLOCKED=' || (count(*)=0) FROM d;
+RESET ROLE;
 SELECT set_config('request.jwt.claim.sub','""" + ID_A + r"""',true);
 SET LOCAL ROLE authenticated;
 SELECT 'A_VISIBLE=' || count(*) FROM public.saved_search_matches;
@@ -151,12 +162,6 @@ SELECT 'B_CROSS_DELETE_BLOCKED=' || (count(*)=0) FROM d;
 WITH d AS (DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
 SELECT 'B_OWN_DELETE_ALLOWED=' || (count(*)=1) FROM d;
 RESET ROLE;
-SELECT set_config('request.jwt.claim.sub','',true);
-SET LOCAL ROLE authenticated;
-SELECT 'EMPTY_JWT_VISIBLE=' || count(*) FROM public.saved_search_matches;
-WITH d AS (DELETE FROM public.saved_search_matches RETURNING id)
-SELECT 'EMPTY_JWT_DELETE_BLOCKED=' || (count(*)=0) FROM d;
-RESET ROLE;
 ROLLBACK;
 SELECT 'ROLLBACK_TABLE_ABSENT=' ||
  (to_regclass('public.saved_search_matches') IS NULL);
@@ -164,7 +169,7 @@ SELECT 'ROLLBACK_AUTH_ABSENT=' || (to_regnamespace('auth') IS NULL);
 """
 
 EXPECTED_RESULTS = {
-    "POLICIES_PRESENT=2", "A_VISIBLE=1", "A_OTHER_INVISIBLE=true",
+    "POLICIES_PRESENT=2", "NO_JWT_VISIBLE=0", "NO_JWT_DELETE_BLOCKED=true", "A_VISIBLE=1", "A_OTHER_INVISIBLE=true",
     "A_CROSS_DELETE_BLOCKED=true", "A_OWN_DELETE_ALLOWED=true",
     "B_VISIBLE=1", "B_CROSS_DELETE_BLOCKED=true", "B_OWN_DELETE_ALLOWED=true",
     "EMPTY_JWT_VISIBLE=0", "EMPTY_JWT_DELETE_BLOCKED=true",
