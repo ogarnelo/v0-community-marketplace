@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    return NextResponse.json({ error: "Inicia sesión para ver tu colegio." }, { status: 401 });
+    return NextResponse.json({ error: "Inicia sesión para ver tu colegio." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const params = new URL(request.url).searchParams;
@@ -41,11 +41,11 @@ export async function GET(request: Request) {
   }
   const rawOffset = params.get("offset") || "0";
   if (!/^(0|[1-9][0-9]{0,5})$/.test(rawOffset)) {
-    return NextResponse.json({ error: "Página incorrecta." }, { status: 400 });
+    return NextResponse.json({ error: "Página incorrecta." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
   const offset = Number(rawOffset);
   if (offset > 999999) {
-    return NextResponse.json({ error: "Página fuera de rango." }, { status: 400 });
+    return NextResponse.json({ error: "Página fuera de rango." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const [{ data: profile, error: profileError },
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       .limit(1).maybeSingle(),
   ]);
   if (profileError || studentError || roleError) {
-    return NextResponse.json({ error: "No se pudo determinar tu colegio." }, { status: 503 });
+    return NextResponse.json({ error: "No se pudo determinar tu colegio." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
   const directoryCode = schoolAdmin?.school_id
     ? "" : student?.directory_school_code?.trim() || "";
@@ -151,8 +151,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       listings, total: needsTotal ? count ?? null : null, offset, hasMore,
     }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) {
-    console.error("Error obteniendo anuncios del colegio:", error);
+  } catch {
+    console.error("marketplace_school_feed_failed");
     return NextResponse.json({ error: "No se pudo cargar el catálogo del colegio." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }

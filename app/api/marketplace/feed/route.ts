@@ -30,17 +30,17 @@ export async function GET(request: Request) {
   }
   const rawOffset = params.get("offset") || "0";
   if (!/^(0|[1-9][0-9]{0,5})$/.test(rawOffset)) {
-    return NextResponse.json({ error: "Página incorrecta." }, { status: 400 });
+    return NextResponse.json({ error: "Página incorrecta." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
   const offset = Number(rawOffset);
   const rawRadius = params.get("radiusKm");
   if (rawRadius !== null && (!/^[1-9][0-9]{0,2}$/.test(rawRadius) || Number(rawRadius) > 200)) {
-    return NextResponse.json({ error: "Radio incorrecto." }, { status: 400 });
+    return NextResponse.json({ error: "Radio incorrecto." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
   const radiusKm = rawRadius === null ? null : Number(rawRadius);
   const nearestNoRadius = radiusKm === null && params.get("sort") === "distance";
   if (offset > 999999) {
-    return NextResponse.json({ error: "Página fuera de rango." }, { status: 400 });
+    return NextResponse.json({ error: "Página fuera de rango." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
   try {
     const supabase = await createClient();
@@ -166,8 +166,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ listings, hasMore, offset }, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch (error) {
-    console.error("Error leyendo la siguiente página del marketplace:", error);
+  } catch {
+    console.error("marketplace_feed_read_failed");
     return NextResponse.json({ error: "No se pudo cargar más anuncios." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
