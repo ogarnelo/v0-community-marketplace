@@ -56,11 +56,8 @@ export default async function SavedSearchesPage() {
       .returns<MatchRow[]>(),
   ]);
 
-  if (savedSearchesResult.error) {
-    console.error("Error cargando búsquedas guardadas:", savedSearchesResult.error);
-  }
-  if (matchesResult.error) {
-    console.error("Error cargando coincidencias guardadas:", matchesResult.error);
+  if (savedSearchesResult.error || matchesResult.error) {
+    throw new Error("saved_searches_unavailable");
   }
 
   const savedSearches = savedSearchesResult.data || [];
@@ -83,7 +80,7 @@ export default async function SavedSearchesPage() {
       .in("demand_request_id", courseNeedDemandIds);
 
     if (activeCourseNeedsError) {
-      console.error("Error cargando búsquedas de Mi curso activas:", activeCourseNeedsError);
+      throw new Error("saved_searches_course_needs_unavailable");
     } else {
       courseNeedStateLoaded = true;
       activeCourseNeedDemandIds = new Set(
@@ -109,21 +106,23 @@ export default async function SavedSearchesPage() {
   let matchedSearches: MatchSearch[] = [];
 
   if (listingIds.length > 0) {
-    const { data } = await supabase
+    const { data, error: listingError } = await supabase
       .from("listings")
       .select("id, title, status, category, grade_level, condition")
       .in("id", listingIds)
       .returns<MatchListing[]>();
+    if (listingError) throw new Error("saved_search_matches_listings_unavailable");
     listings = data || [];
   }
 
   if (searchIds.length > 0) {
-    const { data } = await supabase
+    const { data, error: searchError } = await supabase
       .from("saved_searches")
       .select("id, query, isbn_query, category, grade_level")
       .eq("user_id", user.id)
       .in("id", searchIds)
       .returns<MatchSearch[]>();
+    if (searchError) throw new Error("saved_search_matches_searches_unavailable");
     matchedSearches = data || [];
   }
 
