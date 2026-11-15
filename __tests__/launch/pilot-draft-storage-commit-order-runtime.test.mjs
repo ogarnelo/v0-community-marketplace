@@ -10,7 +10,7 @@ const previous={photos:[{url:"https://fixture.invalid/old.jpg",path:uid+"/drafts
 const body=(method,payload)=>new Request("https://fixture.invalid/draft",{
  method,headers:{"content-type":"application/json"},body:JSON.stringify(payload)
 });
-function fixture({failOperation=null,storageFails=false,publishedReference=false,lookupFails=false}={}){
+function fixture({failOperation=null,storageFails=false,publishedReference=false,lookupFails=false,photoRowReference=false,photoLookupFails=false}={}){
  const steps=[];
  let lastAction="read";
  const supabase={auth:{getUser:async()=>({data:{user:{id:uid}}})}};
@@ -26,6 +26,17 @@ function fixture({failOperation=null,storageFails=false,publishedReference=false
        return()=>published;
      }});
      return published;
+   }
+   if(table==="listing_photos"){
+     const photoQuery=new Proxy({},{get(_t,prop){
+       if(prop==="maybeSingle")return async()=>{
+         steps.push("photo_row_check");
+         return {data:photoRowReference?{id:"existing-photo-row"}:null,
+           error:photoLookupFails?{message:"PRIVATE_PHOTO_LOOKUP_ERROR"}:null};
+       };
+       return()=>photoQuery;
+     }});
+     return photoQuery;
    }
    assert.equal(table,"listing_drafts");
    const q=new Proxy({},{get(_t,prop){
@@ -78,7 +89,7 @@ test("PUT failure keeps old Storage objects and returns a private 500",async()=>
 test("PUT commits the new draft before removing its old photo",async()=>{
  const {handlers,steps}=fixture();
  const r=await handlers.PUT(body("PUT",{payload:{title:"updated"},photos:[]}));
- assert.equal(r.status,200);assert.deepEqual(steps,["read","upsert","reference_check","storage_remove"]);
+ assert.equal(r.status,200);assert.deepEqual(steps,["read","upsert","reference_check","photo_row_check","storage_remove"]);
 });
 test("DELETE failure retains photo files for retry",async()=>{
  const {handlers,steps}=fixture({failOperation:"delete"});
@@ -88,13 +99,13 @@ test("DELETE failure retains photo files for retry",async()=>{
 test("DELETE first commits DB deletion, then cleans Storage",async()=>{
  const {handlers,steps}=fixture();
  const r=await handlers.DELETE(body("DELETE",{}));
- assert.equal(r.status,200);assert.deepEqual(steps,["read","delete","reference_check","storage_remove"]);
+ assert.equal(r.status,200);assert.deepEqual(steps,["read","delete","reference_check","photo_row_check","storage_remove"]);
  assert.deepEqual(await r.json(),{ok:true});
 });
 test("DELETE Storage cleanup error returns committed result, never a false 500",async()=>{
  const {handlers,steps}=fixture({storageFails:true});
  const r=await handlers.DELETE(body("DELETE",{}));
- assert.equal(r.status,200);assert.deepEqual(steps,["read","delete","reference_check","storage_remove"]);
+ assert.equal(r.status,200);assert.deepEqual(steps,["read","delete","reference_check","photo_row_check","storage_remove"]);
  assert.deepEqual(await r.json(),{ok:true,cleanupPending:true});
  assert.equal(r.headers.get("cache-control"),"private, no-store");
 });
@@ -125,4 +136,32 @@ test("PUT fails closed on uncertain reference check and preserves newly saved dr
  assert.equal(r.status,200);
  assert.equal((await r.json()).cleanupPending,true);
  assert.deepEqual(steps,["read","upsert","reference_check"]);
+});
+
+test("PUT preserves a draft photo referenced only by listing_photos",async()=>{
+ const {handlers,steps}=fixture({photoRowReference:true});
+ const r=await handlers.PUT(body("PUT",{payload:{title:"changed"},photos:[]}));
+ assert.equal(r.status,200);
+ assert.deepEqual(steps,["read","upsert","reference_check","photo_row_check"]);
+});
+test("DELETE preserves draft photo metadata referenced by a published listing",async()=>{
+ const {handlers,steps}=fixture({photoRowReference:true});
+ const r=await handlers.DELETE(body("DELETE",{}));
+ assert.equal(r.status,200);
+ assert.deepEqual(await r.json(),{ok:true});
+ assert.deepEqual(steps,["read","delete","reference_check","photo_row_check"]);
+});
+test("DELETE does not delete Storage when listing_photos lookup fails",async()=>{
+ const {handlers,steps}=fixture({photoLookupFails:true});
+ const r=await handlers.DELETE(body("DELETE",{}));
+ assert.equal(r.status,200);
+ assert.deepEqual(await r.json(),{ok:true,cleanupPending:true});
+ assert.deepEqual(steps,["read","delete","reference_check","photo_row_check"]);
+});
+test("PUT keeps the image when photo reference lookup fails",async()=>{
+ const {handlers,steps}=fixture({photoLookupFails:true});
+ const r=await handlers.PUT(body("PUT",{payload:{title:"changed"},photos:[]}));
+ assert.equal(r.status,200);
+ assert.equal((await r.json()).cleanupPending,true);
+ assert.deepEqual(steps,["read","upsert","reference_check","photo_row_check"]);
 });
