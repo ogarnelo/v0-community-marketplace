@@ -79,11 +79,15 @@ export async function PUT(request: Request) {
   const photos = cleanPhotos(body?.photos, user.id);
   const admin = createAdminClient();
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (existingError) {
+    return privateJson({ error: "No se pudo cargar el borrador." }, { status: 500 });
+  }
 
   const previousPhotos = cleanPhotos(existing?.photos, user.id);
   const nextPaths = new Set(photos.map((photo) => photo.path));
@@ -138,11 +142,15 @@ export async function DELETE(request: Request) {
   );
 
   const admin = createAdminClient();
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (existingError) {
+    return privateJson({ error: "No se pudo cargar el borrador." }, { status: 500 });
+  }
 
   const existingPhotos = cleanPhotos(existing?.photos, user.id);
   const pathsToRemove = existingPhotos

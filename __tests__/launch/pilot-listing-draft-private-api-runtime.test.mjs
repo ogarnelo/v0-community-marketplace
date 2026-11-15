@@ -6,16 +6,17 @@ import {resolve} from "node:path";
 import vm from "node:vm";
 const ts=createRequire(import.meta.url)("typescript");
 const FILE="app/api/marketplace/listing-draft/route.ts";
-function api({user={id:"family-A"}, dbError=false, storageError=false, draft=null}={}){
+function api({user={id:"family-A"}, dbError=false, readError=false, storageError=false, draft=null}={}){
   const records={admin:0,logs:[],removed:[],events:[]};
   const db={auth:{getUser:async()=>({data:{user}})}};
   const error=dbError?{message:"PRIVATE SQL failure / password-hash: DO_NOT_LEAK"}:null;
   const builder=()=>({
-    select(){return this;},
+    photosOnly:false,
+    select(columns){this.photosOnly=columns==="photos";return this;},
     eq(){return this;},
     upsert(){records.events.push("db_upsert");return this;},
     delete(){records.events.push("db_delete");return this;},
-    async maybeSingle(){return {data:draft,error};},
+    async maybeSingle(){return {data:draft,error:this.photosOnly?(readError?{message:"READ_PRIVATE_DO_NOT_LEAK"}:null):error};},
     async single(){return {data:dbError?null:{id:"draft-id",payload:{title:"test"},photos:[]},error};},
     then(resolve,reject){return Promise.resolve({error}).then(resolve,reject);}
   });
@@ -164,4 +165,21 @@ test("DELETE Storage failure after DB deletion does not reflect internals",async
   assert.deepEqual(records.events,["db_delete","storage_remove"]);
   assert.deepEqual(records.logs,[["listing_draft_storage_cleanup_failed"]]);
   assert.equal(JSON.stringify(await response.json()).includes("DO_NOT_LEAK"),false);
+});
+
+test("PUT fails closed on existing-photo lookup error without upsert or storage cleanup",async()=>{
+  const {route,records}=api({readError:true,draft:{photos:[{path:"family-A/drafts/one",url:"https://fixture.invalid/one"}]}});
+  const response=await route.PUT(req("PUT",{payload:{title:"new"},photos:[]}));
+  assert.equal(response.status,500);
+  assert.equal(JSON.stringify(await response.json()).includes("READ_PRIVATE_DO_NOT_LEAK"),false);
+  assert.deepEqual(records.events,[]);
+  assert.equal(records.admin,1);
+});
+test("DELETE fails closed on existing-photo lookup error without deleting record or files",async()=>{
+  const {route,records}=api({readError:true});
+  const response=await route.DELETE(req("DELETE",{preservePhotoPaths:[]}));
+  assert.equal(response.status,500);
+  assert.equal(JSON.stringify(await response.json()).includes("READ_PRIVATE_DO_NOT_LEAK"),false);
+  assert.deepEqual(records.events,[]);
+  assert.equal(records.admin,1);
 });
