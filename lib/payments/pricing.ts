@@ -34,7 +34,11 @@ export function buildMarketplacePricing(params: {
 }) {
   const itemAmount = roundCurrency(params.itemAmount);
   const deliveryMethod = params.deliveryMethod ?? "shipping";
-  const shipmentTier = deliveryMethod === "shipping" ? params.shipmentTier ?? "small" : "none";
+  // "none" is valid ONLY for in-person pickup. A forged client request
+  // must never suppress the delivery fee on a shipping checkout.
+  const shipmentTier = deliveryMethod === "shipping"
+    ? (params.shipmentTier && params.shipmentTier !== "none" ? params.shipmentTier : "small")
+    : "none";
 
   const buyerFeeAmount =
     deliveryMethod === "shipping"

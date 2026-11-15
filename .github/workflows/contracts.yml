@@ -21,3 +21,123 @@ jobs:
         run: npm install --ignore-scripts
       - name: Critical contract tests
         run: npm run test:critical-contracts
+      - name: Execute Next public API handlers with synthetic HTTP requests
+        run: node --test __tests__/launch/pilot-public-routes-runtime.test.mjs
+      - name: Validate private draft handlers and storage error minimization
+        run: node --test __tests__/launch/pilot-listing-draft-private-api-runtime.test.mjs
+
+      - name: School feed error privacy with synthetic authenticated HTTP handlers
+        run: node --test __tests__/launch/pilot-my-school-private-responses-runtime.test.mjs
+
+      - name: Verify listing page protects private photo reads before authorization
+        run: node --test __tests__/launch/pilot-listing-detail-private-photo-authorization-runtime.test.mjs
+
+      - name: Private message summaries: real handler with synthetic users
+        run: node --test __tests__/launch/pilot-conversation-summary-private-http-runtime.test.mjs
+
+      - name: Saved search error privacy tests
+        run: node --test __tests__/launch/pilot-saved-search-sensitive-error-contract.test.mjs
+
+      - name: Commerce and moderation private exception responses
+        run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
+
+      - name: Synthetic local recovery controls (no real backup / no network DB)
+        run: |
+          python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
+          python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py scripts/test_pilot_three_ampa_release_evidence_gate.py scripts/test_pilot_marketplace_public_feed_pii_contract.py scripts/test_pilot_public_endpoint_disclosure_contract.py scripts/test_pilot_dr_release_scope_gate.py scripts/test_pilot_backup_partial_restore_authorization.py scripts/test_pilot_e2e_workflow_trigger_coverage.py scripts/test_pilot_atomic_acl_preflight_contract.py -v
+
+  synthetic-postgres17-gates:
+    name: PG17 synthetic RLS + privacy grants
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgrest:
+        image: postgrest/postgrest:v12.2.12
+        env:
+          PGRST_DB_URI: postgres://postgres:ci_synthetic_only_not_secret@postgres:5432/wetudy_privacy_ci
+          PGRST_DB_SCHEMAS: public
+          PGRST_DB_ANON_ROLE: anon
+          PGRST_JWT_SECRET: ci_only_wetudy_postgrest_jwt_secret_2026_not_prod
+        ports:
+          - 3000:3000
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_synthetic_only_not_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ci_synthetic_only_not_secret
+      WETUDY_SYNTHETIC_POSTGRES_CI: "yes"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install local PostgreSQL CLI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
+      - name: Create disposable roles and two synthetic databases
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -d postgres <<'SQL'
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          CREATE ROLE wetudy_dr_restore LOGIN PASSWORD 'ci_synthetic_only_not_secret';
+          GRANT authenticated TO wetudy_dr_restore;
+          CREATE DATABASE wetudy_dr_local_20261115;
+          CREATE DATABASE wetudy_privacy_ci;
+          SQL
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_dr_local_20261115 <<'SQL'
+          GRANT CREATE ON DATABASE wetudy_dr_local_20261115 TO wetudy_dr_restore;
+          GRANT USAGE, CREATE ON SCHEMA public TO wetudy_dr_restore;
+          SQL
+      - name: Execute RLS owner-isolation using exact production catalog predicate
+        run: python3 scripts/pilot-ci-postgres17-rls-runtime.py
+      - name: Reproduce exact #447 proposal and verify DML remains unchanged
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-anon-listings-revoke-proposal.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-assert.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-anon-listings-dml-revoke-review-only.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-after-dml-assert.sql
+      - name: "Test real SQL operations: deny anon CRUD, preserve owner postal code edit"
+        run: bash scripts/pilot-ci-privacy-actual-roles-runtime.sh
+      - name: Prepare synthetic PostgREST RLS for authenticated families
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci <<'SQL'
+          GRANT USAGE ON SCHEMA auth TO authenticated;
+          -- PostgREST 12 supplies the JWT object through request.jwt.claims;
+          -- SQL-only fixtures previously used request.jwt.claim.sub directly.
+          -- This function exists only in the disposable synthetic database.
+          CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
+          'SELECT coalesce(
+             nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid,
+             nullif(current_setting(''request.jwt.claims'',true)::jsonb->>''sub'','''')::uuid
+           )';
+          CREATE POLICY synthetic_http_owner_select ON public.listings
+            FOR SELECT TO authenticated USING (user_id = auth.uid());
+          NOTIFY pgrst, 'reload schema';
+          SQL
+      - name: Restart isolated PostgREST after synthetic database creation
+        run: |
+          set -euo pipefail
+          service="$(docker ps -q --filter ancestor=postgrest/postgrest:v12.2.12)"
+          test -n "$service"
+          docker restart "$service" >/dev/null
+      - name: "HTTP PostgREST real: anonymous blocked and family CP isolated"
+        env:
+          WETUDY_POSTGREST_HTTP_CI: "yes"
+        run: node scripts/pilot-ci-postgrest-privacy-http.mjs

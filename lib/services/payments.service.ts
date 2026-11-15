@@ -25,7 +25,9 @@ export function normalizeCheckoutSelection(input: {
     return { deliveryMethod, shipmentTier: "none" as const };
   }
 
-  return { deliveryMethod, shipmentTier };
+  // A forged shipping request may explicitly select "none": do not waive
+  // transport charges even if this helper is called without the pricing layer.
+  return { deliveryMethod, shipmentTier: shipmentTier === "none" ? "small" as const : shipmentTier };
 }
 
 export async function getAcceptedOfferForBuyer(params: {
@@ -116,9 +118,11 @@ export async function createPaymentIntentDraft(params: {
   const now = new Date().toISOString();
   const paymentStatus = "requires_payment_method";
 
+  // A partial offer_id unique index protects against concurrent duplicate drafts.
+  // Do not UPSERT: a retry could rewrite a completed payment to pending.
   const { data: paymentIntent, error } = await supabase
     .from("payment_intents")
-    .upsert(
+    .insert(
       {
         listing_id: offer.listing_id,
         conversation_id: conversation?.id || null,
@@ -140,14 +144,16 @@ export async function createPaymentIntentDraft(params: {
           total_buyer_amount: quote.totalBuyerAmount,
         },
         updated_at: now,
-      },
-      { onConflict: "offer_id" }
+      }
     )
     .select("id, status, amount, currency, buyer_fee_amount, shipping_amount, seller_net_amount, platform_fee_amount, shipment_tier, metadata")
     .single();
 
+  if (error?.code === "23505") {
+    throw new Error("Ya existe un pago asociado a esta oferta. Consulta su estado; no se modificó.");
+  }
   if (error || !paymentIntent) {
-    throw new Error(error?.message || "No se pudo preparar el pago.");
+    throw new Error("No se pudo preparar el pago.");
   }
 
   return {

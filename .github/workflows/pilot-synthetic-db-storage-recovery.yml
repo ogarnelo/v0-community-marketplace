@@ -9,6 +9,25 @@ on:
       - "scripts/pilot-marketplace-rls-drift-fixture.sql"
       - "scripts/pilot-marketplace-rls-drift-regression.py"
       - "scripts/pilot-client-tablewide-privileges-regression.py"
+      - "scripts/pilot-privacy-acl-restore-qa.py"
+      - "scripts/pilot-dr-prod-inventory-readonly.sql"
+      - "scripts/pilot-dr-prod-inventory-contract.py"
+      - "scripts/pilot-free-plan-backup-contract.mjs"
+      - "scripts/pilot-privacy-prod-readonly-contract.py"
+      - "scripts/pilot-listings-atomic-acl-review-only.sql"
+      - "scripts/pilot-listings-atomic-acl-pg17.py"
+      - "scripts/pilot-rls-alternative-permissive-pg17.py"
+      - "scripts/pilot-cross-table-anon-acl-readonly.sql"
+      - "scripts/pilot-cross-table-anon-acl-contract.py"
+      - "scripts/pilot-anon-column-grants-negative-pg17.py"
+      - "scripts/pilot-readonly-sql-guard.py"
+      - "scripts/pilot-chat-rls-prod-readonly-contract.py"
+      - "scripts/pilot-privacy-prod-preflight-readonly.sql"
+      - "scripts/pilot-offline-backup-zip-verify.py"
+      - "scripts/pilot-offline-backup-zip-verify-tests.py"
+      - "scripts/pilot-anon-listings-revoke-proposal.sql"
+      - "scripts/pilot-anon-listings-dml-hardening-proposal.sql"
+      - "scripts/pilot-auth-listings-sensitive-grants-proposal.sql"
       - "scripts/pilot-wave1-client-privilege-regression.py"
       - "supabase/migrations/20261111084000_pilot_wave1_revoke_client_non_rls_privileges.sql"
       - "scripts/pilot-client-tablewide-privileges-regression.sql"
@@ -64,5 +83,27 @@ jobs:
         run: python3 scripts/pilot-client-tablewide-privileges-regression.py
       - name: Verify wave-1 client privilege revocation in disposable PostgreSQL17
         run: python3 scripts/pilot-wave1-client-privilege-regression.py
+      - name: Assert full production DR cannot be certified from synthetic fixtures
+        run: python3 scripts/pilot-dr-prod-inventory-contract.py
+      - name: Fail closed on unsafe SQL in read-only production preflights
+        run: python3 scripts/pilot-readonly-sql-guard.py
+      - name: Prove PG17 column-level anon DML grants fail review-only proposal
+        run: python3 scripts/pilot-anon-column-grants-negative-pg17.py
+      - name: Audit cross-table anon permissions source contract (no production SQL)
+        run: python3 scripts/pilot-cross-table-anon-acl-contract.py
+      - name: Demonstrate RLS permissive policy OR bypass in isolated PostgreSQL17
+        run: python3 scripts/pilot-rls-alternative-permissive-pg17.py
+      - name: Prove atomic privacy grant transaction plus rollback in PG17
+        run: python3 scripts/pilot-listings-atomic-acl-pg17.py
+      - name: Check that the production privacy preflight reports anon DML grants explicitly
+        run: python3 scripts/pilot-privacy-prod-readonly-contract.py
+      - name: Assert chat membership RLS policies are covered by read-only preflight
+        run: python3 scripts/pilot-chat-rls-prod-readonly-contract.py
+      - name: Verify no-cost manual encrypted backup workflow controls
+        run: node scripts/pilot-free-plan-backup-contract.mjs
+      - name: Validate offline backup ZIP checker against synthetic good/bad ZIPs
+        run: python3 scripts/pilot-offline-backup-zip-verify-tests.py
+      - name: Recover synthetic private listing ACLs and RLS into a second local PG17 DB
+        run: python3 scripts/pilot-privacy-acl-restore-qa.py
       - name: Audit client EXECUTE grants on synthetic SECURITY DEFINER functions
         run: python3 scripts/pilot-client-privilege-function-regression.py

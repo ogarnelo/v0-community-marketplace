@@ -108,7 +108,7 @@ export default async function PublicProfilePage({
       ? admin.from("profiles").select("id, full_name, business_name").in("id", reviewerIds)
       : Promise.resolve({ data: [] as Pick<ProfileRow, "id" | "full_name" | "business_name">[] }),
     reviewListingIds.length > 0
-      ? admin.from("listings").select("id, title").in("id", reviewListingIds)
+      ? admin.from("listings").select("id, title").in("id", reviewListingIds).eq("status", "available")
       : Promise.resolve({ data: [] as Pick<ListingRow, "id" | "title">[] }),
   ]);
 

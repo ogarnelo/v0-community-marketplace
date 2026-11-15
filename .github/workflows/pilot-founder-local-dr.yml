@@ -1,0 +1,47 @@
+name: WETUDY founder local backup preflight synthetic
+on:
+  pull_request:
+    paths:
+      - "scripts/pilot-founder-local-backup-preflight.py"
+      - "scripts/pilot-founder-local-drill.py"
+      - "scripts/pilot-founder-macos-offline-drill.py"
+      - "scripts/pilot-founder-macos-pg17-toc.py"
+      - "scripts/test_pilot_founder_macos_pg17_toc.py"
+      - "scripts/pilot-founder-macos-real-rls-policy-preflight.py"
+      - "scripts/test_pilot_founder_macos_real_rls_policy_preflight.py"
+      - "scripts/pilot-founder-macos-archived-rls-replay.py"
+      - "scripts/test_pilot_founder_macos_archived_rls_replay.py"
+      - "scripts/test_pilot_founder_macos_offline_drill.py"
+      - "scripts/test_pilot_founder_local_backup_preflight.py"
+      - "scripts/test_pilot_founder_local_drill.py"
+      - ".github/workflows/pilot-founder-local-dr.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-doctor-and-zip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test local backup ZIP verifier with synthetic bytes only
+        run: python3 -m unittest scripts/test_pilot_founder_local_backup_preflight.py scripts/test_pilot_founder_local_drill.py -v
+      - name: Install pinned cryptography for synthetic macOS-compatible verification
+        run: |
+          python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
+      - name: Test synthetic AES-256-CBC PBKDF2 decryption without production data
+        run: python3 -m unittest scripts/test_pilot_founder_macos_offline_drill.py -v
+      - name: Test synthetic PostgreSQL 17 TOC coverage without databases
+        run: python3 -m unittest scripts/test_pilot_founder_macos_pg17_toc.py -v
+      - name: Test real-policy TOC/DDL selection against synthetic inputs
+        run: python3 -m unittest scripts/test_pilot_founder_macos_real_rls_policy_preflight.py -v
+      - name: Synthetic fail-closed archived RLS replay SQL validation
+        run: python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py -v
+      - name: Prohibit any hosted DB or real credentials in the synthetic test
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RE 'https://jpsljmakoscqevssimtk|SUPABASE_SERVICE_ROLE_KEY|WETUDY_BACKUP_ENCRYPTION_PASSWORD' \
+            scripts/pilot-founder-local-backup-preflight.py scripts/pilot-founder-local-drill.py scripts/pilot-founder-macos-offline-drill.py scripts/pilot-founder-macos-pg17-toc.py scripts/pilot-founder-macos-real-rls-policy-preflight.py scripts/pilot-founder-macos-archived-rls-replay.py

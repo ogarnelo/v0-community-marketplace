@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from "@/lib/payments/pricing";
+import { getAcceptedOfferAmount } from "@/lib/payments/offer-amount";
 import { buildOfferChatBody } from "@/lib/offers/chat-message";
 import { createNotifications } from "@/lib/notifications";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
@@ -69,18 +70,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No puedes comprar tu propio anuncio." }, { status: 400 });
     }
 
-    const itemAmount = Number(listing.price ?? 0);
+    let itemAmount = Number(listing.price ?? 0);
     if (!Number.isFinite(itemAmount) || itemAmount <= 0) {
       return NextResponse.json({ error: "El anuncio no tiene un precio válido." }, { status: 400 });
     }
 
-    const { data: existingConversation } = await admin
+    const { data: existingConversation, error: existingConversationError } = await admin
       .from("conversations")
       .select("id")
       .eq("listing_id", listingId)
       .eq("buyer_id", user.id)
       .eq("seller_id", listing.seller_id)
       .maybeSingle();
+    if (existingConversationError) {
+      return NextResponse.json({ error: "No se pudo verificar el chat existente." }, { status: 503 });
+    }
 
     let conversationId = existingConversation?.id || null;
 
@@ -96,7 +100,7 @@ export async function POST(request: Request) {
         .single();
 
       if (conversationError || !newConversation) {
-        return NextResponse.json({ error: conversationError?.message || "No se pudo abrir el chat." }, { status: 400 });
+        return NextResponse.json({ error: "No se pudo abrir el chat." }, { status: 400 });
       }
 
       conversationId = newConversation.id;
@@ -111,15 +115,29 @@ export async function POST(request: Request) {
         .in("user_id", [user.id, listing.seller_id]);
     }
 
-    const { data: activeOffer } = await admin
+    const { data: activeOffer, error: activeOfferError } = await admin
       .from("listing_offers")
-      .select("id, status")
+      .select("id, status, accepted_amount, current_amount, counter_price, offered_price")
       .eq("listing_id", listingId)
       .eq("buyer_id", user.id)
       .eq("seller_id", listing.seller_id)
       .in("status", ["pending", "countered", "accepted"])
       .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
+    if (activeOfferError) {
+      return NextResponse.json({ error: "No se pudo verificar la negociación existente." }, { status: 503 });
+    }
+
+    // A buyer may already have an accepted negotiated offer below list price.
+    // Reusing its offer_id MUST also reuse the agreed price; never silently
+    // charge the public listing price on a checkout retry.
+    if (activeOffer?.status === "accepted") {
+      itemAmount = getAcceptedOfferAmount(activeOffer);
+      if (!Number.isFinite(itemAmount) || itemAmount <= 0) {
+        return NextResponse.json({ error: "La oferta aceptada tiene un importe inválido." }, { status: 409 });
+      }
+    }
 
     let offerId = activeOffer?.id || null;
     const now = new Date().toISOString();
@@ -155,7 +173,7 @@ export async function POST(request: Request) {
         .single();
 
       if (offerError || !offer) {
-        return NextResponse.json({ error: offerError?.message || "No se pudo crear la compra." }, { status: 400 });
+        return NextResponse.json({ error: "No se pudo crear la compra." }, { status: 400 });
       }
 
       offerId = offer.id;
@@ -199,9 +217,14 @@ export async function POST(request: Request) {
       shipmentTier: deliveryMethod === "shipping" ? shipmentTier : "none",
     });
 
+    // payment_intents.offer_id has a PARTIAL unique index in production.
+    // ON CONFLICT (offer_id) cannot target that index without its predicate;
+    // more importantly UPDATE on conflict could reset a completed payment.
+    // INSERT is the safe, concurrency-aware operation: 23505 means reuse
+    // the existing checkout without modifying its status, amount or ledger.
     const { data: paymentIntent, error: paymentError } = await admin
       .from("payment_intents")
-      .upsert(
+      .insert(
         {
           listing_id: listingId,
           conversation_id: conversationId,
@@ -209,28 +232,51 @@ export async function POST(request: Request) {
           buyer_id: user.id,
           seller_id: listing.seller_id,
           school_id: listing.school_id || null,
-          amount: pricing.totalBuyerAmount,
+          // payment_intents.amount is the ITEM price. Other checkout,
+          // refund and shipping readers add buyer_fee_amount +
+          // shipping_amount separately; storing the buyer total here
+          // doubles fees on refunds and misstates shipping item value.
+          amount: pricing.itemAmount,
           currency: "EUR",
           provider: "stripe",
           status: "requires_payment_method",
           buyer_fee_amount: pricing.buyerFeeAmount,
           shipping_amount: pricing.shippingAmount,
           seller_net_amount: pricing.sellerNetAmount,
+          platform_fee_amount: pricing.buyerFeeAmount,
           shipment_tier: pricing.shipmentTier,
           metadata: {
             source: "buy_now",
             delivery_method: deliveryMethod,
             item_amount: pricing.itemAmount,
+            total_buyer_amount: pricing.totalBuyerAmount,
           },
           updated_at: now,
-        },
-        { onConflict: "offer_id" }
+        }
       )
       .select("id, amount, currency, status")
       .single();
 
+    if (paymentError?.code === "23505") {
+      // Unique offer ID already has a checkout. Never reset an existing
+      // processing, succeeded, refunded or canceled payment on retry.
+      const { data: existingPayment, error: lookupError } = await admin
+        .from("payment_intents")
+        .select("id, status")
+        .eq("offer_id", offerId)
+        .maybeSingle();
+      if (lookupError || !existingPayment) {
+        return NextResponse.json({ error: "No se pudo recuperar el pago existente." }, { status: 503 });
+      }
+      return NextResponse.json({
+        error: "Ya existe un pago asociado a esta oferta. Continúa desde el chat.",
+        alreadyExists: true,
+        conversationId,
+        redirectTo: conversationId ? `/messages/${conversationId}` : `/marketplace/listing/${listingId}`,
+      }, { status: 409 });
+    }
     if (paymentError || !paymentIntent) {
-      return NextResponse.json({ error: paymentError?.message || "No se pudo preparar el checkout." }, { status: 400 });
+      return NextResponse.json({ error: "No se pudo preparar el checkout." }, { status: 400 });
     }
 
     if (conversationId) {
@@ -254,11 +300,13 @@ export async function POST(request: Request) {
       offerId,
       paymentIntent,
       quote: pricing,
-    });
-  } catch (error: any) {
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    // Never return privileged SQL/provider diagnostics to the buyer.
+    console.error("buy_now_checkout_failed");
     return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo iniciar la compra." },
-      { status: 500 }
+      { error: "No se pudo iniciar la compra." },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }

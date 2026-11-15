@@ -45,7 +45,6 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const admin = createAdminClient();
     // Read the viewer's postcode from the authenticated account, never a
     // caller-supplied URL parameter (which could expose arbitrary distances).
     if ((radiusKm !== null || nearestNoRadius) && !user) {
@@ -61,6 +60,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Añade un código postal válido en Mi cuenta." },
         { status: 422, headers: { "Cache-Control": "private, no-store" } });
     }
+
+    // Do not instantiate a bypass-RLS client on rejected distance requests.
+    const admin = createAdminClient();
 
     let rows: ListingRow[];
     let hasMore: boolean;
@@ -90,7 +92,7 @@ export async function GET(request: Request) {
       for (const match of page) nearbyDistances.set(match.listing_id, match.distance_km);
       const requestedIds = page.map((match) => match.listing_id);
       if (requestedIds.length) {
-        const { data, error } = await supabase.from("listings").select(FIELDS)
+        const { data, error } = await admin.from("listings").select(FIELDS)
           .eq("status", "available").in("id", requestedIds);
         if (error) throw error;
         const byId = new Map(((data || []) as ListingRow[]).map((item) => [item.id, item]));
@@ -100,7 +102,7 @@ export async function GET(request: Request) {
       // Preserve the efficient regular feed when neither radius nor
       // nearest sorting is active. No geospatial work for ordinary browsing.
       const query = applyMarketplaceFeedFilters(
-        supabase.from("listings").select(FIELDS).eq("status", "available"), filters
+        admin.from("listings").select(FIELDS).eq("status", "available"), filters
       );
       const { data, error } = await query.range(offset, offset + PAGE_SIZE);
       if (error) throw error;
@@ -115,7 +117,7 @@ export async function GET(request: Request) {
            { data: sellerProfiles, error: sellerError },
            { data: favorites, error: favoriteError }] = await Promise.all([
       ids.length
-        ? supabase.from("listing_photos")
+        ? admin.from("listing_photos")
           .select("id,listing_id,url,sort_order").in("listing_id", ids)
           .order("sort_order", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
@@ -166,8 +168,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ listings, hasMore, offset }, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch (error) {
-    console.error("Error leyendo la siguiente página del marketplace:", error);
+  } catch {
+    // The DB error object can carry SQL diagnostics and listing metadata.
+    // Keep sensitive internals out of runtime logs on this public endpoint.
+    console.error("marketplace_feed_read_failed");
     return NextResponse.json({ error: "No se pudo cargar más anuncios." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }

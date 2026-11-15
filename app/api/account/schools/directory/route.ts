@@ -75,8 +75,9 @@ export async function GET(request: Request) {
 
     if (error) throw error;
     return respond({ centres: data || [], limit: MAX_RESULTS });
-  } catch (error) {
-    console.error("Error buscando el directorio escolar para contexto educativo", error);
+  } catch {
+    // Avoid logging privileged directory SQL diagnostics or family context.
+    console.error("school_directory_lookup_failed");
     return respond({ error: "No se pudo buscar el centro. Vuelve a intentarlo." }, 503);
   }
 }

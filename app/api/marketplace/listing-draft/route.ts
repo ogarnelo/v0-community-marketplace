@@ -6,6 +6,11 @@ import type { ListingDraftPhoto } from "@/lib/marketplace/listing-draft";
 const STORAGE_BUCKET = "listing-photos";
 const MAX_DRAFT_PHOTOS = 8;
 const MAX_PAYLOAD_BYTES = 32_000;
+const PRIVATE_RESPONSE_HEADERS = { "Cache-Control": "private, no-store" };
+
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...options.headers, ...PRIVATE_RESPONSE_HEADERS } });
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -38,7 +43,7 @@ async function getAuthenticatedUser() {
 export async function GET() {
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+    return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
   }
 
   const admin = createAdminClient();
@@ -49,49 +54,59 @@ export async function GET() {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message || "No se pudo cargar el borrador." }, { status: 500 });
+    return privateJson({ error: "No se pudo cargar el borrador." }, { status: 500, headers: PRIVATE_RESPONSE_HEADERS });
   }
 
-  return NextResponse.json({ draft: data || null });
+  return privateJson({ draft: data || null }, {});
 }
 
 export async function PUT(request: Request) {
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+    return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
   }
 
   const body = await request.json().catch(() => null);
   const payload = isPlainObject(body?.payload) ? body.payload : null;
   if (!payload) {
-    return NextResponse.json({ error: "El borrador no es válido." }, { status: 400 });
+    return privateJson({ error: "El borrador no es válido." }, { status: 400 });
   }
 
   if (Buffer.byteLength(JSON.stringify(payload), "utf8") > MAX_PAYLOAD_BYTES) {
-    return NextResponse.json({ error: "El borrador es demasiado grande." }, { status: 413 });
+    return privateJson({ error: "El borrador es demasiado grande." }, { status: 413 });
+  }
+
+  // Reject malformed or cross-account photo references instead of silently
+  // dropping them: a truncated/filtered list could erase prior draft photos.
+  if (body?.photos !== undefined) {
+    const incoming = body.photos;
+    const accepted = cleanPhotos(incoming, user.id);
+    if (!Array.isArray(incoming) ||
+        incoming.length > MAX_DRAFT_PHOTOS ||
+        accepted.length !== incoming.length ||
+        new Set(accepted.map((photo) => photo.path)).size !== accepted.length) {
+      return privateJson({ error: "Las fotos del borrador no son válidas." }, { status: 400 });
+    }
   }
 
   const photos = cleanPhotos(body?.photos, user.id);
   const admin = createAdminClient();
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (existingError) {
+    return privateJson({ error: "No se pudo cargar el borrador." }, { status: 500 });
+  }
 
   const previousPhotos = cleanPhotos(existing?.photos, user.id);
   const nextPaths = new Set(photos.map((photo) => photo.path));
   const removedPaths = previousPhotos
     .map((photo) => photo.path)
     .filter((path) => !nextPaths.has(path));
-
-  if (removedPaths.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
-    if (storageError) {
-      console.error("No se pudieron limpiar fotos retiradas del borrador", storageError);
-    }
-  }
 
   const { data, error } = await admin
     .from("listing_drafts")
@@ -108,16 +123,25 @@ export async function PUT(request: Request) {
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: error?.message || "No se pudo guardar el borrador." }, { status: 500 });
+    return privateJson({ error: "No se pudo guardar el borrador." }, { status: 500 });
   }
 
-  return NextResponse.json({ draft: data });
+  // Only remove abandoned objects AFTER the DB confirms the new draft.
+  // Failed saves must not destroy photos still referenced by the old draft.
+  if (removedPaths.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
+    if (storageError) {
+      console.error("listing_draft_storage_cleanup_failed");
+    }
+  }
+
+  return privateJson({ draft: data }, {});
 }
 
 export async function DELETE(request: Request) {
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+    return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -131,31 +155,36 @@ export async function DELETE(request: Request) {
   );
 
   const admin = createAdminClient();
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (existingError) {
+    return privateJson({ error: "No se pudo cargar el borrador." }, { status: 500 });
+  }
 
   const existingPhotos = cleanPhotos(existing?.photos, user.id);
   const pathsToRemove = existingPhotos
     .map((photo) => photo.path)
     .filter((path) => !preservePaths.has(path));
 
+  // Delete DB references before deleting Storage objects. On a failed DB
+  // delete, previously referenced photos must remain available to the owner.
+  const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
+  if (error) {
+    return privateJson({ error: "No se pudo descartar el borrador." }, { status: 500 });
+  }
+
   if (pathsToRemove.length > 0) {
     const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
     if (storageError) {
-      return NextResponse.json(
-        { error: storageError.message || "No se pudieron limpiar las fotos del borrador." },
-        { status: 500 }
-      );
+      // Cleanup is best effort after the DB delete. A failed cleanup may
+      // leave unreferenced objects; never expose privileged Storage errors.
+      console.error("listing_draft_storage_cleanup_failed");
     }
   }
 
-  const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
-  if (error) {
-    return NextResponse.json({ error: error.message || "No se pudo descartar el borrador." }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

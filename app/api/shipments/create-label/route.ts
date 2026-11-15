@@ -70,7 +70,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ shipment });
   }
 
-  if (!["draft", "quoted", "label_pending"].includes(String(shipment.status))) {
+  // Any previous provider attempt needs reconciliation, even when a timeout
+  // prevented us from persisting a tracking number. Never create twice.
+  if (shipment.payload?.sendcloud_attempted === true) {
+    return NextResponse.json({ error: "La etiqueta requiere conciliación antes de reintentar." }, { status: 409 });
+  }
+
+  if (!["draft", "quoted"].includes(String(shipment.status))) {
     return NextResponse.json(
       { error: "Este envío ya no admite crear una etiqueta." },
       { status: 409 }
@@ -93,6 +99,9 @@ export async function POST(request: Request) {
       : Promise.resolve({ data: null, error: null }),
   ]);
 
+  if (paymentResult.error || listingResult.error || buyerProfileResult.error) {
+    return NextResponse.json({ error: "No se pudo verificar el pago o la dirección." }, { status: 503 });
+  }
   const payment = paymentResult.data;
   const listing = listingResult.data;
   const buyerProfile = buyerProfileResult.data;
@@ -108,11 +117,35 @@ export async function POST(request: Request) {
     );
   }
 
+  if (payment.buyer_id !== shipment.buyer_id ||
+      payment.seller_id !== shipment.seller_id ||
+      payment.listing_id !== shipment.listing_id) {
+    return NextResponse.json({ error: "El pago no corresponde a este envío." }, { status: 409 });
+  }
+
   if (!hasCompleteShippingAddress(buyerProfile)) {
     return NextResponse.json(
       { error: "El comprador aún no tiene una dirección de envío completa en su perfil." },
       { status: 400 }
     );
+  }
+
+  // Persist a fail-closed fence BEFORE calling an external provider.
+  // Another request that races this one must not create a second label.
+  const { data: fencedShipment, error: fenceError } = await adminSupabase
+    .from("shipments")
+    .update({
+      status: "label_pending",
+      payload: { ...(shipment.payload || {}), sendcloud_attempted: true },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", shipment.id)
+    .in("status", ["draft", "quoted"])
+    .is("label_url", null)
+    .select("id")
+    .maybeSingle();
+  if (fenceError || !fencedShipment) {
+    return NextResponse.json({ error: "No se pudo reservar la creación de etiqueta." }, { status: 503 });
   }
 
   try {
@@ -161,23 +194,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ shipment: updatedShipment });
   } catch (error: any) {
-    await adminSupabase
-      .from("shipments")
-      .update({
-        provider: "manual",
-        status: "label_pending",
-        payload: {
-          mode: "manual_fallback",
-          reason: "sendcloud_error",
-          message: error?.message || "No se pudo crear la etiqueta.",
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", shipment.id);
-
+    // The provider may have created the parcel before the timeout or DB
+    // failure. Keep the attempt fence; do not overwrite with a retryable
+    // manual fallback or expose provider details to the client.
     return NextResponse.json(
-      { error: error?.message || "No se pudo crear la etiqueta de Sendcloud." },
-      { status: 500 }
+      { error: "No se pudo confirmar la etiqueta. Requiere conciliación manual antes de reintentar." },
+      { status: 503 }
     );
   }
 }

@@ -21,6 +21,11 @@ import {
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 60;
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+
+function privateJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_HEADERS });
+}
 const FIELDS =
   "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, directory_school_code, postal_code, status, created_at";
 
@@ -28,7 +33,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    return NextResponse.json({ error: "Inicia sesión para ver tu colegio." }, { status: 401 });
+    return privateJson({ error: "Inicia sesión para ver tu colegio." }, 401);
   }
 
   const params = new URL(request.url).searchParams;
@@ -36,16 +41,15 @@ export async function GET(request: Request) {
   try {
     filters = parseMarketplaceFeedFilters(params);
   } catch {
-    return NextResponse.json({ error: "Filtros incorrectos." },
-      { status: 400, headers: { "Cache-Control": "private, no-store" } });
+    return privateJson({ error: "Filtros incorrectos." }, 400);
   }
   const rawOffset = params.get("offset") || "0";
   if (!/^(0|[1-9][0-9]{0,5})$/.test(rawOffset)) {
-    return NextResponse.json({ error: "Página incorrecta." }, { status: 400 });
+    return privateJson({ error: "Página incorrecta." }, 400);
   }
   const offset = Number(rawOffset);
   if (offset > 999999) {
-    return NextResponse.json({ error: "Página fuera de rango." }, { status: 400 });
+    return privateJson({ error: "Página fuera de rango." }, 400);
   }
 
   const [{ data: profile, error: profileError },
@@ -63,7 +67,7 @@ export async function GET(request: Request) {
       .limit(1).maybeSingle(),
   ]);
   if (profileError || studentError || roleError) {
-    return NextResponse.json({ error: "No se pudo determinar tu colegio." }, { status: 503 });
+    return privateJson({ error: "No se pudo determinar tu colegio." }, 503);
   }
   const directoryCode = schoolAdmin?.school_id
     ? "" : student?.directory_school_code?.trim() || "";
@@ -73,9 +77,7 @@ export async function GET(request: Request) {
     const schoolScope = await resolveMarketplaceSchoolScope(schoolId, directoryCode);
     const expression = makeMarketplaceSchoolFilter(schoolScope);
     if (!expression) {
-      return NextResponse.json({ listings: [], total: 0, offset, hasMore: false }, {
-        headers: { "Cache-Control": "private, no-store" },
-      });
+      return privateJson({ listings: [], total: 0, offset, hasMore: false });
     }
 
     // The school scope and product filters are composed before pagination.
@@ -83,8 +85,11 @@ export async function GET(request: Request) {
     // Subsequent scroll pages (and filtered queries) use one extra row,
     // eliminating an expensive COUNT(*) on every school-feed request.
     const needsTotal = offset === 0 && !hasServerMarketplaceFilters(filters);
+    // Authenticated browser roles must not need SELECT of seller CP/coordinates.
+    // Scope comes exclusively from the verified user's school context above.
+    const admin = createAdminClient();
     const query = applyMarketplaceFeedFilters(
-      supabase.from("listings").select(FIELDS, needsTotal ? { count: "exact" } : {})
+      admin.from("listings").select(FIELDS, needsTotal ? { count: "exact" } : {})
         .eq("status", "available"),
       filters, expression
     );
@@ -96,12 +101,11 @@ export async function GET(request: Request) {
     const ids = rows.map((row) => row.id);
     const sellers = Array.from(new Set(rows.map((row) => row.seller_id || row.user_id)
       .filter((id): id is string => typeof id === "string" && Boolean(id))));
-    const admin = createAdminClient();
     const [{ data: photos, error: photoError },
            { data: profiles, error: sellerError },
            { data: favorites, error: favoriteError }] = await Promise.all([
       ids.length
-        ? supabase.from("listing_photos").select("id,listing_id,url,sort_order")
+        ? admin.from("listing_photos").select("id,listing_id,url,sort_order")
           .in("listing_id", ids).order("sort_order", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
       sellers.length
@@ -148,12 +152,10 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({
-      listings, total: needsTotal ? count ?? null : null, offset, hasMore,
-    }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) {
-    console.error("Error obteniendo anuncios del colegio:", error);
-    return NextResponse.json({ error: "No se pudo cargar el catálogo del colegio." },
-      { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    return privateJson({ listings, total: needsTotal ? count ?? null : null, offset, hasMore });
+  } catch {
+    // Never log privileged query diagnostics or seller profile data.
+    console.error("marketplace_school_feed_read_failed");
+    return privateJson({ error: "No se pudo cargar el catálogo del colegio." }, 503);
   }
 }

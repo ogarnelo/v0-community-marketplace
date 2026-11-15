@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -77,4 +77,99 @@ test("Storage workflow does not require a non-existent npm lockfile", () => {
   assert.match(w, /--no-save --package-lock=false --ignore-scripts --no-audit --no-fund/);
   assert.match(w, /@supabase\/supabase-js@2\.119\.0/);
   assert.match(w, /node scripts\/pilot-storage-backup\.mjs/);
+});
+
+test("Storage export rejects missing, malformed, zero-mismatch and negative sizes", async () => {
+  const cases = [
+    { size: undefined, expected: "missing size" },
+    { size: "NaN", expected: "malformed size" },
+    { size: -2, expected: "negative size" },
+    { size: 0, expected: "zero metadata but nonempty download" },
+    { size: 1.5, expected: "fractional size" },
+  ];
+  for (const { size, expected } of cases) {
+    const client = {
+      storage: {
+        from: () => ({
+          list: async () => ({ data: [{ name: "test.webp", id: "fixture", metadata: { size } }], error: null }),
+          download: async () => ({ data: new Blob([Buffer.from("img")]), error: null }),
+        }),
+      },
+    };
+    const dir = await mkdtemp(path.join(os.tmpdir(), "wetudy-storage-size-negative-"));
+    try {
+      await assert.rejects(exportBuckets(client, dir), /metadata size mismatch/, expected);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("Storage export correctly accepts an actual zero-byte object", async () => {
+  const dataByBucket = {
+    "listing-photos": [{ name: "empty.webp", id: "photo", metadata: { size: 0 } }],
+    "chat-attachments": [{ name: "note.txt", id: "note", metadata: { size: 4 } }],
+  };
+  const client = {
+    storage: { from: (bucket) => ({
+      list: async () => ({ data: dataByBucket[bucket], error: null }),
+      download: async () => ({
+        data: new Blob([bucket === "listing-photos" ? Buffer.alloc(0) : Buffer.from("note")]),
+        error: null,
+      }),
+    }) },
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "wetudy-storage-zero-pass-"));
+  try {
+    assert.deepEqual(await exportBuckets(client, dir), { files: 2, bytes: 4 });
+    assert.deepEqual(await verifyStorageDirectory(dir), { objects: 2, bytes: 4 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("restored backup refuses symbolic links even if the target hash matches", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "wetudy-storage-symlink-"));
+  const external = await mkdtemp(path.join(os.tmpdir(), "wetudy-storage-external-"));
+  try {
+    const raw = Buffer.from("private");
+    const crypto = await import("node:crypto");
+    const digest = crypto.createHash("sha256").update(raw).digest("hex");
+    await (await import("node:fs/promises")).mkdir(path.join(dir,"chat-attachments"), {recursive:true});
+    const externalFile=path.join(external,"private.txt");
+    await writeFile(externalFile,raw);
+    await symlink(externalFile,path.join(dir,"chat-attachments","private.txt"));
+    const manifest={version:1,buckets:BUCKETS,fileCount:1,totalBytes:raw.length,
+      files:[{bucket:"chat-attachments",path:"private.txt",size:raw.length,sha256:digest}]};
+    await writeFile(path.join(dir,"manifest.json"),JSON.stringify(manifest));
+    await assert.rejects(verifyStorageDirectory(dir),/Unsafe backup symlink/);
+    await rm(path.join(dir,"chat-attachments","private.txt"));
+    await writeFile(path.join(dir,"chat-attachments","private.txt"),raw);
+    assert.deepEqual(await verifyStorageDirectory(dir),{objects:1,bytes:raw.length});
+
+    await rm(path.join(dir,"manifest.json"));
+    await writeFile(path.join(external,"manifest.json"),JSON.stringify(manifest));
+    await symlink(path.join(external,"manifest.json"),path.join(dir,"manifest.json"));
+    await assert.rejects(verifyStorageDirectory(dir),/Unsafe backup symlink/);
+  } finally {
+    await rm(dir,{recursive:true,force:true});
+    await rm(external,{recursive:true,force:true});
+  }
+});
+
+test("backup manifest fails closed on invalid per-object size and digest", async () => {
+  const dir=await mkdtemp(path.join(os.tmpdir(),"wetudy-storage-manifest-negative-"));
+  try {
+    await (await import("node:fs/promises")).mkdir(path.join(dir,"listing-photos"),{recursive:true});
+    await writeFile(path.join(dir,"listing-photos","a.webp"),"x");
+    const base={version:1,fileCount:1,totalBytes:1,files:[
+      {bucket:"listing-photos",path:"a.webp",size:1,sha256:"0".repeat(64)}]};
+    for(const invalid of [null,-1,1.5,"1", Number.MAX_SAFE_INTEGER+1]){
+      base.files[0].size=invalid;
+      await writeFile(path.join(dir,"manifest.json"),JSON.stringify(base));
+      await assert.rejects(verifyStorageDirectory(dir),/Invalid backup manifest entry/);
+    }
+  } finally {
+    await rm(dir,{recursive:true,force:true});
+  }
 });

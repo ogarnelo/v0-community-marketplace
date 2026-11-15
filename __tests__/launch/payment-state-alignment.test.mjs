@@ -15,8 +15,8 @@ test("internal payment states match the payment_intents schema", () => {
   assert.match(review, /payment\.status !== "succeeded"/);
 
   assert.doesNotMatch(deletion, /requires_action|"paid"/);
-  assert.match(deletion, /"requires_capture"/);
-  assert.match(deletion, /"succeeded"/);
+  assert.match(deletion, /admin\.from\("payment_intents"\)\.select\("id"\)\.eq\("listing_id", listingId\)/);
+  assert.doesNotMatch(deletion, /\.in\("status", \[\.\.\.BLOCKING_PAYMENT_STATUSES\]\)/);
 });
 
 test("offer UI uses succeeded for the internal payment status", () => {

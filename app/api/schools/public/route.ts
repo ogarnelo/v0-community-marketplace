@@ -12,7 +12,20 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const id = url.searchParams.get("id")?.trim();
     const query = url.searchParams.get("q")?.trim();
+    // Build the PostgREST OR expression only from a constrained search term.
+    // Commas, parentheses, wildcard signs, and quotes are filter operators.
+    if (query && (query.length > 80 || !/^[\p{L}\p{N} .-]+$/u.test(query))) {
+      return NextResponse.json({ error: "Búsqueda incorrecta." }, {
+        status: 400, headers: { "Cache-Control": "private, no-store" },
+      });
+    }
 
+    // Database column schools.id is UUID. Reject malformed IDs before privileged queries.
+    if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return NextResponse.json({ error: "Identificador incorrecto." }, {
+        status: 400, headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const admin = createAdminClient();
 
     if (id) {
@@ -21,6 +34,7 @@ export async function GET(request: Request) {
         .select("id, name, city")
         .eq("id", id)
         .eq("is_active", true)
+        .eq("is_test", false)
         .maybeSingle<PublicSchool>();
 
       if (error) throw error;
@@ -46,8 +60,7 @@ export async function GET(request: Request) {
       .limit(100);
 
     if (query) {
-      const escaped = query.replace(/[%_]/g, "");
-      builder = builder.or(`name.ilike.%${escaped}%,city.ilike.%${escaped}%`);
+      builder = builder.or(`name.ilike.%${query}%,city.ilike.%${query}%`);
     }
 
     const { data, error } = await builder.returns<PublicSchool[]>();
@@ -62,11 +75,11 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (error) {
-    console.error("Error cargando centros públicos:", error);
+  } catch {
+    console.error("public_schools_lookup_failed");
     return NextResponse.json(
       { error: "No se pudieron cargar los centros." },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }

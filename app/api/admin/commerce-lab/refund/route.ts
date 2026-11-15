@@ -62,11 +62,13 @@ export async function POST(request: Request) {
     }
 
     if (payment.status === "refunded") {
-      const { data: existingRefund } = await admin
+      const { data: existingRefund, error: existingRefundError } = await admin
         .from("commerce_refunds")
         .select("*")
         .eq("payment_intent_id", payment.id)
         .maybeSingle();
+      if (existingRefundError) throw existingRefundError;
+      if (!existingRefund) return NextResponse.json({ error: "No se pudo confirmar el reembolso registrado." }, { status: 503 });
 
       return NextResponse.json({
         ok: true,
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
       .select("*")
       .eq("payment_intent_id", payment.id)
       .maybeSingle();
+    if (existingRefundError) throw existingRefundError;
 
     if (existingRefund?.status === "succeeded") {
       return NextResponse.json({ ok: true, refund: existingRefund, existing: true });
@@ -139,11 +142,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: transfer } = await admin
+    const { data: transfer, error: transferLookupError } = await admin
       .from("commerce_transfers")
       .select("*")
       .eq("payment_intent_id", payment.id)
       .maybeSingle();
+    if (transferLookupError) throw transferLookupError;
 
     let providerReversalId =
       typeof transfer?.provider_reversal_id === "string"

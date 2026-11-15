@@ -22,6 +22,8 @@ import MobileListingActions from "@/components/marketplace/mobile-listing-action
 import { SEO_SITE_URL, buildBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 import { isDemoListing } from "@/lib/seo/demo-listing";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function formatPrice(value?: number | null) {
   if (typeof value !== "number") return "Consultar";
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(value);
@@ -46,22 +48,19 @@ function shouldShowIsbn(category?: string | null, isbn?: string | null) {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  if (!UUID_PATTERN.test(id)) {
+    return {
+      title: "Anuncio no disponible | Wetudy",
+      description: "Este anuncio ya no está disponible públicamente.",
+      robots: { index: false, follow: false },
+    };
+  }
   const supabase = createAdminClient();
-
-  const [{ data: listing }, { data: photo }] = await Promise.all([
-    supabase
-      .from("listings")
-      .select("id, title, description, category, grade_level, price, status, type, listing_type, school_id")
-      .eq("id", id)
-      .maybeSingle(),
-    supabase
-      .from("listing_photos")
-      .select("url")
-      .eq("listing_id", id)
-      .order("sort_order", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const { data: listing } = await supabase
+    .from("listings")
+    .select("id, title, description, category, grade_level, price, status, type, listing_type, school_id")
+    .eq("id", id)
+    .maybeSingle();
 
   if (!listing || listing.status !== "available") {
     return {
@@ -81,6 +80,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const suppressPublicSignals =
     isDemoListing(listing) || listingSchool?.is_test === true;
+  // Metadata never reads photo URLs until the listing is publicly visible.
+  const { data: photo } = await supabase
+    .from("listing_photos")
+    .select("url")
+    .eq("listing_id", id)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   const title = listing.title || "Material escolar en Wetudy";
   const contextParts = [listing.category, listing.grade_level].filter(Boolean).join(" · ");
   const fallbackDescription = contextParts
@@ -123,21 +130,17 @@ export default async function ListingDetailPage({
   searchParams: Promise<{ published?: string }>;
 }) {
   const { id } = await params;
+  if (!UUID_PATTERN.test(id)) notFound();
   const query = await searchParams;
   const supabase = createAdminClient();
   const authSupabase = await createClient();
 
-  const [{ data: listing, error: listingError }, { data: photosData }, { data: authData }] = await Promise.all([
+  const [{ data: listing, error: listingError }, { data: authData }] = await Promise.all([
     supabase
       .from("listings")
       .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, seller_id, school_id, directory_school_code, status, created_at")
       .eq("id", id)
       .maybeSingle(),
-    supabase
-      .from("listing_photos")
-      .select("id, listing_id, url, sort_order")
-      .eq("listing_id", id)
-      .order("sort_order", { ascending: true }),
     authSupabase.auth.getUser(),
   ]);
 
@@ -171,6 +174,13 @@ export default async function ListingDetailPage({
 
     if (!participantConversation) notFound();
   }
+  // Photos are private to the authorized viewer for non-public listings.
+  const { data: photosData } = await supabase
+    .from("listing_photos")
+    .select("id, listing_id, url, sort_order")
+    .eq("listing_id", listing.id)
+    .order("sort_order", { ascending: true });
+
   const { data: directorySchool } = listing.directory_school_code
     ? await supabase
         .from("school_directory")

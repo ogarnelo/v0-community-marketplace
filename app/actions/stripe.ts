@@ -123,6 +123,11 @@ export async function startCheckoutSession(params: {
   if (existingPaymentError) {
     throw new Error(`No se pudo comprobar un checkout previo: ${existingPaymentError.message}`)
   }
+  // A paid, processing or otherwise finalized offer may not start a fresh
+  // Stripe session: the old code would UPSERT it back to pending.
+  if (existingPayment && existingPayment.status !== 'requires_payment_method') {
+    throw new Error('Ya existe un pago en curso o cerrado para esta oferta. No se creará otro checkout.')
+  }
 
   const previousSessionId =
     typeof existingPayment?.metadata?.stripe_checkout_session_id === 'string'
@@ -227,37 +232,53 @@ export async function startCheckoutSession(params: {
 
   const now = new Date().toISOString()
 
-  const { error: paymentWriteError } = await adminSupabase
-    .from('payment_intents')
-    .upsert(
-      {
-        offer_id: offerId,
-        listing_id: typedOffer.listing_id,
-        conversation_id: conversation?.id || null,
-        buyer_id: user.id,
-        seller_id: typedOffer.seller_id,
-        amount: pricing.itemAmount,
-        currency: 'EUR',
-        provider: 'stripe',
-        status: 'requires_payment_method',
-        buyer_fee_amount: pricing.buyerFeeAmount,
-        shipping_amount: pricing.shippingAmount,
-        seller_net_amount: pricing.sellerNetAmount,
-        platform_fee_amount: pricing.buyerFeeAmount,
-        shipment_tier: pricing.shipmentTier,
-        metadata: {
-          source: 'stripe_checkout',
-          delivery_method: pricing.deliveryMethod,
-          total_buyer_amount: pricing.totalBuyerAmount,
-          stripe_checkout_session_id: session.id,
-        },
-        updated_at: now,
-      },
-      { onConflict: 'offer_id' }
-    )
+  const paymentPayload = {
+    offer_id: offerId,
+    listing_id: typedOffer.listing_id,
+    conversation_id: conversation?.id || null,
+    buyer_id: user.id,
+    seller_id: typedOffer.seller_id,
+    amount: pricing.itemAmount,
+    currency: 'EUR',
+    provider: 'stripe',
+    status: 'requires_payment_method',
+    buyer_fee_amount: pricing.buyerFeeAmount,
+    shipping_amount: pricing.shippingAmount,
+    seller_net_amount: pricing.sellerNetAmount,
+    platform_fee_amount: pricing.buyerFeeAmount,
+    shipment_tier: pricing.shipmentTier,
+    metadata: {
+      source: 'stripe_checkout',
+      delivery_method: pricing.deliveryMethod,
+      total_buyer_amount: pricing.totalBuyerAmount,
+      stripe_checkout_session_id: session.id,
+    },
+    updated_at: now,
+  }
 
-  if (paymentWriteError) {
-    throw new Error(`Stripe creó la sesión, pero no se pudo registrar el pago: ${paymentWriteError.message}`)
+  // The offer_id constraint is a PARTIAL UNIQUE index in the real database.
+  // INSERT safely rejects competing checkout requests; a draft may only be
+  // updated while it is still pending. Do not reset status on the UPDATE path.
+  const { status: _initialStatus, ...pendingUpdate } = paymentPayload
+  const { data: registeredPayment, error: paymentWriteError } = existingPayment
+    ? await adminSupabase
+      .from('payment_intents')
+      .update(pendingUpdate)
+      .eq('offer_id', offerId)
+      .eq('status', 'requires_payment_method')
+      .select('id')
+      .maybeSingle()
+    : await adminSupabase
+      .from('payment_intents')
+      .insert(paymentPayload)
+      .select('id')
+      .maybeSingle()
+
+  if (paymentWriteError?.code === '23505') {
+    throw new Error('Otro checkout ya registró esta oferta. Revisa el pago existente.')
+  }
+  if (paymentWriteError || !registeredPayment) {
+    throw new Error('No se pudo registrar el checkout sin alterar un pago existente.')
   }
 
   const { error: listingReserveError } = await adminSupabase
@@ -305,13 +326,21 @@ export async function confirmPaymentComplete(params: {
 
   const { data: paymentIntent, error: paymentLookupError } = await adminSupabase
     .from('payment_intents')
-    .select('id, status, listing_id, metadata')
+    .select('id, status, listing_id, seller_id, metadata')
     .eq('offer_id', offerId)
     .eq('buyer_id', user.id)
     .maybeSingle()
 
   if (paymentLookupError || !paymentIntent) {
     throw new Error(paymentLookupError?.message || 'No se encontró el intent de pago.')
+  }
+
+  // This fallback must obey the same terminal-state guard as the webhook.
+  // A delayed confirmation is never allowed to resurrect refunded/cancelled
+  // payments or overwrite a succeeded payment.
+  const pendingStates = ['requires_payment_method', 'requires_confirmation', 'requires_capture', 'processing']
+  if (!pendingStates.includes(paymentIntent.status)) {
+    throw new Error('El pago ya está cerrado y no admite otra confirmación.')
   }
 
   const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
@@ -331,14 +360,20 @@ export async function confirmPaymentComplete(params: {
     throw new Error('El pago aún no se ha completado en Stripe.')
   }
 
-  if (session.metadata?.offer_id !== offerId || session.metadata?.buyer_id !== user.id) {
+  if (
+    session.id !== sessionId ||
+    session.metadata?.offer_id !== offerId ||
+    session.metadata?.buyer_id !== user.id ||
+    session.metadata?.listing_id !== paymentIntent.listing_id ||
+    session.metadata?.seller_id !== paymentIntent.seller_id
+  ) {
     throw new Error('La sesión de Stripe no corresponde a esta operación.')
   }
 
   const expectedTotal = Number(paymentIntent.metadata?.total_buyer_amount)
   if (
-    Number.isFinite(expectedTotal) &&
-    expectedTotal > 0 &&
+    !Number.isFinite(expectedTotal) ||
+    expectedTotal <= 0 ||
     session.amount_total !== Math.round(expectedTotal * 100)
   ) {
     throw new Error('El importe confirmado por Stripe no coincide con la operación.')
@@ -346,7 +381,8 @@ export async function confirmPaymentComplete(params: {
 
   const now = new Date().toISOString()
 
-  const { error: paymentUpdateError } = await adminSupabase
+  // CAS protects a refund/cancel racing with Stripe retrieval.
+  const { data: confirmedPayment, error: paymentUpdateError } = await adminSupabase
     .from('payment_intents')
     .update({
       status: 'succeeded',
@@ -354,9 +390,12 @@ export async function confirmPaymentComplete(params: {
     })
     .eq('id', paymentIntent.id)
     .eq('buyer_id', user.id)
+    .eq('status', paymentIntent.status)
+    .select('id')
+    .maybeSingle()
 
-  if (paymentUpdateError) {
-    throw new Error(paymentUpdateError.message || 'No se pudo actualizar el estado del pago.')
+  if (paymentUpdateError || !confirmedPayment) {
+    throw new Error('El estado del pago ha cambiado. Consulta la operación antes de continuar.')
   }
 
   const { error: offerUpdateError } = await adminSupabase

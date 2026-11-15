@@ -110,44 +110,59 @@ async function processCheckoutSessionEvent(
       ? paymentIntent.metadata.stripe_checkout_session_id
       : null;
 
-  if (registeredSessionId && registeredSessionId !== session.id) {
-    throw new Error("Stripe checkout session does not match the registered session.");
+  // A correctly signed Stripe event is not authorization to update an
+  // arbitrary offer: it must match a checkout session we saved previously.
+  // Missing session IDs (e.g. DB write failed after Stripe created session)
+  // are retried by Stripe rather than silently finalizing an unrelated row.
+  if (!registeredSessionId || registeredSessionId !== session.id) {
+    throw new Error("Stripe checkout session is not registered for this payment intent.");
   }
 
   if (
-    session.metadata?.listing_id &&
-    session.metadata.listing_id !== paymentIntent.listing_id
+    !session.metadata?.listing_id ||
+    session.metadata.listing_id !== paymentIntent.listing_id ||
+    !session.metadata?.seller_id ||
+    session.metadata.seller_id !== paymentIntent.seller_id
   ) {
-    throw new Error("Stripe checkout listing does not match the payment intent.");
+    throw new Error("Stripe checkout parties or listing do not match the payment intent.");
   }
 
   const expectedTotal = Number(paymentIntent.metadata?.total_buyer_amount);
   if (
-    Number.isFinite(expectedTotal) &&
-    expectedTotal > 0 &&
+    !Number.isFinite(expectedTotal) ||
+    expectedTotal <= 0 ||
     session.amount_total !== Math.round(expectedTotal * 100)
   ) {
-    throw new Error("Stripe checkout total does not match the payment intent.");
+    throw new Error("Stripe checkout total is missing or differs from the payment intent.");
   }
 
   const nextStatus = getNextPaymentStatus(eventType, session);
+  // A late Stripe event must never turn a refunded/cancelled transaction back
+  // into succeeded. Likewise, a stale failure cannot undo a paid checkout.
+  if (paymentIntent.status === "refunded" || paymentIntent.status === "cancelled" ||
+      (paymentIntent.status === "succeeded" && nextStatus !== "succeeded")) {
+    return { ignored: true, reason: "terminal_payment_state" as const };
+  }
+
   const now = new Date().toISOString();
-  let paymentUpdate = admin
+  // Optimistic compare-and-swap on status also blocks a race with a refund
+  // that commits between the initial SELECT and this UPDATE.
+  const { data: updatedPayment, error: paymentUpdateError } = await admin
     .from("payment_intents")
     .update({
       status: nextStatus,
       provider_payment_intent_id: getProviderPaymentIntentId(session),
       updated_at: now,
     })
-    .eq("id", paymentIntent.id);
-
-  if (nextStatus !== "succeeded") {
-    paymentUpdate = paymentUpdate.neq("status", "succeeded");
-  }
-
-  const { error: paymentUpdateError } = await paymentUpdate;
+    .eq("id", paymentIntent.id)
+    .eq("status", paymentIntent.status)
+    .select("id")
+    .maybeSingle();
   if (paymentUpdateError) {
     throw paymentUpdateError;
+  }
+  if (!updatedPayment) {
+    return { ignored: true, reason: "payment_state_changed_during_event" as const };
   }
 
   if (nextStatus === "succeeded" && paymentIntent.listing_id) {
