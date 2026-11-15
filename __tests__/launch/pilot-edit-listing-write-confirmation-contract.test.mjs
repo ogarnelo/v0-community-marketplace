@@ -39,3 +39,12 @@ test("errors displayed to families do not contain SQL messages",()=>{
  assert.match(submit,/setSubmitError\("No se pudo actualizar el anuncio\. Inténtalo de nuevo\."\)/);
  assert.doesNotMatch(submit,/setSubmitError\(error\.message|setSubmitError\(error\?\.message/);
 });
+
+test("edit route rejects malformed UUID before database initialization",()=>{
+ const route=readFileSync("app/marketplace/edit/[id]/page.tsx","utf8");
+ const idRead=route.indexOf("const { id } = await params");
+ const validation=route.indexOf("if (!/^[0-9a-f]");
+ const client=route.indexOf("const supabase = await createClient()");
+ assert.ok(idRead>=0 && validation>idRead && client>validation);
+ assert.match(route.slice(validation,client),/notFound\(\)/);
+});
