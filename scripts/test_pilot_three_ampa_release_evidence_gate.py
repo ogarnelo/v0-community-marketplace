@@ -69,6 +69,21 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertIs(result["go"],False)
         self.assertIs(result["ready_for_human_review"],True)
         self.assertIn("NOT_CERTIFIED",SRC.read_text())
+    def test_cli_never_declares_launch_authorized_from_manifest(self):
+        import json
+        import subprocess
+        import sys
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="wetudy-ampa-synthetic-") as d:
+            path=Path(d)/"evidence.json"
+            path.write_text(json.dumps(manifest()))
+            result=subprocess.run([sys.executable,str(SRC),"--manifest",str(path)],
+                                  text=True,capture_output=True,timeout=10)
+        self.assertEqual(result.returncode,0)
+        self.assertIn("READY_FOR_HUMAN_RELEASE_REVIEW",result.stdout)
+        self.assertIn("NOT_CERTIFIED",result.stdout)
+        self.assertNotIn("GO_PILOT:",result.stdout)
+
     def test_reject_extra_fields_and_string_true(self):
         x=manifest();x["gates"]["privacy_447"]="true"
         self.assertFalse(gate.assess(x)["go"])
