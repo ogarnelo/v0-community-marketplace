@@ -445,8 +445,9 @@ export default function EditListingForm({
 
       router.push(`/marketplace/listing/${initialListing.id}`);
       router.refresh();
-    } catch (error: any) {
-      setSubmitError(error?.message || error?.details || "No se pudo actualizar el anuncio.");
+    } catch {
+      // PostgREST error details can contain sensitive internal schema information.
+      setSubmitError("No se pudo actualizar el anuncio. Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
