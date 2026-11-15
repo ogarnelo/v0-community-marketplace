@@ -767,30 +767,47 @@ export default function NewListingForm({
   const uploadListingPhotos = async (listingId: string, userId: string, files: PreviewFile[]) => {
     const supabase = createClient();
     const uploadedPhotoRows: ListingPhotoInsertPayload[] = [];
+    // Only paths newly created for this unpublished listing may be rolled back.
+    // Reused draft photos are intentionally excluded from cleanup.
+    const newlyUploadedPaths: string[] = [];
 
-    for (let index = 0; index < files.length; index += 1) {
-      const photo = files[index];
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const photo = files[index];
 
-      if (photo.storagePath && !photo.file) {
-        uploadedPhotoRows.push({ listing_id: listingId, url: photo.previewUrl, sort_order: index });
-        continue;
+        if (photo.storagePath && !photo.file) {
+          uploadedPhotoRows.push({ listing_id: listingId, url: photo.previewUrl, sort_order: index });
+          continue;
+        }
+
+        if (!photo.file) continue;
+
+        const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const safeName = sanitizeFileName(photo.file.name);
+        const filePath = `${userId}/${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
+        if (uploadError) throw uploadError;
+        newlyUploadedPaths.push(filePath);
+
+        const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+        const publicUrl = publicUrlData?.publicUrl;
+        if (!publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
+        uploadedPhotoRows.push({ listing_id: listingId, url: publicUrl, sort_order: index });
       }
-
-      if (!photo.file) continue;
-
-      const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(photo.file.name);
-      const filePath = `${userId}/${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      const publicUrl = publicUrlData?.publicUrl;
-      if (!publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
-      uploadedPhotoRows.push({ listing_id: listingId, url: publicUrl, sort_order: index });
+      return uploadedPhotoRows;
+    } catch {
+      // The listing INSERT has not started yet. An unsuccessful multi-photo
+      // upload must not leave newly uploaded Storage objects orphaned.
+      if (newlyUploadedPaths.length > 0) {
+        try {
+          const { error: cleanupError } = await supabase.storage.from(STORAGE_BUCKET).remove(newlyUploadedPaths);
+          if (cleanupError) console.error("new_listing_upload_cleanup_failed");
+        } catch {
+          console.error("new_listing_upload_cleanup_failed");
+        }
+      }
+      throw new Error("listing_photo_upload_failed");
     }
-
-    return uploadedPhotoRows;
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
