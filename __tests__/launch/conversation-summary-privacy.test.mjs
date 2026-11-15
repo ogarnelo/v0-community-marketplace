@@ -13,7 +13,7 @@ test("no privileged listing/profile access before authenticated participant chec
   assert.ok(auth>=0 && conversationQuery>auth);
   assert.ok(participantCheck>conversationQuery);
   assert.ok(admin>participantCheck && listing>admin && profile>admin);
-  assert.match(route,/return privateJson\\(\\{ error: "Conversación no encontrada\\." \\}, 404\\)/);
+  assert.ok(route.includes('return privateJson({ error: "Conversación no encontrada." }, 404)'));
 });
 test("authorized buyer retains reserved/sold listing title through server-only lookup",()=>{
   const afterCheck=route.slice(admin);
