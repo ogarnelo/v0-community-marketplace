@@ -14,7 +14,11 @@ function privateJson(body: unknown, status = 200) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    // An Auth outage is not proof of a session, even if stale user data is
+    // returned alongside an error. No privileged message read may follow it.
+    if (authError) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
+    const user = authData?.user ?? null;
     if (!user) return privateJson({ error: "Debes iniciar sesión." }, 401);
 
     const body = await request.json().catch(() => ({}));
