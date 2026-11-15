@@ -31,7 +31,11 @@ function harness({guest=false,authFails=false,listingOwner=uid,listingReadFails=
        const blocked=blocker==="payments"&&table==="payment_intents"&&Array.isArray(filters.status)
          ||blocker==="offers"&&table==="listing_offers"&&filters.status==="accepted"
          ||blocker==="donation"&&table==="donation_requests"&&filters.status==="approved";
-       return {data:blocked||historyRow===table?[{id:"history"}]:[],
+       const isBlockerCheck=table==="payment_intents"&&Array.isArray(filters.status)
+         ||table==="listing_offers"&&filters.status==="accepted"
+         ||table==="donation_requests"&&filters.status==="approved";
+       const ordinaryHistory=historyRow===table&&!isBlockerCheck;
+       return {data:blocked||ordinaryHistory?[{id:"history"}]:[],
          error:historyError===table?{message:"PRIVATE_HISTORY_SQL"}:null};
      };
      if(k==="maybeSingle")return async()=>output();
