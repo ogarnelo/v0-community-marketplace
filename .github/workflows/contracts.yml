@@ -21,6 +21,8 @@ jobs:
         run: npm install --ignore-scripts
       - name: Critical contract tests
         run: npm run test:critical-contracts
+      - name: Commerce and moderation HTTP privacy boundaries
+        run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
