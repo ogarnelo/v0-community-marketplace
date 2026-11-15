@@ -99,8 +99,9 @@ test("public school ID lookup refuses active test and inactive centres", async (
 
 test("public school search excludes tests and returns only public columns",async () => {
   const get=schoolRoute(schoolAdmin());
-  const resp=await get(new Request("http://test.invalid/api/schools/public?q=Rio"));
+  const resp=await get(new Request("http://test.invalid/api/schools/public?q=Madrid"));
   assert.equal(resp.status,200);
+  assert.deepEqual(await resp.json(),{schools:[{id:"real-a",name:"CEIP Río",city:"Madrid"}]});
   const all=await (await get(new Request("http://test.invalid/api/schools/public"))).json();
   assert.deepEqual(all.schools,[{id:"real-a",name:"CEIP Río",city:"Madrid"}]);
   assert.equal(JSON.stringify(all).includes("28001"),false);
