@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         { status: 422, headers: { "Cache-Control": "private, no-store" } });
     }
 
-    // Instantiating service_role is only necessary after the protected
+    // Instantiate the privileged client only after protected
     // distance flow has passed its authentication/postcode checks.
     const admin = createAdminClient();
 
