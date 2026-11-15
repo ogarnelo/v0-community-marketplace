@@ -44,8 +44,10 @@ export async function GET(request: Request) {
   }
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const admin = createAdminClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    // A failed Auth lookup cannot establish a trusted user, even if stale data
+    // happened to accompany the provider error. Normal public browsing remains open.
+    const user = authError ? null : authData?.user ?? null;
     // Read the viewer's postcode from the authenticated account, never a
     // caller-supplied URL parameter (which could expose arbitrary distances).
     if ((radiusKm !== null || nearestNoRadius) && !user) {
@@ -61,6 +63,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Añade un código postal válido en Mi cuenta." },
         { status: 422, headers: { "Cache-Control": "private, no-store" } });
     }
+
+    // Instantiating service_role is only necessary after the protected
+    // distance flow has passed its authentication/postcode checks.
+    const admin = createAdminClient();
 
     let rows: ListingRow[];
     let hasMore: boolean;
