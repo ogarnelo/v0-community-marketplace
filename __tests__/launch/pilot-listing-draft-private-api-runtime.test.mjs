@@ -95,3 +95,21 @@ test("draft PUT cleans only own paths and never logs raw storage failure",async(
   assert.deepEqual(records.removed,["family-A/drafts/own-photo"]);
   assert.deepEqual(records.logs,[["listing_draft_storage_cleanup_failed"]]);
 });
+
+test("all draft response paths disallow cache reuse, including 401, 400, 413, 500 and DELETE",async()=>{
+  const assertPrivate=(r)=>assert.match(r.headers.get("cache-control")??"",/private, no-store/);
+  const anonymous=api({user:null}).route;
+  for (const r of [await anonymous.GET(),await anonymous.PUT(req("PUT")),await anonymous.DELETE(req("DELETE"))]) assertPrivate(r);
+  const valid=api().route;
+  assertPrivate(await valid.GET());
+  assertPrivate(await valid.PUT(req("PUT",{payload:null})));
+  assertPrivate(await valid.PUT(req("PUT",{payload:{x:"a".repeat(32001)}})));
+  assertPrivate(await valid.PUT(req("PUT",{payload:{title:"fixture"}})));
+  assertPrivate(await valid.DELETE(req("DELETE")));
+  const failed=api({dbError:true}).route;
+  assertPrivate(await failed.GET());
+  assertPrivate(await failed.PUT(req("PUT",{payload:{title:"fixture"}})));
+  assertPrivate(await failed.DELETE(req("DELETE")));
+  const storageFailed=api({storageError:true,draft:{photos:[{path:"family-A/drafts/photo-1",url:"https://fixture.invalid/photo"}]}}).route;
+  assertPrivate(await storageFailed.DELETE(req("DELETE")));
+});
