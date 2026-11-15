@@ -11,7 +11,15 @@ const SB="33333333-3333-4333-8333-333333333333";
 const A="44444444-4444-4444-8444-444444444444";
 const B="55555555-5555-4555-8555-555555555555";
 const C="66666666-6666-4666-8666-666666666666";
-function loadTs(path,mocks={}){\n const code=ts.transpileModule(readFileSync(path,"utf8"),{fileName:path,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}});\n const exports={};\n vm.runInNewContext(code.outputText,{exports,require:id=>mocks[id]??{}},{filename:path,timeout:1500});\n return exports;\n}\nconst realFilters=loadTs("lib/marketplace/feed-filters.ts");\nconst realScope=loadTs("lib/marketplace/school-scope.ts");\nconst listings=[
+function loadTs(path,mocks={}){
+ const code=ts.transpileModule(readFileSync(path,"utf8"),{fileName:path,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}});
+ const exports={};
+ vm.runInNewContext(code.outputText,{exports,require:id=>mocks[id]??{}},{filename:path,timeout:1500});
+ return exports;
+}
+const realFilters=loadTs("lib/marketplace/feed-filters.ts");
+const realScope=loadTs("lib/marketplace/school-scope.ts");
+const listings=[
  {id:A,title:"Libro A",school_id:SA,directory_school_code:null,status:"available",seller_id:U,postal_code:"28001"},
  {id:B,title:"Libro B",school_id:SB,directory_school_code:null,status:"available",seller_id:"seller-b",postal_code:"28002"},
  {id:C,title:"Libro C",school_id:null,directory_school_code:"CODEB",status:"available",seller_id:"seller-c",postal_code:"28003"}
@@ -142,4 +150,6 @@ test("failed seller photo enrichment aborts without partial listing data",async(
  assert.equal("listings" in r.body,false);
 });
 
-test("database school identity rules are represented by valid synthetic rows",()=>{\n assert.equal(listings.every(x=>x.school_id===null || x.directory_school_code===null),true);\n});\n
+test("database school identity rules are represented by valid synthetic rows",()=>{
+ assert.equal(listings.every(x=>x.school_id===null || x.directory_school_code===null),true);
+});
