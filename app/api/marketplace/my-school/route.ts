@@ -83,8 +83,9 @@ export async function GET(request: Request) {
     // Subsequent scroll pages (and filtered queries) use one extra row,
     // eliminating an expensive COUNT(*) on every school-feed request.
     const needsTotal = offset === 0 && !hasServerMarketplaceFilters(filters);
+    const admin = createAdminClient();
     const query = applyMarketplaceFeedFilters(
-      supabase.from("listings").select(FIELDS, needsTotal ? { count: "exact" } : {})
+      admin.from("listings").select(FIELDS, needsTotal ? { count: "exact" } : {})
         .eq("status", "available"),
       filters, expression
     );
@@ -96,7 +97,6 @@ export async function GET(request: Request) {
     const ids = rows.map((row) => row.id);
     const sellers = Array.from(new Set(rows.map((row) => row.seller_id || row.user_id)
       .filter((id): id is string => typeof id === "string" && Boolean(id))));
-    const admin = createAdminClient();
     const [{ data: photos, error: photoError },
            { data: profiles, error: sellerError },
            { data: favorites, error: favoriteError }] = await Promise.all([
