@@ -52,6 +52,26 @@ class ArchivedRLSReplayTests(unittest.TestCase):
         self.assertEqual(mod.safe_failure_code(ValueError("PASSWORD=secret, SELECT private")), "UNCLASSIFIED")
         self.assertEqual(mod.safe_failure_code(RuntimeError("sensitive data")), "UNCLASSIFIED")
 
+    def test_loopback_gate_checks_both_client_and_server_without_text_format(self):
+        source = SRC.read_text()
+        self.assertIn("host(inet_server_addr()) = '127.0.0.1'", source)
+        self.assertIn("host(inet_client_addr()) = '127.0.0.1'", source)
+        self.assertIn('("LOOPBACK", "loopback=true")', source)
+        self.assertNotIn('"server_addr=127.0.0.1"', source)
+
+        passed = {
+            "database=" + mod.DB, "user=" + mod.USER,
+            "superuser=false", "loopback=true", "listen=localhost",
+            "can_set_authenticated=true", "auth_role_no_login=true",
+            "tables=0", "auth_schema_absent=true", "target_table_absent=true",
+        }
+        with patch.object(mod, "run_psql", return_value=passed) as mocked:
+            mod.gate_local_target(Path("/ignored/psql"), "private")
+            self.assertIn("inet_client_addr()", mocked.call_args.args[2])
+        with patch.object(mod, "run_psql", return_value=passed - {"loopback=true"} | {"loopback=false"}):
+            with self.assertRaisesRegex(ValueError, "LOCAL_TARGET_GATE_LOOPBACK"):
+                mod.gate_local_target(Path("/ignored/psql"), "private")
+
     def test_local_gate_labels_are_specific_without_values(self):
         expected_names = (
             "DATABASE", "ROLE", "NON_SUPERUSER", "LOOPBACK",
