@@ -183,7 +183,7 @@ export async function POST(request: Request) {
         deliveryMethod: pricing.deliveryMethod,
         shipmentTier: pricing.shipmentTier,
       },
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     // Payment details, provider and SQL exceptions are always private.
     console.error("payment_intent_prepare_failed");
