@@ -28,8 +28,9 @@ try:
       IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
       IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
       IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='supabase_admin') THEN CREATE ROLE supabase_admin NOLOGIN; END IF;
+      IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='postgres') THEN CREATE ROLE postgres NOLOGIN; END IF;
     END $$""")
-    run(db,"GRANT CREATE,USAGE ON SCHEMA public TO supabase_admin")
+    run(db,"GRANT CREATE,USAGE ON SCHEMA public TO supabase_admin,postgres")
     for owner in ("postgres","supabase_admin"):
         run(db,"ALTER DEFAULT PRIVILEGES FOR ROLE "+owner+" IN SCHEMA public GRANT ALL ON TABLES TO anon,authenticated")
     run(db,"CREATE TABLE public.before_default_acl (id bigint)")
