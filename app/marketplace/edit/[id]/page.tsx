@@ -7,8 +7,10 @@ export const dynamic = "force-dynamic";
 
 export default async function EditListingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ photosPending?: string }>;
 }) {
   const { id } = await params;
   // The primary key is a PostgreSQL UUID. Bad URLs must not invoke SQL or
@@ -81,6 +83,9 @@ export default async function EditListingPage({
       currentUserId={user.id}
       initialListing={typedListing}
       initialSchoolLabel={schoolLabel}
+      initialWarning={(await searchParams)?.photosPending === "1"
+        ? "El anuncio ya está creado, pero no se pudieron terminar sus fotografías. Revisa y guarda las fotos aquí; no vuelvas a publicar el anuncio."
+        : null}
       initialPhotos={(photos || []).map((photo, index) => ({
         id: photo.id,
         url: photo.url,

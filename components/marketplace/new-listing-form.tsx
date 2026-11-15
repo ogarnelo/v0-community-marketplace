@@ -815,6 +815,9 @@ export default function NewListingForm({
     setLoading(true);
     setSubmitError("");
     setPhotoError("");
+    // A successful listing INSERT is a committed operation even if later
+    // photo metadata fails; never prompt the seller to submit a duplicate.
+    let committedListingId: string | null = null;
 
     try {
       const validationError = validateForm();
@@ -869,6 +872,7 @@ export default function NewListingForm({
 
       const { error: insertError } = await supabase.from("listings").insert(payload);
       if (insertError) throw insertError;
+      committedListingId = listingId;
       const { error: listingPhotosError } = await supabase.from("listing_photos").insert(uploadedPhotoRows);
       if (listingPhotosError) throw listingPhotosError;
 
@@ -921,6 +925,14 @@ export default function NewListingForm({
       router.push(`/marketplace/listing/${listingId}?published=1`);
       router.refresh();
     } catch {
+      // If the listing INSERT committed, a generic "retry publication" message
+      // would create a second listing. Navigate to the existing listing editor.
+      if (committedListingId) {
+        console.error("listing_published_photo_metadata_incomplete");
+        router.push(`/marketplace/edit/${committedListingId}?photosPending=1`);
+        router.refresh();
+        return;
+      }
       // Never reflect a database / storage provider diagnostic into the browser.
       console.error("listing_publish_failed");
       setSubmitError("No se pudo publicar el anuncio. Comprueba los datos e inténtalo de nuevo.");
