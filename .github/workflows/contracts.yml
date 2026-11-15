@@ -26,3 +26,59 @@ jobs:
         run: |
           python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
           python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py -v
+
+  synthetic-postgres17-gates:
+    name: PG17 synthetic RLS + privacy grants
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_synthetic_only_not_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ci_synthetic_only_not_secret
+      WETUDY_SYNTHETIC_POSTGRES_CI: "yes"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install local PostgreSQL CLI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Create disposable roles and two synthetic databases
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -d postgres <<'SQL'
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          CREATE ROLE wetudy_dr_restore LOGIN PASSWORD 'ci_synthetic_only_not_secret';
+          GRANT authenticated TO wetudy_dr_restore;
+          CREATE DATABASE wetudy_dr_local_20261115;
+          CREATE DATABASE wetudy_privacy_ci;
+          SQL
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_dr_local_20261115 <<'SQL'
+          GRANT CREATE ON DATABASE wetudy_dr_local_20261115 TO wetudy_dr_restore;
+          GRANT USAGE, CREATE ON SCHEMA public TO wetudy_dr_restore;
+          SQL
+      - name: Execute RLS owner-isolation using exact production catalog predicate
+        run: python3 scripts/pilot-ci-postgres17-rls-runtime.py
+      - name: Reproduce exact #447 proposal and verify DML remains unchanged
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-anon-listings-revoke-proposal.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-assert.sql
