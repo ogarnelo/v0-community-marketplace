@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { missingListingPhotoMetadata } from "@/lib/marketplace/missing-listing-photos.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
 import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
 import { bookFormats, bookLanguages, categories, conditions, gradeLevels } from "@/lib/mock-data";
@@ -74,6 +75,7 @@ type Props = {
   initialSchoolLabel: string;
   initialPhotos: ExistingPhoto[];
   initialWarning?: string | null;
+  recoverablePhotoRows: { url: string; sort_order: number }[];
 };
 
 function normalizedCategory(value: string) {
@@ -157,6 +159,7 @@ export default function EditListingForm({
   initialSchoolLabel,
   initialPhotos,
   initialWarning,
+  recoverablePhotoRows,
 }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -165,6 +168,10 @@ export default function EditListingForm({
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [photoError, setPhotoError] = useState("");
+  const [restoringPhotoMetadata, setRestoringPhotoMetadata] = useState(false);
+  const [photoMetadataRestored, setPhotoMetadataRestored] = useState(false);
+  const [photoRestoreError, setPhotoRestoreError] = useState("");
+
   const [title, setTitle] = useState(initialListing.title || "");
   const [description, setDescription] = useState(initialListing.description || "");
   const [selectedCategory, setSelectedCategory] = useState(initialListing.category || "");
@@ -383,6 +390,67 @@ export default function EditListingForm({
     }
   };
 
+  const handleRestorePhotoMetadata = async () => {
+    if (restoringPhotoMetadata || saving) return;
+    setRestoringPhotoMetadata(true);
+    setPhotoRestoreError("");
+    try {
+      const supabase = createClient();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user || user.id !== currentUserId) throw new Error("photo_recovery_not_authorized");
+
+      // Re-read ownership and URLs under the caller's RLS session. The browser
+      // never decides the authoritative URLs, and this route uses no admin key.
+      const { data: ownListing, error: listingError } = await supabase
+        .from("listings")
+        .select("id,seller_id,photos")
+        .eq("id", initialListing.id)
+        .eq("seller_id", currentUserId)
+        .maybeSingle();
+      if (listingError || !ownListing || ownListing.seller_id !== user.id) {
+        throw new Error("photo_recovery_listing_unavailable");
+      }
+
+      const { data: existingRows, error: rowsError } = await supabase
+        .from("listing_photos")
+        .select("id,url,sort_order")
+        .eq("listing_id", initialListing.id);
+      if (rowsError) throw new Error("photo_recovery_rows_unavailable");
+      const missing = missingListingPhotoMetadata(ownListing.photos, existingRows || []);
+      if (missing.length === 0) {
+        setPhotoMetadataRestored(true);
+        router.replace(`/marketplace/edit/${initialListing.id}`);
+        router.refresh();
+        return;
+      }
+
+      const { data: recovered, error: recoveryError } = await supabase
+        .from("listing_photos")
+        .insert(missing.map(photo => ({ listing_id: initialListing.id, ...photo })))
+        .select("id,url,sort_order");
+      if (recoveryError || !recovered || recovered.length !== missing.length) {
+        throw new Error("photo_recovery_insert_unconfirmed");
+      }
+
+      setExistingPhotos(current => {
+        const urls = new Set(current.map(photo => photo.url));
+        return [...current, ...recovered.filter(photo => !urls.has(photo.url))
+          .map(photo => ({
+            id: photo.id,
+            url: photo.url,
+            sortOrder: typeof photo.sort_order === "number" ? photo.sort_order : 0,
+          }))].sort((a, b) => a.sortOrder - b.sortOrder);
+      });
+      setPhotoMetadataRestored(true);
+      router.replace(`/marketplace/edit/${initialListing.id}`);
+      router.refresh();
+    } catch {
+      setPhotoRestoreError("No se pudieron recuperar las fotografías. Vuelve a intentarlo desde este anuncio.");
+    } finally {
+      setRestoringPhotoMetadata(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (saving) return;
@@ -512,6 +580,23 @@ export default function EditListingForm({
             className="hidden"
             onChange={handleFilesSelected}
           />
+
+          {recoverablePhotoRows.length > 0 && !photoMetadataRestored ? (
+            <div role="alert" className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-950">
+              <p className="font-semibold">Hay fotografías que se pueden recuperar</p>
+              <p className="mt-1">El anuncio ya existe y conserva las direcciones de sus fotos, pero faltan sus registros en el catálogo. Puedes restaurarlas sin publicar otro anuncio.</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 min-h-11"
+                disabled={restoringPhotoMetadata || saving}
+                onClick={handleRestorePhotoMetadata}
+              >
+                {restoringPhotoMetadata ? "Restaurando fotografías..." : "Recuperar fotografías"}
+              </Button>
+              {photoRestoreError ? <p className="mt-2 text-destructive">{photoRestoreError}</p> : null}
+            </div>
+          ) : null}
 
           <SectionCard icon={<ImagePlus className="h-5 w-5" />} title="Fotos" description="Puedes mantener hasta 8 fotos. La primera será la principal.">
             <button

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import EditListingForm, { type EditableListing } from "@/components/marketplace/edit-listing-form";
+import { missingListingPhotoMetadata } from "@/lib/marketplace/missing-listing-photos.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function EditListingPage({
   const { data: listing, error: listingError } = await supabase
     .from("listings")
     .select(
-      "id, title, description, category, grade_level, condition, type, listing_type, isbn, book_edition_id, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, seller_id, school_id, directory_school_code, status"
+      "id, title, description, category, grade_level, condition, type, listing_type, isbn, book_edition_id, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, seller_id, school_id, directory_school_code, status, photos"
     )
     .eq("id", id)
     .maybeSingle();
@@ -78,11 +79,18 @@ export default async function EditListingPage({
       ? `${directorySchool.name}, ${directorySchool.municipality} · directorio nacional`
       : "Centro no asignado";
 
+  // Only after seller ownership was checked; no privileged photo reads.
+  const recoverablePhotoRows = missingListingPhotoMetadata(
+    (typedListing as EditableListing & {photos?: string[] | null}).photos,
+    photos || []
+  );
+
   return (
     <EditListingForm
       currentUserId={user.id}
       initialListing={typedListing}
       initialSchoolLabel={schoolLabel}
+      recoverablePhotoRows={recoverablePhotoRows}
       initialWarning={(await searchParams)?.photosPending === "1"
         ? "El anuncio ya está creado, pero no se pudieron terminar sus fotografías. Revisa y guarda las fotos aquí; no vuelvas a publicar el anuncio."
         : null}
