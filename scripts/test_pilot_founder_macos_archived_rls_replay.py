@@ -72,6 +72,24 @@ class ArchivedRLSReplayTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "LOCAL_TARGET_GATE_LOOPBACK"):
                 mod.gate_local_target(Path("/ignored/psql"), "private")
 
+    def test_exact_production_catalog_subquery_uid_alias_allowed(self):
+        # Real baseline: scripts/pilot-marketplace-rls-readonly-preflight.sql
+        expected = '(( SELECT auth.uid() AS uid) = user_id)'
+        sql = policies(select_using=expected, delete_using=expected)
+        replay = mod.extract_strict_policy_statements(sql)
+        self.assertEqual(replay.count('CREATE POLICY'), 2)
+        self.assertIn('SELECT auth.uid() AS uid', replay)
+        for dangerous in (
+            '(( SELECT auth.uid() AS uid) = user_id OR true)',
+            '(( SELECT auth.uid() AS other) = user_id)',
+            '(( SELECT evil.uid() AS uid) = user_id)',
+            '(( SELECT auth.uid() AS uid) = other_user_id)',
+            '(( SELECT auth.uid() AS uid) = user_id::text)',
+        ):
+            with self.subTest(dangerous=dangerous):
+                with self.assertRaises(ValueError):
+                    mod.extract_strict_policy_statements(policies(select_using=dangerous))
+
     def test_password_inputs_retry_once_without_disclosing_or_requiring_repeated_runs(self):
         with patch.object(mod.getpass, 'getpass', side_effect=['', 'fake-local']) as read:
             self.assertEqual(mod.read_required_secret('hidden:', 'LOCAL'), 'fake-local')
