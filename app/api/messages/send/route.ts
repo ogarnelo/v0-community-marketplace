@@ -69,6 +69,21 @@ export async function POST(request: Request) {
       message.body?.trim() ||
       (message.attachment_name ? `Archivo adjunto: ${message.attachment_name}` : "Te ha enviado un mensaje.");
 
+    const { data: firstMessage, error: firstMessageError } = await admin
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", conversation.id)
+      .eq("sender_id", user.id)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (firstMessageError) {
+      console.error("message_first_message_lookup_failed");
+      return privateJson({ error: "No se pudo procesar el aviso." }, 503);
+    }
+
     const { error: notificationError } = await createNotificationOnce(admin, {
       event_key: `message-received/${message.id}`,
       user_id: recipientId,
@@ -83,18 +98,6 @@ export async function POST(request: Request) {
       },
     });
     if (notificationError) throw notificationError;
-
-    const { data: firstMessage, error: firstMessageError } = await admin
-      .from("messages")
-      .select("id")
-      .eq("conversation_id", conversation.id)
-      .eq("sender_id", user.id)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (firstMessageError) throw firstMessageError;
 
     if (firstMessage?.id === message.id) {
       const recipientEmail = recipientAuth.data?.user?.email;
