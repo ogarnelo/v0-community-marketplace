@@ -11,11 +11,12 @@ function api({user={id:"family-A"}, dbError=false, readError=false, storageError
   const db={auth:{getUser:async()=>({data:{user}})}};
   const error=dbError?{message:"PRIVATE SQL failure / password-hash: DO_NOT_LEAK"}:null;
   const builder=()=>({
-    select(){return this;},
+    photosOnly:false,
+    select(columns){this.photosOnly=columns==="photos";return this;},
     eq(){return this;},
     upsert(){records.events.push("db_upsert");return this;},
     delete(){records.events.push("db_delete");return this;},
-    async maybeSingle(){return {data:draft,error:readError?{message:"READ_PRIVATE_DO_NOT_LEAK"}:error};},
+    async maybeSingle(){return {data:draft,error:this.photosOnly?(readError?{message:"READ_PRIVATE_DO_NOT_LEAK"}:null):error};},
     async single(){return {data:dbError?null:{id:"draft-id",payload:{title:"test"},photos:[]},error};},
     then(resolve,reject){return Promise.resolve({error}).then(resolve,reject);}
   });
