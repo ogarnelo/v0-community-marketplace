@@ -166,8 +166,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ listings, hasMore, offset }, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch (error) {
-    console.error("Error leyendo la siguiente página del marketplace:", error);
+  } catch {
+    // The DB error object can carry SQL diagnostics and listing metadata.
+    // Keep sensitive internals out of runtime logs on this public endpoint.
+    console.error("marketplace_feed_read_failed");
     return NextResponse.json({ error: "No se pudo cargar más anuncios." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
