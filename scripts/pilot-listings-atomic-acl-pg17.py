@@ -26,7 +26,9 @@ cols=("id school_id user_id title description category grade_level condition "
 "specific_type size_label brand model season book_edition_id directory_school_code "
 "is_demo savings_amount postal_code lat lng").split()
 assert len(cols)==36
-dbs=["wetudy_qa_atomic_acl_pass","wetudy_qa_atomic_acl_rollback"]
+dbs=["wetudy_qa_atomic_acl_pass","wetudy_qa_atomic_acl_rollback",
+     "wetudy_qa_atomic_acl_drift","wetudy_qa_atomic_acl_column_acl",
+     "wetudy_qa_atomic_acl_rls_off"]
 root="wetudy_pilot_dr_source"
 for db in dbs:
     if query(root,"SELECT count(*) FROM pg_database WHERE datname='"+db+"'")!="0":
@@ -38,9 +40,11 @@ try:
         query(root,"CREATE DATABASE "+db+" TEMPLATE template0")
         created.append(db)
         query(db,"CREATE TABLE public.listings ("+",".join(c+" text" for c in cols)+")")
+        if not db.endswith("_rls_off"):
+            query(db,"ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY")
         query(db,"GRANT USAGE ON SCHEMA public TO anon,authenticated,service_role")
         query(db,"GRANT SELECT,INSERT,UPDATE,DELETE ON public.listings TO anon,authenticated")
-        if db.endswith("_pass"):
+        if not db.endswith("_rollback"):
             query(db,"GRANT SELECT ON public.listings TO service_role")
     success=dbs[0]
     script(success)
@@ -54,7 +58,32 @@ try:
     # Even though SQL ran with BEGIN, psql failure must abort and roll back all proposed ACLs.
     if query(failure,"SELECT has_table_privilege('anon','public.listings','SELECT') AND has_table_privilege('anon','public.listings','INSERT') AND has_table_privilege('authenticated','public.listings','SELECT')")!="t":
         raise AssertionError("rejected atomic proposal modified ACL")
-    print("PASS PG17 atomic ACL: 33 auth columns, anon SELECT+DML denied, seller CP UPDATE preserved; negative preflight leaves grants intact")
+    # Defend against a schema updated since the founder reviewed the 36-column grant.
+    drift=dbs[2]
+    query(drift,"ALTER TABLE public.listings ADD COLUMN unexpectedly_added_private text")
+    error=script(drift,False)
+    if "NO_GO_ATOMIC_ACL" not in error or "unexpected listings schema" not in error:
+        raise AssertionError("drifted schema did not trigger explicit preflight")
+    if query(drift,"SELECT has_table_privilege('anon','public.listings','SELECT')")!="t":
+        raise AssertionError("drift preflight changed grants")
+
+    # REVOKE TABLE SELECT does not remove direct per-column SELECT grants.
+    column_acl=dbs[3]
+    query(column_acl,"GRANT SELECT (postal_code) ON public.listings TO anon")
+    error=script(column_acl,False)
+    if "unexpected direct anon/public column grant" not in error:
+        raise AssertionError("unexpected column-level anon grant was not blocked")
+    if query(column_acl,"SELECT has_column_privilege('anon','public.listings','postal_code','SELECT')")!="t":
+        raise AssertionError("column ACL preflight unexpectedly modified grants")
+
+    # No RLS makes existing public SELECT directly open every available row.
+    rls_off=dbs[4]
+    error=script(rls_off,False)
+    if "row level security must already be enabled" not in error:
+        raise AssertionError("RLS-off baseline was not blocked")
+    if query(rls_off,"SELECT NOT relrowsecurity FROM pg_class WHERE oid='public.listings'::regclass")!="t":
+        raise AssertionError("RLS-off preflight modified table RLS state")
+    print("PASS PG17 atomic ACL: success plus 4 fail-closed rollback/preflight cases")
 finally:
     for db in reversed(created):
         query(root,"DROP DATABASE IF EXISTS "+db+" WITH (FORCE)")
