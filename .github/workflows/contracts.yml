@@ -29,6 +29,8 @@ jobs:
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
       - name: Editor save and photo restore synchronous single-flight guards
         run: node --test __tests__/launch/pilot-edit-singleflight-submit-recovery.test.mjs
+      - name: Distance feed authorization before privileged client creation
+        run: node --test __tests__/launch/pilot-feed-distance-before-admin-runtime.test.mjs
       - name: Seller-only repair for missing listing photo metadata
         run: node --test __tests__/launch/pilot-partial-listing-photo-recovery.test.mjs
       - name: Authenticated school catalog runtime isolation across students and school admins
