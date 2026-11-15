@@ -129,7 +129,7 @@ const dbListing={id:"listing1",title:"Producto ficticio",postal_code:"28002",
   seller_id:"seller1",user_id:"seller1",status:"available",lat:40.5,lng:-3.7,
   school_id:"school1",price:15,created_at:"2026-11-15T00:00:00Z"};
 function feedContext({viewer = null, profilePostal = "28001", dbError = false} = {}) {
-  const state={rpcCalls:[],errors:[]};
+  const state={rpcCalls:[],errors:[],adminCreated:0};
   const rows=[dbListing];
   const admin={
     rpc:async (name,args)=>{state.rpcCalls.push({name,args});
@@ -159,7 +159,7 @@ function feedContext({viewer = null, profilePostal = "28001", dbError = false} =
   const get=loadHandler("app/api/marketplace/feed/route.ts",{
     "next/server":fakeResponse,
     "@/lib/supabase/server":{createClient:async()=>supabase},
-    "@/lib/supabase/admin":{createAdminClient:()=>admin},
+    "@/lib/supabase/admin":{createAdminClient:()=>{state.adminCreated++;return admin;}},
     "@/lib/marketplace/feed-filters":{
       parseMarketplaceFeedFilters:()=>({sort:"newest",text:null,category:null}),
       applyMarketplaceFeedFilters:q=>q,
@@ -194,6 +194,7 @@ test("radius requires auth, and never trusts caller-supplied postcode",async()=>
   const denied=await anonymous.get(new Request("http://test.invalid/api/marketplace/feed?radiusKm=5"));
   assert.equal(denied.status,401);
   assert.equal(anonymous.state.rpcCalls.length,0);
+  assert.equal(anonymous.state.adminCreated,0);
   const signed=feedContext({viewer:{id:"familyA"},profilePostal:"28001"});
   const allowed=await signed.get(new Request(
     "http://test.invalid/api/marketplace/feed?radiusKm=5&postal_code=99999"));
