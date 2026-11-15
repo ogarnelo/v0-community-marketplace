@@ -338,29 +338,47 @@ export default function EditListingForm({
     const supabase = createClient();
     const uploadedRows: { listing_id: string; url: string; sort_order: number }[] = [];
     const startingSortOrder = visibleExistingPhotos.length;
+    // Existing listing photos must never be removed during rollback.
+    const freshlyUploadedPaths: string[] = [];
 
-    for (let index = 0; index < newPhotos.length; index += 1) {
-      const item = newPhotos[index];
-      const safeName = sanitizeFileName(item.file.name);
-      const fileExt = item.file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filePath = `${currentUserId}/${initialListing.id}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
+    try {
+      for (let index = 0; index < newPhotos.length; index += 1) {
+        const item = newPhotos[index];
+        const safeName = sanitizeFileName(item.file.name);
+        const fileExt = item.file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const filePath = `${currentUserId}/${initialListing.id}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, item.file, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(filePath, item.file, { cacheControl: "3600", upsert: false });
+        if (uploadError) throw uploadError;
+        freshlyUploadedPaths.push(filePath);
 
-      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      if (!data?.publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
+        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+        if (!data?.publicUrl) throw new Error("listing_edit_photo_url_unavailable");
 
-      uploadedRows.push({
-        listing_id: initialListing.id,
-        url: data.publicUrl,
-        sort_order: startingSortOrder + index,
-      });
+        uploadedRows.push({
+          listing_id: initialListing.id,
+          url: data.publicUrl,
+          sort_order: startingSortOrder + index,
+        });
+      }
+
+      return uploadedRows;
+    } catch {
+      // These files were just created by this attempt. The DB has not yet
+      // inserted their photo rows; never delete pre-existing listing photos.
+      if (freshlyUploadedPaths.length > 0) {
+        try {
+          const { error: cleanupError } = await supabase.storage.from(STORAGE_BUCKET)
+            .remove(freshlyUploadedPaths);
+          if (cleanupError) console.error("edit_listing_upload_cleanup_failed");
+        } catch {
+          console.error("edit_listing_upload_cleanup_failed");
+        }
+      }
+      throw new Error("listing_edit_photo_upload_failed");
     }
-
-    return uploadedRows;
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
