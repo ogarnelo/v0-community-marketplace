@@ -23,6 +23,8 @@ jobs:
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
+      - name: Listing deletion must preserve history and avoid destructive child pre-deletes
+        run: node --test __tests__/launch/pilot-listing-deletion-failclosed-history-runtime.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
       - name: Editor save and photo restore synchronous single-flight guards
