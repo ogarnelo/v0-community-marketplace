@@ -29,6 +29,9 @@ jobs:
       - name: School feed error privacy with synthetic authenticated HTTP handlers
         run: node --test __tests__/launch/pilot-my-school-private-responses-runtime.test.mjs
 
+      - name: Verify listing page protects private photo reads before authorization
+        run: node --test __tests__/launch/pilot-listing-detail-private-photo-authorization-runtime.test.mjs
+
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
           python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
