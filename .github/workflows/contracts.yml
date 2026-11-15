@@ -83,3 +83,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-fixture.sql
           psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-anon-listings-revoke-proposal.sql
           psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-assert.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-anon-listings-dml-revoke-review-only.sql
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-after-dml-assert.sql
