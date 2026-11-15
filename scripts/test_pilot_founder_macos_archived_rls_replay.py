@@ -52,6 +52,27 @@ class ArchivedRLSReplayTests(unittest.TestCase):
         self.assertEqual(mod.safe_failure_code(ValueError("PASSWORD=secret, SELECT private")), "UNCLASSIFIED")
         self.assertEqual(mod.safe_failure_code(RuntimeError("sensitive data")), "UNCLASSIFIED")
 
+    def test_local_gate_labels_are_specific_without_values(self):
+        expected_names = (
+            "DATABASE", "ROLE", "NON_SUPERUSER", "LOOPBACK",
+            "LOCAL_LISTEN", "ROLE_SET", "AUTH_NOLOGIN",
+            "EMPTY_TABLES", "AUTH_ABSENT", "TARGET_ABSENT",
+        )
+        for label in expected_names:
+            msg = "LOCAL_TARGET_GATE_" + label
+            self.assertEqual(mod.safe_failure_code(ValueError(msg)), msg)
+        self.assertEqual(
+            mod.safe_failure_code(ValueError("LOCAL_TARGET_GATE_PASSWORD=leaked")),
+            "UNCLASSIFIED",
+        )
+        self.assertEqual(
+            mod.safe_failure_code(ValueError("LOCAL_TARGET_GATE_ROLE secret")),
+            "UNCLASSIFIED",
+        )
+        source = SRC.read_text()
+        self.assertIn("for label, entry in checks:", source)
+        self.assertIn("if entry not in info:", source)
+
     def test_no_jwt_really_tested_before_deletes(self):
         text=mod.synthetic_transaction(mod.extract_strict_policy_statements(policies()))
         no_jwt=text.index("NO_JWT_VISIBLE")

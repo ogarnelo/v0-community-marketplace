@@ -103,14 +103,22 @@ SELECT 'tables=' || count(*) FROM pg_tables
 SELECT 'auth_schema_absent=' || (to_regnamespace('auth') IS NULL);
 SELECT 'target_table_absent=' || (to_regclass('public.saved_search_matches') IS NULL);
 """)
-    expected = {
-        "database=" + DB, "user=" + USER, "superuser=false",
-        "server_addr=127.0.0.1", "listen=localhost",
-        "can_set_authenticated=true", "auth_role_no_login=true",
-        "tables=0", "auth_schema_absent=true", "target_table_absent=true",
-    }
-    if not expected.issubset(info):
-        raise ValueError("Local empty sandbox, network or privileges gate failed")
+    # Diagnostic labels are an allowlist; never disclose query results.
+    checks = (
+        ("DATABASE", "database=" + DB),
+        ("ROLE", "user=" + USER),
+        ("NON_SUPERUSER", "superuser=false"),
+        ("LOOPBACK", "server_addr=127.0.0.1"),
+        ("LOCAL_LISTEN", "listen=localhost"),
+        ("ROLE_SET", "can_set_authenticated=true"),
+        ("AUTH_NOLOGIN", "auth_role_no_login=true"),
+        ("EMPTY_TABLES", "tables=0"),
+        ("AUTH_ABSENT", "auth_schema_absent=true"),
+        ("TARGET_ABSENT", "target_table_absent=true"),
+    )
+    for label, entry in checks:
+        if entry not in info:
+            raise ValueError("LOCAL_TARGET_GATE_" + label)
 
 def synthetic_transaction(policy_sql):
     # NO COMMIT. psql runs the entire string in one session.
@@ -251,6 +259,14 @@ SAFE_FAILURE_CODES = {
 def safe_failure_code(exc):
     # Closed set: never interpolate an exception message from a process/library.
     if isinstance(exc, ValueError):
+        known_gate_labels = {
+            "DATABASE", "ROLE", "NON_SUPERUSER", "LOOPBACK", "LOCAL_LISTEN",
+            "ROLE_SET", "AUTH_NOLOGIN", "EMPTY_TABLES",
+            "AUTH_ABSENT", "TARGET_ABSENT",
+        }
+        for label in known_gate_labels:
+            if str(exc) == "LOCAL_TARGET_GATE_" + label:
+                return "LOCAL_TARGET_GATE_" + label
         return SAFE_FAILURE_CODES.get(str(exc), "UNCLASSIFIED")
     return "UNCLASSIFIED"
 
