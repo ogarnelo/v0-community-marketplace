@@ -7,6 +7,7 @@ manifest with actual identifiers, private links or credentials to GitHub.
 """
 import argparse
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -49,6 +50,13 @@ def assess(manifest):
         if ref.lower().startswith((
             "private:synthetic-", "private:fixture-", "private:demo-",
             "private:test-", "private:ci-", "private:sample-",
+        )):
+            return {"go": False, "reason": "AMPA_SYNTHETIC_EVIDENCE"}
+        if not re.fullmatch(r"private:[A-Za-z0-9][A-Za-z0-9_-]{3,71}", ref):
+            return {"go": False, "reason": "AMPA_EVIDENCE_FORMAT"}
+        if any(token in ref.lower() for token in (
+            "synthetic", "fixture", "sample", "dummy", "fake",
+            "placeholder", "example",
         )):
             return {"go": False, "reason": "AMPA_SYNTHETIC_EVIDENCE"}
         if ref in evidence:
