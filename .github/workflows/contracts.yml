@@ -116,6 +116,12 @@ jobs:
             FOR SELECT TO authenticated USING (user_id = auth.uid());
           NOTIFY pgrst, 'reload schema';
           SQL
+      - name: Restart isolated PostgREST after synthetic database creation
+        run: |
+          set -euo pipefail
+          service="$(docker ps -q --filter ancestor=postgrest/postgrest:v12.2.12)"
+          test -n "$service"
+          docker restart "$service" >/dev/null
       - name: "HTTP PostgREST real: anonymous blocked and family CP isolated"
         env:
           WETUDY_POSTGREST_HTTP_CI: "yes"
