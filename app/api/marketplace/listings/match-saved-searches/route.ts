@@ -280,7 +280,7 @@ export async function POST(request: Request) {
           listingId: listing.id,
         });
       } catch (needError) {
-        console.error("No se pudo registrar el primer resultado de la necesidad", needError);
+        console.error("marketplace_need_attribution_failed");
       }
     }
 
