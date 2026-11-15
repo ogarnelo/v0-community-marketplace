@@ -240,7 +240,7 @@ test("both listing routes apply shared server-side filters before pagination", (
     assert.match(source, /applyMarketplaceFeedFilters\(/);
     assert.ok(source.indexOf("applyMarketplaceFeedFilters(") <
       source.indexOf(".range(offset, offset + PAGE_SIZE"));
-    assert.match(source, /status: 400/);
+    assert.match(source, /status: 400|privateJson\([^\n]*, 400\)/);
     assert.match(source, /Cache-Control": "private, no-store"/);
   }
   const school = read("app/api/marketplace/my-school/route.ts");

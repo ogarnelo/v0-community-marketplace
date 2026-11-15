@@ -26,6 +26,9 @@ jobs:
       - name: Validate private draft handlers and storage error minimization
         run: node --test __tests__/launch/pilot-listing-draft-private-api-runtime.test.mjs
 
+      - name: School feed error privacy with synthetic authenticated HTTP handlers
+        run: node --test __tests__/launch/pilot-my-school-private-responses-runtime.test.mjs
+
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
           python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
