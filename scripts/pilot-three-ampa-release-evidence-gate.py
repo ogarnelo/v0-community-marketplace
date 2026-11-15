@@ -86,7 +86,9 @@ def main():
     if result.get("ready_for_human_review") is True:
         print("READY_FOR_HUMAN_RELEASE_REVIEW: all manifest flags declared true")
         print("NOT_CERTIFIED: declarations are not independently verified; human review required")
-        return 0
+        # Exit != 0 intentionally: CI and deploy workflows must not interpret
+        # an unchecked local JSON as a release approval. Code 3 = human review.
+        return 3
     print("NO_GO_PILOT: " + result["reason"])
     return 2
 
