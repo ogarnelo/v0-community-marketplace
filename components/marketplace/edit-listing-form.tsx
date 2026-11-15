@@ -434,6 +434,14 @@ export default function EditListingForm({
       // without an SQL error. Do not mutate any photos in that case.
       if (updateError || !updatedListing) throw new Error("listing_update_not_confirmed");
 
+      // Never remove existing photos until all replacement files are uploaded
+      // and their new listing_photos records have been persisted.
+      const uploadedRows = await uploadNewPhotos();
+      if (uploadedRows.length > 0) {
+        const { error } = await supabase.from("listing_photos").insert(uploadedRows);
+        if (error) throw error;
+      }
+
       if (removedPhotoIds.length > 0) {
         const { error } = await supabase.from("listing_photos")
           .delete()
@@ -448,12 +456,6 @@ export default function EditListingForm({
           .update({ sort_order: index })
           .eq("id", photo.id)
           .eq("listing_id", initialListing.id);
-        if (error) throw error;
-      }
-
-      const uploadedRows = await uploadNewPhotos();
-      if (uploadedRows.length > 0) {
-        const { error } = await supabase.from("listing_photos").insert(uploadedRows);
         if (error) throw error;
       }
 
