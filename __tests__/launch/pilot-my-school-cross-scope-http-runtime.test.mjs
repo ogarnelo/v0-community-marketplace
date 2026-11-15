@@ -11,10 +11,10 @@ const SB="33333333-3333-4333-8333-333333333333";
 const A="44444444-4444-4444-8444-444444444444";
 const B="55555555-5555-4555-8555-555555555555";
 const C="66666666-6666-4666-8666-666666666666";
-const listings=[
+function loadTs(path,mocks={}){\n const code=ts.transpileModule(readFileSync(path,"utf8"),{fileName:path,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}});\n const exports={};\n vm.runInNewContext(code.outputText,{exports,require:id=>mocks[id]??{}},{filename:path,timeout:1500});\n return exports;\n}\nconst realFilters=loadTs("lib/marketplace/feed-filters.ts");\nconst realScope=loadTs("lib/marketplace/school-scope.ts");\nconst listings=[
  {id:A,title:"Libro A",school_id:SA,directory_school_code:null,status:"available",seller_id:U,postal_code:"28001"},
  {id:B,title:"Libro B",school_id:SB,directory_school_code:null,status:"available",seller_id:"seller-b",postal_code:"28002"},
- {id:C,title:"Libro C",school_id:SA,directory_school_code:"CODEB",status:"available",seller_id:"seller-c",postal_code:"28003"}
+ {id:C,title:"Libro C",school_id:null,directory_school_code:"CODEB",status:"available",seller_id:"seller-c",postal_code:"28003"}
 ];
 function harness({guest=false,profileSchool=SA,student=null,schoolAdmin=null,fail=null}={}){
  const calls=[];let scoped=null;
@@ -60,20 +60,13 @@ function harness({guest=false,profileSchool=SA,student=null,schoolAdmin=null,fai
   "next/server":{NextResponse:{json:(payload,opts={})=>new Response(JSON.stringify(payload),{status:opts.status??200,headers:opts.headers??{}})}},
   "@/lib/supabase/server":{createClient:async()=>supabase},
   "@/lib/supabase/admin":{createAdminClient:()=>{calls.push("ADMIN_CREATED");return admin}},
-  "@/lib/marketplace/feed-filters":{
-    parseMarketplaceFeedFilters:()=>({}),
-    hasServerMarketplaceFilters:()=>false,
-    applyMarketplaceFeedFilters:(q,_filters,expression)=>{if(!expression)throw Error("NO_SCOPE");return q.or(expression)}
-  },
+  "@/lib/marketplace/feed-filters":realFilters,
   "@/lib/marketplace/school-scope":{
     resolveMarketplaceSchoolScope:async(schoolId,directoryCode)=>{
       calls.push("RESOLVE:"+schoolId+":"+directoryCode);
       return{schoolIds:schoolId?[schoolId]:[],directoryCodes:directoryCode?[directoryCode]:[]};
     },
-    makeMarketplaceSchoolFilter:scope=>[
-      ...scope.schoolIds.map(x=>"school_id.eq."+x),
-      ...(scope.directoryCodes.length?["directory_school_code.in.("+scope.directoryCodes.join(",")+")"]:[])
-    ].join(",")||null
+    makeMarketplaceSchoolFilter:realScope.makeMarketplaceSchoolFilter
   },
   "@/lib/marketplace/postal-distance":{approximateDistanceKm:()=>3},
   "@/lib/types/marketplace":{buildPhotosMap:rows=>{
@@ -101,8 +94,8 @@ test("guest gets 401 without any admin access",async()=>{
 test("school A family receives only its own available listings",async()=>{
  const h=harness();const r=await h.request();
  assert.equal(r.status,200);assert.equal(r.cache,"private, no-store");
- assert.deepEqual(Array.from(r.body.listings,x=>x.id),[A,C]);
- assert.equal(r.body.total,2);
+ assert.deepEqual(Array.from(r.body.listings,x=>x.id),[A]);
+ assert.equal(r.body.total,1);
  assert.equal(r.body.listings.every(x=>x.postalCode===null),true);
 });
 test("forged schoolId and directorySchoolCode URL parameters cannot change signed-in scope",async()=>{
@@ -148,3 +141,5 @@ test("failed seller photo enrichment aborts without partial listing data",async(
  assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
  assert.equal("listings" in r.body,false);
 });
+
+test("database school identity rules are represented by valid synthetic rows",()=>{\n assert.equal(listings.every(x=>x.school_id===null || x.directory_school_code===null),true);\n});\n
