@@ -274,8 +274,8 @@ export async function POST(request: Request) {
           needId: search.demand_request_id,
           listingId: listing.id,
         });
-      } catch (needError) {
-        console.error("No se pudo registrar el primer resultado de la necesidad", needError);
+      } catch {
+        console.error("marketplace_need_attribution_failed");
       }
     }
 
@@ -515,11 +515,10 @@ export async function POST(request: Request) {
           .is("emailed_at", null);
         if (markError) throw markError;
         emailed += 1;
-      } catch (emailError) {
+      } catch {
         emailFailures++;
         // Recipient addresses and provider error bodies must not be logged.
-        console.error("No se pudo enviar un aviso de búsqueda guardada",
-          emailError instanceof Error ? emailError.name : "unknown");
+        console.error("marketplace_saved_search_email_failed");
       }
     }
 
@@ -556,8 +555,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ...deliveryResponse, error: "partial_delivery_failed" }, { status: 503 });
     }
     return NextResponse.json(deliveryResponse);
-  } catch (error: any) {
-    console.error("No se pudieron generar los matches de búsquedas guardadas", error);
-    return NextResponse.json({ error: error?.message || "No se pudieron generar los avisos." }, { status: 500 });
+  } catch {
+    // Neither SQL nor recipient/provider diagnostics may leave this endpoint.
+    console.error("marketplace_saved_search_matching_failed");
+    return NextResponse.json({ error: "No se pudieron generar los avisos." }, {
+      status: 500, headers: { "Cache-Control": "private, no-store" },
+    });
   }
 }
