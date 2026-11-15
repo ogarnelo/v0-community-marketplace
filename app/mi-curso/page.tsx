@@ -156,7 +156,7 @@ export default async function MyCoursePage({
 
   try {
     persistedNeeds = await listCourseNeeds(user.id);
-  } catch (error) {
+  } catch {
     console.error("course_needs_read_failed");
   }
 
@@ -166,7 +166,7 @@ export default async function MyCoursePage({
 
   try {
     fulfilledCourseNeeds = await listFulfilledCourseNeeds(user.id);
-  } catch (error) {
+  } catch {
     console.error("course_needs_history_read_failed");
   }
 
