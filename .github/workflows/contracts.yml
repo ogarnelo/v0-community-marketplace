@@ -29,6 +29,8 @@ jobs:
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
       - name: Editor save and photo restore synchronous single-flight guards
         run: node --test __tests__/launch/pilot-edit-singleflight-submit-recovery.test.mjs
+      - name: Message send and conversation summary fail closed on Auth outage
+        run: node --test __tests__/launch/pilot-message-auth-error-before-admin-runtime.test.mjs
       - name: Distance feed authorization before privileged client creation
         run: node --test __tests__/launch/pilot-feed-distance-before-admin-runtime.test.mjs
       - name: Seller-only repair for missing listing photo metadata
