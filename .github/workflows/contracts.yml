@@ -23,6 +23,8 @@ jobs:
         run: npm run test:critical-contracts
       - name: Execute Next public API handlers with synthetic HTTP requests
         run: node --test __tests__/launch/pilot-public-routes-runtime.test.mjs
+      - name: Validate private draft handlers and storage error minimization
+        run: node --test __tests__/launch/pilot-listing-draft-private-api-runtime.test.mjs
 
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
