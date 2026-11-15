@@ -149,11 +149,11 @@ export async function POST(request: Request) {
         deliveryMethod: pricing.deliveryMethod,
         shipmentTier: pricing.shipmentTier,
       },
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    console.error("payment_intent_prepare_failed");
+    return NextResponse.json({ error: "No se pudo preparar el pago." }, {
+      status: 500, headers: { "Cache-Control": "private, no-store" },
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo preparar el pago." },
-      { status: 500 }
-    );
   }
 }
