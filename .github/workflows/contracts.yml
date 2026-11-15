@@ -25,6 +25,8 @@ jobs:
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
+      - name: Seller-only repair for missing listing photo metadata
+        run: node --test __tests__/launch/pilot-partial-listing-photo-recovery.test.mjs
       - name: Authenticated school catalog runtime isolation across students and school admins
         run: node --test __tests__/launch/pilot-my-school-cross-scope-http-runtime.test.mjs
       - name: Message first read must precede notification side effects
