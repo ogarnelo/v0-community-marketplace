@@ -32,6 +32,12 @@ jobs:
       - name: Verify listing page protects private photo reads before authorization
         run: node --test __tests__/launch/pilot-listing-detail-private-photo-authorization-runtime.test.mjs
 
+      - name: Private message summaries: real handler with synthetic users
+        run: node --test __tests__/launch/pilot-conversation-summary-private-http-runtime.test.mjs
+
+      - name: Saved search error privacy tests
+        run: node --test __tests__/launch/pilot-saved-search-sensitive-error-contract.test.mjs
+
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
           python3 -m pip install --only-binary=:all: "cryptography==48.0.1"

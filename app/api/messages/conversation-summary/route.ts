@@ -2,19 +2,27 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function privateJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_HEADERS });
+}
+
 export async function GET(request: Request) {
+  try {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    return privateJson({ error: "No autenticado." }, 401);
   }
 
   const conversationId = new URL(request.url).searchParams.get("conversation_id")?.trim();
-  if (!conversationId) {
-    return NextResponse.json({ error: "Conversación no válida." }, { status: 400 });
+  if (!conversationId || !UUID_RE.test(conversationId)) {
+    return privateJson({ error: "Conversación no válida." }, 400);
   }
 
   const { data: conversation, error: conversationError } = await supabase
@@ -24,24 +32,24 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (conversationError || !conversation) {
-    return NextResponse.json({ error: "Conversación no encontrada." }, { status: 404 });
+    return privateJson({ error: "Conversación no encontrada." }, 404);
   }
 
   // Defense in depth: never resolve privileged profiles for a nonparticipant,
   // even if a future RLS migration accidentally broadens conversation SELECT.
   if (conversation.buyer_id !== user.id && conversation.seller_id !== user.id) {
-    return NextResponse.json({ error: "Conversación no encontrada." }, { status: 404 });
+    return privateJson({ error: "Conversación no encontrada." }, 404);
   }
 
   const otherUserId =
     conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id;
 
   if (!otherUserId) {
-    return NextResponse.json({ error: "Conversación no válida." }, { status: 400 });
+    return privateJson({ error: "Conversación no válida." }, 400);
   }
 
   const admin = createAdminClient();
-  const [{ data: listing }, { data: profile }, { data: latestMessage }] = await Promise.all([
+  const [{ data: listing, error: listingError }, { data: profile, error: profileError }, { data: latestMessage, error: messageError }] = await Promise.all([
     // The participant check above is mandatory before a service-role lookup.
     // Buyers must still see the title when a negotiated listing is reserved
     // or sold: the public available-only RLS predicate no longer matches it.
@@ -64,11 +72,16 @@ export async function GET(request: Request) {
       .maybeSingle(),
   ]);
 
+  if (listingError || profileError || messageError) {
+    // Never present a fabricated conversation summary after a failed private read.
+    return privateJson({ error: "No se pudo cargar la conversación." }, 503);
+  }
+
   const latestMessageBody =
     latestMessage?.body?.trim() ||
     (latestMessage?.attachment_name ? `📎 ${latestMessage.attachment_name}` : "Sin mensajes todavía");
 
-  return NextResponse.json({
+  return privateJson({
     conversation: {
       id: conversation.id,
       otherName: profile?.full_name?.trim() || "Usuario",
@@ -78,4 +91,9 @@ export async function GET(request: Request) {
       unreadCount: 0,
     },
   });
+  } catch {
+    // Unexpected Auth/DB exceptions must not escape with privileged diagnostics.
+    console.error("conversation_summary_read_failed");
+    return privateJson({ error: "No se pudo cargar la conversación." }, 503);
+  }
 }
