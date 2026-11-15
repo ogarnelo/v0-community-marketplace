@@ -99,10 +99,11 @@ export default async function MyCoursePage({
       .limit(200),
   ]);
 
-  if (profileError) console.error("Mi curso: error cargando perfil", profileError);
-  if (studentsError) console.error("Mi curso: error cargando estudiantes", studentsError);
-  if (schoolsError) console.error("Mi curso: error cargando centros", schoolsError);
-  if (listingsError) console.error("Mi curso: error cargando anuncios", listingsError);
+  // A transient ACL failure must not redirect a parent into onboarding or
+  // turn the school catalog into an empty feed. Do not log private DB errors.
+  if (profileError || studentsError || schoolsError || listingsError) {
+    throw new Error("course_context_unavailable");
+  }
 
   const userType = profile?.user_type;
   if (userType !== "parent" && userType !== "student") {
@@ -155,8 +156,8 @@ export default async function MyCoursePage({
 
   try {
     persistedNeeds = await listCourseNeeds(user.id);
-  } catch (error) {
-    console.error("Mi curso: error cargando necesidades persistentes", error);
+  } catch {
+    console.error("course_needs_read_failed");
   }
 
   let fulfilledCourseNeeds = [] as Awaited<
@@ -165,8 +166,8 @@ export default async function MyCoursePage({
 
   try {
     fulfilledCourseNeeds = await listFulfilledCourseNeeds(user.id);
-  } catch (error) {
-    console.error("Mi curso: error cargando historial de necesidades", error);
+  } catch {
+    console.error("course_needs_history_read_failed");
   }
 
   let searchStateByDemandId: Record<string, boolean> = {};
@@ -176,8 +177,8 @@ export default async function MyCoursePage({
       user.id,
       persistedNeeds.map((need) => need.demand_request_id)
     );
-  } catch (error) {
-    console.error("Mi curso: error cargando estado de Buscar por mí", error);
+  } catch {
+    console.error("course_need_search_state_read_failed");
   }
 
   const activeCourseByStudent = new Map(

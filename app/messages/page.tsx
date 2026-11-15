@@ -40,7 +40,7 @@ export default async function MessagesPage() {
     redirect("/auth?next=/messages");
   }
 
-  const [{ data: conversations, error }, { data: hiddenRows }] = await Promise.all([
+  const [{ data: conversations, error }, { data: hiddenRows, error: hiddenError }] = await Promise.all([
     supabase
       .from("conversations")
       .select("*")
@@ -52,16 +52,10 @@ export default async function MessagesPage() {
       .eq("user_id", user.id),
   ]);
 
-  if (error) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        <Card className="rounded-2xl p-6">
-          <p className="text-sm text-muted-foreground">
-            Error cargando conversaciones: {error.message}
-          </p>
-        </Card>
-      </div>
-    );
+  if (error || hiddenError) {
+    // Database diagnostics and private conversation membership must never
+    // be rendered or interpreted as an empty inbox.
+    throw new Error("messages_inbox_unavailable");
   }
 
   const hiddenConversationIds = new Set(
@@ -106,10 +100,10 @@ export default async function MessagesPage() {
 
   const admin = createAdminClient();
   const [
-    { data: listings },
-    { data: profiles },
-    { data: latestMessages },
-    { data: unreadMessages },
+    { data: listings, error: listingsError },
+    { data: profiles, error: profilesError },
+    { data: latestMessages, error: latestMessagesError },
+    { data: unreadMessages, error: unreadMessagesError },
   ] = await Promise.all([
     supabase
       .from("listings")
@@ -132,6 +126,9 @@ export default async function MessagesPage() {
       .is("read_at", null),
   ]);
 
+  if (listingsError || profilesError || latestMessagesError || unreadMessagesError) {
+    throw new Error("messages_summary_unavailable");
+  }
   const listingsMap = new Map(
     ((listings || []) as ListingSummaryRow[]).map((l) => [l.id, l])
   );
