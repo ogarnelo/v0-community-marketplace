@@ -35,7 +35,7 @@ export default async function MyListingsPage() {
     redirect("/auth?next=/account/listings");
   }
 
-  const [{ data: listingsData }, { data: draftData }] = await Promise.all([
+  const [{ data: listingsData, error: listingsError }, { data: draftData, error: draftError }] = await Promise.all([
     supabase
       .from("listings")
       .select("id, title, category, price, type, listing_type, status")
@@ -48,6 +48,8 @@ export default async function MyListingsPage() {
       .maybeSingle(),
   ]);
 
+  // A lost ACL or failed query must never look like a genuinely empty catalog.
+  if (listingsError || draftError) throw new Error("account_listings_unavailable");
   const listings = (listingsData || []) as ListingRow[];
   const draftPayload = (draftData?.payload || null) as Partial<ListingDraftPayload> | null;
   const draftPhotos = Array.isArray(draftData?.photos) ? draftData.photos : [];
@@ -61,7 +63,7 @@ export default async function MyListingsPage() {
   let sellerOffers: SellerOfferItem[] = [];
 
   if (listingIds.length > 0) {
-    const [{ data: photosData }, { data: offersData }] = await Promise.all([
+    const [{ data: photosData, error: photosError }, { data: offersData, error: offersError }] = await Promise.all([
       supabase
         .from("listing_photos")
         .select("id, listing_id, url, sort_order")
@@ -74,6 +76,7 @@ export default async function MyListingsPage() {
         .order("created_at", { ascending: false }),
     ]);
 
+    if (photosError || offersError) throw new Error("account_listing_related_data_unavailable");
     for (const photo of (photosData || []) as ListingPhotoRow[]) {
       if (!firstPhotoMap.has(photo.listing_id)) {
         firstPhotoMap.set(photo.listing_id, photo.url);
