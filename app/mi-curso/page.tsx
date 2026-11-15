@@ -177,8 +177,8 @@ export default async function MyCoursePage({
       user.id,
       persistedNeeds.map((need) => need.demand_request_id)
     );
-  } catch (error) {
-    console.error("Mi curso: error cargando estado de Buscar por mí", error);
+  } catch {
+    console.error("course_need_search_state_read_failed");
   }
 
   const activeCourseByStudent = new Map(
