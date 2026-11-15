@@ -21,6 +21,8 @@ jobs:
         run: npm install --ignore-scripts
       - name: Critical contract tests
         run: npm run test:critical-contracts
+      - name: Execute Next public API handlers with synthetic HTTP requests
+        run: node --test __tests__/launch/pilot-public-routes-runtime.test.mjs
 
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
