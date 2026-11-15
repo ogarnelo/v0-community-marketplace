@@ -44,6 +44,13 @@ def assess(manifest):
         ref = value["evidence_reference"]
         if not isinstance(ref, str) or len(ref) < 12 or len(ref) > 80 or not ref.startswith("private:"):
             return {"go": False, "reason": "AMPA_EVIDENCE_MISSING"}
+        # CI and local fixtures must never count as participant acceptance,
+        # even if all other checklist flags are set true.
+        if ref.lower().startswith((
+            "private:synthetic-", "private:fixture-", "private:demo-",
+            "private:test-", "private:ci-", "private:sample-",
+        )):
+            return {"go": False, "reason": "AMPA_SYNTHETIC_EVIDENCE"}
         if ref in evidence:
             return {"go": False, "reason": "AMPA_DUPLICATE_EVIDENCE"}
         evidence.add(ref)

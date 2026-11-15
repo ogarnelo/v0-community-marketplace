@@ -12,7 +12,7 @@ def manifest():
     return {"gates":{key:True for key in gate.GATES},
             "ampa":{key:{"approved":True,
               "cases":{c:True for c in gate.CASES},
-              "evidence_reference":"private:synthetic-"+key}
+              "evidence_reference":"private:real-evidence-"+key}
               for key in gate.AMPA_KEYS}}
 
 class ReleaseEvidenceTests(unittest.TestCase):
@@ -38,6 +38,16 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual(gate.assess(x)["reason"],"AMPA_EVIDENCE_MISSING")
         x=manifest(); x["ampa"]["ampa_3"]["evidence_reference"]=x["ampa"]["ampa_1"]["evidence_reference"]
         self.assertEqual(gate.assess(x)["reason"],"AMPA_DUPLICATE_EVIDENCE")
+    def test_synthetic_or_demo_references_never_count_as_real_ampa(self):
+        for prefix in ("synthetic-", "fixture-", "demo-", "test-", "ci-", "sample-"):
+            case=manifest()
+            case["ampa"]["ampa_2"]["evidence_reference"]="private:"+prefix+"fake-ampa-2"
+            self.assertEqual(gate.assess(case)["reason"], "AMPA_SYNTHETIC_EVIDENCE")
+        case=manifest()
+        case["ampa"]["ampa_1"]["evidence_reference"]="private:real-evidence-ampa_1"
+        self.assertEqual(gate.assess(case)["reason"],
+                         "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED")
+
     def test_all_true_is_only_declaration(self):
         self.assertEqual(gate.assess(manifest())["reason"],
             "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED")
