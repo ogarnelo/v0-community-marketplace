@@ -23,6 +23,8 @@ jobs:
         run: npm run test:critical-contracts
       - name: Execute Next public API handlers with synthetic HTTP requests
         run: node --test __tests__/launch/pilot-public-routes-runtime.test.mjs
+      - name: Validate private draft handlers and storage error minimization
+        run: node --test __tests__/launch/pilot-listing-draft-private-api-runtime.test.mjs
 
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
@@ -34,6 +36,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     services:
+      postgrest:
+        image: postgrest/postgrest:v12.2.12
+        env:
+          PGRST_DB_URI: postgres://postgres:ci_synthetic_only_not_secret@postgres:5432/wetudy_privacy_ci
+          PGRST_DB_SCHEMAS: public
+          PGRST_DB_ANON_ROLE: anon
+          PGRST_JWT_SECRET: ci_only_wetudy_postgrest_jwt_secret_2026_not_prod
+        ports:
+          - 3000:3000
       postgres:
         image: postgres:17
         env:
@@ -89,3 +100,29 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci -f scripts/pilot-ci-privacy-grants-after-dml-assert.sql
       - name: "Test real SQL operations: deny anon CRUD, preserve owner postal code edit"
         run: bash scripts/pilot-ci-privacy-actual-roles-runtime.sh
+      - name: Prepare synthetic PostgREST RLS for authenticated families
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci <<'SQL'
+          GRANT USAGE ON SCHEMA auth TO authenticated;
+          -- PostgREST 12 supplies the JWT object through request.jwt.claims;
+          -- SQL-only fixtures previously used request.jwt.claim.sub directly.
+          -- This function exists only in the disposable synthetic database.
+          CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
+          'SELECT coalesce(
+             nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid,
+             nullif(current_setting(''request.jwt.claims'',true)::jsonb->>''sub'','''')::uuid
+           )';
+          CREATE POLICY synthetic_http_owner_select ON public.listings
+            FOR SELECT TO authenticated USING (user_id = auth.uid());
+          NOTIFY pgrst, 'reload schema';
+          SQL
+      - name: Restart isolated PostgREST after synthetic database creation
+        run: |
+          set -euo pipefail
+          service="$(docker ps -q --filter ancestor=postgrest/postgrest:v12.2.12)"
+          test -n "$service"
+          docker restart "$service" >/dev/null
+      - name: "HTTP PostgREST real: anonymous blocked and family CP isolated"
+        env:
+          WETUDY_POSTGREST_HTTP_CI: "yes"
+        run: node scripts/pilot-ci-postgrest-privacy-http.mjs

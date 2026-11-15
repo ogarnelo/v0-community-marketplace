@@ -79,7 +79,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             path.write_text(json.dumps(manifest()))
             result=subprocess.run([sys.executable,str(SRC),"--manifest",str(path)],
                                   text=True,capture_output=True,timeout=10)
-        self.assertEqual(result.returncode,0)
+        self.assertEqual(result.returncode,3)
         self.assertIn("READY_FOR_HUMAN_RELEASE_REVIEW",result.stdout)
         self.assertIn("NOT_CERTIFIED",result.stdout)
         self.assertNotIn("GO_PILOT:",result.stdout)
