@@ -183,3 +183,33 @@ test("DELETE fails closed on existing-photo lookup error without deleting record
   assert.deepEqual(records.events,[]);
   assert.equal(records.admin,1);
 });
+
+test("PUT rejects foreign and malformed photo references before admin access",async()=>{
+  const cases=[
+    [{path:"family-B/drafts/foreign",url:"https://fixture.invalid/file"}],
+    [{path:"family-A/drafts/own",url:""}],
+    [{path:"family-A/drafts/own",url:"https://fixture.invalid/file"},
+     {path:"family-A/drafts/own",url:"https://fixture.invalid/duplicate"}],
+    Array.from({length:9},(_,i)=>({path:"family-A/drafts/"+i,url:"https://fixture.invalid/"+i})),
+    "not-an-array"
+  ];
+  for(const photos of cases){
+    const {route,records}=api();
+    const resp=await route.PUT(req("PUT",{payload:{title:"fixture"},photos}));
+    assert.equal(resp.status,400);
+    assert.equal(records.admin,0);
+    assert.deepEqual(records.events,[]);
+    assert.match(resp.headers.get("cache-control")??"",/private, no-store/);
+  }
+});
+test("PUT still accepts omitted photos and valid own-photo references",async()=>{
+  const inputs=[{payload:{title:"fixture"}},{payload:{title:"fixture"},photos:[
+    {path:"family-A/drafts/photo1",url:"https://fixture.invalid/one"}
+  ]}];
+  for(const body of inputs){
+    const {route,records}=api();
+    const resp=await route.PUT(req("PUT",body));
+    assert.equal(resp.status,200);
+    assert.deepEqual(records.events,["db_upsert"]);
+  }
+});
