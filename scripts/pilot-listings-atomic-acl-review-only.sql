@@ -8,6 +8,22 @@ DECLARE column_count int;
 BEGIN
   SELECT count(*) INTO column_count FROM pg_attribute
   WHERE attrelid='public.listings'::regclass AND attnum>0 AND NOT attisdropped;
+  IF NOT (SELECT relrowsecurity FROM pg_class
+    WHERE oid='public.listings'::regclass) THEN
+    RAISE EXCEPTION 'NO_GO_ATOMIC_ACL: row level security must already be enabled';
+  END IF;
+  -- A table-level REVOKE does not revoke per-column privileges. Fail before
+  -- any ACL mutation if an anonymous/PUBLIC column grant exists.
+  IF EXISTS (
+    SELECT 1 FROM pg_attribute a
+    CROSS JOIN LATERAL aclexplode(a.attacl) acl
+    WHERE a.attrelid='public.listings'::regclass
+      AND a.attnum>0 AND NOT a.attisdropped
+      AND acl.grantee IN (0,(SELECT oid FROM pg_roles WHERE rolname='anon'))
+      AND acl.privilege_type IN ('SELECT','INSERT','UPDATE')
+  ) THEN
+    RAISE EXCEPTION 'NO_GO_ATOMIC_ACL: unexpected direct anon/public column grant';
+  END IF;
   IF column_count<>36 THEN
     RAISE EXCEPTION 'NO_GO_ATOMIC_ACL: unexpected listings schema (% columns)',column_count;
   END IF;
