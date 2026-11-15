@@ -25,6 +25,8 @@ jobs:
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
+      - name: Message recipient lookups fail before notification side effects
+        run: node --test __tests__/launch/pilot-message-recipient-fanout-failclosed-runtime.test.mjs
       - name: New edit photos committed before deleting old photographs
         run: node --test __tests__/launch/pilot-edit-photo-delete-after-new-upload.test.mjs
       - name: Edit page school queries must fail closed on RLS errors

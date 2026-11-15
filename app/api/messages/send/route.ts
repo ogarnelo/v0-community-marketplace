@@ -41,12 +41,24 @@ export async function POST(request: Request) {
     if (!message || message.conversation_id !== conversation.id || message.sender_id !== user.id) return privateJson({ error: "No puedes procesar este mensaje." }, 403);
 
     const recipientId = user.id === conversation.buyer_id ? conversation.seller_id : conversation.buyer_id;
-    const [{ data: listing }, { data: recipientProfile }, { data: senderProfile }, recipientAuth] = await Promise.all([
+    const [
+      { data: listing, error: listingError },
+      { data: recipientProfile, error: recipientProfileError },
+      { data: senderProfile, error: senderProfileError },
+      recipientAuth,
+    ] = await Promise.all([
       admin.from("listings").select("title").eq("id", conversation.listing_id).maybeSingle(),
       admin.from("profiles").select("full_name").eq("id", recipientId).maybeSingle(),
       admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
       admin.auth.admin.getUserById(recipientId),
     ]);
+    // Never create a notification using partial recipient identity or stale
+    // listing metadata when a privileged read has failed. A retry is safe
+    // because the notification and email both carry deterministic event keys.
+    if (listingError || recipientProfileError || senderProfileError || recipientAuth.error) {
+      console.error("message_notification_recipient_lookup_failed");
+      return privateJson({ error: "No se pudo procesar el aviso." }, 503);
+    }
 
     const senderName =
       senderProfile?.full_name?.trim() ||
@@ -85,7 +97,7 @@ export async function POST(request: Request) {
     if (firstMessageError) throw firstMessageError;
 
     if (firstMessage?.id === message.id) {
-      const recipientEmail = recipientAuth.data.user?.email;
+      const recipientEmail = recipientAuth.data?.user?.email;
 
       if (recipientEmail) {
         try {
