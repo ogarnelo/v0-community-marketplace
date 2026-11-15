@@ -529,8 +529,7 @@ export async function POST(request: Request) {
       } catch (emailError) {
         emailFailures++;
         // Recipient addresses and provider error bodies must not be logged.
-        console.error("No se pudo enviar un aviso de búsqueda guardada",
-          emailError instanceof Error ? emailError.name : "unknown");
+        console.error("marketplace_saved_search_email_failed");
       }
     }
 
@@ -567,8 +566,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ ...deliveryResponse, error: "partial_delivery_failed" }, { status: 503 });
     }
     return NextResponse.json(deliveryResponse);
-  } catch (error: any) {
-    console.error("No se pudieron generar los matches de búsquedas guardadas", error);
-    return NextResponse.json({ error: error?.message || "No se pudieron generar los avisos." }, { status: 500 });
+  } catch {
+    // Privileged SQL diagnostics, matching criteria and recipient metadata
+    // must never be reflected in HTTP responses or server logs.
+    console.error("marketplace_saved_search_matching_failed");
+    return NextResponse.json({ error: "No se pudieron generar los avisos." }, {
+      status: 500, headers: { "Cache-Control": "private, no-store" },
+    });
   }
 }
