@@ -5,26 +5,40 @@ import { sendFirstMessageEmail } from "@/lib/emails/mvp-event-emails";
 import { createNotificationOnce } from "@/lib/notifications";
 import { sendTransactionalEmailOnce } from "@/lib/emails/delivery-idempotency";
 
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function privateJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_HEADERS });
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+    if (!user) return privateJson({ error: "Debes iniciar sesión." }, 401);
 
     const body = await request.json().catch(() => ({}));
     const conversationId = typeof body?.conversationId === "string" ? body.conversationId.trim() : "";
     const messageId = typeof body?.messageId === "string" ? body.messageId.trim() : "";
-    if (!conversationId || !messageId) return NextResponse.json({ error: "Falta la conversación o el mensaje." }, { status: 400 });
+    if (!UUID_RE.test(conversationId) || !UUID_RE.test(messageId)) return privateJson({ error: "Falta la conversación o el mensaje." }, 400);
 
+    // Gate access through the caller's RLS context before privileged reads.
+    const { data: conversation, error: conversationError } = await supabase
+      .from("conversations")
+      .select("id, listing_id, buyer_id, seller_id")
+      .eq("id", conversationId).maybeSingle();
+    if (conversationError) return privateJson({ error: "No se pudo consultar la conversación." }, 503);
+    if (!conversation) return privateJson({ error: "No se encontró la conversación." }, 404);
+    if (conversation.buyer_id !== user.id && conversation.seller_id !== user.id) {
+      return privateJson({ error: "No se encontró la conversación." }, 404);
+    }
     const admin = createAdminClient();
-    const [{ data: conversation }, { data: message }] = await Promise.all([
-      admin.from("conversations").select("id, listing_id, buyer_id, seller_id").eq("id", conversationId).maybeSingle(),
-      admin.from("messages").select("id, conversation_id, sender_id, body, attachment_name, created_at").eq("id", messageId).maybeSingle(),
-    ]);
+    const { data: message, error: messageError } = await admin
+      .from("messages").select("id, conversation_id, sender_id, body, attachment_name, created_at")
+      .eq("id", messageId).maybeSingle();
+    if (messageError) return privateJson({ error: "No se pudo procesar el aviso." }, 503);
 
-    if (!conversation) return NextResponse.json({ error: "No se encontró la conversación." }, { status: 404 });
-    if (conversation.buyer_id !== user.id && conversation.seller_id !== user.id) return NextResponse.json({ error: "No puedes gestionar esta conversación." }, { status: 403 });
-    if (!message || message.conversation_id !== conversation.id || message.sender_id !== user.id) return NextResponse.json({ error: "No puedes procesar este mensaje." }, { status: 403 });
+    if (!message || message.conversation_id !== conversation.id || message.sender_id !== user.id) return privateJson({ error: "No puedes procesar este mensaje." }, 403);
 
     const recipientId = user.id === conversation.buyer_id ? conversation.seller_id : conversation.buyer_id;
     const [{ data: listing }, { data: recipientProfile }, { data: senderProfile }, recipientAuth] = await Promise.all([
@@ -90,14 +104,15 @@ export async function POST(request: Request) {
                 idempotencyKey: eventKey,
               }),
           });
-        } catch (emailError) {
-          console.error("No se pudo enviar el email del primer mensaje", emailError);
+        } catch {
+          console.error("first_message_email_delivery_failed");
         }
       }
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "No se pudo procesar el aviso." }, { status: 500 });
+    return privateJson({ ok: true });
+  } catch {
+    console.error("message_notification_processing_failed");
+    return privateJson({ error: "No se pudo procesar el aviso." }, 500);
   }
 }
