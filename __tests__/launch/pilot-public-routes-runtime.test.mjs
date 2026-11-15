@@ -41,11 +41,11 @@ const fakeResponse = { NextResponse: { json(body, options = {}) {
 } } };
 
 const schools = [
-  { id: "real-a", name: "CEIP Río", city: "Madrid", is_active: true, is_test: false,
+  { id: "11111111-1111-4111-8111-111111111111", name: "CEIP Río", city: "Madrid", is_active: true, is_test: false,
     postal_code: "28001", internal_phone: "DO_NOT_LEAK" },
-  { id: "test-b", name: "Colegio Prueba", city: "Madrid", is_active: true, is_test: true,
+  { id: "22222222-2222-4222-8222-222222222222", name: "Colegio Prueba", city: "Madrid", is_active: true, is_test: true,
     postal_code: "28002", internal_phone: "DO_NOT_LEAK" },
-  { id: "inactive-c", name: "CEIP Antiguo", city: "Madrid", is_active: false, is_test: false,
+  { id: "33333333-3333-4333-8333-333333333333", name: "CEIP Antiguo", city: "Madrid", is_active: false, is_test: false,
     postal_code: "28003", internal_phone: "DO_NOT_LEAK" },
 ];
 function schoolAdmin({ fail = false } = {}) {
@@ -87,13 +87,13 @@ function schoolRoute(admin, logs = []) {
 
 test("public school ID lookup refuses active test and inactive centres", async () => {
   const admin=schoolAdmin(), get=schoolRoute(admin);
-  for (const id of ["test-b","inactive-c"]) {
+  for (const id of ["22222222-2222-4222-8222-222222222222","33333333-3333-4333-8333-333333333333"]) {
     const response=await get(new Request("http://test.invalid/api/schools/public?id="+id));
     assert.equal(response.status,200);
     assert.equal((await response.json()).school,null);
   }
-  const response=await get(new Request("http://test.invalid/api/schools/public?id=real-a"));
-  assert.deepEqual(await response.json(),{school:{id:"real-a",name:"CEIP Río",city:"Madrid"}});
+  const response=await get(new Request("http://test.invalid/api/schools/public?id=11111111-1111-4111-8111-111111111111"));
+  assert.deepEqual(await response.json(),{school:{id:"11111111-1111-4111-8111-111111111111",name:"CEIP Río",city:"Madrid"}});
   assert.match(response.headers.get("cache-control"),/no-store/);
 });
 
@@ -101,16 +101,16 @@ test("public school search excludes tests and returns only public columns",async
   const get=schoolRoute(schoolAdmin());
   const resp=await get(new Request("http://test.invalid/api/schools/public?q=Madrid"));
   assert.equal(resp.status,200);
-  assert.deepEqual(await resp.json(),{schools:[{id:"real-a",name:"CEIP Río",city:"Madrid"}]});
+  assert.deepEqual(await resp.json(),{schools:[{id:"11111111-1111-4111-8111-111111111111",name:"CEIP Río",city:"Madrid"}]});
   const all=await (await get(new Request("http://test.invalid/api/schools/public"))).json();
-  assert.deepEqual(all.schools,[{id:"real-a",name:"CEIP Río",city:"Madrid"}]);
+  assert.deepEqual(all.schools,[{id:"11111111-1111-4111-8111-111111111111",name:"CEIP Río",city:"Madrid"}]);
   assert.equal(JSON.stringify(all).includes("28001"),false);
   assert.equal(JSON.stringify(all).includes("DO_NOT_LEAK"),false);
 });
 
 test("PostgREST grammar, wildcards and oversized public school filters fail before admin",async () => {
   const admin=schoolAdmin(),get=schoolRoute(admin);
-  for (const q of ["(id.eq.real-a)", "Madrid,city.eq.Madrid", "%", "_", "a\"b", "x".repeat(81)]) {
+  for (const q of ["(id.eq.11111111-1111-4111-8111-111111111111)", "Madrid,city.eq.Madrid", "%", "_", "a\"b", "x".repeat(81)]) {
     const resp=await get(new Request("http://test.invalid/api/schools/public?q="+encodeURIComponent(q)));
     assert.equal(resp.status,400,q);
     assert.match(resp.headers.get("cache-control"),/no-store/);
@@ -212,4 +212,14 @@ test("privileged feed error is not reflected to client or console",async()=>{
   assert.equal(resp.status,503);
   assert.equal(JSON.stringify(await resp.json()).includes("private_Supabase_error"),false);
   assert.deepEqual(state.errors,[["marketplace_feed_read_failed"]]);
+});
+
+test("school UUID validation rejects bad identifiers before privileged client",async()=>{
+  const admin=schoolAdmin(), get=schoolRoute(admin);
+  for(const id of ["not-a-uuid","../../private","x".repeat(800)]){
+    const resp=await get(new Request("http://test.invalid/api/schools/public?id="+encodeURIComponent(id)));
+    assert.equal(resp.status,400);
+    assert.match(resp.headers.get("cache-control")??"",/no-store/);
+  }
+  assert.equal(admin.queries,0);
 });
