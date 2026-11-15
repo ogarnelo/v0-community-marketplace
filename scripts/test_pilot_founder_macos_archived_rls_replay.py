@@ -42,6 +42,16 @@ class ArchivedRLSReplayTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mod.extract_strict_policy_statements(change)
 
+    def test_safe_errors_do_not_leak_secrets_or_sql(self):
+        for source, expected in (
+            ("Local empty sandbox, network or privileges gate failed", "LOCAL_TARGET_GATE"),
+            ("Archived policy predicate requires separate review", "POLICY_PREDICATE_REVIEW"),
+            ("Archived RLS isolation checks failed", "RLS_ASSERTION"),
+        ):
+            self.assertEqual(mod.safe_failure_code(ValueError(source)), expected)
+        self.assertEqual(mod.safe_failure_code(ValueError("PASSWORD=secret, SELECT private")), "UNCLASSIFIED")
+        self.assertEqual(mod.safe_failure_code(RuntimeError("sensitive data")), "UNCLASSIFIED")
+
     def test_no_jwt_really_tested_before_deletes(self):
         text=mod.synthetic_transaction(mod.extract_strict_policy_statements(policies()))
         no_jwt=text.index("NO_JWT_VISIBLE")
