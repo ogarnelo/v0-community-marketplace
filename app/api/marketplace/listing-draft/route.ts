@@ -49,7 +49,7 @@ export async function GET() {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: "No se pudo cargar el borrador." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ error: "No se pudo cargar el borrador." }, { status: 500, headers: { "Cache-Control": "private, no-store" } });
   }
 
   return NextResponse.json({ draft: data || null }, { headers: { "Cache-Control": "private, no-store" } });
@@ -108,7 +108,7 @@ export async function PUT(request: Request) {
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: "No se pudo guardar el borrador." }, { status: 503 });
+    return NextResponse.json({ error: "No se pudo guardar el borrador." }, { status: 500 });
   }
 
   return NextResponse.json({ draft: data }, { headers: { "Cache-Control": "private, no-store" } });
@@ -154,7 +154,7 @@ export async function DELETE(request: Request) {
 
   const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
   if (error) {
-    return NextResponse.json({ error: "No se pudo descartar el borrador." }, { status: 503 });
+    return NextResponse.json({ error: "No se pudo descartar el borrador." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
