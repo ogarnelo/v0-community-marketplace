@@ -21,6 +21,7 @@ export async function GET(request: Request) {
         .select("id, name, city")
         .eq("id", id)
         .eq("is_active", true)
+        .eq("is_test", false)
         .maybeSingle<PublicSchool>();
 
       if (error) throw error;

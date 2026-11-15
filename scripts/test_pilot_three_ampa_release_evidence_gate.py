@@ -48,6 +48,20 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual(gate.assess(case)["reason"],
                          "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED")
 
+    def test_private_refs_deny_identifiers_urls_and_camouflaged_fixtures(self):
+        invalid={
+            "private:approved@ampa.edu": "AMPA_EVIDENCE_FORMAT",
+            "private:https://example.org/report": "AMPA_EVIDENCE_FORMAT",
+            "private:real_dummy_evidence_ampa1": "AMPA_SYNTHETIC_EVIDENCE",
+            "private:real-placeholder-ampa1": "AMPA_SYNTHETIC_EVIDENCE",
+            "private:real_sample_ampa1": "AMPA_SYNTHETIC_EVIDENCE",
+        }
+        for ref, reason in invalid.items():
+            with self.subTest(ref=ref):
+                x=manifest()
+                x["ampa"]["ampa_1"]["evidence_reference"]=ref
+                self.assertEqual(gate.assess(x)["reason"],reason)
+
     def test_all_true_is_only_declaration(self):
         self.assertEqual(gate.assess(manifest())["reason"],
             "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED")
