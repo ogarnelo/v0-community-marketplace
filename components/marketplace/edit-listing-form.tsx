@@ -73,6 +73,7 @@ type Props = {
   initialListing: EditableListing;
   initialSchoolLabel: string;
   initialPhotos: ExistingPhoto[];
+  initialWarning?: string | null;
 };
 
 function normalizedCategory(value: string) {
@@ -155,6 +156,7 @@ export default function EditListingForm({
   initialListing,
   initialSchoolLabel,
   initialPhotos,
+  initialWarning,
 }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -739,6 +741,7 @@ export default function EditListingForm({
             <p>{initialSchoolLabel}</p>
           </div>
 
+          {initialWarning ? <div role="alert" className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-950">{initialWarning}</div> : null}
           {submitError ? <div className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div> : null}
 
           <div
