@@ -58,6 +58,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
+          python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
       - name: Create disposable roles and two synthetic databases
         run: |
           set -euo pipefail
