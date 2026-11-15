@@ -91,13 +91,6 @@ export async function PUT(request: Request) {
     .map((photo) => photo.path)
     .filter((path) => !nextPaths.has(path));
 
-  if (removedPaths.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
-    if (storageError) {
-      console.error("draft_photo_cleanup_failed");
-    }
-  }
-
   const { data, error } = await admin
     .from("listing_drafts")
     .upsert(
@@ -116,6 +109,12 @@ export async function PUT(request: Request) {
     return privateJson({ error: "No se pudo guardar el borrador." }, 500);
   }
 
+  // Persist the new draft before deleting formerly referenced photos.
+  // Storage cleanup failure is non-destructive: the saved draft remains valid.
+  if (removedPaths.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
+    if (storageError) console.error("draft_photo_cleanup_failed");
+  }
   return privateJson({ draft: data });
 }
 
@@ -148,17 +147,21 @@ export async function DELETE(request: Request) {
     .map((photo) => photo.path)
     .filter((path) => !preservePaths.has(path));
 
-  if (pathsToRemove.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
-    if (storageError) {
-      return privateJson({ error: "No se pudieron limpiar las fotos del borrador." }, 500);
-    }
-  }
-
+  // Delete the draft record first. Otherwise a database failure after storage
+  // removal would leave a live draft referencing photographs that no longer exist.
   const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
   if (error) {
     return privateJson({ error: "No se pudo descartar el borrador." }, 500);
   }
 
+  if (pathsToRemove.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
+    if (storageError) {
+      console.error("discarded_draft_photo_cleanup_failed");
+      // The database has already committed. Do not falsely report that the
+      // draft still exists and prompt a user to retry a destructive operation.
+      return privateJson({ ok: true, cleanupPending: true });
+    }
+  }
   return privateJson({ ok: true });
 }
