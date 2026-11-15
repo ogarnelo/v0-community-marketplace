@@ -20,6 +20,7 @@ En una **sola sesión y transacción** crea Auth simulado, tabla y dos filas fic
 cd "$HOME/WETUDY/wetudy-dr"
 git pull --ff-only
 test -f scripts/pilot-founder-macos-archived-rls-replay.py && echo ARCHIVED_RLS_SCRIPT_OK
+~/WETUDY/.venv/bin/python -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py -v
 ~/WETUDY/.venv/bin/python scripts/pilot-founder-macos-archived-rls-replay.py \
   --database-zip "$HOME/Desktop/WETUDY/backups-nuevos/wetudy storage-NUEVO.zip" \
   --storage-zip "$HOME/Desktop/WETUDY/backups-nuevos/wetudy postgres-NUEVO.zip" \
