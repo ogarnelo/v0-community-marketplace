@@ -12,9 +12,11 @@ function privateJson(body: unknown, status = 200) {
 export async function GET(request: Request) {
   try {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  // Never use a stale user returned with an Auth error as authorization for
+  // the service-role conversation/profile lookups below.
+  if (authError) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
+  const user = authData?.user ?? null;
 
   if (!user) {
     return privateJson({ error: "No autenticado." }, 401);
