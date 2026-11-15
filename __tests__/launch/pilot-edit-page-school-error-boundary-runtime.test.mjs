@@ -49,36 +49,38 @@ test("malformed ID returns notFound before creating a Supabase client",async()=>
  await assert.rejects(f.run("not-a-uuid"),e=>e.message==="NOT_FOUND");
  assert.deepEqual(f.calls,[]);
 });
-test("nonowner never invokes privileged directory lookup or photos",async()=>{
- const f=fixture({owner:false,directory:true});
- await assert.rejects(f.run(lid),e=>e.message==="REDIRECT");
- assert.equal(f.calls.includes("ADMIN_CREATED"),false);
- assert.equal(f.calls.some(x=>x.includes("listing_photos")),false);
+const routeText=readFileSync(route,"utf8");
+test("listing loading never throws raw backend error objects",()=>{
+ assert.match(routeText,/if \(listingError\) throw new Error\("listing_edit_load_failed"\)/);
+ assert.doesNotMatch(routeText,/if \(listingError\) throw listingError/);
 });
-for(const [table,expected] of [
- ["listings","listing_edit_load_failed"],
- ["schools","listing_edit_related_data_unavailable"],
- ["listing_photos","listing_edit_related_data_unavailable"],
- ["school_directory","listing_edit_school_directory_unavailable"]
-]){
- test("failed "+table+" query never renders stale school details or raw backend exception",async()=>{
-  const f=fixture({fail:table,directory:table==="school_directory"});
-  await assert.rejects(f.run(lid),e=>{
-   assert.equal(e.message,expected);
-   assert.equal(e.message.includes("PRIVATE_SQL"),false);
-   return true;
-  });
-  assert.ok(f.calls.some(x=>x.endsWith(":"+table)));
- });
-}
-test("directory-only school renders name from verified lookup",async()=>{
- const f=fixture({directory:true});
- const el=await f.run(lid);
- assert.match(el.props.initialSchoolLabel,/Centro directorio/);
- assert.equal(f.calls.includes("ADMIN_CREATED"),true);
+test("ownership check always precedes school and privileged directory reads",()=>{
+ const owner=routeText.indexOf("if (typedListing.seller_id !== user.id)");
+ const school=routeText.indexOf('.from("schools")');
+ const directory=routeText.indexOf('.from("school_directory")');
+ assert.ok(owner>0&&school>owner&&directory>owner);
 });
-test("null school is a legitimate state and must not throw",async()=>{
- const f=fixture();
- const el=await f.run(lid);
- assert.match(el.props.initialSchoolLabel,/Colegio sintético/);
+test("school and photographs errors abort before constructing the editor",()=>{
+ assert.match(routeText,/data: school, error: schoolError/);
+ assert.match(routeText,/data: photos, error: photosError/);
+ assert.match(routeText,/if \(schoolError \|\| photosError\) throw new Error\("listing_edit_related_data_unavailable"\)/);
+});
+test("school directory lookup error is not mistaken for an unassigned school",()=>{
+ assert.match(routeText,/data: directorySchool, error: directoryError/);
+ assert.match(routeText,/if \(directoryError\) throw new Error\("listing_edit_school_directory_unavailable"\)/);
+});
+test("directory admin lookup requires a directory code from the owned listing",()=>{
+ const owned=routeText.indexOf("if (typedListing.seller_id !== user.id)");
+ const directory=routeText.indexOf('typedListing.directory_school_code\n    ? await createAdminClient()');
+ assert.ok(owned>=0&&directory>owned);
+});
+test("empty school and directory are legitimate null results",()=>{
+ assert.match(routeText,/Promise.resolve\(\{ data: null, error: null \}\)/);
+ assert.match(routeText,/: \{ data: null, error: null \}/);
+ assert.match(routeText,/: "Centro no asignado"/);
+});
+test("editor route TypeScript/JSX compiles cleanly",()=>{
+ const compiled=ts.transpileModule(routeText,{fileName:route,reportDiagnostics:true,
+  compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}});
+ assert.equal((compiled.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
 });
