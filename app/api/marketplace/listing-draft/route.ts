@@ -104,15 +104,21 @@ async function filterDraftPhotosSafeToRemove(
 }
 
 async function getAuthenticatedUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    // An unavailable Auth service is not an unauthenticated user. Fail
+    // closed even if the provider returns stale user data alongside an error.
+    if (error) return { user: null, authFailed: true };
+    return { user: data?.user ?? null, authFailed: false };
+  } catch {
+    return { user: null, authFailed: true };
+  }
 }
 
 export async function GET() {
-  const user = await getAuthenticatedUser();
+  const { user, authFailed } = await getAuthenticatedUser();
+  if (authFailed) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
   if (!user) {
     return privateJson({ error: "Debes iniciar sesión." }, 401);
   }
@@ -132,7 +138,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const user = await getAuthenticatedUser();
+  const { user, authFailed } = await getAuthenticatedUser();
+  if (authFailed) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
   if (!user) {
     return privateJson({ error: "Debes iniciar sesión." }, 401);
   }
@@ -192,7 +199,8 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getAuthenticatedUser();
+  const { user, authFailed } = await getAuthenticatedUser();
+  if (authFailed) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
   if (!user) {
     return privateJson({ error: "Debes iniciar sesión." }, 401);
   }
