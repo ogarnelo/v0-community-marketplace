@@ -25,6 +25,8 @@ jobs:
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
+      - name: Edit listing upload rollback must preserve existing photographs
+        run: node --test __tests__/launch/pilot-edit-photo-upload-rollback-runtime.test.mjs
       - name: Marketplace feed and school catalog private errors
         run: node --test __tests__/launch/pilot-feed-school-private-http-error-runtime.test.mjs
       - name: New listing Storage rollback before listing INSERT
