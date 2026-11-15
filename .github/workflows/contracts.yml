@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 8
     services:
       postgrest:
-        image: postgrest/postgrest:v12.2.8
+        image: postgrest/postgrest:v12.2.12
         env:
           PGRST_DB_URI: postgres://postgres:ci_synthetic_only_not_secret@postgres:5432/wetudy_privacy_ci
           PGRST_DB_SCHEMAS: public
