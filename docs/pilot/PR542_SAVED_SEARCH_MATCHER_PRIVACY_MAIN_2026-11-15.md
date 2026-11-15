@@ -1,0 +1,3 @@
+# PR542 — Protección de errores de avisos de búsquedas guardadas (15/11/2026)
+
+**Producción main:** el worker `match-saved-searches` podía reflejar mensajes de SQL/proveedor en HTTP 500, imprimir excepciones completas y consultar `listings` con un ID malformado. La corrección no altera búsqueda, matching, lease, idempotencia ni entrega: cambia el error a texto fijo con `private,no-store`, limita logs a tokens y valida UUID antes de instanciar el cliente privilegiado. Tres contratos heredados de QA PR526 conectados a Critical contracts. No hay cambios en Supabase ni cuentas reales. La autorización de supabase_admin sigue pendiente, 18 MAINTAIN fuera de alcance y las tres AMPA siguen 0/3. NO-GO.
