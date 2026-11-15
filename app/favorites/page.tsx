@@ -23,7 +23,7 @@ export default async function FavoritesPage() {
   }
 
   const [
-    { data: favorites },
+    { data: favorites, error: favoritesError },
     { data: currentProfile },
     { data: schoolAdminRole },
     { data: primaryStudentContext },
@@ -55,6 +55,7 @@ export default async function FavoritesPage() {
       .maybeSingle(),
   ]);
 
+  if (favoritesError) throw new Error("favorites_unavailable");
   const favoriteIds = (favorites || []).map(
     (fav: { listing_id: string }) => fav.listing_id
   );
@@ -63,7 +64,7 @@ export default async function FavoritesPage() {
   let photosMap = new Map<string, string[]>();
 
   if (favoriteIds.length > 0) {
-    const { data: listingsData } = await supabase
+    const { data: listingsData, error: listingsError } = await supabase
       .from("listings")
       .select(
         "id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, seller_id, user_id, school_id, status, created_at"
@@ -72,17 +73,19 @@ export default async function FavoritesPage() {
       .eq("status", "available")
       .order("created_at", { ascending: false });
 
+    if (listingsError) throw new Error("favorites_listings_unavailable");
     listings = (listingsData || []) as ListingRow[];
 
     if (listings.length > 0) {
       const listingIds = listings.map((item) => item.id);
 
-      const { data: listingPhotos } = await supabase
+      const { data: listingPhotos, error: listingPhotosError } = await supabase
         .from("listing_photos")
         .select("id, listing_id, url, sort_order")
         .in("listing_id", listingIds)
         .order("sort_order", { ascending: true });
 
+      if (listingPhotosError) throw new Error("favorites_photos_unavailable");
       photosMap = buildPhotosMap((listingPhotos || []) as ListingPhotoRow[]);
     }
   }
