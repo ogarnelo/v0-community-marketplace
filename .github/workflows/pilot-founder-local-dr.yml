@@ -11,6 +11,8 @@ on:
       - "scripts/test_pilot_founder_macos_real_rls_policy_preflight.py"
       - "scripts/pilot-founder-macos-archived-rls-replay.py"
       - "scripts/test_pilot_founder_macos_archived_rls_replay.py"
+      - "scripts/pilot-founder-macos-archived-rls-replay.py"
+      - "scripts/test_pilot_founder_macos_archived_rls_replay.py"
       - "scripts/test_pilot_founder_macos_offline_drill.py"
       - "scripts/test_pilot_founder_local_backup_preflight.py"
       - "scripts/test_pilot_founder_local_drill.py"
@@ -37,6 +39,8 @@ jobs:
       - name: Test real-policy TOC/DDL selection against synthetic inputs
         run: python3 -m unittest scripts/test_pilot_founder_macos_real_rls_policy_preflight.py -v
       - name: Synthetic fail-closed archived RLS replay SQL validation
+        run: python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py -v
+      - name: Test archived replay diagnostics and password handling with synthetic fixtures
         run: python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py -v
       - name: Prohibit any hosted DB or real credentials in the synthetic test
         shell: bash
