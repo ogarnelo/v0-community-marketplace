@@ -215,8 +215,12 @@ def run(db_zip, storage_zip, backup_password, local_password):
     PREFLIGHT["run"](db_zip, storage_zip)
     pg_restore = CHECK_PG(PG_HOME / "pg_restore")
     psql = PG_HOME / "psql"
-    if not psql.is_file() or not backup_password or not local_password:
-        raise ValueError("Missing local prerequisites")
+    if not psql.is_file():
+        raise ValueError("LOCAL_PSQL_BINARY_MISSING")
+    if not backup_password:
+        raise ValueError("EMPTY_SECRET_BACKUP")
+    if not local_password:
+        raise ValueError("EMPTY_SECRET_LOCAL")
     gate_local_target(psql, local_password)
     with tempfile.TemporaryDirectory(prefix="wetudy-archived-rls-private-") as td:
         root = Path(td)
@@ -262,6 +266,9 @@ def run(db_zip, storage_zip, backup_password, local_password):
 SAFE_FAILURE_CODES = {
     "Local empty sandbox, network or privileges gate failed": "LOCAL_TARGET_GATE",
     "Missing local prerequisites": "LOCAL_PREREQUISITES",
+    "LOCAL_PSQL_BINARY_MISSING": "LOCAL_PSQL_BINARY_MISSING",
+    "EMPTY_SECRET_LOCAL": "EMPTY_SECRET_LOCAL",
+    "EMPTY_SECRET_BACKUP": "EMPTY_SECRET_BACKUP",
     "Local PostgreSQL operation failed; rollback on connection close": "LOCAL_SQL_EXECUTION",
     "Invalid PGDMP": "DUMP_HEADER",
     "Missing archive TOC": "DUMP_TOC",
@@ -295,6 +302,15 @@ def safe_failure_code(exc):
         return SAFE_FAILURE_CODES.get(str(exc), "UNCLASSIFIED")
     return "UNCLASSIFIED"
 
+def read_required_secret(prompt, label):
+    # One retry for an accidental empty Enter, with no password echo.
+    for attempt in range(2):
+        value = getpass.getpass(prompt if attempt == 0 else
+                                'Empty input; re-enter ' + label + ' password (hidden): ')
+        if value:
+            return value
+    raise ValueError('EMPTY_SECRET_' + label)
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--database-zip", required=True)
@@ -304,8 +320,8 @@ def main():
     if not args.confirm_replay_local_synthetic_only:
         ap.error("Explicit --confirm-replay-local-synthetic-only required")
     try:
-        local_password=getpass.getpass("LOCAL PostgreSQL restore role password (not shared): ")
-        backup_password=getpass.getpass("BACKUP encryption password (not shared): ")
+        local_password=read_required_secret("LOCAL PostgreSQL restore role password (not shared): ", "LOCAL")
+        backup_password=read_required_secret("BACKUP encryption password (not shared): ", "BACKUP")
         result=run(args.database_zip,args.storage_zip,backup_password,local_password)
     except (OSError,ValueError,RuntimeError,UnicodeError,
             subprocess.TimeoutExpired,zipfile.BadZipFile) as exc:
