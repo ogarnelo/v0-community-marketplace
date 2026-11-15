@@ -10,11 +10,11 @@ const CID="11111111-1111-4111-8111-111111111111";
 const URL_ROOT="https://fixture.invalid/api/messages/conversation-summary";
 
 function fixture({user="familyA",buyer="familyA",seller="familyB",
-  conversationError=false,listingError=false,profileError=false,messageError=false}={}){
-  const state={queries:[],admin:0};
+  conversationError=false,listingError=false,profileError=false,messageError=false,throwOnAuth=false}={}){
+  const state={queries:[],admin:0,logs:[]};
   const record={id:CID,listing_id:"listing-fixture",buyer_id:buyer,seller_id:seller};
   const supabase={
-    auth:{async getUser(){return {data:{user:user?{id:user}:null}}}},
+    auth:{async getUser(){if(throwOnAuth)throw Error("PRIVATE_AUTH_THROW");return {data:{user:user?{id:user}:null}}}},
     from(table){
       state.queries.push("user:"+table);
       const answer=()=>table==="conversations"
@@ -47,7 +47,7 @@ function fixture({user="familyA",buyer="familyA",seller="familyB",
     compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}});
   assert.equal((compiled.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
   const output={};
-  vm.runInNewContext(compiled.outputText,{exports:output,require:requireMock,URL,Request,Response},
+  vm.runInNewContext(compiled.outputText,{exports:output,require:requireMock,URL,Request,Response,console:{error:(...args)=>state.logs.push(args)}},
     {filename:routePath,timeout:1500});
   return {GET:output.GET,state};
 }
@@ -100,4 +100,13 @@ test("any privileged summary read failure returns private generic 503, never par
     assert.equal(body.includes("SECRET_"),false);
     assert.equal(body.includes("PRIVATE_MESSAGE"),false);
   }
+});
+
+test("unexpected authentication exceptions return fixed private 503, not raw errors",async()=>{
+  const {GET,state}=fixture({throwOnAuth:true});
+  const res=await GET(request(CID));
+  assert.equal(res.status,503);privateResponse(res);
+  assert.equal((await res.text()).includes("PRIVATE_AUTH_THROW"),false);
+  assert.deepEqual(state.logs,[["conversation_summary_read_failed"]]);
+  assert.equal(state.admin,0);
 });
