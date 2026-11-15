@@ -1,0 +1,5 @@
+# PR543 — Orden correcto entre borradores y fotografías (15/11/2026)
+
+El endpoint `listing-draft` borraba objetos de Storage **antes** de confirmar el cambio en PostgreSQL. Si el `upsert` o el `delete` de `listing_drafts` fallaba, los archivos se perdían mientras permanecía el registro que los referenciaba. Se ha corregido el orden: **primero se confirma el estado de base de datos, después se limpian los archivos**. Si falla la limpieza posterior a DELETE, se responde `ok:true,cleanupPending:true` porque la operación principal ya está confirmada, en lugar de informar falsamente que el borrador sigue existiendo. Los residuos Storage deberán limpiarse mediante mantenimiento separado y autorizado; no se crean tareas automáticas no comprobadas.
+
+Cinco pruebas HTTP del handler real con fallos inyectados en base de datos y Storage se integran en Critical contracts. No se alteran permisos, RLS, fotos reales ni cuentas. El piloto general permanece NO-GO; AMPA 0/3 y recuperación integral pendiente.
