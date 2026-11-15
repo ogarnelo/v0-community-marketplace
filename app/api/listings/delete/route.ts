@@ -2,149 +2,119 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BLOCKING_PAYMENT_STATUSES = [
-  "draft",
-  "requires_payment_method",
-  "requires_confirmation",
-  "processing",
-  "requires_capture",
-  "succeeded",
+  "draft", "requires_payment_method", "requires_confirmation",
+  "processing", "requires_capture", "succeeded",
 ] as const;
+
+// The FK audit confirms these tables can retain payment, human interaction,
+// moderation or delivery history. A listing with any such row is archived,
+// never hard-deleted with ON DELETE CASCADE.
+const RETAIN_HISTORY_TABLES = [
+  "payment_intents",
+  "listing_offers",
+  "donation_requests",
+  "conversations",
+  "reports",
+  "agreements",
+  "shipments",
+  "reviews",
+  "moderation_flags",
+  "transaction_issues",
+  "listing_boosts",
+] as const;
+
+function privateJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_HEADERS });
+}
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
+    if (!user) return privateJson({ error: "Debes iniciar sesión." }, 401);
 
-    if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
-    }
-
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const listingId = typeof body?.listingId === "string" ? body.listingId.trim() : "";
-
-    if (!listingId) {
-      return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
+    if (!UUID_RE.test(listingId)) {
+      return privateJson({ error: "Identificador de anuncio no válido." }, 400);
     }
 
     const admin = createAdminClient();
-
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id, seller_id, status")
+      .select("id,seller_id,status")
       .eq("id", listingId)
       .maybeSingle();
 
-    if (listingError || !listing) {
-      return NextResponse.json({ error: "El anuncio no existe." }, { status: 404 });
-    }
-
+    if (listingError) return privateJson({ error: "No se pudo consultar el anuncio." }, 503);
+    if (!listing) return privateJson({ error: "El anuncio no existe." }, 404);
     if (listing.seller_id !== user.id) {
-      return NextResponse.json({ error: "No tienes permisos para eliminar este anuncio." }, { status: 403 });
+      return privateJson({ error: "No tienes permisos para eliminar este anuncio." }, 403);
     }
 
-    const [
-      { data: payments },
-      { data: acceptedOffer },
-      { data: approvedDonation },
-      { data: conversations },
-      { data: reports },
-    ] = await Promise.all([
-      admin
-        .from("payment_intents")
-        .select("id, status")
-        .eq("listing_id", listingId)
-        .in("status", [...BLOCKING_PAYMENT_STATUSES]),
-      admin
-        .from("listing_offers")
-        .select("id")
-        .eq("listing_id", listingId)
-        .eq("status", "accepted")
-        .maybeSingle(),
-      admin
-        .from("donation_requests")
-        .select("id")
-        .eq("listing_id", listingId)
-        .eq("status", "approved")
-        .maybeSingle(),
-      admin
-        .from("conversations")
-        .select("id")
-        .eq("listing_id", listingId)
-        .limit(1),
-      admin
-        .from("reports")
-        .select("id")
-        .eq("listing_id", listingId)
-        .limit(1),
+    const [paymentBlockers, acceptedOffers, approvedDonations, ...history] = await Promise.all([
+      admin.from("payment_intents").select("id")
+        .eq("listing_id", listingId).in("status", [...BLOCKING_PAYMENT_STATUSES]).limit(1),
+      admin.from("listing_offers").select("id")
+        .eq("listing_id", listingId).eq("status", "accepted").limit(1),
+      admin.from("donation_requests").select("id")
+        .eq("listing_id", listingId).eq("status", "approved").limit(1),
+      ...RETAIN_HISTORY_TABLES.map(table =>
+        admin.from(table).select("id").eq("listing_id", listingId).limit(1)
+      ),
     ]);
 
-    if ((payments || []).length > 0 || acceptedOffer || approvedDonation) {
-      return NextResponse.json(
-        {
-          error:
-            "Este anuncio ya tiene una operación en curso o cerrada. Para conservar el historial, puedes archivarlo pero no eliminarlo definitivamente.",
-        },
-        { status: 409 }
-      );
+    // Never mistake a provider/RLS error for an empty result. One failed
+    // preflight means no update, delete, child cleanup, or storage mutation.
+    const preflight = [paymentBlockers, acceptedOffers, approvedDonations, ...history];
+    if (preflight.some(result => result.error)) {
+      console.error("listing_delete_history_preflight_failed");
+      return privateJson({ error: "No se pudo comprobar el historial del anuncio." }, 503);
     }
 
-    const hasModerationOrConversationHistory =
-      (conversations || []).length > 0 || (reports || []).length > 0;
+    if (paymentBlockers.data?.length || acceptedOffers.data?.length || approvedDonations.data?.length) {
+      return privateJson({
+        error: "Este anuncio ya tiene una operación en curso o cerrada. Para conservar el historial, puedes archivarlo pero no eliminarlo definitivamente.",
+      }, 409);
+    }
 
-    if (hasModerationOrConversationHistory) {
-      const { error: archiveHistoryError } = await admin
+    if (history.some(result => (result.data?.length || 0) > 0)) {
+      const { data: archived, error: archiveError } = await admin
         .from("listings")
         .update({ status: "archived" })
         .eq("id", listingId)
-        .eq("seller_id", user.id);
-
-      if (archiveHistoryError) {
-        return NextResponse.json(
-          { error: archiveHistoryError.message || "No se pudo archivar el anuncio." },
-          { status: 400 }
-        );
+        .eq("seller_id", user.id)
+        .select("id")
+        .maybeSingle();
+      if (archiveError || !archived) {
+        return privateJson({ error: "No se pudo archivar el anuncio." }, 503);
       }
-
-      return NextResponse.json({
-        ok: true,
-        mode: "archived",
-        hadHistory: true,
-      });
+      return privateJson({ ok: true, mode: "archived", hadHistory: true });
     }
 
-    await Promise.allSettled([
-      admin.from("favorites").delete().eq("listing_id", listingId),
-      admin.from("listing_photos").delete().eq("listing_id", listingId),
-      admin.from("listing_views").delete().eq("listing_id", listingId),
-    ]);
-
-    const { error: deleteError } = await admin.from("listings").delete().eq("id", listingId);
-
-    if (!deleteError) {
-      return NextResponse.json({ ok: true, mode: "deleted" });
-    }
-
-    const { error: archiveError } = await admin
+    // The audited FK constraints use ON DELETE CASCADE / SET NULL for
+    // dependent records. Do not delete listing_photos, favorites or views
+    // before the listing delete is confirmed: a failed delete would
+    // otherwise irreversibly strip a still-existing listing of its photos.
+    const { data: deleted, error: deleteError } = await admin
       .from("listings")
-      .update({ status: "archived" })
+      .delete()
       .eq("id", listingId)
-      .eq("seller_id", user.id);
+      .eq("seller_id", user.id)
+      .select("id")
+      .maybeSingle();
 
-    if (archiveError) {
-      return NextResponse.json(
-        { error: deleteError.message || archiveError.message || "No se pudo eliminar el anuncio." },
-        { status: 400 }
-      );
+    if (deleteError || !deleted) {
+      console.error("listing_delete_not_confirmed");
+      return privateJson({ error: "No se pudo eliminar el anuncio." }, 503);
     }
-
-    return NextResponse.json({ ok: true, mode: "archived", hadHistory: false });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo eliminar el anuncio." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, mode: "deleted" });
+  } catch {
+    console.error("listing_delete_unexpected_failure");
+    return privateJson({ error: "No se pudo eliminar el anuncio." }, 500);
   }
 }
