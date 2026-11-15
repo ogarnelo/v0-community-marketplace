@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       .single();
 
     if (error || !paymentIntent) {
-      return NextResponse.json({ error: error?.message || "No se pudo preparar el pago." }, { status: 400 });
+      return NextResponse.json({ error: "No se pudo preparar el pago." }, { status: 400 });
     }
 
     if (listing.status === "available") {
