@@ -63,7 +63,7 @@
     "test:pilot-qr-readonly": "node --test __tests__/launch/pilot-qr-browser-readonly-contract.test.mjs",
     "test:pilot-auth-school-link": "node --test __tests__/launch/pilot-auth-school-link-guards.test.mjs",
     "test:listing-delete-integrity": "node --test __tests__/launch/listing-delete-preserve-history.test.mjs",
-    "test:conversation-summary-privacy": "node --test __tests__/launch/conversation-summary-privacy.test.mjs",
+    "test:conversation-summary-privacy": "node --test __tests__/launch/conversation-summary-privacy.test.mjs __tests__/launch/marketplace-conversation-summary-participant-guard.test.mjs __tests__/launch/pilot-conversation-summary-private-http-runtime.test.mjs __tests__/launch/pilot-saved-search-sensitive-error-contract.test.mjs",
     "test:private-listing-report-privacy": "node --test __tests__/launch/private-listing-report-privacy.test.mjs",
     "test:listing-delete-full-history": "node --test __tests__/launch/listing-delete-full-history-guard.test.mjs",
     "test:payment-intent-idempotency": "node --test __tests__/launch/payment-intent-idempotency.test.mjs",
