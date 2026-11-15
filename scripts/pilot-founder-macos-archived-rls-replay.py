@@ -151,14 +151,20 @@ SELECT 'A_OTHER_INVISIBLE=' || NOT EXISTS
  (SELECT 1 FROM public.saved_search_matches WHERE id=2);
 WITH d AS (DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
 SELECT 'A_CROSS_DELETE_BLOCKED=' || (count(*)=0) FROM d;
-WITH d AS (DELETE FROM public.saved_search_matches WHERE id=1 RETURNING id)
-SELECT 'A_OWN_DELETE_ALLOWED=' || (count(*)=1) FROM d;
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub','""" + ID_B + r"""',true);
 SET LOCAL ROLE authenticated;
 SELECT 'B_VISIBLE=' || count(*) FROM public.saved_search_matches;
 WITH d AS (DELETE FROM public.saved_search_matches WHERE id=1 RETURNING id)
 SELECT 'B_CROSS_DELETE_BLOCKED=' || (count(*)=0) FROM d;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','""" + ID_A + r"""',true);
+SET LOCAL ROLE authenticated;
+WITH d AS (DELETE FROM public.saved_search_matches WHERE id=1 RETURNING id)
+SELECT 'A_OWN_DELETE_ALLOWED=' || (count(*)=1) FROM d;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','""" + ID_B + r"""',true);
+SET LOCAL ROLE authenticated;
 WITH d AS (DELETE FROM public.saved_search_matches WHERE id=2 RETURNING id)
 SELECT 'B_OWN_DELETE_ALLOWED=' || (count(*)=1) FROM d;
 RESET ROLE;
