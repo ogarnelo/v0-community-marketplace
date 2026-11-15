@@ -300,7 +300,7 @@ export async function POST(request: Request) {
       offerId,
       paymentIntent,
       quote: pricing,
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     // Never return privileged SQL/provider diagnostics to the buyer.
     console.error("buy_now_checkout_failed");
