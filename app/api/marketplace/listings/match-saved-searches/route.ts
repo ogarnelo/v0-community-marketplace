@@ -44,6 +44,10 @@ export async function POST(request: Request) {
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workerLeaseToken)
     )) return NextResponse.json({ error: "Invalid worker lease." }, { status: 400 });
     if (!listingId) return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
+    // UUID is the real public.listings.id type; validate before service role access.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listingId)) {
+      return NextResponse.json({ error: "Anuncio no válido." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+    }
 
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
