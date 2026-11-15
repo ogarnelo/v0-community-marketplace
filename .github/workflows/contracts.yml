@@ -104,6 +104,14 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -d wetudy_privacy_ci <<'SQL'
           GRANT USAGE ON SCHEMA auth TO authenticated;
+          -- PostgREST 12 supplies the JWT object through request.jwt.claims;
+          -- SQL-only fixtures previously used request.jwt.claim.sub directly.
+          -- This function exists only in the disposable synthetic database.
+          CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
+          $ SELECT coalesce(
+               nullif(current_setting('request.jwt.claim.sub',true),'')::uuid,
+               nullif(current_setting('request.jwt.claims',true)::jsonb->>'sub','')::uuid
+             ) $;
           CREATE POLICY synthetic_http_owner_select ON public.listings
             FOR SELECT TO authenticated USING (user_id = auth.uid());
           NOTIFY pgrst, 'reload schema';
