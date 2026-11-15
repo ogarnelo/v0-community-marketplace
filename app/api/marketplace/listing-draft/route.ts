@@ -76,6 +76,19 @@ export async function PUT(request: Request) {
     return privateJson({ error: "El borrador es demasiado grande." }, { status: 413 });
   }
 
+  // Reject malformed or cross-account photo references instead of silently
+  // dropping them: a truncated/filtered list could erase prior draft photos.
+  if (body?.photos !== undefined) {
+    const incoming = body.photos;
+    const accepted = cleanPhotos(incoming, user.id);
+    if (!Array.isArray(incoming) ||
+        incoming.length > MAX_DRAFT_PHOTOS ||
+        accepted.length !== incoming.length ||
+        new Set(accepted.map((photo) => photo.path)).size !== accepted.length) {
+      return privateJson({ error: "Las fotos del borrador no son válidas." }, { status: 400 });
+    }
+  }
+
   const photos = cleanPhotos(body?.photos, user.id);
   const admin = createAdminClient();
 
