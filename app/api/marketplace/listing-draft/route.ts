@@ -136,7 +136,7 @@ export async function DELETE(request: Request) {
   );
 
   const admin = createAdminClient();
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("listing_drafts")
     .select("photos")
     .eq("user_id", user.id)
