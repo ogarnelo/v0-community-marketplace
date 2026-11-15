@@ -149,19 +149,20 @@ export async function DELETE(request: Request) {
     .map((photo) => photo.path)
     .filter((path) => !preservePaths.has(path));
 
-  if (pathsToRemove.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
-    if (storageError) {
-      return privateJson(
-        { error: "No se pudieron limpiar las fotos del borrador." },
-        { status: 500 }
-      );
-    }
-  }
-
+  // Delete DB references before deleting Storage objects. On a failed DB
+  // delete, previously referenced photos must remain available to the owner.
   const { error } = await admin.from("listing_drafts").delete().eq("user_id", user.id);
   if (error) {
     return privateJson({ error: "No se pudo descartar el borrador." }, { status: 500 });
+  }
+
+  if (pathsToRemove.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(pathsToRemove);
+    if (storageError) {
+      // Cleanup is best effort after the DB delete. A failed cleanup may
+      // leave unreferenced objects; never expose privileged Storage errors.
+      console.error("listing_draft_storage_cleanup_failed");
+    }
   }
 
   return privateJson({ ok: true });

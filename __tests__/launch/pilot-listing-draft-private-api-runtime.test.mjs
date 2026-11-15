@@ -14,7 +14,7 @@ function api({user={id:"family-A"}, dbError=false, storageError=false, draft=nul
     select(){return this;},
     eq(){return this;},
     upsert(){records.events.push("db_upsert");return this;},
-    delete(){return this;},
+    delete(){records.events.push("db_delete");return this;},
     async maybeSingle(){return {data:draft,error};},
     async single(){return {data:dbError?null:{id:"draft-id",payload:{title:"test"},photos:[]},error};},
     then(resolve,reject){return Promise.resolve({error}).then(resolve,reject);}
@@ -80,7 +80,7 @@ test("draft DELETE storage error never reflects backend details",async()=>{
     photos:[{path:"family-A/drafts/photo-1",url:"https://fixture.invalid/photo"}]
   }});
   const resp=await route.DELETE(req("DELETE",{preservePhotoPaths:[]}));
-  assert.equal(resp.status,500);
+  assert.equal(resp.status,200);
   assert.equal(JSON.stringify(await resp.json()).includes("DO_NOT_LEAK"),false);
 });
 test("draft PUT cleans only own paths and never logs raw storage failure",async()=>{
@@ -131,4 +131,37 @@ test("PUT removes abandoned storage objects only after DB successfully saves",as
   assert.equal(response.status,200);
   assert.deepEqual(records.events,["db_upsert","storage_remove"]);
   assert.deepEqual(records.removed,["family-A/drafts/old.jpg"]);
+});
+
+test("DELETE never removes previously referenced photos when the DB delete fails",async()=>{
+  const {route,records}=api({dbError:true,draft:{
+    photos:[{path:"family-A/drafts/photo-1",url:"https://fixture.invalid/photo"}]
+  }});
+  const response=await route.DELETE(req("DELETE",{preservePhotoPaths:[]}));
+  assert.equal(response.status,500);
+  assert.deepEqual(records.removed,[]);
+  assert.deepEqual(records.events,["db_delete"]);
+});
+test("DELETE removes only own discarded objects after DB delete succeeds",async()=>{
+  const {route,records}=api({draft:{photos:[
+    {path:"family-A/drafts/photo-1",url:"https://fixture.invalid/photo"},
+    {path:"family-A/drafts/keep",url:"https://fixture.invalid/keep"},
+    {path:"other-family/drafts/foreign",url:"https://fixture.invalid/foreign"}
+  ]}});
+  const response=await route.DELETE(req("DELETE",{
+    preservePhotoPaths:["family-A/drafts/keep","other-family/drafts/foreign"]
+  }));
+  assert.equal(response.status,200);
+  assert.deepEqual(records.events,["db_delete","storage_remove"]);
+  assert.deepEqual(records.removed,["family-A/drafts/photo-1"]);
+});
+test("DELETE Storage failure after DB deletion does not reflect internals",async()=>{
+  const {route,records}=api({storageError:true,draft:{
+    photos:[{path:"family-A/drafts/old",url:"https://fixture.invalid/old"}]
+  }});
+  const response=await route.DELETE(req("DELETE"));
+  assert.equal(response.status,200);
+  assert.deepEqual(records.events,["db_delete","storage_remove"]);
+  assert.deepEqual(records.logs,[["listing_draft_storage_cleanup_failed"]]);
+  assert.equal(JSON.stringify(await response.json()).includes("DO_NOT_LEAK"),false);
 });
