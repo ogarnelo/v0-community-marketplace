@@ -25,6 +25,8 @@ jobs:
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
+      - name: Seller listing INSERT idempotency and ambiguous commit reconciliation
+        run: node --test __tests__/launch/pilot-listing-insert-owner-recovery.test.mjs
       - name: Recover partial listing publication without duplicate INSERT
         run: node --test __tests__/launch/pilot-publish-partial-commit-resume.test.mjs
       - name: Message recipient lookups fail before notification side effects

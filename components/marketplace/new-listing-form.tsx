@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { dispatchPublishedListingAlerts } from "@/lib/marketplace/publish-alert-dispatch.mjs";
+import { confirmOwnedListingInsert } from "@/lib/marketplace/confirm-owned-listing-insert.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
 import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
 import { bookFormats, bookLanguages, categories, conditions, gradeLevels } from "@/lib/mock-data";
@@ -222,6 +223,10 @@ export default function NewListingForm({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const suppressCategoryResetRef = useRef(false);
   const categoryEffectReadyRef = useRef(false);
+  // A re-render can lag behind two rapid submits. These refs guard the current
+  // operation synchronously and preserve the same ID across uncertain retries.
+  const submissionInFlightRef = useRef(false);
+  const pendingListingIdRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [isDonation, setIsDonation] = useState(false);
@@ -812,6 +817,8 @@ export default function NewListingForm({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submissionInFlightRef.current) return;
+    submissionInFlightRef.current = true;
     setLoading(true);
     setSubmitError("");
     setPhotoError("");
@@ -832,7 +839,8 @@ export default function NewListingForm({
       // profiles.school_id after a family chooses a national directory centre.
       const effectiveSchoolId = initialSchoolId || null;
       const directorySchoolCode = initialDirectorySchoolCode || null;
-      const listingId = crypto.randomUUID();
+      const listingId = pendingListingIdRef.current || crypto.randomUUID();
+      pendingListingIdRef.current = listingId;
       const uploadedPhotoRows = await uploadListingPhotos(listingId, currentUserId, photos);
       const photoUrls = uploadedPhotoRows.map((photo) => photo.url);
       if (photoUrls.length === 0) throw new Error("Debes añadir al menos una foto real del material.");
@@ -870,9 +878,27 @@ export default function NewListingForm({
         photos: photoUrls,
       };
 
-      const { error: insertError } = await supabase.from("listings").insert(payload);
-      if (insertError) throw insertError;
+      const insertion = await confirmOwnedListingInsert({
+        listingId,
+        sellerId: currentUserId,
+        insert: async () => {
+          const { error } = await supabase.from("listings").insert(payload);
+          return { error };
+        },
+        // The same seller's session and RLS govern reconciliation, never admin.
+        lookupOwned: async () => supabase.from("listings")
+          .select("id,seller_id")
+          .eq("id", listingId)
+          .eq("seller_id", currentUserId)
+          .maybeSingle(),
+      });
       committedListingId = listingId;
+      if (insertion === "recovered") {
+        console.error("listing_insert_recovered_after_ambiguous_response");
+        router.push(`/marketplace/edit/${listingId}?photosPending=1`);
+        router.refresh();
+        return;
+      }
       const { error: listingPhotosError } = await supabase.from("listing_photos").insert(uploadedPhotoRows);
       if (listingPhotosError) throw listingPhotosError;
 
@@ -937,6 +963,7 @@ export default function NewListingForm({
       console.error("listing_publish_failed");
       setSubmitError("No se pudo publicar el anuncio. Comprueba los datos e inténtalo de nuevo.");
     } finally {
+      submissionInFlightRef.current = false;
       setLoading(false);
     }
   };

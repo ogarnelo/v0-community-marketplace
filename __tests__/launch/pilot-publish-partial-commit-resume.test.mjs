@@ -22,12 +22,15 @@ test("all three edited TSX components parse without errors",()=>{
   assert.equal((out.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
  }
 });
-test("track a committed listing only after a successful INSERT",()=>{
+test("track a committed listing only after INSERT success or exact owner recovery",()=>{
+ const confirmed=submit.indexOf('await confirmOwnedListingInsert(');
  const inserted=submit.indexOf('.from("listings").insert(payload)');
- const failed=submit.indexOf('if (insertError) throw insertError');
+ const lookup=submit.indexOf('lookupOwned: async () => supabase.from("listings")');
  const assigned=submit.indexOf('committedListingId = listingId');
  const photos=submit.indexOf('.from("listing_photos").insert(uploadedPhotoRows)');
- assert.ok(inserted>0 && failed>inserted && assigned>failed && photos>assigned);
+ assert.ok(confirmed>0 && inserted>confirmed && lookup>inserted &&
+   assigned>lookup && photos>assigned);
+ assert.match(submit,/\.eq\("seller_id", currentUserId\)/);
 });
 test("on partial commit redirect to own listing editor, not publish another",()=>{
  assert.match(submit,/if \(committedListingId\) \{/);
