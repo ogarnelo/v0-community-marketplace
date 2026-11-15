@@ -80,8 +80,13 @@ def extract_strict_policy_statements(archive_sql):
         if not re.fullmatch(r"[\s()=A-Za-z_.]*", expression):
             raise ValueError("Unsafe policy expression")
         simple = re.sub(r"[\s()]", "", expression).lower()
+        # PostgreSQL pg_policies baseline in
+        # scripts/pilot-marketplace-rls-readonly-preflight.sql records
+        # (( SELECT auth.uid() AS uid) = user_id). This precise, vetted
+        # scalar-subquery variant has the same synthetic owner predicate.
         simple = simple.replace("selectauth.uid", "auth.uid")
-        if simple not in ("user_id=auth.uid", "auth.uid=user_id"):
+        if simple not in ("user_id=auth.uid", "auth.uid=user_id",
+                           "auth.uidasuid=user_id"):
             # Do not show SQL or variable expressions. Only expose a fixed
             # structural classification for review; NEVER expand allowlist.
             shape = classify_predicate_shape(expression)
