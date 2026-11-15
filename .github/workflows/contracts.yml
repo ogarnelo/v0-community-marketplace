@@ -23,6 +23,8 @@ jobs:
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
+      - name: Private drafts and message notification HTTP authorization
+        run: node --test __tests__/launch/pilot-private-draft-message-api-runtime.test.mjs
       - name: Messages course and saved-search private query failures
         run: node --test __tests__/launch/pilot-private-inbox-course-failclosed.test.mjs
       - name: Authenticated marketplace page permission-failure regression
