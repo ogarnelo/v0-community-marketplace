@@ -63,13 +63,29 @@ try:
     psql(target,"GRANT SELECT,INSERT,UPDATE,DELETE ON public.listings TO authenticated")
     # This fixture starts with post-PR528/first-remediation listings role grants.
     psql(target,"REVOKE TRUNCATE,REFERENCES,TRIGGER,MAINTAIN ON public.listings FROM authenticated")
+    # Exactly 14 non-approved tables have MAINTAIN-only grants in production.
+    # The 48-table migration must preserve these pending separate approval.
+    outside = [
+        "agreement_events", "agreement_reviews", "agreements",
+        "commerce_refunds", "commerce_transfers", "conversations", "messages",
+        "payment_events", "payment_intents", "reports",
+        "seller_connect_accounts", "shipment_events", "shipments",
+        "transaction_issues",
+    ]
     for i in range(30):
-        name = "wetudy_fixture_%02d" % i
+        name = "wetudy_fixture_%02d" % i if i < 16 else outside[i - 16]
         psql(target,"CREATE TABLE public."+name+" (id bigint PRIMARY KEY)")
         psql(target,"ALTER TABLE public."+name+" ENABLE ROW LEVEL SECURITY")
+        if i >= 16:
+            psql(target,"GRANT MAINTAIN ON public."+name+" TO authenticated")
+            if name in ("agreement_events","agreement_reviews","agreements","reports"):
+                psql(target,"GRANT MAINTAIN ON public."+name+" TO anon")
     if psql(target,"SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind IN ('r','p')") != "79":
         raise AssertionError("Fixture must have exactly 79 public tables")
     psql(target,file=migration)
+    for name in outside:
+        if psql(target,"SELECT has_table_privilege('authenticated','public."+name+"','MAINTAIN')")!="t":
+            raise AssertionError("Approved 48-table migration touched other table: "+name)
     psql(target,file=migration)  # Safe to apply twice if the allowlist is unchanged.
     for name in tables:
         for role in ("anon","authenticated"):

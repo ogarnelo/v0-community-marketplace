@@ -67,6 +67,11 @@ BEGIN
     'user_marketplace_preferences',
     'user_roles'
    );
+ IF (SELECT count(*) FROM pg_class c
+      WHERE c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p')
+        AND c.relname IN ('automation_runs', 'autopilot_recommendations', 'book_editions', 'business_metrics_snapshots', 'conversion_nudges', 'course_materials', 'demand_campaigns', 'demand_events', 'demand_match_notifications', 'demand_opportunity_actions', 'demand_requests', 'donation_request_events', 'donation_requests', 'favorites', 'hidden_conversations', 'inventory_expansion_events', 'listing_boosts', 'listing_drafts', 'listing_offer_events', 'listing_offers', 'listing_packs', 'listing_photos', 'listing_signals', 'listing_views', 'marketplace_events', 'marketplace_search_events', 'moderation_flags', 'notifications', 'payment_shipping_sandbox_runs', 'profiles', 'referrals', 'reviews', 'saved_search_matches', 'saved_searches', 'school_access_codes', 'school_admins', 'school_codes', 'school_registration_requests', 'schools', 'seller_publish_templates', 'seller_velocity_events', 'seo_programmatic_pages', 'support_tickets', 'transaction_reviews', 'transaction_velocity_events', 'user_follows', 'user_marketplace_preferences', 'user_roles')) <> 48 THEN
+   RAISE EXCEPTION 'NO_GO_PUBLIC_ACL: one or more approved tables are absent';
+ END IF;
  IF unexpected IS NOT NULL THEN
   RAISE EXCEPTION 'NO_GO_PUBLIC_ACL: unexpected table grants: %',unexpected;
  END IF;
@@ -131,8 +136,11 @@ FROM anon, authenticated;
 DO $postflight$
 DECLARE c record; role_name text; p text;
 BEGIN
+ -- This postflight is strictly limited to the 48 approved tables.
+ -- The 14 other tables with MAINTAIN-only grants require a separate approval.
  FOR c IN SELECT oid,relname FROM pg_class
   WHERE relnamespace='public'::regnamespace AND relkind IN ('r','p')
+    AND relname IN ('automation_runs', 'autopilot_recommendations', 'book_editions', 'business_metrics_snapshots', 'conversion_nudges', 'course_materials', 'demand_campaigns', 'demand_events', 'demand_match_notifications', 'demand_opportunity_actions', 'demand_requests', 'donation_request_events', 'donation_requests', 'favorites', 'hidden_conversations', 'inventory_expansion_events', 'listing_boosts', 'listing_drafts', 'listing_offer_events', 'listing_offers', 'listing_packs', 'listing_photos', 'listing_signals', 'listing_views', 'marketplace_events', 'marketplace_search_events', 'moderation_flags', 'notifications', 'payment_shipping_sandbox_runs', 'profiles', 'referrals', 'reviews', 'saved_search_matches', 'saved_searches', 'school_access_codes', 'school_admins', 'school_codes', 'school_registration_requests', 'schools', 'seller_publish_templates', 'seller_velocity_events', 'seo_programmatic_pages', 'support_tickets', 'transaction_reviews', 'transaction_velocity_events', 'user_follows', 'user_marketplace_preferences', 'user_roles')
  LOOP
   FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
    FOREACH p IN ARRAY ARRAY['TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'] LOOP
