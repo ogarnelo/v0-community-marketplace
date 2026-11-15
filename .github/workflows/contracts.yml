@@ -23,6 +23,8 @@ jobs:
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
+      - name: Listing edit confirms affected row and photo ownership
+        run: node --test __tests__/launch/pilot-edit-listing-write-confirmation-contract.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
       - name: Saved search matcher private error contract
