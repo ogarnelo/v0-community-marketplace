@@ -63,8 +63,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 self.assertEqual(gate.assess(x)["reason"],reason)
 
     def test_all_true_is_only_declaration(self):
-        self.assertEqual(gate.assess(manifest())["reason"],
+        result=gate.assess(manifest())
+        self.assertEqual(result["reason"],
             "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED")
+        self.assertIs(result["go"],False)
+        self.assertIs(result["ready_for_human_review"],True)
         self.assertIn("NOT_CERTIFIED",SRC.read_text())
     def test_reject_extra_fields_and_string_true(self):
         x=manifest();x["gates"]["privacy_447"]="true"
