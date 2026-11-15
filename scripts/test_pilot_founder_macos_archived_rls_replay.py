@@ -72,6 +72,28 @@ class ArchivedRLSReplayTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "LOCAL_TARGET_GATE_LOOPBACK"):
                 mod.gate_local_target(Path("/ignored/psql"), "private")
 
+    def test_archived_predicate_shape_is_fixed_label_only(self):
+        shapes = (
+            ("(user_id = (SELECT auth.uid() AS uid))", "SELECT_UID_ALIAS"),
+            ("(user_id = (SELECT auth.uid() AS owner))", "SELECT_UID_OTHER"),
+            ("(user_id = auth.uid() = true)", "UID_OTHER"),
+            ("(something_else = user_id)", "NO_UID_REFERENCE"),
+        )
+        for expression, label in shapes:
+            with self.subTest(label=label):
+                self.assertEqual(mod.classify_predicate_shape(expression), label)
+                sql = policies(select_using=expression)
+                with self.assertRaises(ValueError) as caught:
+                    mod.extract_strict_policy_statements(sql)
+                self.assertEqual(
+                    mod.safe_failure_code(caught.exception),
+                    "POLICY_PREDICATE_SHAPE_" + label,
+                )
+        self.assertEqual(
+            mod.safe_failure_code(ValueError("POLICY_PREDICATE_SHAPE_USER_SECRET")),
+            "UNCLASSIFIED",
+        )
+
     def test_local_gate_labels_are_specific_without_values(self):
         expected_names = (
             "DATABASE", "ROLE", "NON_SUPERUSER", "LOOPBACK",

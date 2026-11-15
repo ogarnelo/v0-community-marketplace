@@ -35,6 +35,21 @@ EXPECTED = {
     "saved_search_matches_delete_own": "DELETE",
 }
 
+def classify_predicate_shape(expression):
+    """Classify the structural predicate only, never print archive SQL.
+
+    Only fixed labels can escape. The classification DOES NOT authorise replay.
+    """
+    compact = re.sub(r"\s+", " ", expression.lower()).strip()
+    if re.search(r"\bselect\s+auth\.uid\s*\(\s*\)\s+as\s+uid\b", compact):
+        return "SELECT_UID_ALIAS"
+    if re.search(r"\bselect\s+auth\.uid\s*\(\s*\)", compact):
+        return "SELECT_UID_OTHER"
+    if re.search(r"\bauth\.uid\s*\(\s*\)", compact):
+        return "UID_OTHER"
+    return "NO_UID_REFERENCE"
+
+
 def extract_strict_policy_statements(archive_sql):
     """Never replay free-form archive SQL: allow two narrowly reviewed policies.
 
@@ -67,7 +82,10 @@ def extract_strict_policy_statements(archive_sql):
         simple = re.sub(r"[\s()]", "", expression).lower()
         simple = simple.replace("selectauth.uid", "auth.uid")
         if simple not in ("user_id=auth.uid", "auth.uid=user_id"):
-            raise ValueError("Archived policy predicate requires separate review")
+            # Do not show SQL or variable expressions. Only expose a fixed
+            # structural classification for review; NEVER expand allowlist.
+            shape = classify_predicate_shape(expression)
+            raise ValueError("POLICY_PREDICATE_SHAPE_" + shape)
         vetted[name] = sql.strip()
     if set(vetted) != set(EXPECTED):
         raise ValueError("Missing archived policy")
@@ -253,6 +271,10 @@ SAFE_FAILURE_CODES = {
     "Wrong or duplicate archived policy": "POLICY_NAME_OR_COMMAND",
     "Unsafe policy expression": "POLICY_EXPRESSION_UNSAFE",
     "Archived policy predicate requires separate review": "POLICY_PREDICATE_REVIEW",
+    "POLICY_PREDICATE_SHAPE_SELECT_UID_ALIAS": "POLICY_PREDICATE_SHAPE_SELECT_UID_ALIAS",
+    "POLICY_PREDICATE_SHAPE_SELECT_UID_OTHER": "POLICY_PREDICATE_SHAPE_SELECT_UID_OTHER",
+    "POLICY_PREDICATE_SHAPE_UID_OTHER": "POLICY_PREDICATE_SHAPE_UID_OTHER",
+    "POLICY_PREDICATE_SHAPE_NO_UID_REFERENCE": "POLICY_PREDICATE_SHAPE_NO_UID_REFERENCE",
     "Missing archived policy": "POLICY_MISSING",
     "Archived RLS isolation checks failed": "RLS_ASSERTION",
     "Exactly two target policies not in TOC": "POLICY_TOC_MISSING",
