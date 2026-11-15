@@ -35,7 +35,7 @@ jobs:
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
           python3 -m pip install --only-binary=:all: "cryptography==48.0.1"
-          python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py scripts/test_pilot_three_ampa_release_evidence_gate.py scripts/test_pilot_marketplace_public_feed_pii_contract.py scripts/test_pilot_public_endpoint_disclosure_contract.py scripts/test_pilot_dr_release_scope_gate.py scripts/test_pilot_backup_partial_restore_authorization.py -v
+          python3 -m unittest scripts/test_pilot_founder_macos_archived_rls_replay.py scripts/test_pilot_three_ampa_release_evidence_gate.py scripts/test_pilot_marketplace_public_feed_pii_contract.py scripts/test_pilot_public_endpoint_disclosure_contract.py scripts/test_pilot_dr_release_scope_gate.py scripts/test_pilot_backup_partial_restore_authorization.py scripts/test_pilot_e2e_workflow_trigger_coverage.py -v
 
   synthetic-postgres17-gates:
     name: PG17 synthetic RLS + privacy grants
