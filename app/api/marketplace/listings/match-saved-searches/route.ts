@@ -279,7 +279,7 @@ export async function POST(request: Request) {
           needId: search.demand_request_id,
           listingId: listing.id,
         });
-      } catch (needError) {
+      } catch {
         console.error("marketplace_need_attribution_failed");
       }
     }
@@ -526,7 +526,7 @@ export async function POST(request: Request) {
           .is("emailed_at", null);
         if (markError) throw markError;
         emailed += 1;
-      } catch (emailError) {
+      } catch {
         emailFailures++;
         // Recipient addresses and provider error bodies must not be logged.
         console.error("marketplace_saved_search_email_failed");
