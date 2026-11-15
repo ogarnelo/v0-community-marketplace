@@ -10,6 +10,9 @@ BEGIN
    RAISE EXCEPTION 'Refusing non-CI database';
  END IF;
 END $$;
+CREATE SCHEMA auth;
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
+$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $;
 CREATE TABLE public.listings (
  id bigint primary key,
  postal_code text,
