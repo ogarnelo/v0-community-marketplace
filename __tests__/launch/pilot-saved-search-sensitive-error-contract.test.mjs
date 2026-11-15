@@ -19,3 +19,10 @@ test("top-level matching error returns a fixed private response with no backend 
   assert.match(handler,/status: 500, headers: \{ "Cache-Control": "private, no-store" \}/);
   assert.doesNotMatch(handler,/error\?\.message|error\.message|console\.error\([^)]*,/);
 });
+
+test("malformed listing UUID is rejected before the privileged matcher lookup",()=>{
+  const validation=source.indexOf("UUID is the real public.listings.id type");
+  const admin=source.indexOf("const admin = createAdminClient()");
+  assert.ok(validation>=0 && validation<admin);
+  assert.match(source,/error: "Anuncio no válido\."/);
+});
