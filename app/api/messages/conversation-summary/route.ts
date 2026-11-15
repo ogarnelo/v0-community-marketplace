@@ -10,6 +10,7 @@ function privateJson(body: unknown, status = 200) {
 }
 
 export async function GET(request: Request) {
+  try {
   const supabase = await createClient();
   const {
     data: { user },
@@ -90,4 +91,9 @@ export async function GET(request: Request) {
       unreadCount: 0,
     },
   });
+  } catch {
+    // Unexpected Auth/DB exceptions must not escape with privileged diagnostics.
+    console.error("conversation_summary_read_failed");
+    return privateJson({ error: "No se pudo cargar la conversación." }, 503);
+  }
 }
