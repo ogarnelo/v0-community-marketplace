@@ -1,0 +1,6 @@
+# WETUDY — PR552, proteger fotos existentes durante una edición fallida
+15/11/2026 — parche de integridad del editor, sin SQL ni datos reales.
+
+Después del hardening de las subidas (#550), el formulario seguía **borrando las filas antiguas de listing_photos antes de subir y crear las filas nuevas**. Ante un error de Storage podía quedarse sin las fotos anteriores aunque el usuario viera «No se pudo actualizar». Se ha reordenado estrictamente la secuencia: comprobar fila propia de listing actualizada → subir nuevas fotos (con rollback previo a INSERT de #550) → INSERT de sus metadatos → borrar solo fotos antiguas marcadas por usuario con listing_id e IDs → reordenar fotos que continúan → actualizar listado de URLs y confirmar fila.
+
+Seis contratos de ejecución estática en CI validan orden, sintaxis TypeScript y permanencia de guardas de propiedad. **Límite importante**: no es una transacción multi-servicio; un fallo de sincronización posterior al INSERT de fotos puede dejar filas extra, y debe abordarse con conciliación/rollback idempotente independiente. No se han probado cuentas de familias ni operaciones reales. No se toca RLS, defaults internos ni las 14 tablas fuera de autorización. Piloto AMPA 0/3, DR pendiente, NO-GO.
