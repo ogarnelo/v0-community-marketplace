@@ -188,13 +188,15 @@ export async function POST(request: Request) {
       throw insertError;
     }
 
-    return NextResponse.json({ ok: true, reportId: report.id });
-  } catch (error: any) {
-    console.error("Error creando reporte de moderación:", error);
-
+    return NextResponse.json({ ok: true, reportId: report.id }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch {
+    // Reports may involve minors, private conversations and moderation notes.
+    console.error("moderation_report_create_failed");
     return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo enviar el reporte." },
-      { status: 500 }
+      { error: "No se pudo enviar el reporte." },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }

@@ -38,6 +38,9 @@ jobs:
       - name: Saved search error privacy tests
         run: node --test __tests__/launch/pilot-saved-search-sensitive-error-contract.test.mjs
 
+      - name: Commerce and moderation private exception responses
+        run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
+
       - name: Synthetic local recovery controls (no real backup / no network DB)
         run: |
           python3 -m pip install --only-binary=:all: "cryptography==48.0.1"

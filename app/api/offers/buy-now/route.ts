@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         .single();
 
       if (conversationError || !newConversation) {
-        return NextResponse.json({ error: conversationError?.message || "No se pudo abrir el chat." }, { status: 400 });
+        return NextResponse.json({ error: "No se pudo abrir el chat." }, { status: 400 });
       }
 
       conversationId = newConversation.id;
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         .single();
 
       if (offerError || !offer) {
-        return NextResponse.json({ error: offerError?.message || "No se pudo crear la compra." }, { status: 400 });
+        return NextResponse.json({ error: "No se pudo crear la compra." }, { status: 400 });
       }
 
       offerId = offer.id;
@@ -300,11 +300,13 @@ export async function POST(request: Request) {
       offerId,
       paymentIntent,
       quote: pricing,
-    });
-  } catch (error: any) {
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    // Never return privileged SQL/provider diagnostics to the buyer.
+    console.error("buy_now_checkout_failed");
     return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo iniciar la compra." },
-      { status: 500 }
+      { error: "No se pudo iniciar la compra." },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }

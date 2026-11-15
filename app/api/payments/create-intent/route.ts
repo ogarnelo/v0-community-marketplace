@@ -183,11 +183,13 @@ export async function POST(request: Request) {
         deliveryMethod: pricing.deliveryMethod,
         shipmentTier: pricing.shipmentTier,
       },
-    });
-  } catch (error: any) {
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    // Payment details, provider and SQL exceptions are always private.
+    console.error("payment_intent_prepare_failed");
     return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo preparar el pago." },
-      { status: 500 }
+      { error: "No se pudo preparar el pago." },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }
