@@ -4,6 +4,8 @@
 ## Bloque 1 — #447: PostgREST contra PostgreSQL 17 real y desechable
 En `.github/workflows/contracts.yml` el servicio `postgrest/postgrest:v12.2.12` conecta únicamente con `wetudy_privacy_ci` dentro de un servicio PG17 de GitHub Actions. La contraseña de PostgreSQL y la clave JWT son **valores fijos públicos exclusivos del CI**, no secretos de WETUDY. Los roles `anon` y `authenticated` son ficticios. Después de los scripts review-only de revocar SELECT y DML anon, el test HTTP verifica rechazo de SELECT/INSERT/UPDATE/DELETE anon, aislamiento de dos sujetos JWT A y B, lectura de solo filas propias, modificación de CP propio y prohibición de modificaciones ajenas, con limpieza de filas sintéticas. Si hay anomalía el job falla y no autoriza despliegues.
 
+Para validar la identidad con PostgREST se sustituyó **únicamente en el fixture efímero** el stub `auth.uid()` por una versión que admite tanto el ajuste histórico `request.jwt.claim.sub` como el objeto JSON `request.jwt.claims` usado en PostgREST. La expresión RLS de propiedad y el allowlist de las políticas reales de backup NO se modifican.
+
 No se prueba el Data API de producción ni la seguridad de todas las tablas/RPC. Los permisos en la base real **NO cambian** por estas pruebas. Deben aprobarse expresamente las propuestas de migración productiva y verificar rutas en despliegue autorizado.
 
 ## Bloque 2 — #447: minimización de errores de servicio elevado
