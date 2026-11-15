@@ -108,7 +108,7 @@ test("school A family receives only its own available listings",async()=>{
 });
 test("forged schoolId and directorySchoolCode URL parameters cannot change signed-in scope",async()=>{
  const h=harness();const r=await h.request("/api/marketplace/my-school?schoolId="+SB+"&directorySchoolCode=CODEB");
- assert.deepEqual(Array.from(r.body.listings,x=>x.id),[A,C]);
+ assert.deepEqual(Array.from(r.body.listings,x=>x.id),[A]);
  assert.ok(h.calls.includes("RESOLVE:"+SA+":"));
  assert.equal(h.calls.some(x=>x==="RESOLVE:"+SB+":CODEB"),false);
 });
