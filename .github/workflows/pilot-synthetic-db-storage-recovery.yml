@@ -13,6 +13,8 @@ on:
       - "scripts/p0_public_tables_nonrls_privileges_review_only.sql"
       - "scripts/p0_public_tables_nonrls_privileges_readonly.sql"
       - "scripts/p0_public_tables_nonrls_privileges_pg17.py"
+      - "scripts/p0_public_default_acl_review_only.sql"
+      - "scripts/p0_public_default_acl_pg17.py"
       - "supabase/migrations/20261111084000_pilot_wave1_revoke_client_non_rls_privileges.sql"
       - "scripts/pilot-client-tablewide-privileges-regression.sql"
       - "scripts/pilot-client-tablewide-privileges-preflight.sql"
@@ -69,5 +71,7 @@ jobs:
         run: python3 scripts/pilot-wave1-client-privilege-regression.py
       - name: Validate full public-table non-RLS grant remediation in disposable PG17
         run: python3 scripts/p0_public_tables_nonrls_privileges_pg17.py
+      - name: Verify deny-by-default on future public tables (PostgreSQL 17 local only)
+        run: python3 scripts/p0_public_default_acl_pg17.py
       - name: Audit client EXECUTE grants on synthetic SECURITY DEFINER functions
         run: python3 scripts/pilot-client-privilege-function-regression.py
