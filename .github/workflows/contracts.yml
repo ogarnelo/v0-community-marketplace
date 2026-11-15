@@ -23,3 +23,5 @@ jobs:
         run: npm run test:critical-contracts
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
+      - name: Public photos remain readable after anonymous ACL revocation
+        run: node --test __tests__/launch/pilot-prod-photo-rls-after-listings-acl.test.mjs

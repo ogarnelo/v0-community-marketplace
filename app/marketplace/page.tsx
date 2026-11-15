@@ -152,7 +152,7 @@ export default async function MarketplacePage() {
   }
 
   if (listingIds.length > 0) {
-    const { data: listingPhotos, error: listingPhotosError } = await supabase
+    const { data: listingPhotos, error: listingPhotosError } = await admin
       .from("listing_photos")
       .select("id, listing_id, url, sort_order")
       .in("listing_id", listingIds)

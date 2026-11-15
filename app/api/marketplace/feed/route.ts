@@ -115,7 +115,7 @@ export async function GET(request: Request) {
            { data: sellerProfiles, error: sellerError },
            { data: favorites, error: favoriteError }] = await Promise.all([
       ids.length
-        ? supabase.from("listing_photos")
+        ? admin.from("listing_photos")
           .select("id,listing_id,url,sort_order").in("listing_id", ids)
           .order("sort_order", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
