@@ -91,13 +91,6 @@ export async function PUT(request: Request) {
     .map((photo) => photo.path)
     .filter((path) => !nextPaths.has(path));
 
-  if (removedPaths.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
-    if (storageError) {
-      console.error("listing_draft_storage_cleanup_failed");
-    }
-  }
-
   const { data, error } = await admin
     .from("listing_drafts")
     .upsert(
@@ -114,6 +107,15 @@ export async function PUT(request: Request) {
 
   if (error || !data) {
     return privateJson({ error: "No se pudo guardar el borrador." }, { status: 500 });
+  }
+
+  // Only remove abandoned objects AFTER the DB confirms the new draft.
+  // Failed saves must not destroy photos still referenced by the old draft.
+  if (removedPaths.length > 0) {
+    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(removedPaths);
+    if (storageError) {
+      console.error("listing_draft_storage_cleanup_failed");
+    }
   }
 
   return privateJson({ draft: data }, {});

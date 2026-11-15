@@ -7,13 +7,13 @@ import vm from "node:vm";
 const ts=createRequire(import.meta.url)("typescript");
 const FILE="app/api/marketplace/listing-draft/route.ts";
 function api({user={id:"family-A"}, dbError=false, storageError=false, draft=null}={}){
-  const records={admin:0,logs:[],removed:[]};
+  const records={admin:0,logs:[],removed:[],events:[]};
   const db={auth:{getUser:async()=>({data:{user}})}};
   const error=dbError?{message:"PRIVATE SQL failure / password-hash: DO_NOT_LEAK"}:null;
   const builder=()=>({
     select(){return this;},
     eq(){return this;},
-    upsert(){return this;},
+    upsert(){records.events.push("db_upsert");return this;},
     delete(){return this;},
     async maybeSingle(){return {data:draft,error};},
     async single(){return {data:dbError?null:{id:"draft-id",payload:{title:"test"},photos:[]},error};},
@@ -22,7 +22,7 @@ function api({user={id:"family-A"}, dbError=false, storageError=false, draft=nul
   const admin={
     from(name){assert.equal(name,"listing_drafts");records.admin++;return builder();},
     storage:{from(){return {
-      async remove(paths){records.removed.push(...paths);return {error:storageError?
+      async remove(paths){records.events.push("storage_remove");records.removed.push(...paths);return {error:storageError?
         {message:"PRIVATE STORAGE SQL failure DO_NOT_LEAK"}:null};}
     };}}
   };
@@ -112,4 +112,23 @@ test("all draft response paths disallow cache reuse, including 401, 400, 413, 50
   assertPrivate(await failed.DELETE(req("DELETE")));
   const storageFailed=api({storageError:true,draft:{photos:[{path:"family-A/drafts/photo-1",url:"https://fixture.invalid/photo"}]}}).route;
   assertPrivate(await storageFailed.DELETE(req("DELETE")));
+});
+
+test("PUT never removes old draft photos when DB upsert fails",async()=>{
+  const {route,records}=api({dbError:true,draft:{
+    photos:[{path:"family-A/drafts/keep.jpg",url:"https://fixture.invalid/keep"}]
+  }});
+  const response=await route.PUT(req("PUT",{payload:{title:"new"}}));
+  assert.equal(response.status,500);
+  assert.deepEqual(records.removed,[]);
+  assert.deepEqual(records.events,["db_upsert"]);
+});
+test("PUT removes abandoned storage objects only after DB successfully saves",async()=>{
+  const {route,records}=api({draft:{
+    photos:[{path:"family-A/drafts/old.jpg",url:"https://fixture.invalid/old"}]
+  }});
+  const response=await route.PUT(req("PUT",{payload:{title:"new"},photos:[]}));
+  assert.equal(response.status,200);
+  assert.deepEqual(records.events,["db_upsert","storage_remove"]);
+  assert.deepEqual(records.removed,["family-A/drafts/old.jpg"]);
 });
