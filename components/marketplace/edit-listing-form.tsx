@@ -405,15 +405,22 @@ export default function EditListingForm({
         updated_at: new Date().toISOString(),
       };
 
-      const { error: updateError } = await supabase
+      const { data: updatedListing, error: updateError } = await supabase
         .from("listings")
         .update(updatePayload)
         .eq("id", initialListing.id)
-        .eq("seller_id", currentUserId);
-      if (updateError) throw updateError;
+        .eq("seller_id", currentUserId)
+        .select("id")
+        .maybeSingle();
+      // A stale seller session or a changed RLS policy may update zero rows
+      // without an SQL error. Do not mutate any photos in that case.
+      if (updateError || !updatedListing) throw new Error("listing_update_not_confirmed");
 
       if (removedPhotoIds.length > 0) {
-        const { error } = await supabase.from("listing_photos").delete().in("id", removedPhotoIds);
+        const { error } = await supabase.from("listing_photos")
+          .delete()
+          .eq("listing_id", initialListing.id)
+          .in("id", removedPhotoIds);
         if (error) throw error;
       }
 
@@ -436,12 +443,14 @@ export default function EditListingForm({
         ...visibleExistingPhotos.map((photo) => photo.url),
         ...uploadedRows.map((photo) => photo.url),
       ];
-      const { error: photoSyncError } = await supabase
+      const { data: photosSyncedListing, error: photoSyncError } = await supabase
         .from("listings")
         .update({ photos: photoUrls, updated_at: new Date().toISOString() })
         .eq("id", initialListing.id)
-        .eq("seller_id", currentUserId);
-      if (photoSyncError) throw photoSyncError;
+        .eq("seller_id", currentUserId)
+        .select("id")
+        .maybeSingle();
+      if (photoSyncError || !photosSyncedListing) throw new Error("listing_photo_sync_not_confirmed");
 
       router.push(`/marketplace/listing/${initialListing.id}`);
       router.refresh();

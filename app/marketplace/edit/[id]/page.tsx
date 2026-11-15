@@ -11,6 +11,11 @@ export default async function EditListingPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // The primary key is a PostgreSQL UUID. Bad URLs must not invoke SQL or
+  // privileged school-directory reads.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    notFound();
+  }
   const supabase = await createClient();
 
   const {
