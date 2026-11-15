@@ -442,7 +442,7 @@ export default function NewListingForm({
         setDraftExists(true);
         setRestoreDialogOpen(true);
       } catch (error) {
-        console.error("No se pudo recuperar el borrador", error);
+        console.error("draft_restore_failed");
       } finally {
         if (!cancelled) setDraftLoading(false);
       }
@@ -630,8 +630,8 @@ export default function NewListingForm({
       setSavedDraftSignature(draftSignature(draftPayload, draftPhotos));
       setDraftMessage("Borrador guardado. Podrás recuperarlo desde Mis anuncios.");
       return true;
-    } catch (error: any) {
-      setSubmitError(error?.message || "No se pudo guardar el borrador.");
+    } catch {
+      setSubmitError("No se pudo guardar el borrador.");
       return false;
     } finally {
       setDraftSaving(false);
@@ -695,8 +695,8 @@ export default function NewListingForm({
       setDraftExists(false);
       setRestoreDialogOpen(false);
       setDraftMessage("Borrador descartado. Puedes empezar un anuncio nuevo.");
-    } catch (error: any) {
-      setSubmitError(error?.message || "No se pudo descartar el borrador.");
+    } catch {
+      setSubmitError("No se pudo descartar el borrador.");
     } finally {
       setDraftSaving(false);
     }
@@ -717,8 +717,8 @@ export default function NewListingForm({
       setExitDialogOpen(false);
       setPendingNavigationHref(null);
       router.push(destination);
-    } catch (error: any) {
-      setSubmitError(error?.message || "No se pudo descartar el borrador.");
+    } catch {
+      setSubmitError("No se pudo descartar el borrador.");
     } finally {
       setDraftSaving(false);
     }
@@ -868,8 +868,8 @@ export default function NewListingForm({
             .map((photo) => photo.storagePath)
             .filter((path): path is string => Boolean(path)),
         }),
-      }).catch((draftCleanupError) => {
-        console.error("No se pudo limpiar el borrador publicado", draftCleanupError);
+      }).catch(() => {
+        console.error("published_draft_cleanup_failed");
       });
 
       // This is an independent, idempotent follow-up to a committed listing.
@@ -887,8 +887,8 @@ export default function NewListingForm({
           // Include the HTTP failure type; never log private recipient details.
           console.error("Avisos guardados pendientes de revisión", result.reason);
         }
-      }).catch((error) => {
-        console.error("Error inesperado procesando avisos guardados", error);
+      }).catch(() => {
+        console.error("saved_search_alert_dispatch_failed");
       });
 
       void fetch("/api/analytics/acquisition", {
@@ -903,9 +903,10 @@ export default function NewListingForm({
 
       router.push(`/marketplace/listing/${listingId}?published=1`);
       router.refresh();
-    } catch (error: any) {
-      console.error("Error publicando anuncio:", error);
-      setSubmitError(error?.message || error?.details || error?.error_description || "No se pudo publicar el anuncio.");
+    } catch {
+      // Never reflect a database / storage provider diagnostic into the browser.
+      console.error("listing_publish_failed");
+      setSubmitError("No se pudo publicar el anuncio. Comprueba los datos e inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
