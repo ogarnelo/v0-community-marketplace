@@ -188,7 +188,9 @@ export async function POST(request: Request) {
       throw insertError;
     }
 
-    return NextResponse.json({ ok: true, reportId: report.id });
+    return NextResponse.json({ ok: true, reportId: report.id }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch {
     // Reports may involve minors, private conversations and moderation notes.
     console.error("moderation_report_create_failed");
