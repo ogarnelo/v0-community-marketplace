@@ -62,7 +62,10 @@ def assess(manifest):
         if ref in evidence:
             return {"go": False, "reason": "AMPA_DUPLICATE_EVIDENCE"}
         evidence.add(ref)
-    return {"go": True, "reason": "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED"}
+    # A local JSON with boolean flags is SELF-DECLARED evidence.
+    # It must not be represented as authorization to launch WETUDY.
+    return {"go": False, "ready_for_human_review": True,
+            "reason": "MANIFEST_DECLARED_READY_HUMAN_APPROVAL_REQUIRED"}
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -80,7 +83,7 @@ def main():
         result = assess(obj)
     except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
         result = {"go": False, "reason": "READ_ERROR"}
-    if result["go"]:
+    if result.get("ready_for_human_review") is True:
         print("READY_FOR_HUMAN_RELEASE_REVIEW: all manifest flags declared true")
         print("NOT_CERTIFIED: declarations are not independently verified; human review required")
         return 0

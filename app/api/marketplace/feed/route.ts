@@ -45,7 +45,6 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const admin = createAdminClient();
     // Read the viewer's postcode from the authenticated account, never a
     // caller-supplied URL parameter (which could expose arbitrary distances).
     if ((radiusKm !== null || nearestNoRadius) && !user) {
@@ -61,6 +60,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Añade un código postal válido en Mi cuenta." },
         { status: 422, headers: { "Cache-Control": "private, no-store" } });
     }
+
+    // Do not instantiate a bypass-RLS client on rejected distance requests.
+    const admin = createAdminClient();
 
     let rows: ListingRow[];
     let hasMore: boolean;
