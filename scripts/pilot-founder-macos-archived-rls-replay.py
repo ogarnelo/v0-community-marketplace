@@ -36,18 +36,16 @@ EXPECTED = {
 }
 
 def classify_predicate_shape(expression):
-    """Classify reviewed, limited alphabet SQL expression WITHOUT printing it.
+    """Classify the structural predicate only, never print archive SQL.
 
-    Only fixed vocabulary escapes; no policy SQL, identifiers, data or secret
-    text reaches stdout/stderr. Classification DOES NOT authorise execution.
+    Only fixed labels can escape. The classification DOES NOT authorise replay.
     """
-    compact = re.sub(r"\\s+", " ", expression.lower()).strip()
-    # These patterns are classifications only, not execution allowlists.
-    if re.search(r"\\bselect\\s+auth\\.uid\\s*\\(\\s*\\)\\s+as\\s+uid\\b", compact):
+    compact = re.sub(r"\s+", " ", expression.lower()).strip()
+    if re.search(r"\bselect\s+auth\.uid\s*\(\s*\)\s+as\s+uid\b", compact):
         return "SELECT_UID_ALIAS"
-    if re.search(r"\\bselect\\s+auth\\.uid\\s*\\(\\s*\\)", compact):
+    if re.search(r"\bselect\s+auth\.uid\s*\(\s*\)", compact):
         return "SELECT_UID_OTHER"
-    if re.search(r"\\bauth\\.uid\\s*\\(\\s*\\)", compact):
+    if re.search(r"\bauth\.uid\s*\(\s*\)", compact):
         return "UID_OTHER"
     return "NO_UID_REFERENCE"
 
