@@ -20,6 +20,12 @@ export async function GET(request: Request) {
       });
     }
 
+    // Database column schools.id is UUID. Reject malformed IDs before privileged queries.
+    if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return NextResponse.json({ error: "Identificador incorrecto." }, {
+        status: 400, headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const admin = createAdminClient();
 
     if (id) {
