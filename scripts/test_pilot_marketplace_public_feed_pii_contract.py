@@ -47,7 +47,7 @@ class FeedPrivacyStaticContracts(unittest.TestCase):
         self.assertIn('.from("profiles").select("postal_code").eq("id", user.id)',c)
         self.assertIn("hasKnownPostalCode(viewerPostalCode)",c)
         self.assertIn("p_postal_code: viewerPostalCode",c)
-        self.assertNotIn("params.get(\\"postal_code\\")",c)
+        self.assertNotIn('params.get("postal_code")', c)
 
     def test_no_public_cache_or_raw_profile_output(self):
         c=self.code
