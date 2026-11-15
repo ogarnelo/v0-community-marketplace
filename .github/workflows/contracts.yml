@@ -25,3 +25,5 @@ jobs:
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
         run: node --test __tests__/launch/pilot-prod-photo-rls-after-listings-acl.test.mjs
+      - name: Listing detail authorized photo reads and metadata
+        run: node --test __tests__/launch/pilot-listing-detail-private-photo-authorization-runtime.test.mjs
