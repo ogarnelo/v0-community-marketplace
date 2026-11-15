@@ -2,6 +2,18 @@ name: Wetudy three AMPA actual Next school page local Auth E2E
 on:
   pull_request:
     paths:
+      # Changes to these marketplace surfaces can invalidate the locally
+      # verified Auth/PostgREST/Storage contracts even without touching SQL.
+      - "app/marketplace/listing/[id]/page.tsx"
+      - "app/marketplace/page.tsx"
+      - "app/api/marketplace/feed/route.ts"
+      - "app/api/marketplace/my-school/route.ts"
+      - "app/api/marketplace/listing-draft/route.ts"
+      - "app/api/schools/public/route.ts"
+      - "app/api/messages/**"
+      - "components/messages/**"
+      - "components/marketplace/**"
+      - "scripts/test_pilot_e2e_workflow_trigger_coverage.py"
       - "app/admin/school/page.tsx"
       - "lib/supabase/server.ts"
       - "lib/supabase/client.ts"
