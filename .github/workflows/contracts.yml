@@ -108,7 +108,7 @@ jobs:
             FOR SELECT TO authenticated USING (user_id = auth.uid());
           NOTIFY pgrst, 'reload schema';
           SQL
-      - name: HTTP PostgREST real: anonymous blocked and family CP isolated
+      - name: "HTTP PostgREST real: anonymous blocked and family CP isolated"
         env:
           WETUDY_POSTGREST_HTTP_CI: "yes"
         run: node scripts/pilot-ci-postgrest-privacy-http.mjs
