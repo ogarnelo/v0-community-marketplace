@@ -54,8 +54,11 @@ def main():
     parser.add_argument("--manifest", required=True)
     args = parser.parse_args()
     try:
-        p = Path(args.manifest).expanduser().resolve(strict=True)
-        if not p.is_file() or p.is_symlink() or p.stat().st_size > 32768:
+        raw_path = Path(args.manifest).expanduser()
+        if raw_path.is_symlink():
+            raise ValueError("manifest symlink")
+        p = raw_path.resolve(strict=True)
+        if not p.is_file() or p.stat().st_size > 32768:
             raise ValueError("manifest unsafe")
         with p.open(encoding="utf-8") as f:
             obj = json.load(f)
