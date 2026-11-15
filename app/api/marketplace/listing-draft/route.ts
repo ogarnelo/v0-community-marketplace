@@ -190,12 +190,22 @@ export async function PUT(request: Request) {
   // Persist the new draft before deleting formerly referenced photos.
   // Storage cleanup failure is non-destructive: the saved draft remains valid.
   const cleanup = await filterDraftPhotosSafeToRemove(admin, removedPhotos);
+  let cleanupPending = cleanup.unknown;
   if (cleanup.removable.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(cleanup.removable);
-    if (storageError) console.error("draft_photo_cleanup_failed");
+    try {
+      const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(cleanup.removable);
+      if (storageError) {
+        console.error("draft_photo_cleanup_failed");
+        cleanupPending = true;
+      }
+    } catch {
+      // The upsert has already committed. Never report an unsuccessful save.
+      console.error("draft_photo_cleanup_failed");
+      cleanupPending = true;
+    }
   }
   if (cleanup.unknown) console.error("draft_photo_reference_check_unavailable");
-  return privateJson({ draft: data, ...(cleanup.unknown ? { cleanupPending: true } : {}) });
+  return privateJson({ draft: data, ...(cleanupPending ? { cleanupPending: true } : {}) });
 }
 
 export async function DELETE(request: Request) {
@@ -237,8 +247,14 @@ export async function DELETE(request: Request) {
   const cleanup = await filterDraftPhotosSafeToRemove(admin, photosToConsider);
   let cleanupPending = cleanup.unknown;
   if (cleanup.removable.length > 0) {
-    const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(cleanup.removable);
-    if (storageError) {
+    try {
+      const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(cleanup.removable);
+      if (storageError) {
+        console.error("discarded_draft_photo_cleanup_failed");
+        cleanupPending = true;
+      }
+    } catch {
+      // The draft row was already deleted; do not tell the seller to retry.
       console.error("discarded_draft_photo_cleanup_failed");
       cleanupPending = true;
     }
