@@ -10,7 +10,7 @@ const previous={photos:[{url:"https://fixture.invalid/old.jpg",path:uid+"/drafts
 const body=(method,payload)=>new Request("https://fixture.invalid/draft",{
  method,headers:{"content-type":"application/json"},body:JSON.stringify(payload)
 });
-function fixture({failOperation=null,storageFails=false,publishedReference=false,lookupFails=false,photoRowReference=false,photoLookupFails=false}={}){
+function fixture({failOperation=null,storageFails=false,storageThrows=false,publishedReference=false,lookupFails=false,photoRowReference=false,photoLookupFails=false}={}){
  const steps=[];
  let lastAction="read";
  const supabase={auth:{getUser:async()=>({data:{user:{id:uid}}})}};
@@ -59,6 +59,7 @@ function fixture({failOperation=null,storageFails=false,publishedReference=false
     return {getPublicUrl:()=>({data:{publicUrl:previous.photos[0].url}}),remove:async(paths)=>{
       steps.push("storage_remove");
       assert.deepEqual([...paths],[uid+"/drafts/old.jpg"]);
+      if(storageThrows)throw Error("PRIVATE_STORAGE_THROWN");
       return {error:storageFails?{message:"PRIVATE_STORAGE_ERROR"}:null};
     }};
   }}
@@ -164,4 +165,27 @@ test("PUT keeps the image when photo reference lookup fails",async()=>{
  assert.equal(r.status,200);
  assert.equal((await r.json()).cleanupPending,true);
  assert.deepEqual(steps,["read","upsert","reference_check","photo_row_check"]);
+});
+
+test("PUT Storage cleanup returned error still confirms DB commit and flags pending cleanup",async()=>{
+ const {handlers,steps}=fixture({storageFails:true});
+ const r=await handlers.PUT(body("PUT",{payload:{title:"changed"},photos:[]}));
+ assert.equal(r.status,200);
+ assert.equal((await r.json()).cleanupPending,true);
+ assert.deepEqual(steps,["read","upsert","reference_check","photo_row_check","storage_remove"]);
+});
+test("PUT Storage exception after commit never reports failed save",async()=>{
+ const {handlers,steps}=fixture({storageThrows:true});
+ const r=await handlers.PUT(body("PUT",{payload:{title:"changed"},photos:[]}));
+ assert.equal(r.status,200);assert.equal(r.headers.get("cache-control"),"private, no-store");
+ const b=await r.json();assert.equal(b.cleanupPending,true);assert.equal(b.draft.id,"draft");
+ assert.deepEqual(steps,["read","upsert","reference_check","photo_row_check","storage_remove"]);
+ assert.doesNotMatch(JSON.stringify(b),/PRIVATE_STORAGE/);
+});
+test("DELETE Storage exception after commit never reports failed discard",async()=>{
+ const {handlers,steps}=fixture({storageThrows:true});
+ const r=await handlers.DELETE(body("DELETE",{}));
+ assert.equal(r.status,200);assert.equal(r.headers.get("cache-control"),"private, no-store");
+ assert.deepEqual(await r.json(),{ok:true,cleanupPending:true});
+ assert.deepEqual(steps,["read","delete","reference_check","photo_row_check","storage_remove"]);
 });
