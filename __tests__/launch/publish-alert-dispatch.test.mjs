@@ -93,7 +93,7 @@ test("listing is committed first; alerts run separately and use fetch keepalive"
   assert.match(form, /keepalive: true,[\s\S]*?body: JSON\.stringify\(\{ listingId, opportunityKey: activationOpportunityKey \}\)/);
   assert.doesNotMatch(form, /await fetch\("\/api\/marketplace\/listings\/match-saved-searches"/);
   assert.match(form, /if \(!result\.ok\)/);
-  assert.match(form, /\.catch\(\(error\) => \{/);
+  assert.match(form, /\.catch\(\(\) => \{/);
 });
 
 test("server authorization, unique matches and provider idempotency remain enforced", () => {
