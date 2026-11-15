@@ -25,3 +25,11 @@ test("message body still uses participant-scoped RLS, not service role",()=>{
   assert.match(route,/supabase\s*\.from\("messages"\)\s*\.select\("body, created_at, attachment_name"\)/);
   assert.doesNotMatch(route,/admin\s*\.from\("messages"\)/);
 });
+
+test("private chat response, malformed UUID and backend errors fail closed",()=>{
+  assert.match(route,/Cache-Control": "private, no-store"/);
+  assert.match(route,/UUID_RE\.test\(conversationId\)/);
+  assert.match(route,/listingError \|\| profileError \|\| messageError/);
+  assert.match(route,/return privateJson\(\{ error: "No se pudo cargar la conversación\." \}, 503\)/);
+  assert.doesNotMatch(route,/console\.error\([^)]*conversationError/);
+});
