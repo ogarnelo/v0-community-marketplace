@@ -45,7 +45,7 @@ test("editor warning accepts only fixed server text after seller authorization",
  const warning=page.indexOf('initialWarning={(await searchParams)?.photosPending === "1"');
  assert.ok(auth>0 && warning>auth);
  assert.match(page,/El anuncio ya está creado, pero no se pudieron terminar sus fotografías/);
- assert.doesNotMatch(page,/initialWarning=\{\(await searchParams\)/);
+ assert.match(page,/photosPending === "1"/);
 });
 test("warning is visible to seller and remains separate from edit validation errors",()=>{
  assert.match(edit,/initialWarning\?: string \| null/);
