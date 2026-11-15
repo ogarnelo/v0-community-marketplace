@@ -55,13 +55,16 @@ check("anon and authenticated SELECT proposals remove tablewide grants",()=>{
   for(const needed of ["id","seller_id","status","directory_school_code","is_demo"])
     assert.ok(cols.includes(needed));
 });
-check("client listing SELECT does not request wildcard or precise seller location",()=>{
+check("components and use-client app listing SELECT never request precise location",()=>{
   const paths=execFileSync("git",["ls-files","--","components","app"],{encoding:"utf8"}).trim().split("\n")
     .filter(p=>/\.(tsx|ts|jsx|js)$/.test(p));
   let count=0;
   for(const p of paths){
-    if(!p.startsWith("components/"))continue; // Browser-facing components, not server routes.
     const src=read(p);
+    // app/ can contain browser components as well as server routes/pages.
+    // A Next.js "use client" directive is an explicit browser boundary.
+    const clientApp=/^\s*["']use client["']\s*;?/m.test(src.slice(0,250));
+    if(!p.startsWith("components/") && !(p.startsWith("app/") && clientApp))continue;
     const select=/\.from\(\s*["']listings["']\s*\)\s*\.select\(\s*["'`]([^"'`]+)["'`]/g;
     for(const match of src.matchAll(select)){
       count++;
