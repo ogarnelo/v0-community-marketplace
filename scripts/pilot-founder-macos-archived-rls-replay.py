@@ -228,6 +228,32 @@ def run(db_zip, storage_zip, backup_password, local_password):
             "production_modified":False,
             "full_disaster_recovery_certified":False}
 
+# Non-sensitive labels for explicitly authored fail-closed checks.
+# Never print SQL text, subprocess stderr, passwords or private dump names.
+SAFE_FAILURE_CODES = {
+    "Local empty sandbox, network or privileges gate failed": "LOCAL_TARGET_GATE",
+    "Missing local prerequisites": "LOCAL_PREREQUISITES",
+    "Local PostgreSQL operation failed; rollback on connection close": "LOCAL_SQL_EXECUTION",
+    "Invalid PGDMP": "DUMP_HEADER",
+    "Missing archive TOC": "DUMP_TOC",
+    "Unable to extract safe RLS definitions": "POLICY_DDL_RENDER",
+    "Expected exactly two CREATE POLICY statements": "POLICY_COUNT",
+    "Archived policy statement differs from safe allowlist": "POLICY_SQL_SHAPE",
+    "Wrong or duplicate archived policy": "POLICY_NAME_OR_COMMAND",
+    "Unsafe policy expression": "POLICY_EXPRESSION_UNSAFE",
+    "Archived policy predicate requires separate review": "POLICY_PREDICATE_REVIEW",
+    "Missing archived policy": "POLICY_MISSING",
+    "Archived RLS isolation checks failed": "RLS_ASSERTION",
+    "Exactly two target policies not in TOC": "POLICY_TOC_MISSING",
+    "Duplicate target policy": "POLICY_TOC_DUPLICATE",
+}
+
+def safe_failure_code(exc):
+    # Closed set: never interpolate an exception message from a process/library.
+    if isinstance(exc, ValueError):
+        return SAFE_FAILURE_CODES.get(str(exc), "UNCLASSIFIED")
+    return "UNCLASSIFIED"
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--database-zip", required=True)
@@ -243,6 +269,7 @@ def main():
     except (OSError,ValueError,RuntimeError,UnicodeError,
             subprocess.TimeoutExpired,zipfile.BadZipFile) as exc:
         print("NO_GO_MAC_ARCHIVED_RLS_REPLAY: "+type(exc).__name__,file=sys.stderr)
+        print("SAFE_FAILURE_CODE: "+safe_failure_code(exc),file=sys.stderr)
         return 2
     finally:
         if "local_password" in locals():local_password=None
