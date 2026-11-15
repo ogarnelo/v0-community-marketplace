@@ -25,6 +25,8 @@ jobs:
         run: node --test __tests__/launch/pilot-commerce-report-error-boundary-runtime.test.mjs
       - name: Draft DB commit happens before Storage cleanup
         run: node --test __tests__/launch/pilot-draft-storage-commit-order-runtime.test.mjs
+      - name: Conversation summary authorization and private HTTP
+        run: node --test __tests__/launch/pilot-conversation-summary-private-http-runtime.test.mjs __tests__/launch/conversation-summary-privacy.test.mjs
       - name: Saved search matcher private error contract
         run: node --test __tests__/launch/pilot-saved-search-sensitive-error-contract.test.mjs
       - name: Listing create edit and draft UI error redaction
