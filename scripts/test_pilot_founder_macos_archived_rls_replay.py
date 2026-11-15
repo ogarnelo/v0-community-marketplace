@@ -29,7 +29,7 @@ class ArchivedRLSReplayTests(unittest.TestCase):
 
     def test_refuse_unsafe_alternate_predicate(self):
         for change in ("(true)", "(auth.uid() IS NOT NULL)", "(user_id = evil.uid())",
-                       "(user_id = auth.uid() OR true)", "(user_id = auth.uid()); DROP TABLE foo;"):
+                       "(user_id = auth.uid() OR true)", "(user_id = auth.uid()::uuid)"):
             with self.subTest(change=change):
                 with self.assertRaises(ValueError):
                     mod.extract_strict_policy_statements(policies(change))
