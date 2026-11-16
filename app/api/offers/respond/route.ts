@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { respondToOfferFlow, type OfferAction } from "@/lib/services/offers.service";
@@ -10,7 +17,7 @@ function isOfferAction(value: unknown): value is OfferAction {
 
 export async function POST(request: Request) {
   if (!isLegacyCommerceEnabled()) {
-    return NextResponse.json(
+    return privateJson(
       { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
       { status: 404 }
     );
@@ -18,12 +25,19 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const body = await request.json();
@@ -32,7 +46,7 @@ export async function POST(request: Request) {
     const counterPrice = body?.counterPrice == null ? null : Number(body.counterPrice);
 
     if (!offerId || !action) {
-      return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
+      return privateJson({ error: "Petición no válida." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -44,17 +58,18 @@ export async function POST(request: Request) {
       counterPrice,
     });
 
-    return NextResponse.json({ ok: true, ...result });
-  } catch (error: any) {
-    const message = error?.message || error?.details || "No se pudo responder a la oferta.";
-    const status =
-      message.includes("no admite cambios") ||
-        message.includes("No puedes") ||
-        message.includes("máximo") ||
-        message.includes("no es válida")
-        ? 400
-        : 500;
-
-    return NextResponse.json({ error: message }, { status });
+    return privateJson({ ok: true, ...result });
+  } catch (error: unknown) {
+    // Preserve an explicit set of user-facing business errors without exposing
+    // arbitrary Postgres, provider or stack diagnostics to the client.
+    const message = error instanceof Error ? error.message : "";
+    const safeMessage =
+      message.includes("no admite cambios") ? "La oferta ya no admite cambios." :
+      message.includes("No puedes") ? "No puedes responder a esta oferta." :
+      message.includes("máximo") ? "Se ha alcanzado el máximo permitido." :
+      message.includes("no es válida") ? "La respuesta no es válida." : null;
+    if (safeMessage) return privateJson({ error: safeMessage }, { status: 400 });
+    console.error("offer_response_failed");
+    return privateJson({ error: "No se pudo responder a la oferta." }, { status: 500 });
   }
 }
