@@ -19,7 +19,7 @@ const SECURE_HEADERS = {
 
 function failure(status: number) {
   return NextResponse.json(
-    { error: status === 401 ? "Debes iniciar sesión." : "Adjunto no disponible." },
+    { error: status === 401 ? "Debes iniciar sesión." : status === 503 ? "No se pudo completar la operación." : "Adjunto no disponible." },
     { status, headers: SECURE_HEADERS }
   );
 }
@@ -29,9 +29,16 @@ export async function GET(request: Request) {
   const messageId = new URL(request.url).searchParams.get("messageId") || "";
   if (!UUID_RE.test(messageId)) return failure(400);
 
+  try {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return failure(401);
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    const guest = authError.name === "AuthSessionMissingError" ||
+      authError.code === "session_not_found";
+    return failure(guest ? 401 : 503);
+  }
+  const user = authData?.user;
+  if (!user) return failure(401);
 
   const { data: message, error: messageError } = await supabase
     .from("messages")
@@ -70,4 +77,8 @@ export async function GET(request: Request) {
       "Content-Disposition": dispositionForAttachment(message.attachment_type, message.attachment_name),
     },
   });
+  } catch {
+    // Network/Auth/storage failures must not leak internal errors or return 401.
+    return failure(503);
+  }
 }
