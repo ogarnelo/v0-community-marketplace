@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
 import { sendSchoolRegistrationAdminEmail } from "@/lib/emails/admin-alert-emails";
 
 const MAX_REQUESTS_PER_DAY = 2;
@@ -37,10 +47,22 @@ function isEmail(value: string) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // These forms intentionally accept guests. Only a genuinely absent
+    // session is a guest; a provider outage must never use a stale identity.
+    let authResult;
+    try {
+      const supabase = await createClient();
+      authResult = await supabase.auth.getUser();
+    } catch {
+      return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+    }
+    const authError = authResult.error;
+    const missingSession = authError?.name === "AuthSessionMissingError" ||
+      authError?.code === "session_not_found";
+    if (authError && !missingSession) {
+      return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+    }
+    const user = authError ? null : authResult.data?.user ?? null;
 
     const body = await request.json().catch(() => ({}));
     const requestedSchoolId = clean(body?.existingSchoolId, 64);
@@ -69,7 +91,7 @@ export async function POST(request: Request) {
 
       if (existingSchoolError) throw existingSchoolError;
       if (!existingSchool) {
-        return NextResponse.json(
+        return privateJson(
           { error: "El centro seleccionado no existe o ya no está activo." },
           { status: 400 }
         );
@@ -83,46 +105,46 @@ export async function POST(request: Request) {
       region = existingSchool.region || "";
     } else {
       if (schoolName.length < 2) {
-        return NextResponse.json({ error: "Debes indicar un nombre de centro válido." }, { status: 400 });
+        return privateJson({ error: "Debes indicar un nombre de centro válido." }, { status: 400 });
       }
       if (!SCHOOL_TYPES.has(schoolType)) {
-        return NextResponse.json({ error: "El tipo de centro seleccionado no es válido." }, { status: 400 });
+        return privateJson({ error: "El tipo de centro seleccionado no es válido." }, { status: 400 });
       }
     }
 
     if (organizationName.length < 2) {
-      return NextResponse.json({ error: "Debes indicar el nombre de la AMPA, AFA o entidad." }, { status: 400 });
+      return privateJson({ error: "Debes indicar el nombre de la AMPA, AFA o entidad." }, { status: 400 });
     }
     if (contactName.length < 2) {
-      return NextResponse.json({ error: "Debes indicar una persona de contacto." }, { status: 400 });
+      return privateJson({ error: "Debes indicar una persona de contacto." }, { status: 400 });
     }
     if (contactRole.length < 2) {
-      return NextResponse.json({ error: "Debes indicar el cargo o función de la persona de contacto." }, { status: 400 });
+      return privateJson({ error: "Debes indicar el cargo o función de la persona de contacto." }, { status: 400 });
     }
     if (organizationUrl) {
       try {
         const parsedUrl = new URL(organizationUrl);
         if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error("invalid");
       } catch {
-        return NextResponse.json({ error: "La web o red oficial no tiene una URL válida." }, { status: 400 });
+        return privateJson({ error: "La web o red oficial no tiene una URL válida." }, { status: 400 });
       }
     }
     if (!requestedSchoolId) {
       if (address.length < 3 || city.length < 2) {
-        return NextResponse.json({ error: "Revisa la dirección y la ciudad." }, { status: 400 });
+        return privateJson({ error: "Revisa la dirección y la ciudad." }, { status: 400 });
       }
       if (!/^[0-9]{5}$/.test(postalCode)) {
-        return NextResponse.json({ error: "Debes indicar un código postal válido de 5 dígitos." }, { status: 400 });
+        return privateJson({ error: "Debes indicar un código postal válido de 5 dígitos." }, { status: 400 });
       }
       if (!REGIONS.has(region)) {
-        return NextResponse.json({ error: "La comunidad autónoma seleccionada no es válida." }, { status: 400 });
+        return privateJson({ error: "La comunidad autónoma seleccionada no es válida." }, { status: 400 });
       }
     }
     if (!isEmail(contactEmail)) {
-      return NextResponse.json({ error: "Debes indicar un email de contacto válido." }, { status: 400 });
+      return privateJson({ error: "Debes indicar un email de contacto válido." }, { status: 400 });
     }
     if (contactPhone.length < 6) {
-      return NextResponse.json({ error: "Debes indicar un teléfono de contacto válido." }, { status: 400 });
+      return privateJson({ error: "Debes indicar un teléfono de contacto válido." }, { status: 400 });
     }
 
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -147,7 +169,7 @@ export async function POST(request: Request) {
       (recentEmailRequests || 0) >= MAX_REQUESTS_PER_DAY ||
       (recentPhoneRequests || 0) >= MAX_REQUESTS_PER_DAY
     ) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Ya has enviado varias solicitudes hoy. Espera antes de enviar otra." },
         { status: 429 }
       );
@@ -223,12 +245,9 @@ export async function POST(request: Request) {
       console.error("Error preparando avisos de solicitud de centro:", emailError);
     }
 
-    return NextResponse.json({ ok: true, requestId: schoolRequest.id });
-  } catch (error: any) {
-    console.error("Error creando solicitud de centro:", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo enviar la solicitud. Inténtalo de nuevo." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, requestId: schoolRequest.id });
+  } catch {
+    console.error("school_registration_request_failed");
+    return privateJson({ error: "No se pudo enviar la solicitud. Inténtalo de nuevo." }, { status: 500 });
   }
 }
