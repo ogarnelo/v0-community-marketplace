@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (updateError) {
-      return privateJson({ error:  "No se pudo actualizar el envío." }, { status: 400 });
+      return privateJson({ error: "No se pudo actualizar el envío." }, { status: 503 });
     }
 
     if (!updatedShipment) {
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await adminSupabase.from("shipment_events").insert({
+    const { error: eventError } = await adminSupabase.from("shipment_events").insert({
       shipment_id: shipmentId,
       event_type: "marked_in_transit",
       payload: {
@@ -120,6 +120,14 @@ export async function POST(request: Request) {
       },
       created_at: now,
     });
+
+    if (eventError) {
+      console.error("shipment_dispatch_event_write_failed");
+      return privateJson(
+        { error: "El envío se actualizó, pero falta registrar su historial. Requiere conciliación." },
+        { status: 503 }
+      );
+    }
 
     return privateJson({ ok: true });
   } catch {

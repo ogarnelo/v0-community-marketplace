@@ -72,8 +72,8 @@ export async function POST(request: Request) {
 
     if (paymentError) {
       return privateJson(
-        { error:  "No se pudo verificar el pago asociado." },
-        { status: 400 }
+        { error: "No se pudo verificar el pago asociado." },
+        { status: 503 }
       );
     }
 
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (updateError) {
-      return privateJson({ error:  "No se pudo confirmar la entrega." }, { status: 400 });
+      return privateJson({ error: "No se pudo confirmar la entrega." }, { status: 503 });
     }
 
     if (!updatedShipment) {
@@ -116,15 +116,13 @@ export async function POST(request: Request) {
       created_at: now,
     });
 
+    let reconciliationRequired = Boolean(eventError);
     if (eventError) {
-      console.error("No se pudo registrar el evento de entrega", {
-        shipmentId,
-        error: eventError,
-      });
+      console.error("shipment_delivery_event_write_failed");
     }
 
     if (payment) {
-      const { error: paymentUpdateError } = await adminSupabase
+      const { data: paymentUpdated, error: paymentUpdateError } = await adminSupabase
         .from("payment_intents")
         .update({
           metadata: {
@@ -134,16 +132,22 @@ export async function POST(request: Request) {
           updated_at: now,
         })
         .eq("id", payment.id)
-        .eq("status", "succeeded");
+        .eq("status", "succeeded")
+        .select("id")
+        .maybeSingle();
 
-      if (paymentUpdateError) {
-        console.error("No se pudo registrar delivered_at en el pago", {
-          paymentIntentId: payment.id,
-          error: paymentUpdateError,
-        });
+      if (paymentUpdateError || !paymentUpdated) {
+        console.error("shipment_delivery_payment_metadata_write_failed");
+        reconciliationRequired = true;
       }
     }
 
+    if (reconciliationRequired) {
+      return privateJson(
+        { error: "La entrega se confirmó, pero falta conciliar el historial o el pago." },
+        { status: 503 }
+      );
+    }
     return privateJson({ ok: true });
   } catch {
     console.error("shipping_delivery_failed");
