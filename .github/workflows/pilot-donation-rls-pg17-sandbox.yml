@@ -1,0 +1,39 @@
+name: WETUDY P0 donation RLS disposable PostgreSQL 17
+on:
+  pull_request:
+    paths:
+      - "scripts/p0_donation_rls_preflight_read_only.sql"
+      - "scripts/p0_donation_rls_remediation_review_only.sql"
+      - "scripts/pilot-donation-rls-pg17-sandbox.sh"
+      - ".github/workflows/pilot-donation-rls-pg17-sandbox.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  donation-rls-isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: wetudy_rls
+          POSTGRES_PASSWORD: wetudy_rls
+          POSTGRES_DB: wetudy_rls
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wetudy_rls -d wetudy_rls"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wetudy_rls:wetudy_rls@127.0.0.1:5432/wetudy_rls
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Reproduce baseline and test candidate only on disposable PostgreSQL
+        run: bash scripts/pilot-donation-rls-pg17-sandbox.sh
