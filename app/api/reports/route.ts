@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
+
 const MAX_REPORTS_PER_HOUR = 10;
 const MAX_DETAILS_LENGTH = 1000;
 
@@ -36,16 +46,23 @@ function isAllowedReason(targetType: ReportTargetType, reason: string) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     if (!user.email_confirmed_at) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Confirma tu email antes de enviar un reporte." },
         { status: 403 }
       );
@@ -61,7 +78,7 @@ export async function POST(request: Request) {
         : "";
 
     if (!targetType || !targetId || !reason || !isAllowedReason(targetType, reason)) {
-      return NextResponse.json({ error: "El reporte no es válido." }, { status: 400 });
+      return privateJson({ error: "El reporte no es válido." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -75,7 +92,7 @@ export async function POST(request: Request) {
 
       if (listingError) throw listingError;
       if (!listing) {
-        return NextResponse.json({ error: "El anuncio ya no existe." }, { status: 404 });
+        return privateJson({ error: "El anuncio ya no existe." }, { status: 404 });
       }
     } else {
       const { data: conversation, error: conversationError } = await admin
@@ -86,11 +103,11 @@ export async function POST(request: Request) {
 
       if (conversationError) throw conversationError;
       if (!conversation) {
-        return NextResponse.json({ error: "La conversación ya no existe." }, { status: 404 });
+        return privateJson({ error: "La conversación ya no existe." }, { status: 404 });
       }
 
       if (conversation.buyer_id !== user.id && conversation.seller_id !== user.id) {
-        return NextResponse.json(
+        return privateJson(
           { error: "No tienes permisos para reportar esta conversación." },
           { status: 403 }
         );
@@ -114,7 +131,7 @@ export async function POST(request: Request) {
 
     if (duplicateError) throw duplicateError;
     if (duplicate?.id) {
-      return NextResponse.json({ ok: true, alreadyExists: true, reportId: duplicate.id });
+      return privateJson({ ok: true, alreadyExists: true, reportId: duplicate.id });
     }
 
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -127,7 +144,7 @@ export async function POST(request: Request) {
     if (countError) throw countError;
 
     if ((count || 0) >= MAX_REPORTS_PER_HOUR) {
-      return NextResponse.json(
+      return privateJson(
         {
           error:
             "Has enviado varios reportes en poco tiempo. Inténtalo de nuevo más adelante.",
@@ -161,17 +178,17 @@ export async function POST(request: Request) {
 
     if (insertError) {
       if (insertError.code === "23505") {
-        return NextResponse.json({ ok: true, alreadyExists: true });
+        return privateJson({ ok: true, alreadyExists: true });
       }
       throw insertError;
     }
 
-    return NextResponse.json({ ok: true, reportId: report.id }, {
+    return privateJson({ ok: true, reportId: report.id }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch {
     console.error("moderation_report_create_failed");
-    return NextResponse.json({ error: "No se pudo enviar el reporte." }, {
+    return privateJson({ error: "No se pudo enviar el reporte." }, {
       status: 500, headers: { "Cache-Control": "private, no-store" },
     });
   }
