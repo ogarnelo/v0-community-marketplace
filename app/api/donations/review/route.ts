@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const donationRequestId =
       typeof body?.donationRequestId === "string" ? body.donationRequestId.trim() : "";
     const action = body?.action === "approve" || body?.action === "reject" ? body.action : null;
-    const note = typeof body?.note === "string" ? body.note.trim() : "";
+    const note = typeof body?.note === "string" ? body.note.trim().slice(0, 600) : "";
 
     if (!donationRequestId || !action) {
       return privateJson({ error: "Falta la solicitud." }, { status: 400 });
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
       if (approveError) return privateJson({ error: "No se pudo aprobar la solicitud." }, { status: 503 });
       if (!approved) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
 
-      await adminSupabase
+      const { error: competitorsError } = await adminSupabase
         .from("donation_requests")
         .update({
           status: "rejected",
@@ -134,14 +134,28 @@ export async function POST(request: Request) {
         .eq("listing_id", donationRequest.listing_id)
         .neq("id", donationRequestId)
         .eq("status", "pending");
+      if (competitorsError) {
+        console.error("donation_review_competitor_rejection_failed");
+        return privateJson(
+          { error: "La asignación se guardó, pero requiere conciliar las solicitudes competidoras." },
+          { status: 503 }
+        );
+      }
 
-      await adminSupabase
+      const { error: archiveError } = await adminSupabase
         .from("listings")
         .update({ status: "archived" })
         .eq("id", donationRequest.listing_id);
+      if (archiveError) {
+        console.error("donation_review_listing_archive_failed");
+        return privateJson(
+          { error: "La asignación se guardó, pero requiere conciliar el anuncio." },
+          { status: 503 }
+        );
+      }
 
       if (conversationId) {
-        await adminSupabase.from("messages").insert({
+        const { error: messageError } = await adminSupabase.from("messages").insert({
           conversation_id: conversationId,
           sender_id: listing?.seller_id || user.id,
           body: note
@@ -149,13 +163,28 @@ export async function POST(request: Request) {
             : "🎁 Donación aprobada por el centro.",
         });
 
-        await adminSupabase
+        if (messageError) {
+          console.error("donation_review_message_write_failed");
+          return privateJson(
+            { error: "La decisión se guardó, pero requiere conciliar el mensaje." },
+            { status: 503 }
+          );
+        }
+
+        const { error: conversationUpdateError } = await adminSupabase
           .from("conversations")
           .update({ updated_at: now })
           .eq("id", conversationId);
+        if (conversationUpdateError) {
+          console.error("donation_review_conversation_write_failed");
+          return privateJson(
+            { error: "La decisión se guardó, pero requiere conciliar la conversación." },
+            { status: 503 }
+          );
+        }
       }
 
-      await createNotifications(adminSupabase, [
+      const { error: notifyError } = await createNotifications(adminSupabase, [
         donationRequest.requester_id
           ? {
             user_id: donationRequest.requester_id,
@@ -190,6 +219,10 @@ export async function POST(request: Request) {
         href: string;
         metadata: Record<string, unknown>;
       }>);
+      if (notifyError) {
+        console.error("donation_review_notification_write_failed");
+        return privateJson({ error: "La decisión se guardó, pero requiere conciliar las notificaciones." }, { status: 503 });
+      }
     } else {
       const now = new Date().toISOString();
 
@@ -209,7 +242,7 @@ export async function POST(request: Request) {
       if (!rejected) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
 
       if (conversationId) {
-        await adminSupabase.from("messages").insert({
+        const { error: messageError } = await adminSupabase.from("messages").insert({
           conversation_id: conversationId,
           sender_id: listing?.seller_id || user.id,
           body: note
@@ -217,14 +250,29 @@ export async function POST(request: Request) {
             : "❌ Solicitud de donación rechazada por el centro.",
         });
 
-        await adminSupabase
+        if (messageError) {
+          console.error("donation_review_message_write_failed");
+          return privateJson(
+            { error: "La decisión se guardó, pero requiere conciliar el mensaje." },
+            { status: 503 }
+          );
+        }
+
+        const { error: conversationUpdateError } = await adminSupabase
           .from("conversations")
           .update({ updated_at: now })
           .eq("id", conversationId);
+        if (conversationUpdateError) {
+          console.error("donation_review_conversation_write_failed");
+          return privateJson(
+            { error: "La decisión se guardó, pero requiere conciliar la conversación." },
+            { status: 503 }
+          );
+        }
       }
 
       if (donationRequest.requester_id) {
-        await createNotifications(adminSupabase, [
+        const { error: notifyError } = await createNotifications(adminSupabase, [
           {
             user_id: donationRequest.requester_id,
             kind: "donation_rejected",
@@ -237,6 +285,10 @@ export async function POST(request: Request) {
             },
           },
         ]);
+        if (notifyError) {
+          console.error("donation_review_notification_write_failed");
+          return privateJson({ error: "La decisión se guardó, pero requiere conciliar las notificaciones." }, { status: 503 });
+        }
       }
     }
 
