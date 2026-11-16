@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotificationOnce } from "@/lib/notifications";
@@ -10,12 +18,19 @@ function normalizeRpcRow<T>(value: T | T[] | null): T | null {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const missingSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: missingSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        { status: missingSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -25,7 +40,7 @@ export async function POST(request: Request) {
       typeof body?.note === "string" ? body.note.trim().slice(0, 500) : null;
 
     if (!agreementId) {
-      return NextResponse.json({ error: "Falta el acuerdo." }, { status: 400 });
+      return privateJson({ error: "Falta el acuerdo." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -40,19 +55,19 @@ export async function POST(request: Request) {
       const lower = message.toLowerCase();
 
       if (lower.includes("agreement not found")) {
-        return NextResponse.json({ error: "No se encontró el acuerdo." }, { status: 404 });
+        return privateJson({ error: "No se encontró el acuerdo." }, { status: 404 });
       }
       if (lower.includes("not allowed")) {
-        return NextResponse.json({ error: "No puedes cancelar este acuerdo." }, { status: 403 });
+        return privateJson({ error: "No puedes cancelar este acuerdo." }, { status: 403 });
       }
       if (lower.includes("confirmed agreements")) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Un acuerdo confirmado no se cancela. Puedes reportar una incidencia." },
           { status: 409 }
         );
       }
       if (lower.includes("disputed agreements")) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Un acuerdo con una incidencia abierta no se puede cancelar." },
           { status: 409 }
         );
@@ -92,11 +107,9 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, agreement });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo cancelar el acuerdo." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, agreement });
+  } catch {
+    console.error("agreement_cancel_failed");
+    return privateJson({ error: "No se pudo cancelar el acuerdo." }, { status: 500 });
   }
 }
