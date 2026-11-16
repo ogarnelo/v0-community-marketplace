@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
@@ -6,16 +14,23 @@ import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPr
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     if (!(await canUserUseCommerce(user))) {
-      return NextResponse.json({ error: "No disponible." }, { status: 404 });
+      return privateJson({ error: "No disponible." }, { status: 404 });
     }
     if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
@@ -23,7 +38,7 @@ export async function POST(request: Request) {
     const shipmentId = typeof body?.shipmentId === "string" ? body.shipmentId.trim() : "";
 
     if (!shipmentId) {
-      return NextResponse.json({ error: "Falta el envío." }, { status: 400 });
+      return privateJson({ error: "Falta el envío." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -33,16 +48,15 @@ export async function POST(request: Request) {
       .eq("id", shipmentId)
       .maybeSingle();
 
-    if (shipmentError || !shipment) {
-      return NextResponse.json({ error: "Envío no encontrado." }, { status: 404 });
-    }
+    if (shipmentError) return privateJson({ error: "No se pudo consultar el envío." }, { status: 503 });
+    if (!shipment) return privateJson({ error: "Envío no encontrado." }, { status: 404 });
 
     if (shipment.buyer_id !== user.id) {
-      return NextResponse.json({ error: "No puedes confirmar este envío." }, { status: 403 });
+      return privateJson({ error: "No puedes confirmar este envío." }, { status: 403 });
     }
 
     if (shipment.status !== "in_transit") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Solo puedes confirmar la entrega cuando el envío está en tránsito." },
         { status: 409 }
       );
@@ -57,14 +71,14 @@ export async function POST(request: Request) {
       : { data: null, error: null };
 
     if (paymentError) {
-      return NextResponse.json(
-        { error: paymentError.message || "No se pudo verificar el pago asociado." },
+      return privateJson(
+        { error:  "No se pudo verificar el pago asociado." },
         { status: 400 }
       );
     }
 
     if (shipment.payment_intent_id && (!payment || payment.status !== "succeeded")) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El pago asociado debe estar confirmado antes de cerrar el envío." },
         { status: 409 }
       );
@@ -83,11 +97,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message || "No se pudo confirmar la entrega." }, { status: 400 });
+      return privateJson({ error:  "No se pudo confirmar la entrega." }, { status: 400 });
     }
 
     if (!updatedShipment) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El estado del envío ha cambiado. Actualiza la conversación e inténtalo de nuevo." },
         { status: 409 }
       );
@@ -130,11 +144,9 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo confirmar la entrega." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true });
+  } catch {
+    console.error("shipping_delivery_failed");
+    return privateJson({ error: "No se pudo confirmar la entrega." }, { status: 500 });
   }
 }

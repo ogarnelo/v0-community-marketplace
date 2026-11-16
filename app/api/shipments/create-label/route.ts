@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSendcloudParcel, isSendcloudConfigured } from "@/lib/logistics/sendcloud";
@@ -18,39 +26,60 @@ function pickFullName(profile: any, fallbackEmail?: string | null) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const adminSupabase = createAdminClient();
+  let supabase;
+  try {
+    supabase = await createClient();
+  } catch {
+    console.error("shipping_label_auth_client_unavailable");
+    return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+  }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let authResult;
+  try {
+    authResult = await supabase.auth.getUser();
+  } catch {
+    console.error("shipping_label_auth_provider_unavailable");
+    return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+  }
+  const { data: authData, error: authError } = authResult;
+  if (authError) {
+    const absent = authError.name === "AuthSessionMissingError" ||
+      authError.code === "session_not_found";
+    return privateJson(
+      { error: absent ? "No autenticado." : "No se pudo comprobar tu sesión." },
+      { status: absent ? 401 : 503 }
+    );
+  }
+  const user = authData?.user ?? null;
 
   if (!user) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    return privateJson({ error: "No autorizado." }, { status: 401 });
   }
 
   if (!(await canUserUseCommerce(user))) {
-    return NextResponse.json({ error: "No disponible." }, { status: 404 });
+    return privateJson({ error: "No disponible." }, { status: 404 });
   }
   if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
   if (!isPublicCommerceEnabled() && !isPrivateShippingLabelCreationEnabled()) {
-    return NextResponse.json(
+    return privateJson(
       { error: "La creación real de etiquetas está bloqueada en el preview privado." },
       { status: 409 }
     );
   }
 
   if (!isSendcloudConfigured()) {
-    return NextResponse.json({ error: "Sendcloud no está configurado." }, { status: 400 });
+    return privateJson({ error: "Sendcloud no está configurado." }, { status: 400 });
   }
 
   const body = await request.json().catch(() => null);
   const shipmentId = body?.shipmentId;
 
   if (!shipmentId || typeof shipmentId !== "string") {
-    return NextResponse.json({ error: "shipmentId es obligatorio." }, { status: 400 });
+    return privateJson({ error: "shipmentId es obligatorio." }, { status: 400 });
   }
+
+  const adminSupabase = createAdminClient();
 
   const { data: shipment, error: shipmentError } = await adminSupabase
     .from("shipments")
@@ -58,20 +87,19 @@ export async function POST(request: Request) {
     .eq("id", shipmentId)
     .maybeSingle();
 
-  if (shipmentError || !shipment) {
-    return NextResponse.json({ error: shipmentError?.message || "Envío no encontrado." }, { status: 404 });
-  }
+  if (shipmentError) return privateJson({ error: "No se pudo consultar el envío." }, { status: 503 });
+  if (!shipment) return privateJson({ error: "Envío no encontrado." }, { status: 404 });
 
   if (shipment.seller_id !== user.id) {
-    return NextResponse.json({ error: "Solo el vendedor puede crear la etiqueta." }, { status: 403 });
+    return privateJson({ error: "Solo el vendedor puede crear la etiqueta." }, { status: 403 });
   }
 
   if (shipment.label_url) {
-    return NextResponse.json({ shipment });
+    return privateJson({ shipment });
   }
 
   if (!["draft", "quoted", "label_pending"].includes(String(shipment.status))) {
-    return NextResponse.json(
+    return privateJson(
       { error: "Este envío ya no admite crear una etiqueta." },
       { status: 409 }
     );
@@ -93,23 +121,26 @@ export async function POST(request: Request) {
       : Promise.resolve({ data: null, error: null }),
   ]);
 
+  if (paymentResult.error || listingResult.error || buyerProfileResult.error) {
+    return privateJson({ error: "No se pudieron verificar los datos del envío." }, { status: 503 });
+  }
   const payment = paymentResult.data;
   const listing = listingResult.data;
   const buyerProfile = buyerProfileResult.data;
 
   if (!payment) {
-    return NextResponse.json({ error: "No se encontró el pago asociado." }, { status: 404 });
+    return privateJson({ error: "No se encontró el pago asociado." }, { status: 404 });
   }
 
   if (payment.status !== "succeeded") {
-    return NextResponse.json(
+    return privateJson(
       { error: "El pago debe estar confirmado antes de crear la etiqueta." },
       { status: 409 }
     );
   }
 
   if (!hasCompleteShippingAddress(buyerProfile)) {
-    return NextResponse.json(
+    return privateJson(
       { error: "El comprador aún no tiene una dirección de envío completa en su perfil." },
       { status: 400 }
     );
@@ -156,11 +187,18 @@ export async function POST(request: Request) {
       .single();
 
     if (updateError || !updatedShipment) {
-      throw new Error(updateError?.message || "No se pudo actualizar el envío.");
+      // A Sendcloud label may now exist. Never overwrite this row with manual
+      // fallback or automatically issue a second external label on this path.
+      console.error("sendcloud_label_created_but_db_update_failed");
+      return privateJson(
+        { error: "La etiqueta se generó pero no se pudo sincronizar; requiere conciliación antes de reintentar." },
+        { status: 503 }
+      );
     }
 
-    return NextResponse.json({ shipment: updatedShipment });
-  } catch (error: any) {
+    return privateJson({ shipment: updatedShipment });
+  } catch {
+    console.error("sendcloud_label_creation_failed");
     await adminSupabase
       .from("shipments")
       .update({
@@ -169,14 +207,14 @@ export async function POST(request: Request) {
         payload: {
           mode: "manual_fallback",
           reason: "sendcloud_error",
-          message: error?.message || "No se pudo crear la etiqueta.",
+          message: "No se pudo crear la etiqueta.",
         },
         updated_at: new Date().toISOString(),
       })
       .eq("id", shipment.id);
 
-    return NextResponse.json(
-      { error: error?.message || "No se pudo crear la etiqueta de Sendcloud." },
+    return privateJson(
+      { error: "No se pudo crear la etiqueta de Sendcloud." },
       { status: 500 }
     );
   }
