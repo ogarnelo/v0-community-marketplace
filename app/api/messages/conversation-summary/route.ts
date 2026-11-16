@@ -15,7 +15,14 @@ export async function GET(request: Request) {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   // Never use a stale user returned with an Auth error as authorization for
   // the service-role conversation/profile lookups below.
-  if (authError) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
+  if (authError) {
+    const missingSession = authError.name === "AuthSessionMissingError" ||
+      authError.code === "session_not_found";
+    return privateJson(
+      { error: missingSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+      missingSession ? 401 : 503
+    );
+  }
   const user = authData?.user ?? null;
 
   if (!user) {

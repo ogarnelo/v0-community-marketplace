@@ -109,7 +109,11 @@ async function getAuthenticatedUser() {
     const { data, error } = await supabase.auth.getUser();
     // An unavailable Auth service is not an unauthenticated user. Fail
     // closed even if the provider returns stale user data alongside an error.
-    if (error) return { user: null, authFailed: true };
+    if (error) {
+      const missingSession = error.name === "AuthSessionMissingError" ||
+        error.code === "session_not_found";
+      return { user: null, authFailed: !missingSession };
+    }
     return { user: data?.user ?? null, authFailed: false };
   } catch {
     return { user: null, authFailed: true };

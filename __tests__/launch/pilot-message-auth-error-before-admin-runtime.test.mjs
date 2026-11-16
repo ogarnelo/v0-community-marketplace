@@ -13,7 +13,7 @@ const routes=[
  {path:"app/api/messages/conversation-summary/route.ts",method:"GET",
   url:"https://synthetic.invalid/api/messages/conversation-summary?conversation_id="+cid},
 ];
-function fixture(route,{authError=false,user=true,throws=false}={}){
+function fixture(route,{authError=false,missingSession=false,user=true,throws=false}={}){
  const calls=[];
  const modules={
   "next/server":{NextResponse:{json:(payload,o={})=>new Response(JSON.stringify(payload),{
@@ -24,7 +24,7 @@ function fixture(route,{authError=false,user=true,throws=false}={}){
       calls.push("AUTH");
       if(throws)throw Error("PRIVATE_AUTH_EXCEPTION");
       return{data:{user:user?{id:uid}:null},
-       error:authError?{message:"PRIVATE_AUTH_DIAGNOSTIC"}:null};
+       error:missingSession?{name:"AuthSessionMissingError"}:authError?{message:"PRIVATE_AUTH_DIAGNOSTIC"}:null};
     }},
     from:table=>{calls.push("SESSION_QUERY:"+table);throw Error("UNEXPECTED_SESSION_SQL")}
   })},
@@ -67,5 +67,13 @@ for(const route of routes){
   assert.ok([500,503].includes(r.status));assert.deepEqual(f.calls,["AUTH"]);
   assert.equal(r.cache,"private, no-store");
   assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_AUTH_EXCEPTION/);
+ });
+}
+
+for(const route of routes){
+ test(route.path+": Supabase missing-session error must deny stale user with 401",async()=>{
+  const f=fixture(route,{missingSession:true}),r=await f.run();
+  assert.equal(r.status,401);assert.equal(r.cache,"private, no-store");
+  assert.deepEqual(f.calls,["AUTH"]);
  });
 }

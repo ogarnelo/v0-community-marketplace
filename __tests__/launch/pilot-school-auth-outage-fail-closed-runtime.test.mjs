@@ -5,14 +5,14 @@ import {createRequire} from "node:module";
 import vm from "node:vm";
 const ts=createRequire(import.meta.url)("typescript");
 const src=readFileSync("app/api/marketplace/my-school/route.ts","utf8");
-function harness({guest=false,authError=false,authThrows=false,createThrows=false,profileThrows=false}={}){
+function harness({guest=false,authError=false,missingSession=false,authThrows=false,createThrows=false,profileThrows=false}={}){
  const operations=[],uid="11111111-1111-4111-8111-111111111111";
  const db={
   auth:{getUser:async()=>{
    operations.push("AUTH");
    if(authThrows)throw Error("PRIVATE_AUTH_UNAVAILABLE");
    return {data:{user:guest?null:{id:uid}},
-     error:authError?{message:"PRIVATE_AUTH_FAILURE"}:null};
+     error:missingSession?{name:"AuthSessionMissingError"}:authError?{message:"PRIVATE_AUTH_FAILURE"}:null};
   }},
   from:table=>{
    operations.push("READ:"+table);
@@ -72,4 +72,11 @@ test("unexpected profile failures emit only a fixed internal log token",async()=
  const f=harness({profileThrows:true}),r=await f.request();
  assert.equal(r.status,503);
  assert.deepEqual(f.logs,[["marketplace_school_auth_or_scope_read_failed"]]);
+});
+
+test("missing Supabase session is a guest 401 even if stale user data accompanies it",async()=>{
+ const f=harness({missingSession:true}),r=await f.request();
+ assert.equal(r.status,401);assert.equal(r.cache,"private, no-store");
+ assert.deepEqual(f.operations,["CLIENT","AUTH"]);
+ assert.equal(f.operations.includes("ADMIN"),false);
 });

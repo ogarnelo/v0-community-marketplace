@@ -17,7 +17,14 @@ export async function POST(request: Request) {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     // An Auth outage is not proof of a session, even if stale user data is
     // returned alongside an error. No privileged message read may follow it.
-    if (authError) return privateJson({ error: "No se pudo comprobar tu sesión." }, 503);
+    if (authError) {
+      const missingSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: missingSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        missingSession ? 401 : 503
+      );
+    }
     const user = authData?.user ?? null;
     if (!user) return privateJson({ error: "Debes iniciar sesión." }, 401);
 
