@@ -1,0 +1,7 @@
+# PR582 · QR escolar privado y atribución de adquisición sin identidad residual
+
+16/11/2026. **QR escolar GET** `/api/school/share-qr`: comprueba error Auth antes de roles o crear cliente privilegiado (401 sesión ausente, 503 proveedor caído), error de rol=>503, rol ausente=>403. Las respuestas SVG y PNG de un administrador autorizado usan `Cache-Control: private, no-store` y generación dinámica; no se conserva la anterior caché privada de 300 segundos que podía dejar QR obsoletos tras revocación del rol o desactivación de centro.
+
+**Atribución POST** `/api/analytics/acquisition`: Auth caída no equivale a invitado y no debe usar el user residual. Si el proveedor falla, 503 antes de crear el cliente de servicio. Los eventos de conversión `listing_published` y `school_joined` sólo crean cliente admin tras sesión válida y UUID. Los eventos públicos `landing` siguen permitidos para visitantes cuando Auth declara ausencia legítima de sesión y existe fuente; si no hay fuente no se instancia servicio admin. Todas las respuestas de API llevan no-store privado.
+
+**22 pruebas runtime**: 8 fallos de autorización QR, 2 rutas de generación positiva de SVG/PNG, 4 escenarios Auth caído por tipo de evento, 6 negativas de sesión en conversiones, 2 controles de ausencia de fuente o invitado vinculado, 2 eventos positivos de conversión/landing (total **24**). Revisar conteo real antes de cerrar. Pruebas con servicios simulados, sin escribirse datos reales, no tocar permisos/Storage ni activar piloto. La compilación CI verificará formato y contratos previos.

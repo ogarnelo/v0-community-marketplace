@@ -10,6 +10,12 @@ import { recordAttributedConversion } from "@/lib/growth/server-attribution";
 
 export const dynamic = "force-dynamic";
 
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 const allowedEventTypes = new Set([
   "landing",
   "attributed_user",
@@ -33,10 +39,10 @@ export async function POST(request: Request) {
     if (origin) {
       try {
         if (new URL(origin).host !== requestUrl.host) {
-          return NextResponse.json({ ok: false }, { status: 403 });
+          return privateJson({ ok: false }, { status: 403 });
         }
       } catch {
-        return NextResponse.json({ ok: false }, { status: 403 });
+        return privateJson({ ok: false }, { status: 403 });
       }
     }
 
@@ -47,35 +53,39 @@ export async function POST(request: Request) {
         : null;
 
     if (!eventType) {
-      return NextResponse.json({ ok: false, error: "invalid_event" }, { status: 400 });
+      return privateJson({ ok: false, error: "invalid_event" }, { status: 400 });
     }
 
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const admin = createAdminClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const missingSession = authError?.name === "AuthSessionMissingError" ||
+      authError?.code === "session_not_found";
+    if (authError && !missingSession) {
+      // Do not use a residual identity or silently treat an Auth outage as guest traffic.
+      return privateJson({ ok: false, error: "auth_unavailable" }, { status: 503 });
+    }
+    const user = authError ? null : authData?.user ?? null;
 
     if (eventType === "listing_published" || eventType === "school_joined") {
       const entityId = cleanUuid(payload?.entityId);
       if (!user) {
-        return NextResponse.json({ ok: false, error: "auth_required" }, { status: 401 });
+        return privateJson({ ok: false, error: "auth_required" }, { status: 401 });
       }
       if (!entityId) {
-        return NextResponse.json({ ok: false, error: "invalid_entity" }, { status: 400 });
+        return privateJson({ ok: false, error: "invalid_entity" }, { status: 400 });
       }
 
+      const admin = createAdminClient();
       try {
         const recorded = await recordAttributedConversion(admin, {
           userId: user.id,
           eventType,
           entityId,
         });
-        return NextResponse.json({ ok: true, recorded });
+        return privateJson({ ok: true, recorded });
       } catch (error) {
-        console.error("No se pudo registrar la conversión atribuida:", error);
-        return NextResponse.json({ ok: true, recorded: false });
+        console.error("growth_conversion_record_failed");
+        return privateJson({ ok: true, recorded: false });
       }
     }
 
@@ -84,7 +94,7 @@ export async function POST(request: Request) {
       cleanReferrerHost(payload?.referrerHost);
 
     if (!source) {
-      return NextResponse.json({ ok: true, skipped: true, reason: "missing_source" });
+      return privateJson({ ok: true, skipped: true, reason: "missing_source" });
     }
 
     const row = {
@@ -99,11 +109,12 @@ export async function POST(request: Request) {
       referrer_host: cleanReferrerHost(payload?.referrerHost),
     };
 
-    if (eventType === "attributed_user") {
-      if (!user) {
-        return NextResponse.json({ ok: true, linked: false });
-      }
+    if (eventType === "attributed_user" && !user) {
+      return privateJson({ ok: true, linked: false });
+    }
 
+    const admin = createAdminClient();
+    if (eventType === "attributed_user") {
       const { data: existing } = await admin
         .from("growth_acquisition_events")
         .select("id")
@@ -112,27 +123,27 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (existing?.id) {
-        return NextResponse.json({ ok: true, linked: true, existing: true });
+        return privateJson({ ok: true, linked: true, existing: true });
       }
     }
 
     const { error } = await admin.from("growth_acquisition_events").insert(row);
 
     if (error?.code === "23505" && eventType === "attributed_user") {
-      return NextResponse.json({ ok: true, linked: true, existing: true });
+      return privateJson({ ok: true, linked: true, existing: true });
     }
 
     if (error) {
-      console.error("Error guardando atribución de crecimiento:", error);
-      return NextResponse.json({ ok: true, skipped: true });
+      console.error("growth_event_write_failed");
+      return privateJson({ ok: true, skipped: true });
     }
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       linked: eventType === "attributed_user" ? Boolean(user) : undefined,
     });
   } catch (error) {
-    console.error("Error inesperado en atribución de crecimiento:", error);
-    return NextResponse.json({ ok: true, skipped: true });
+    console.error("growth_attribution_unexpected_failure");
+    return privateJson({ ok: true, skipped: true });
   }
 }

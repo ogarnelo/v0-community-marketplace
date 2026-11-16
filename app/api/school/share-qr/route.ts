@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,12 +10,19 @@ import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const absent = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return new NextResponse(
+        absent ? "No autenticado." : "No se pudo comprobar tu sesión.",
+        { status: absent ? 401 : 503, headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return new NextResponse("No autenticado.", { status: 401 });
+      return new NextResponse("No autenticado.", { status: 401, headers: { "Cache-Control": "private, no-store" } });
     }
 
     const { data: roles, error: roleError } = await supabase
@@ -21,14 +30,14 @@ export async function GET(request: Request) {
       .select("role, school_id")
       .eq("user_id", user.id);
 
-    if (roleError) throw roleError;
+    if (roleError) return new NextResponse("No se pudo comprobar tu permiso.", { status: 503, headers: { "Cache-Control": "private, no-store" } });
 
     const schoolRole = (roles || []).find(
       (role) => role.role === "school_admin" && role.school_id
     );
 
     if (!schoolRole?.school_id) {
-      return new NextResponse("No autorizado.", { status: 403 });
+      return new NextResponse("No autorizado.", { status: 403, headers: { "Cache-Control": "private, no-store" } });
     }
 
     // Do not generate new share codes/QR links for deactivated or missing
@@ -84,7 +93,7 @@ export async function GET(request: Request) {
         status: 200,
         headers: {
           "Content-Type": "image/png",
-          "Cache-Control": "private, max-age=300",
+          "Cache-Control": "private, no-store",
           "Content-Disposition": `${download ? "attachment" : "inline"}; filename="wetudy-centro-qr.png"`,
         },
       });
@@ -105,12 +114,12 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "private, no-store",
         "Content-Disposition": 'inline; filename="wetudy-centro-qr.svg"',
       },
     });
   } catch (error) {
     console.error("Error generando QR del centro:", error);
-    return new NextResponse("No se pudo generar el QR.", { status: 500 });
+    return new NextResponse("No se pudo generar el QR.", { status: 500, headers: { "Cache-Control": "private, no-store" } });
   }
 }
