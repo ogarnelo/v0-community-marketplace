@@ -6,6 +6,20 @@ import { getOrCreateConversation, touchConversation } from "@/lib/services/conve
 
 export type DonationAction = "accept" | "reject";
 
+export class DonationRequestConflictError extends Error {
+  constructor() {
+    super("Ya has solicitado esta donación.");
+    this.name = "DonationRequestConflictError";
+  }
+}
+
+export class DonationRequestReconciliationError extends Error {
+  constructor() {
+    super("La solicitud se guardó, pero requiere conciliación.");
+    this.name = "DonationRequestReconciliationError";
+  }
+}
+
 export async function requestDonationFlow(params: {
   supabase: SupabaseClient;
   listingId: string;
@@ -13,107 +27,72 @@ export async function requestDonationFlow(params: {
   note?: string | null;
 }) {
   const { supabase, listingId, actorUserId, note } = params;
-
-  const { data: listing, error: listingError } = await supabase
-    .from("listings")
+  const { data: listing, error: listingError } = await supabase.from("listings")
     .select("id, title, seller_id, school_id, status, type, listing_type")
-    .eq("id", listingId)
-    .maybeSingle();
+    .eq("id", listingId).maybeSingle();
+  if (listingError) throw new Error("No se pudo comprobar el anuncio.");
+  if (!listing) throw new Error("El anuncio no existe.");
+  const check = canRequestDonation({ listing, currentUserId: actorUserId });
+  if (!check.ok) throw new Error(check.error);
 
-  if (listingError || !listing) {
-    throw new Error("El anuncio no existe.");
-  }
-
-  const donationCheck = canRequestDonation({ listing, currentUserId: actorUserId });
-  if (!donationCheck.ok) {
-    throw new Error(donationCheck.error);
-  }
-
-  const { data: existingRequest, error: existingRequestError } = await supabase
-    .from("donation_requests")
-    .select("id")
-    .eq("listing_id", listingId)
-    .eq("requester_id", actorUserId)
-    .eq("status", "pending")
-    .maybeSingle();
-
-  if (existingRequestError) {
-    throw new Error(existingRequestError.message || "No se pudo comprobar la solicitud existente.");
-  }
-
-  if (existingRequest) {
-    throw new Error("Ya has solicitado esta donación.");
-  }
-
-  const conversationId = await getOrCreateConversation({
-    supabase,
-    listingId,
-    buyerId: actorUserId,
-    sellerId: listing.seller_id,
-  });
+  const { data: existing, error: existingError } = await supabase
+    .from("donation_requests").select("id")
+    .eq("listing_id", listingId).eq("requester_id", actorUserId)
+    .eq("status", "pending").maybeSingle();
+  if (existingError) throw new Error("No se pudo comprobar la solicitud anterior.");
+  if (existing) throw new DonationRequestConflictError();
 
   const now = new Date().toISOString();
-
-  const { data: donationRequest, error: donationRequestError } = await supabase
+  const { data: donationRequest, error: insertError } = await supabase
     .from("donation_requests")
     .insert({
-      listing_id: listingId,
-      requester_id: actorUserId,
-      status: "pending",
-      note: note || null,
-      school_id: listing.school_id || null,
-      assigned_to_requester_id: null,
-      approved_by_admin_id: null,
+      listing_id: listingId, requester_id: actorUserId, status: "pending",
+      note: note || null, school_id: listing.school_id || null,
+      assigned_to_requester_id: null, approved_by_admin_id: null,
       updated_at: now,
     })
-    .select("id, listing_id, requester_id, school_id, status, note")
-    .single();
+    .select("id, listing_id, requester_id, school_id, status, note").single();
+  if (insertError || !donationRequest) throw new Error("No se pudo crear la solicitud.");
 
-  if (donationRequestError || !donationRequest) {
-    throw new Error(donationRequestError?.message || "No se pudo crear la solicitud.");
+  // The request has committed. Any later error requires reconciliation;
+  // retries could create duplicate events, chats or notifications.
+  try {
+    const conversationId = await getOrCreateConversation({
+      supabase, listingId, buyerId: actorUserId, sellerId: listing.seller_id,
+    });
+    const { data: event, error: eventError } = await supabase
+      .from("donation_request_events").insert({
+        request_id: donationRequest.id, conversation_id: conversationId,
+        actor_id: actorUserId, event_type: "request_created",
+        note: note || null, status_snapshot: "pending",
+      }).select("id").single();
+    if (eventError || !event) throw new Error("donation_event_not_confirmed");
+    const { error: messageError } = await supabase.from("messages").insert({
+      conversation_id: conversationId, sender_id: actorUserId,
+      body: buildDonationChatBody({
+        eventId: event.id, requestId: donationRequest.id,
+        eventType: "request_created", status: "pending", note: note || null,
+      }),
+    });
+    if (messageError) throw new Error("donation_message_not_confirmed");
+    const { error: touchError } = await supabase.from("conversations")
+      .update({ updated_at: now }).eq("id", conversationId);
+    if (touchError) throw new Error("donation_chat_touch_not_confirmed");
+    const { error: notificationError } = await createNotification(supabase, {
+      user_id: listing.seller_id, kind: "donation_requested",
+      title: "Han solicitado tu donación",
+      body: listing.title || "Tienes una nueva solicitud de donación.",
+      href: "/messages/" + conversationId,
+      metadata: {
+        listing_id: listingId, donation_request_id: donationRequest.id,
+        conversation_id: conversationId,
+      },
+    });
+    if (notificationError) throw new Error("donation_notification_not_confirmed");
+    return { requestId: donationRequest.id, conversationId };
+  } catch {
+    throw new DonationRequestReconciliationError();
   }
-
-  const { data: event, error: eventError } = await supabase
-    .from("donation_request_events")
-    .insert({
-      request_id: donationRequest.id,
-      conversation_id: conversationId,
-      actor_id: actorUserId,
-      event_type: "request_created",
-      note: note || null,
-      status_snapshot: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (eventError || !event) {
-    throw new Error(eventError?.message || "No se pudo registrar el historial de la solicitud.");
-  }
-
-  await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    sender_id: actorUserId,
-    body: buildDonationChatBody({
-      eventId: event.id,
-      requestId: donationRequest.id,
-      eventType: "request_created",
-      status: "pending",
-      note: note || null,
-    }),
-  });
-
-  await touchConversation(supabase, conversationId, now);
-
-  await createNotification(supabase, {
-    user_id: listing.seller_id,
-    kind: "donation_requested",
-    title: "Han solicitado tu donación",
-    body: listing.title || "Tienes una nueva solicitud de donación.",
-    href: `/messages/${conversationId}`,
-    metadata: { listing_id: listingId, donation_request_id: donationRequest.id, conversation_id: conversationId },
-  });
-
-  return { requestId: donationRequest.id, conversationId };
 }
 
 export class DonationDecisionConflictError extends Error {
