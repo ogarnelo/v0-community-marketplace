@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   }
   const user = authData?.user ?? null;
   if (!user) return respond({ error: "Inicia sesión para buscar centros." }, 401);
-  if (!user.email_confirmed_at) {
+  if (!user?.email_confirmed_at) {
     return respond({ error: "Confirma tu cuenta para buscar centros." }, 401);
   }
 
