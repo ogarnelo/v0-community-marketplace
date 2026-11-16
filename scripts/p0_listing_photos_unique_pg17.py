@@ -34,7 +34,7 @@ try:
     assert run(local,"SELECT count(*) FROM public.listing_photos")==before
     assert run(local,"SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='listing_photos_listing_url_unique'")=="0"
     run(local,"DELETE FROM public.listing_photos WHERE id='b'")
-    run(local,"DO $ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; END $")
+    run(local,"DO "+chr(36)*2+" BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; END "+chr(36)*2)
     run(local,"GRANT SELECT,INSERT,UPDATE,DELETE ON public.listing_photos TO authenticated")
     grants_before=run(local,"SELECT count(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='listing_photos' AND grantee='authenticated'")
     run(local,path=script)
