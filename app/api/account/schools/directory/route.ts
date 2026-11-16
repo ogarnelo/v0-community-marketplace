@@ -25,10 +25,29 @@ function respond(payload: unknown, status = 200) {
 // community membership. Directory records are discoverable only by signed-in,
 // email-confirmed families selecting a school for their own student context.
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  let authData;
+  let authError;
+  try {
+    const supabase = await createClient();
+    const result = await supabase.auth.getUser();
+    authData = result.data;
+    authError = result.error;
+  } catch {
+    console.error("school_directory_auth_client_unavailable");
+    return respond({ error: "No se pudo comprobar tu sesión." }, 503);
+  }
 
-  if (authError || !user?.email_confirmed_at) {
+  if (authError) {
+    const guest = authError.name === "AuthSessionMissingError" ||
+      authError.code === "session_not_found";
+    return respond(
+      { error: guest ? "Inicia sesión para buscar centros." : "No se pudo comprobar tu sesión." },
+      guest ? 401 : 503
+    );
+  }
+  const user = authData?.user ?? null;
+  if (!user) return respond({ error: "Inicia sesión para buscar centros." }, 401);
+  if (!user.email_confirmed_at) {
     return respond({ error: "Confirma tu cuenta para buscar centros." }, 401);
   }
 
@@ -75,8 +94,8 @@ export async function GET(request: Request) {
 
     if (error) throw error;
     return respond({ centres: data || [], limit: MAX_RESULTS });
-  } catch (error) {
-    console.error("Error buscando el directorio escolar para contexto educativo", error);
+  } catch {
+    console.error("school_directory_lookup_failed");
     return respond({ error: "No se pudo buscar el centro. Vuelve a intentarlo." }, 503);
   }
 }
