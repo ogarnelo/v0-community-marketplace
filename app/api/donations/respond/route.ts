@@ -49,7 +49,17 @@ export async function POST(request: Request) {
     });
 
     return privateJson({ ok: true, ...result });
-  } catch {
+  } catch (error: unknown) {
+    const name = error && typeof error === "object" && "name" in error ? error.name : null;
+    if (name === "DonationDecisionConflictError") {
+      return privateJson({ error: "Esta solicitud ya no admite cambios." }, { status: 409 });
+    }
+    if (name === "DonationDecisionReconciliationError") {
+      return privateJson(
+        { error: "La decisión se guardó, pero hay operaciones pendientes de conciliación." },
+        { status: 503 }
+      );
+    }
     console.error("donation_response_failed");
     return privateJson({ error: "No se pudo responder a la solicitud." }, { status: 500 });
   }
