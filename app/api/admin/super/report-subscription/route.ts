@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeSuperAdminRange } from "@/lib/reports/super-admin-report";
@@ -19,12 +29,19 @@ function nextSendAt(frequencyDays: number) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const guest = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: guest ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: guest ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const { data: roles, error: roleError } = await supabase
@@ -34,8 +51,10 @@ export async function POST(request: Request) {
       .eq("role", "super_admin")
       .limit(1);
 
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+
     if (roleError || !roles?.length) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+      return privateJson({ error: "No autorizado." }, { status: 403 });
     }
 
     const body = (await request.json().catch(() => null)) as
@@ -57,11 +76,11 @@ export async function POST(request: Request) {
       : "both";
 
     if (!isEmail(email)) {
-      return NextResponse.json({ error: "Introduce un email válido." }, { status: 400 });
+      return privateJson({ error: "Introduce un email válido." }, { status: 400 });
     }
 
     if (!ALLOWED_FREQUENCIES.has(frequencyDays)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "La frecuencia debe ser de 7, 15 o 30 días." },
         { status: 400 }
       );
@@ -86,17 +105,14 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       message: enabled
         ? `Informe activado cada ${frequencyDays} días.`
         : "Envío periódico desactivado.",
     });
-  } catch (error: any) {
-    console.error("Error guardando suscripción global:", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo guardar la configuración." },
-      { status: 500 }
-    );
+  } catch {
+    console.error("super_admin_report_subscription_failed");
+    return privateJson({ error: "No se pudo guardar la configuración." }, { status: 500 });
   }
 }

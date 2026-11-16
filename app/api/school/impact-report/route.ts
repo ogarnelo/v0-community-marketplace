@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import {
   dashboardRange,
@@ -19,12 +29,19 @@ function safeFilename(value: string) {
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const guest = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: guest ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: guest ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const { data: roles, error: roleError } = await supabase
@@ -32,7 +49,7 @@ export async function GET(request: Request) {
       .select("role, school_id")
       .eq("user_id", user.id);
 
-    if (roleError) throw roleError;
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
 
     const url = new URL(request.url);
     const rawRange = url.searchParams.get("range");
@@ -48,7 +65,7 @@ export async function GET(request: Request) {
       schoolAdminRole?.school_id || (isSuperAdmin ? requestedSchoolId : null);
 
     if (!schoolId) {
-      return NextResponse.json({ error: "No tienes un centro administrable." }, { status: 403 });
+      return privateJson({ error: "No tienes un centro administrable." }, { status: 403 });
     }
 
     const window = dashboardRange(range);
@@ -71,11 +88,8 @@ export async function GET(request: Request) {
         "Cache-Control": "private, no-store",
       },
     });
-  } catch (error: any) {
-    console.error("Error generando PDF de impacto:", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo generar el PDF." },
-      { status: 500 }
-    );
+  } catch {
+    console.error("school_impact_pdf_failed");
+    return privateJson({ error: "No se pudo generar el PDF." }, { status: 500 });
   }
 }

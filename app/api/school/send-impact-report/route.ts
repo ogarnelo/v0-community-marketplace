@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { sendMonthlySchoolImpactEmail } from "@/lib/emails/school-impact-report-email";
@@ -15,12 +25,19 @@ function isEmail(value: string) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const guest = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: guest ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: guest ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const { data: roles, error: roleError } = await supabase
@@ -28,14 +45,14 @@ export async function POST(request: Request) {
       .select("role, school_id")
       .eq("user_id", user.id);
 
-    if (roleError) throw roleError;
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
 
     const schoolRole = (roles || []).find(
       (role) => role.role === "school_admin" && role.school_id
     );
 
     if (!schoolRole?.school_id) {
-      return NextResponse.json(
+      return privateJson(
         { error: "No tienes un centro administrable." },
         { status: 403 }
       );
@@ -48,7 +65,7 @@ export async function POST(request: Request) {
     const email = (body?.email || user.email || "").trim().toLowerCase();
 
     if (!isEmail(email)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Introduce un email válido." },
         { status: 400 }
       );
@@ -64,7 +81,7 @@ export async function POST(request: Request) {
     if (schoolError) throw schoolError;
 
     if (!school || school.is_active === false) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El centro está desactivado." },
         { status: 400 }
       );
@@ -133,17 +150,14 @@ export async function POST(request: Request) {
 
     if (subscriptionWriteError) throw subscriptionWriteError;
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       period: period.label,
       periodKey: period.key,
       message: `Informe de ${period.label} enviado a ${email}.`,
     });
-  } catch (error: any) {
-    console.error("Error enviando informe de impacto manual:", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo enviar el informe." },
-      { status: 500 }
-    );
+  } catch {
+    console.error("school_impact_manual_send_failed");
+    return privateJson({ error: "No se pudo enviar el informe." }, { status: 500 });
   }
 }
