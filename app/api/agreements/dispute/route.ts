@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDemoListing } from "@/lib/seo/demo-listing";
@@ -18,12 +26,19 @@ function normalizeRpcRow<T>(value: T | T[] | null): T | null {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const missingSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: missingSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        { status: missingSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -35,16 +50,16 @@ export async function POST(request: Request) {
       typeof body?.details === "string" ? body.details.trim().slice(0, 1000) : "";
 
     if (!agreementId) {
-      return NextResponse.json({ error: "Falta el acuerdo." }, { status: 400 });
+      return privateJson({ error: "Falta el acuerdo." }, { status: 400 });
     }
 
     const reasonLabel = INCIDENT_REASON_LABELS[reason];
     if (!reasonLabel) {
-      return NextResponse.json({ error: "Selecciona un motivo para la incidencia." }, { status: 400 });
+      return privateJson({ error: "Selecciona un motivo para la incidencia." }, { status: 400 });
     }
 
     if (details.length < 10) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Explica brevemente qué ha ocurrido para que podamos revisarlo." },
         { status: 400 }
       );
@@ -62,10 +77,10 @@ export async function POST(request: Request) {
       throw agreementLookupError;
     }
     if (!currentAgreement) {
-      return NextResponse.json({ error: "No se encontró el acuerdo." }, { status: 404 });
+      return privateJson({ error: "No se encontró el acuerdo." }, { status: 404 });
     }
     if (currentAgreement.buyer_id !== user.id && currentAgreement.seller_id !== user.id) {
-      return NextResponse.json({ error: "No puedes reportar este acuerdo." }, { status: 403 });
+      return privateJson({ error: "No puedes reportar este acuerdo." }, { status: 403 });
     }
 
     const { data: reportListing, error: listingLookupError } = await admin
@@ -74,13 +89,13 @@ export async function POST(request: Request) {
       .eq("id", currentAgreement.listing_id)
       .maybeSingle();
     if (listingLookupError || !reportListing) {
-      return NextResponse.json(
+      return privateJson(
         { error: "No se pudo verificar el anuncio. Inténtalo de nuevo." },
         { status: 503 }
       );
     }
     if (isDemoListing(reportListing)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Los acuerdos de demostración no generan incidencias reales." },
         { status: 409 }
       );
@@ -97,13 +112,13 @@ export async function POST(request: Request) {
       const lower = message.toLowerCase();
 
       if (lower.includes("agreement not found")) {
-        return NextResponse.json({ error: "No se encontró el acuerdo." }, { status: 404 });
+        return privateJson({ error: "No se encontró el acuerdo." }, { status: 404 });
       }
       if (lower.includes("not allowed")) {
-        return NextResponse.json({ error: "No puedes reportar este acuerdo." }, { status: 403 });
+        return privateJson({ error: "No puedes reportar este acuerdo." }, { status: 403 });
       }
       if (lower.includes("only confirmed agreements")) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Solo puedes abrir una incidencia del acuerdo después de confirmarlo." },
           { status: 409 }
         );
@@ -113,11 +128,9 @@ export async function POST(request: Request) {
     }
 
     const agreement = normalizeRpcRow<any>(data);
-    return NextResponse.json({ ok: true, agreement });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo reportar el acuerdo." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, agreement });
+  } catch {
+    console.error("agreement_dispute_failed");
+    return privateJson({ error: "No se pudo reportar el acuerdo." }, { status: 500 });
   }
 }

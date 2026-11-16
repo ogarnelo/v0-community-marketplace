@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAgreementProposedEmail } from "@/lib/emails/mvp-event-emails";
@@ -13,12 +21,19 @@ function normalizeRpcRow<T>(value: T | T[] | null): T | null {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const missingSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: missingSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        { status: missingSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -32,11 +47,11 @@ export async function POST(request: Request) {
         : Number(body.amount);
 
     if (amount != null && (!Number.isFinite(amount) || amount <= 0)) {
-      return NextResponse.json({ error: "El precio propuesto no es válido." }, { status: 400 });
+      return privateJson({ error: "El precio propuesto no es válido." }, { status: 400 });
     }
 
     if (!conversationId) {
-      return NextResponse.json({ error: "Falta la conversación." }, { status: 400 });
+      return privateJson({ error: "Falta la conversación." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -52,13 +67,13 @@ export async function POST(request: Request) {
       const lower = message.toLowerCase();
 
       if (lower.includes("conversation not found") || lower.includes("listing not found")) {
-        return NextResponse.json({ error: "No se encontró la conversación o el anuncio." }, { status: 404 });
+        return privateJson({ error: "No se encontró la conversación o el anuncio." }, { status: 404 });
       }
       if (lower.includes("not allowed") || lower.includes("seller mismatch")) {
-        return NextResponse.json({ error: "No puedes gestionar este acuerdo." }, { status: 403 });
+        return privateJson({ error: "No puedes gestionar este acuerdo." }, { status: 403 });
       }
       if (lower.includes("does not accept")) {
-        return NextResponse.json({ error: "Este anuncio ya no admite acuerdos nuevos." }, { status: 409 });
+        return privateJson({ error: "Este anuncio ya no admite acuerdos nuevos." }, { status: 409 });
       }
 
       throw error;
@@ -66,7 +81,7 @@ export async function POST(request: Request) {
 
     const agreement = normalizeRpcRow<any>(data);
     if (!agreement) {
-      return NextResponse.json({ error: "No se pudo crear el acuerdo." }, { status: 500 });
+      return privateJson({ error: "No se pudo crear el acuerdo." }, { status: 500 });
     }
 
     try {
@@ -159,11 +174,9 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, agreement });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo proponer el acuerdo." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, agreement });
+  } catch {
+    console.error("agreement_propose_failed");
+    return privateJson({ error: "No se pudo proponer el acuerdo." }, { status: 500 });
   }
 }
