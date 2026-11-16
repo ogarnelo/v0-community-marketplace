@@ -6,6 +6,14 @@ import { getOrCreateConversation, touchConversation } from "@/lib/services/conve
 
 export type OfferAction = "accept" | "reject" | "counter";
 
+export class OfferCreationConflictError extends Error {
+  constructor() { super("Otra negociación se ha iniciado. Actualiza el anuncio."); this.name = "OfferCreationConflictError"; }
+}
+export class OfferSideEffectReconciliationError extends Error {
+  constructor() { super("La oferta se guardó, pero requiere conciliar el chat o los avisos."); this.name = "OfferSideEffectReconciliationError"; }
+}
+
+
 export async function createOfferFlow(params: {
   supabase: SupabaseClient;
   listingId: string;
@@ -39,15 +47,15 @@ export async function createOfferFlow(params: {
     .maybeSingle();
 
   if (existingOfferError) {
-    throw new Error(existingOfferError.message || "No se pudo comprobar la negociación activa.");
+    throw new Error("No se pudo comprobar la negociación activa.");
   }
 
   if (existingOffer) {
-    return {
-      offerId: existingOffer.id,
-      conversationId,
-      alreadyExists: true,
-    };
+    // Reuse the thread without reading an uninitialized conversationId.
+    const existingConversationId = await getOrCreateConversation({
+      supabase, listingId, buyerId: actorUserId, sellerId: listing.seller_id,
+    });
+    return { offerId: existingOffer.id, conversationId: existingConversationId, alreadyExists: true };
   }
 
   const now = new Date().toISOString();
@@ -72,63 +80,61 @@ export async function createOfferFlow(params: {
     )
     .single();
 
-  if (offerError || !offer) {
-    throw new Error(offerError?.message || "No se pudo crear la oferta.");
-  }
+  if (offerError?.code === "23505") throw new OfferCreationConflictError();
+  if (offerError || !offer) throw new Error("No se pudo crear la oferta.");
 
-  const conversationId = await getOrCreateConversation({
-    supabase,
-    listingId,
-    buyerId: actorUserId,
-    sellerId: listing.seller_id,
-  });
+  // The offer has already been inserted. A failure now is partial success,
+  // not a safe reason to let the client automatically repeat an INSERT.
+  try {
+    const conversationId = await getOrCreateConversation({
+      supabase, listingId, buyerId: actorUserId, sellerId: listing.seller_id,
+    });
 
-  const { data: event, error: eventError } = await supabase
-    .from("listing_offer_events")
-    .insert({
-      offer_id: offer.id,
+    const { data: event, error: eventError } = await supabase
+      .from("listing_offer_events")
+      .insert({
+        offer_id: offer.id,
+        conversation_id: conversationId,
+        actor_id: actorUserId,
+        actor_role: "buyer",
+        event_type: "offer_created",
+        amount: offeredPrice,
+        round_number: 1,
+        status_snapshot: "pending",
+      })
+      .select("id").single();
+    if (eventError || !event) throw new Error("offer_event_write_failed");
+
+    const { error: messageError } = await supabase.from("messages").insert({
       conversation_id: conversationId,
-      actor_id: actorUserId,
-      actor_role: "buyer",
-      event_type: "offer_created",
-      amount: offeredPrice,
-      round_number: 1,
-      status_snapshot: "pending",
-    })
-    .select("id")
-    .single();
+      sender_id: actorUserId,
+      body: buildOfferChatBody({
+        eventId: event.id, offerId: offer.id, eventType: "offer_created",
+        actorRole: "buyer", amount: offeredPrice,
+        round: 1, status: "pending", currentActor: "seller",
+      }),
+    });
+    if (messageError) throw new Error("offer_message_write_failed");
 
-  if (eventError || !event) {
-    throw new Error(eventError?.message || "No se pudo registrar el historial de la oferta.");
+    const { data: touched, error: touchError } = await supabase
+      .from("conversations").update({ updated_at: now })
+      .eq("id", conversationId).select("id").maybeSingle();
+    if (touchError || !touched) throw new Error("offer_conversation_touch_failed");
+
+    const { error: notificationError } = await createNotification(supabase, {
+      user_id: listing.seller_id,
+      kind: "offer_received",
+      title: "Has recibido una oferta",
+      body: `${listing.title || "Un anuncio"} · ${offeredPrice.toFixed(2)} €`,
+      href: `/messages/${conversationId}`,
+      metadata: { listing_id: listingId, offer_id: offer.id, conversation_id: conversationId },
+    });
+    if (notificationError) throw new Error("offer_notification_failed");
+
+    return { offerId: offer.id, conversationId };
+  } catch {
+    throw new OfferSideEffectReconciliationError();
   }
-
-  await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    sender_id: actorUserId,
-    body: buildOfferChatBody({
-      eventId: event.id,
-      offerId: offer.id,
-      eventType: "offer_created",
-      actorRole: "buyer",
-      amount: offeredPrice,
-      round: 1,
-      status: "pending",
-      currentActor: "seller",
-    }),
-  });
-
-  await touchConversation(supabase, conversationId, now);
-
-  await createNotification(supabase, {
-    user_id: listing.seller_id,
-    kind: "offer_received",
-    title: "Has recibido una oferta",
-    body: `${listing.title || "Un anuncio"} · ${offeredPrice.toFixed(2)} €`,
-    href: `/messages/${conversationId}`,
-    metadata: { listing_id: listingId, offer_id: offer.id, conversation_id: conversationId },
-  });
-
-  return { offerId: offer.id, conversationId };
 }
 
 export async function respondToOfferFlow(params: {
