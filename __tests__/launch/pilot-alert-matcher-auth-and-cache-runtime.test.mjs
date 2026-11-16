@@ -7,12 +7,12 @@ const ts=createRequire(import.meta.url)("typescript");
 const source=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
 const uid="11111111-1111-4111-8111-111111111111";
 const listing="22222222-2222-4222-8222-222222222222";
-function handler({user=true,authError=false,authThrows=false,signed=false,workerHeader=true,listingId=listing}={}){
+function handler({user=true,authError=false,missingSession=false,authThrows=false,signed=false,workerHeader=true,listingId=listing}={}){
  const actions=[];
  const fakeClient={auth:{getUser:async()=>{
   actions.push("AUTH_GET_USER");
   if(authThrows)throw Error("PRIVATE_AUTH_EXCEPTION");
-  return {data:{user:user?{id:uid}:null},error:authError?{message:"PRIVATE_AUTH_DIAGNOSTIC"}:null};
+  return {data:{user:user?{id:uid}:null},error:missingSession?{name:"AuthSessionMissingError"}:authError?{message:"PRIVATE_AUTH_DIAGNOSTIC"}:null};
  }}};
  const modules={
   "next/server":{NextResponse:{json:(payload,o={})=>
@@ -83,4 +83,10 @@ test("matcher emits private no-store for its complete response family",()=>{
  const withoutHelper=source.replace(/function privateJson\([\s\S]*?\n\}/,"");
  const remaining=withoutHelper.match(/return NextResponse\.json\(/g)||[];
  assert.equal(remaining.length,1,"Only existing fixed diagnostic catch may use NextResponse.json directly");
+});
+
+test("missing-session Auth error is a private 401 before any privileged alert lookup",async()=>{
+ const f=handler({missingSession:true}),r=await f.run();
+ assert.equal(r.status,401);assert.equal(r.cache,"private, no-store");
+ assert.deepEqual(f.actions,["AUTH_GET_USER"]);
 });
