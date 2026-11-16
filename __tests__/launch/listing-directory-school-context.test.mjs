@@ -79,7 +79,8 @@ test("empty school feed always explains that other schools remain available", ()
 
 test("school feed is loaded in authenticated, paginated chunks rather than filtering the latest 60 global cards", () => {
   assert.match(schoolFeedRoute, /supabase\.auth\.getUser\(\)/);
-  assert.match(schoolFeedRoute, /if \(authError \|\| !user\)/);
+  assert.match(schoolFeedRoute, /if \(authError\)/);
+  assert.match(schoolFeedRoute, /if \(!user\)/);
   assert.match(schoolFeedRoute, /PAGE_SIZE = 60/);
   assert.match(schoolFeedRoute, /\.range\(offset, offset \+ PAGE_SIZE\)/);
   assert.match(schoolFeedRoute, /applyMarketplaceFeedFilters\(/);

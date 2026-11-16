@@ -18,7 +18,9 @@ test("no SSR listing photo enrichment relies on anon or authenticated RLS",()=>{
 });
 test("school photo query follows verified login and school filtering",()=>{
  const s=readFileSync("app/api/marketplace/my-school/route.ts","utf8");
- const auth=s.indexOf("if (authError || !user)");
+ const auth=s.indexOf("if (authError)");
+ const guest=s.indexOf("if (!user)");
+ assert.ok(guest>auth,"guest gate must follow Auth error rejection");
  const scope=s.indexOf("const expression = makeMarketplaceSchoolFilter");
  const photo=s.indexOf('admin.from("listing_photos")');
  assert.ok(auth>=0&&scope>auth&&photo>scope);
