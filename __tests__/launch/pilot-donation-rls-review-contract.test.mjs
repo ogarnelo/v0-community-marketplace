@@ -39,7 +39,7 @@ test("P0 591 index prevents two approved requests for the same listing",()=>{
  assert.match(candidate,/WHERE status = 'approved' AND listing_id IS NOT NULL/);
 });
 test("P0 591 proposal does not change ordinary table grants, roles or policies of other tables",()=>{
- assert.equal((candidate.match(/\bALTER POLICY\b/g)||[]).length,1);
+ assert.equal((candidate.match(/^\s*ALTER POLICY\b/gm)||[]).length,1);
  assert.doesNotMatch(candidate,/^\s*(GRANT|REVOKE|ALTER ROLE|DROP POLICY|CREATE POLICY)\b/im);
  assert.match(candidate,/Users can create donation requests/);
 });
