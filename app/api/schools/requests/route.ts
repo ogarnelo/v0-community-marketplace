@@ -79,9 +79,10 @@ export async function POST(request: Request) {
     const contactEmail = clean(body?.contactEmail, 320).toLowerCase();
     const contactPhone = clean(body?.contactPhone, 40);
 
-    const admin = createAdminClient();
+    let admin: ReturnType<typeof createAdminClient> | null = null;
 
     if (requestedSchoolId) {
+      admin = createAdminClient();
       const { data: existingSchool, error: existingSchoolError } = await admin
         .from("schools")
         .select("id, name, school_type, address, city, postal_code, region")
@@ -147,15 +148,18 @@ export async function POST(request: Request) {
       return privateJson({ error: "Debes indicar un teléfono de contacto válido." }, { status: 400 });
     }
 
+    // Invalid public requests are rejected before a privileged client exists.
+    const privileged = admin ?? createAdminClient();
+
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [{ count: recentEmailRequests, error: emailRateError }, { count: recentPhoneRequests, error: phoneRateError }] =
       await Promise.all([
-        admin
+        privileged
           .from("school_registration_requests")
           .select("id", { count: "exact", head: true })
           .eq("contact_email", contactEmail)
           .gte("created_at", oneDayAgo),
-        admin
+        privileged
           .from("school_registration_requests")
           .select("id", { count: "exact", head: true })
           .eq("contact_phone", contactPhone)
@@ -175,7 +179,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: schoolRequest, error: insertError } = await admin
+    const { data: schoolRequest, error: insertError } = await privileged
       .from("school_registration_requests")
       .insert({
         requested_by: user?.id || null,
@@ -200,7 +204,7 @@ export async function POST(request: Request) {
     if (insertError) throw insertError;
 
     try {
-      const { data: superAdminRoles, error: rolesError } = await admin
+      const { data: superAdminRoles, error: rolesError } = await privileged
         .from("user_roles")
         .select("user_id")
         .eq("role", "super_admin");
@@ -212,7 +216,7 @@ export async function POST(request: Request) {
           const {
             data: { user: superAdminUser },
             error: adminUserError,
-          } = await admin.auth.admin.getUserById(superAdminUserId);
+          } = await privileged.auth.privileged.getUserById(superAdminUserId);
 
           if (adminUserError) throw adminUserError;
           const to = superAdminUser?.email?.trim();
