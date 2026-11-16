@@ -66,7 +66,17 @@ export async function POST(request: Request) {
     }
 
     return privateJson({ ok: true, ...result });
-  } catch {
+  } catch (error: unknown) {
+    const name = error && typeof error === "object" && "name" in error ? error.name : null;
+    if (name === "OfferCreationConflictError") {
+      return privateJson({ error: "Ya se ha iniciado otra negociación. Actualiza el anuncio." }, { status: 409 });
+    }
+    if (name === "OfferSideEffectReconciliationError") {
+      return privateJson(
+        { error: "La oferta se guardó, pero requiere conciliar el chat o la notificación." },
+        { status: 503 }
+      );
+    }
     console.error("offer_creation_failed");
     return privateJson({ error: "No se pudo crear la oferta." }, { status: 500 });
   }
