@@ -25,10 +25,18 @@ const FIELDS =
   "id, title, description, category, grade_level, condition, type, listing_type, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, price, original_price, estimated_retail_price, seller_id, user_id, school_id, directory_school_code, postal_code, status, created_at";
 
 export async function GET(request: Request) {
+  try {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Inicia sesión para ver tu colegio." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  // A failed identity provider is not a guest, even with stale user data.
+  if (authError) {
+    return NextResponse.json({ error: "No se pudo comprobar tu sesión." },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+  const user = authData?.user ?? null;
+  if (!user) {
+    return NextResponse.json({ error: "Inicia sesión para ver tu colegio." },
+      { status: 401, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const params = new URL(request.url).searchParams;
@@ -154,6 +162,13 @@ export async function GET(request: Request) {
   } catch {
     console.error("marketplace_school_feed_failed");
     return NextResponse.json({ error: "No se pudo cargar el catálogo del colegio." },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+  } catch {
+    // Auth, profile reads and school-scope failures must not escape as
+    // unstructured framework errors or leak database diagnostics.
+    console.error("marketplace_school_auth_or_scope_read_failed");
+    return NextResponse.json({ error: "No se pudo cargar el catálogo de tu colegio." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
 }
