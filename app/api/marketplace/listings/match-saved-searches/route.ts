@@ -16,6 +16,14 @@ import { sendGatedMarketplaceAlertWithIntent } from "@/lib/emails/marketplace-al
 import { shouldUseAlertIntentDelivery } from "@/lib/marketplace/alert-intent-feature-gate.mjs";
 import { recordNeedResult } from "@/lib/demand/need-attribution";
 
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" } as const;
+function privateJson(body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: { ...init.headers, ...PRIVATE_HEADERS },
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -28,9 +36,15 @@ export async function POST(request: Request) {
       Boolean(cronSecret) &&
       request.headers.get("authorization") === `Bearer ${cronSecret}` &&
       request.headers.get("x-wetudy-alert-outbox") === "1";
-    const { data: { user } } = await supabase.auth.getUser();
+    // The signed worker has separate authorization. Interactive callers
+    // must never trust user data returned alongside an Auth provider failure.
+    const auth = isOutboxWorker ? null : await supabase.auth.getUser();
+    if (auth?.error) {
+      return privateJson({ error: "No se pudo comprobar la sesión." }, { status: 503 });
+    }
+    const user = auth?.data?.user ?? null;
     if (!user && !isOutboxWorker) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -42,11 +56,11 @@ export async function POST(request: Request) {
       !["discover", "deliver"].includes(workerStage) ||
       typeof workerLeaseToken !== "string" ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workerLeaseToken)
-    )) return NextResponse.json({ error: "Invalid worker lease." }, { status: 400 });
-    if (!listingId) return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
+    )) return privateJson({ error: "Invalid worker lease." }, { status: 400 });
+    if (!listingId) return privateJson({ error: "Falta el anuncio." }, { status: 400 });
     // UUID is the real public.listings.id type; validate before service role access.
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listingId)) {
-      return NextResponse.json({ error: "Anuncio no válido." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+      return privateJson({ error: "Anuncio no válido." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
     }
 
     const admin = createAdminClient();
@@ -57,21 +71,21 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (listingError) throw listingError;
-    if (!listing) return NextResponse.json({ error: "No se encontró el anuncio." }, { status: 404 });
+    if (!listing) return privateJson({ error: "No se encontró el anuncio." }, { status: 404 });
     if (!isOutboxWorker) {
-      if (!user) return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      if (!user) return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
       if (listing.seller_id !== user.id && listing.user_id !== user.id) {
-        return NextResponse.json({ error: "No puedes procesar este anuncio." }, { status: 403 });
+        return privateJson({ error: "No puedes procesar este anuncio." }, { status: 403 });
       }
     }
     const listingOwnerId = listing.seller_id || listing.user_id;
-    if (!listingOwnerId) return NextResponse.json({ error: "Anuncio sin vendedor." }, { status: 409 });
+    if (!listingOwnerId) return privateJson({ error: "Anuncio sin vendedor." }, { status: 409 });
     // Internal reconciliation excludes DEMO content, even if someone set the
     // DEMO flag after an outbox entry was initially created.
     if (isOutboxWorker && listing.is_demo === true) {
-      return NextResponse.json({ ok: true, skipped: true, reason: "demo_listing" });
+      return privateJson({ ok: true, skipped: true, reason: "demo_listing" });
     }
-    if (listing.status !== "available") return NextResponse.json({ ok: true, skipped: true, reason: "listing_not_available" });
+    if (listing.status !== "available") return privateJson({ ok: true, skipped: true, reason: "listing_not_available" });
 
     // Every internal stage must hold the *current* unexpired outbox lease;
     // knowing CRON_SECRET alone cannot bypass its progress/fencing token.
@@ -90,7 +104,7 @@ export async function POST(request: Request) {
       if (!job ||
         (workerStage === "discover" && job.discovery_completed_at) ||
         (workerStage === "deliver" && !job.discovery_completed_at)) {
-        return NextResponse.json({ error: "Stale or incorrect worker stage." }, { status: 409 });
+        return privateJson({ error: "Stale or incorrect worker stage." }, { status: 409 });
       }
       discoveryCursor = job.discovery_cursor || null;
     }
@@ -258,16 +272,16 @@ export async function POST(request: Request) {
       );
       if (advanceError) throw advanceError;
       if (advanced !== true) {
-        return NextResponse.json({ error: "Discovery lease changed." }, { status: 409 });
+        return privateJson({ error: "Discovery lease changed." }, { status: 409 });
       }
-      return NextResponse.json({
+      return privateJson({
         ok: true, complete: false, stage: "discovery",
         discoveryComplete: discovery.complete, scanned: discovery.scanned,
         matched: matches.length,
       });
     }
     if (matches.length === 0) {
-      return NextResponse.json({ ok: true, complete: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
+      return privateJson({ ok: true, complete: true, matched: 0, notified: 0, emailed: 0, supplyGenerated });
     }
 
     const matchedSearchIds = new Set(matches.map((match) => match.saved_search_id));
@@ -529,7 +543,7 @@ export async function POST(request: Request) {
     if (emailNeedsReview) {
       // Only the separately gated worker can produce this response.
       // The signed caller must atomically hold its current outbox lease.
-      return NextResponse.json({
+      return privateJson({
         ok: false, complete: false, review_required: true,
         reason: "email_outcome_ambiguous",
       }, { status: 409 });
@@ -556,9 +570,9 @@ export async function POST(request: Request) {
     if (progress.failed) {
       // A 503 prevents the worker from settling a partially failed listing
       // as completed. Existing provider/app idempotency guards remain intact.
-      return NextResponse.json({ ...deliveryResponse, error: "partial_delivery_failed" }, { status: 503 });
+      return privateJson({ ...deliveryResponse, error: "partial_delivery_failed" }, { status: 503 });
     }
-    return NextResponse.json(deliveryResponse);
+    return privateJson(deliveryResponse);
   } catch {
     // Neither SQL nor recipient/provider diagnostics may leave this endpoint.
     console.error("marketplace_saved_search_matching_failed");
