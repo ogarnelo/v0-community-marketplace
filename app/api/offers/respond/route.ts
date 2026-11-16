@@ -62,7 +62,8 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     // Preserve an explicit set of user-facing business errors without exposing
     // arbitrary Postgres, provider or stack diagnostics to the client.
-    const message = error instanceof Error ? error.message : "";
+    const message = error && typeof error === "object" && "message" in error &&
+      typeof error.message === "string" ? error.message : "";
     const safeMessage =
       message.includes("no admite cambios") ? "La oferta ya no admite cambios." :
       message.includes("No puedes") ? "No puedes responder a esta oferta." :
