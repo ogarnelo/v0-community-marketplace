@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildOfferChatBody } from "@/lib/offers/chat-message";
 import { MAX_OFFER_ROUNDS, canCreateOffer, canRespondToOfferTurn } from "@/lib/marketplace/rules";
 import { createNotification } from "@/lib/notifications";
-import { getOrCreateConversation, touchConversation } from "@/lib/services/conversations.service";
+import { getOrCreateConversation } from "@/lib/services/conversations.service";
 
 export type OfferAction = "accept" | "reject" | "counter";
 
@@ -137,6 +137,13 @@ export async function createOfferFlow(params: {
   }
 }
 
+export class OfferDecisionConflictError extends Error {
+  constructor() {
+    super("La oferta cambió de estado. Actualiza la negociación.");
+    this.name = "OfferDecisionConflictError";
+  }
+}
+
 export async function respondToOfferFlow(params: {
   supabase: SupabaseClient;
   offerId: string;
@@ -145,281 +152,129 @@ export async function respondToOfferFlow(params: {
   counterPrice?: number | null;
 }) {
   const { supabase, offerId, action, actorUserId, counterPrice } = params;
+  if (!["accept", "reject", "counter"].includes(action)) throw new Error("Acción de oferta inválida.");
 
   const { data: offer, error: offerError } = await supabase
     .from("listing_offers")
-    .select(
-      "id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at"
-    )
-    .eq("id", offerId)
-    .maybeSingle();
-
-  if (offerError || !offer) {
-    throw new Error(offerError?.message || "Oferta no encontrada.");
-  }
-
-  if (!offer.buyer_id || !offer.seller_id) {
-    throw new Error("La oferta no es válida.");
-  }
-
-  if (!offer.status || !["pending", "countered"].includes(offer.status)) {
-    throw new Error("Esta oferta ya no admite cambios.");
-  }
+    .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, current_actor, rounds_count, accepted_amount, status, counter_price, created_at, responded_at")
+    .eq("id", offerId).maybeSingle();
+  if (offerError) throw new Error("No se pudo comprobar la oferta.");
+  if (!offer || !offer.buyer_id || !offer.seller_id) throw new Error("La oferta no es válida.");
+  if (!["pending", "countered"].includes(offer.status || "")) throw new OfferDecisionConflictError();
 
   const turnCheck = canRespondToOfferTurn({
-    buyerId: offer.buyer_id,
-    sellerId: offer.seller_id,
-    actorUserId,
-    currentActor: offer.current_actor,
-    status: offer.status,
+    buyerId: offer.buyer_id, sellerId: offer.seller_id,
+    actorUserId, currentActor: offer.current_actor, status: offer.status,
   });
-
-  if (!turnCheck.ok) {
-    throw new Error(turnCheck.error);
-  }
-
-  const actingAsSeller = actorUserId === offer.seller_id;
+  if (!turnCheck.ok) throw new Error(turnCheck.error);
 
   const { data: listing, error: listingError } = await supabase
-    .from("listings")
-    .select("id, title, status")
-    .eq("id", offer.listing_id)
-    .maybeSingle();
+    .from("listings").select("id, title, status")
+    .eq("id", offer.listing_id).maybeSingle();
+  if (listingError) throw new Error("No se pudo comprobar el anuncio.");
+  if (!listing) throw new Error("El anuncio no existe.");
+  if (action !== "reject" && listing.status !== "available") throw new OfferDecisionConflictError();
 
-  if (listingError || !listing) {
-    throw new Error(listingError?.message || "El anuncio no existe.");
-  }
-
-  const conversationId = await getOrCreateConversation({
-    supabase,
-    listingId: offer.listing_id,
-    buyerId: offer.buyer_id,
-    sellerId: offer.seller_id,
-  });
-
-  const now = new Date().toISOString();
+  const actingAsSeller = actorUserId === offer.seller_id;
+  const actorRole = actingAsSeller ? "seller" : "buyer";
   const currentAmount = Number(offer.current_amount ?? offer.counter_price ?? offer.offered_price ?? 0);
   const currentRound = Math.max(1, Number(offer.rounds_count || 1));
-  const actorRole = actingAsSeller ? "seller" : "buyer";
+  const now = new Date().toISOString();
 
-  if (action === "accept") {
-    const acceptedAmount = currentAmount;
+  if (action === "counter") {
+    if (counterPrice == null || !Number.isFinite(counterPrice) || counterPrice <= 0)
+      throw new Error("La contraoferta no es válida.");
+    if (currentRound >= MAX_OFFER_ROUNDS)
+      throw new Error(`Se ha alcanzado el máximo de ${MAX_OFFER_ROUNDS} rondas. Solo puedes aceptar o rechazar esta negociación.`);
+  }
 
-    const { error: acceptError } = await supabase
-      .from("listing_offers")
-      .update({
-        status: "accepted",
-        accepted_amount: acceptedAmount,
-        current_amount: acceptedAmount,
-        current_actor: null,
-        responded_at: now,
-      })
-      .eq("id", offerId);
+  const nextRound = action === "counter" ? currentRound + 1 : currentRound;
+  const nextStatus = action === "accept" ? "accepted"
+    : action === "reject" ? "rejected" : actingAsSeller ? "countered" : "pending";
+  const nextActor = action === "counter" ? (actingAsSeller ? "buyer" : "seller") : null;
+  const amount = action === "counter" ? Number(counterPrice) : currentAmount;
+  const payload = action === "counter"
+    ? actingAsSeller
+      ? { status: nextStatus, counter_price: counterPrice, current_amount: amount,
+          current_actor: nextActor, rounds_count: nextRound, responded_at: now }
+      : { status: nextStatus, offered_price: counterPrice, counter_price: null, current_amount: amount,
+          current_actor: nextActor, rounds_count: nextRound, responded_at: now }
+    : action === "accept"
+      ? { status: "accepted", accepted_amount: currentAmount, current_amount: currentAmount,
+          current_actor: null, responded_at: now }
+      : { status: "rejected", current_actor: null, responded_at: now };
 
-    if (acceptError) {
-      throw new Error(acceptError.message || "No se pudo aceptar la oferta.");
+  // Compare-and-set protects against stale accept/reject/counter on the SAME offer.
+  const { data: changed, error: changeError } = await supabase
+    .from("listing_offers").update(payload).eq("id", offerId)
+    .eq("status", offer.status).eq("rounds_count", offer.rounds_count)
+    .select("id").maybeSingle();
+  if (changeError) throw new Error("No se pudo guardar la decisión de oferta.");
+  if (!changed) throw new OfferDecisionConflictError();
+
+  // The offer decision is already durable. Any later failure is PARTIAL SUCCESS.
+  // Never automatically replay the decision, message or notification.
+  try {
+    if (action === "accept") {
+      const { error: competingError } = await supabase
+        .from("listing_offers")
+        .update({ status: "rejected", current_actor: null, responded_at: now })
+        .eq("listing_id", offer.listing_id).neq("id", offerId)
+        .in("status", ["pending", "countered"]);
+      if (competingError) throw new Error("offer_competitors_not_confirmed");
+      const { data: reserved, error: reserveError } = await supabase
+        .from("listings").update({ status: "reserved" })
+        .eq("id", offer.listing_id).eq("status", "available")
+        .select("id").maybeSingle();
+      if (reserveError || !reserved) throw new Error("offer_listing_reserve_not_confirmed");
     }
 
-    await supabase
-      .from("listing_offers")
-      .update({ status: "rejected", current_actor: null, responded_at: now })
-      .eq("listing_id", offer.listing_id)
-      .neq("id", offerId)
-      .in("status", ["pending", "countered"]);
+    const conversationId = await getOrCreateConversation({
+      supabase, listingId: offer.listing_id,
+      buyerId: offer.buyer_id, sellerId: offer.seller_id,
+    });
 
-    await supabase.from("listings").update({ status: "reserved" }).eq("id", offer.listing_id);
-
+    const eventType = action === "accept" ? "accepted" : action === "reject" ? "rejected" : "counter_sent";
     const { data: event, error: eventError } = await supabase
-      .from("listing_offer_events")
-      .insert({
-        offer_id: offer.id,
-        conversation_id: conversationId,
-        actor_id: actorUserId,
-        actor_role: actorRole,
-        event_type: "accepted",
-        amount: acceptedAmount,
-        round_number: currentRound,
-        status_snapshot: "accepted",
-      })
-      .select("id")
-      .single();
+      .from("listing_offer_events").insert({
+        offer_id: offer.id, conversation_id: conversationId,
+        actor_id: actorUserId, actor_role: actorRole,
+        event_type: eventType, amount, round_number: nextRound,
+        status_snapshot: nextStatus,
+      }).select("id").single();
+    if (eventError || !event) throw new Error("offer_event_not_confirmed");
 
-    if (eventError || !event) {
-      throw new Error(eventError?.message || "No se pudo registrar la aceptación.");
-    }
-
-    await supabase.from("messages").insert({
-      conversation_id: conversationId,
-      sender_id: actorUserId,
+    const { error: messageError } = await supabase.from("messages").insert({
+      conversation_id: conversationId, sender_id: actorUserId,
       body: buildOfferChatBody({
-        eventId: event.id,
-        offerId: offer.id,
-        eventType: "accepted",
-        actorRole,
-        amount: acceptedAmount,
-        round: currentRound,
-        status: "accepted",
-        currentActor: "closed",
+        eventId: event.id, offerId: offer.id, eventType, actorRole,
+        amount, round: nextRound, status: nextStatus,
+        currentActor: nextActor || "closed",
       }),
     });
+    if (messageError) throw new Error("offer_message_not_confirmed");
 
-    await touchConversation(supabase, conversationId, now);
+    const { data: touched, error: touchError } = await supabase
+      .from("conversations").update({ updated_at: now })
+      .eq("id", conversationId).select("id").maybeSingle();
+    if (touchError || !touched) throw new Error("offer_chat_sync_not_confirmed");
 
-    await createNotification(supabase, {
-      user_id: actingAsSeller ? offer.buyer_id : offer.seller_id,
-      kind: "offer_accepted",
-      title: "Oferta aceptada",
-      body: `${listing.title || "El anuncio"} · ${acceptedAmount.toFixed(2)} €`,
-      href: `/messages/${conversationId}`,
+    const recipientId = actingAsSeller ? offer.buyer_id : offer.seller_id;
+    const title = action === "accept" ? "Oferta aceptada"
+      : action === "reject" ? "Negociación cerrada"
+      : actingAsSeller ? "Te han enviado una contraoferta" : "Tienes una nueva oferta";
+    const body = action === "reject"
+      ? `${listing.title || "El anuncio"} ya no tiene una negociación activa.`
+      : `${listing.title || "El anuncio"} · ${amount.toFixed(2)} €`;
+    const { error: notificationError } = await createNotification(supabase, {
+      user_id: recipientId,
+      kind: action === "accept" ? "offer_accepted" : action === "reject" ? "offer_rejected" : "offer_countered",
+      title, body, href: `/messages/${conversationId}`,
       metadata: { listing_id: offer.listing_id, offer_id: offer.id, conversation_id: conversationId },
     });
-
+    if (notificationError) throw new Error("offer_notification_not_confirmed");
     return { conversationId };
+  } catch {
+    throw new OfferSideEffectReconciliationError();
   }
-
-  if (action === "reject") {
-    const { error: rejectError } = await supabase
-      .from("listing_offers")
-      .update({
-        status: "rejected",
-        current_actor: null,
-        responded_at: now,
-      })
-      .eq("id", offerId);
-
-    if (rejectError) {
-      throw new Error(rejectError.message || "No se pudo rechazar la oferta.");
-    }
-
-    const { data: event, error: eventError } = await supabase
-      .from("listing_offer_events")
-      .insert({
-        offer_id: offer.id,
-        conversation_id: conversationId,
-        actor_id: actorUserId,
-        actor_role: actorRole,
-        event_type: "rejected",
-        amount: currentAmount,
-        round_number: currentRound,
-        status_snapshot: "rejected",
-      })
-      .select("id")
-      .single();
-
-    if (eventError || !event) {
-      throw new Error(eventError?.message || "No se pudo registrar el rechazo.");
-    }
-
-    await supabase.from("messages").insert({
-      conversation_id: conversationId,
-      sender_id: actorUserId,
-      body: buildOfferChatBody({
-        eventId: event.id,
-        offerId: offer.id,
-        eventType: "rejected",
-        actorRole,
-        amount: currentAmount,
-        round: currentRound,
-        status: "rejected",
-        currentActor: "closed",
-      }),
-    });
-
-    await touchConversation(supabase, conversationId, now);
-
-    await createNotification(supabase, {
-      user_id: actingAsSeller ? offer.buyer_id : offer.seller_id,
-      kind: "offer_rejected",
-      title: "Negociación cerrada",
-      body: `${listing.title || "El anuncio"} ya no tiene una negociación activa.`,
-      href: `/messages/${conversationId}`,
-      metadata: { listing_id: offer.listing_id, offer_id: offer.id, conversation_id: conversationId },
-    });
-
-    return { conversationId };
-  }
-
-  if (counterPrice == null || !Number.isFinite(counterPrice) || counterPrice <= 0) {
-    throw new Error("La contraoferta no es válida.");
-  }
-
-  if (currentRound >= MAX_OFFER_ROUNDS) {
-    throw new Error(`Se ha alcanzado el máximo de ${MAX_OFFER_ROUNDS} rondas. Solo puedes aceptar o rechazar esta negociación.`);
-  }
-
-  const nextRound = currentRound + 1;
-  const nextStatus = actingAsSeller ? "countered" : "pending";
-  const nextActor = actingAsSeller ? "buyer" : "seller";
-
-  const updatePayload = actingAsSeller
-    ? {
-      status: nextStatus,
-      counter_price: counterPrice,
-      current_amount: counterPrice,
-      current_actor: nextActor,
-      rounds_count: nextRound,
-      responded_at: now,
-    }
-    : {
-      status: nextStatus,
-      offered_price: counterPrice,
-      counter_price: null,
-      current_amount: counterPrice,
-      current_actor: nextActor,
-      rounds_count: nextRound,
-      responded_at: now,
-    };
-
-  const { error: updateError } = await supabase.from("listing_offers").update(updatePayload).eq("id", offerId);
-
-  if (updateError) {
-    throw new Error(updateError.message || "No se pudo guardar la contraoferta.");
-  }
-
-  const { data: event, error: eventError } = await supabase
-    .from("listing_offer_events")
-    .insert({
-      offer_id: offer.id,
-      conversation_id: conversationId,
-      actor_id: actorUserId,
-      actor_role: actorRole,
-      event_type: "counter_sent",
-      amount: counterPrice,
-      round_number: nextRound,
-      status_snapshot: nextStatus,
-    })
-    .select("id")
-    .single();
-
-  if (eventError || !event) {
-    throw new Error(eventError?.message || "No se pudo registrar la contraoferta.");
-  }
-
-  await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    sender_id: actorUserId,
-    body: buildOfferChatBody({
-      eventId: event.id,
-      offerId: offer.id,
-      eventType: "counter_sent",
-      actorRole,
-      amount: counterPrice,
-      round: nextRound,
-      status: nextStatus,
-      currentActor: nextActor,
-    }),
-  });
-
-  await touchConversation(supabase, conversationId, now);
-
-  await createNotification(supabase, {
-    user_id: actingAsSeller ? offer.buyer_id : offer.seller_id,
-    kind: "offer_countered",
-    title: actingAsSeller ? "Te han enviado una contraoferta" : "Tienes una nueva oferta",
-    body: `${listing.title || "El anuncio"} · ${counterPrice.toFixed(2)} €`,
-    href: `/messages/${conversationId}`,
-    metadata: { listing_id: offer.listing_id, offer_id: offer.id, conversation_id: conversationId },
-  });
-
-  return { conversationId };
 }

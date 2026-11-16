@@ -60,6 +60,13 @@ export async function POST(request: Request) {
 
     return privateJson({ ok: true, ...result });
   } catch (error: unknown) {
+    const errorName = error && typeof error === "object" && "name" in error ? error.name : null;
+    if (errorName === "OfferDecisionConflictError") {
+      return privateJson({ error: "La oferta ha cambiado. Actualiza la negociación." }, { status: 409 });
+    }
+    if (errorName === "OfferSideEffectReconciliationError") {
+      return privateJson({ error: "La decisión se guardó, pero requiere conciliar el chat o los avisos." }, { status: 503 });
+    }
     // Preserve an explicit set of user-facing business errors without exposing
     // arbitrary Postgres, provider or stack diagnostics to the client.
     const message = error && typeof error === "object" && "message" in error &&
