@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No se pudo comprobar tu sesión." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
-  const user = authData?.user ?? null;
+  const user = authError ? null : authData?.user ?? null;
   if (!user) {
     return NextResponse.json({ error: "Inicia sesión para ver tu colegio." },
       { status: 401, headers: { "Cache-Control": "private, no-store" } });
