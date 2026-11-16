@@ -1,0 +1,7 @@
+# PR587 — Revisión administrativa de donaciones con aislamiento escolar y transición CAS
+
+16/11/2026. Ruta `POST /api/donations/review`. No se utiliza un usuario residual después de `getUser()` fallido (401 ausencia de sesión; 503 fallo proveedor). La consulta de roles fallida es 503, no se trata como ausencia de privilegios. Todas las respuestas son JSON `Cache-Control: private, no-store` sin detalles SQL.
+
+Una acción desconocida no se convierte silenciosamente en `reject`. `donation_requests.status` debe seguir `pending`; solo entonces un superadministrador o administrador del centro correspondiente puede proceder. `listings.school_id` debe coincidir exactamente con `donation_requests.school_id`. Los errores de lectura de solicitud, anuncio y conversación son 503 y no se consideran recursos inexistentes. Tanto aprobación como rechazo actualizan con condición adicional `.eq('status','pending').select('id').maybeSingle()`, evitando doble transición ante dos revisores concurrentes y deteniendo los efectos posteriores cuando no hay fila afectada.
+
+**17 pruebas runtime** con mocks sin SQL real. **Riesgo residual documentado:** la operación continúa haciendo rechazo de competidores, archivado, mensajes y notificaciones por pasos, sin transacción única, y algunas escrituras posteriores no comprueban errores; por tanto NO equivale a atomicidad integral. Requiere diseño de RPC transaccional independiente y autorización SQL antes de afirmarlo. No ejecutar DDL/DML en esta tanda, ni desbloquear piloto general.

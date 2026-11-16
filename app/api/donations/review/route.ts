@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/notifications";
@@ -7,18 +14,26 @@ import { getAdminFlags } from "@/lib/admin/roles";
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const absent = authError.name === "AuthSessionMissingError" || authError.code === "session_not_found";
+      return privateJson(
+        { error: absent ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: absent ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
-    const { data: roles } = await supabase
+    const { data: roles, error: roleError } = await supabase
       .from("user_roles")
       .select("role, school_id")
       .eq("user_id", user.id);
+
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
 
     const adminFlags = getAdminFlags({
       email: user.email,
@@ -26,29 +41,34 @@ export async function POST(request: Request) {
     });
 
     if (!adminFlags.canAccessAdmin) {
-      return NextResponse.json({ error: "Sin permisos." }, { status: 403 });
+      return privateJson({ error: "Sin permisos." }, { status: 403 });
     }
 
     const body = await request.json();
     const donationRequestId =
       typeof body?.donationRequestId === "string" ? body.donationRequestId.trim() : "";
-    const action = body?.action === "approve" ? "approve" : "reject";
+    const action = body?.action === "approve" || body?.action === "reject" ? body.action : null;
     const note = typeof body?.note === "string" ? body.note.trim() : "";
 
-    if (!donationRequestId) {
-      return NextResponse.json({ error: "Falta la solicitud." }, { status: 400 });
+    if (!donationRequestId || !action) {
+      return privateJson({ error: "Falta la solicitud." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
 
-    const { data: donationRequest } = await adminSupabase
+    const { data: donationRequest, error: requestError } = await adminSupabase
       .from("donation_requests")
       .select("id, listing_id, requester_id, school_id, status")
       .eq("id", donationRequestId)
       .maybeSingle();
 
+    if (requestError) return privateJson({ error: "No se pudo consultar la solicitud." }, { status: 503 });
     if (!donationRequest || !donationRequest.listing_id) {
-      return NextResponse.json({ error: "Solicitud no encontrada." }, { status: 404 });
+      return privateJson({ error: "Solicitud no encontrada." }, { status: 404 });
+    }
+
+    if (donationRequest.status !== "pending") {
+      return privateJson({ error: "Esta solicitud ya se ha revisado o ha cambiado de estado." }, { status: 409 });
     }
 
     const allowedSchoolId = adminFlags.isSuperAdmin
@@ -56,16 +76,22 @@ export async function POST(request: Request) {
       : adminFlags.schoolAdminSchoolId;
 
     if (!adminFlags.isSuperAdmin && donationRequest.school_id !== allowedSchoolId) {
-      return NextResponse.json({ error: "No puedes revisar solicitudes de otro centro." }, { status: 403 });
+      return privateJson({ error: "No puedes revisar solicitudes de otro centro." }, { status: 403 });
     }
 
-    const { data: listing } = await adminSupabase
+    const { data: listing, error: listingError } = await adminSupabase
       .from("listings")
-      .select("id, title, seller_id")
+      .select("id, title, seller_id, school_id")
       .eq("id", donationRequest.listing_id)
       .maybeSingle();
 
-    const { data: existingConversation } = await adminSupabase
+    if (listingError) return privateJson({ error: "No se pudo comprobar el anuncio." }, { status: 503 });
+    if (!listing) return privateJson({ error: "Anuncio no encontrado." }, { status: 404 });
+    if (!donationRequest.school_id || listing.school_id !== donationRequest.school_id) {
+      return privateJson({ error: "La solicitud y el anuncio no pertenecen al mismo centro." }, { status: 409 });
+    }
+
+    const { data: existingConversation, error: conversationError } = await adminSupabase
       .from("conversations")
       .select("id")
       .eq("listing_id", donationRequest.listing_id)
@@ -73,12 +99,16 @@ export async function POST(request: Request) {
       .eq("seller_id", listing?.seller_id || "")
       .maybeSingle();
 
+    if (conversationError) return privateJson({ error: "No se pudo verificar la conversación." }, { status: 503 });
     const conversationId = existingConversation?.id || null;
 
     if (action === "approve") {
+      if (!donationRequest.requester_id) {
+        return privateJson({ error: "La solicitud no tiene destinatario válido." }, { status: 409 });
+      }
       const now = new Date().toISOString();
 
-      await adminSupabase
+      const { data: approved, error: approveError } = await adminSupabase
         .from("donation_requests")
         .update({
           status: "approved",
@@ -87,7 +117,12 @@ export async function POST(request: Request) {
           note: note || null,
           updated_at: now,
         })
-        .eq("id", donationRequestId);
+        .eq("id", donationRequestId)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (approveError) return privateJson({ error: "No se pudo aprobar la solicitud." }, { status: 503 });
+      if (!approved) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
 
       await adminSupabase
         .from("donation_requests")
@@ -158,7 +193,7 @@ export async function POST(request: Request) {
     } else {
       const now = new Date().toISOString();
 
-      await adminSupabase
+      const { data: rejected, error: rejectError } = await adminSupabase
         .from("donation_requests")
         .update({
           status: "rejected",
@@ -166,7 +201,12 @@ export async function POST(request: Request) {
           note: note || null,
           updated_at: now,
         })
-        .eq("id", donationRequestId);
+        .eq("id", donationRequestId)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (rejectError) return privateJson({ error: "No se pudo rechazar la solicitud." }, { status: 503 });
+      if (!rejected) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
 
       if (conversationId) {
         await adminSupabase.from("messages").insert({
@@ -200,13 +240,9 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      {
-        error: error?.message || error?.details || "No se pudo revisar la solicitud.",
-      },
-      { status: 500 }
-    );
+    return privateJson({ ok: true });
+  } catch {
+    console.error("donation_review_unexpected_failure");
+    return privateJson({ error: "No se pudo revisar la solicitud." }, { status: 500 });
   }
 }
