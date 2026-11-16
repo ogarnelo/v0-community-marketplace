@@ -7,7 +7,7 @@ const ts=createRequire(import.meta.url)("typescript");
 const USER="11111111-1111-4111-8111-111111111111";
 const CONV="22222222-2222-4222-8222-222222222222";
 const MSG="33333333-3333-4333-8333-333333333333";
-function runRoute(file,{failTable=null,userId=USER,participant=true,existing=null,authError=false,authThrows=false}={}){
+function runRoute(file,{failTable=null,userId=USER,participant=true,existing=null,authError=false,missingSession=false,authThrows=false}={}){
  const operations=[];
  const row=table=>{
   if(table==="conversations")return {id:CONV,listing_id:"listing",buyer_id:participant?USER:"outsider",seller_id:"other"};
@@ -28,7 +28,7 @@ function runRoute(file,{failTable=null,userId=USER,participant=true,existing=nul
  const user=userId?{id:userId,user_metadata:{}}:null;
  const supabase={auth:{getUser:async()=>{
    if(authThrows)throw new Error("PRIVATE_AUTH_SERVICE_FAILURE");
-   return{data:{user},error:authError?{message:"PRIVATE_AUTH_ERROR"}:null};
+   return{data:{user},error:missingSession?{name:"AuthSessionMissingError"}:authError?{message:"PRIVATE_AUTH_ERROR"}:null};
  }},from};
  const admin={from,storage:{from:()=>({remove:async()=>({error:null})})}};
  const mocks={
@@ -121,5 +121,18 @@ for(const [method,invoke] of [
   assert.equal(r.status,503);privateResponse(r);
   assert.equal(x.operations.includes("ADMIN_CREATED"),false);
   assert.doesNotMatch(await r.text(),/PRIVATE_AUTH/);
+ });
+}
+
+for(const [method,invoke] of [
+ ["GET",handlers=>handlers.GET()],
+ ["PUT",handlers=>handlers.PUT(request("PUT",{payload:{title:"fixture"},photos:[]}))],
+ ["DELETE",handlers=>handlers.DELETE(request("DELETE",{}))]
+]){
+ test("draft "+method+" treats AuthSessionMissingError as guest, not provider outage",async()=>{
+  const x=runRoute(draft,{missingSession:true});
+  const res=await invoke(x.handlers);
+  assert.equal(res.status,401);privateResponse(res);
+  assert.equal(x.operations.includes("ADMIN_CREATED"),false);
  });
 }
