@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
+
 const VALID_STATUSES = new Set(["open", "reviewing", "resolved", "dismissed"]);
 
 function normalizeRpcRow<T>(value: T | T[] | null): T | null {
@@ -11,12 +21,19 @@ function normalizeRpcRow<T>(value: T | T[] | null): T | null {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     const { data: roles, error: roleError } = await supabase
@@ -26,8 +43,10 @@ export async function POST(request: Request) {
       .eq("role", "super_admin")
       .limit(1);
 
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+
     if (roleError || !roles?.length) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+      return privateJson({ error: "No autorizado." }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -39,7 +58,7 @@ export async function POST(request: Request) {
         : null;
 
     if (!reportId || !VALID_STATUSES.has(status)) {
-      return NextResponse.json({ error: "Estado de incidencia no válido." }, { status: 400 });
+      return privateJson({ error: "Estado de incidencia no válido." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -55,21 +74,19 @@ export async function POST(request: Request) {
       const lower = message.toLowerCase();
 
       if (lower.includes("report not found")) {
-        return NextResponse.json({ error: "No se encontró la incidencia." }, { status: 404 });
+        return privateJson({ error: "No se encontró la incidencia." }, { status: 404 });
       }
       if (lower.includes("not allowed")) {
-        return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+        return privateJson({ error: "No autorizado." }, { status: 403 });
       }
 
       throw error;
     }
 
     const report = normalizeRpcRow<any>(data);
-    return NextResponse.json({ ok: true, report });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo actualizar la incidencia." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, report });
+  } catch {
+    console.error("moderation_report_status_failed");
+    return privateJson({ error: "No se pudo actualizar la incidencia." }, { status: 500 });
   }
 }

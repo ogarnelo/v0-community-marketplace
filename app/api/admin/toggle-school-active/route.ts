@@ -1,16 +1,33 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, {
+    ...options,
+    headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) },
+  });
+}
+
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "Debes iniciar sesión." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const { data: roles, error: roleError } = await supabase
@@ -20,8 +37,10 @@ export async function POST(request: Request) {
       .eq("role", "super_admin")
       .limit(1);
 
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+
     if (roleError || !roles?.length) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+      return privateJson({ error: "No autorizado." }, { status: 403 });
     }
 
     const body = (await request.json().catch(() => null)) as
@@ -32,7 +51,7 @@ export async function POST(request: Request) {
     const active = body?.active;
 
     if (!schoolId || typeof active !== "boolean") {
-      return NextResponse.json({ error: "Faltan datos del centro." }, { status: 400 });
+      return privateJson({ error: "Faltan datos del centro." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -45,7 +64,7 @@ export async function POST(request: Request) {
 
     if (schoolError) throw schoolError;
     if (!school) {
-      return NextResponse.json({ error: "Centro no encontrado." }, { status: 404 });
+      return privateJson({ error: "Centro no encontrado." }, { status: 404 });
     }
 
     const { error: updateSchoolError } = await admin
@@ -100,18 +119,15 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       active,
       message: active
         ? "Centro reactivado. El acceso de la comunidad vuelve a estar disponible."
         : "Centro desactivado. Se han suspendido sus códigos de acceso y reportes automáticos.",
     });
-  } catch (error: any) {
-    console.error("Error actualizando estado del centro:", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo actualizar el centro." },
-      { status: 500 }
-    );
+  } catch {
+    console.error("school_activation_update_failed");
+    return privateJson({ error: "No se pudo actualizar el centro." }, { status: 500 });
   }
 }
