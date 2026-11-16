@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications";
@@ -17,16 +23,26 @@ export async function POST(
 ) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const missingSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: missingSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: missingSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
+    if (!user) return privateJson({ error: "No autenticado." }, { status: 401 });
 
-    const { data: roles } = await supabase
+    const { data: roles, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
       .eq("role", "super_admin")
       .limit(1);
-    if (!roles?.length) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    if (!roles?.length) return privateJson({ error: "No autorizado." }, { status: 403 });
 
     const { key } = await context.params;
     const body = await request.json().catch(() => ({}));
@@ -34,18 +50,18 @@ export async function POST(
       ? body.targetUserIds.filter((value: unknown): value is string => typeof value === "string").slice(0, MAX_TARGETS)
       : [];
     if (requested.length === 0) {
-      return NextResponse.json({ error: "Selecciona al menos un candidato." }, { status: 400 });
+      return privateJson({ error: "Selecciona al menos un candidato." }, { status: 400 });
     }
 
     const admin = createAdminClient();
     const opportunity = await findDemandOpportunity(admin, key);
-    if (!opportunity) return NextResponse.json({ error: "Oportunidad no encontrada." }, { status: 404 });
+    if (!opportunity) return privateJson({ error: "Oportunidad no encontrada." }, { status: 404 });
 
     const candidates = await findSupplyCandidates(admin, opportunity);
     const allowed = new Set(candidates.map((candidate) => candidate.userId));
     const targets = Array.from(new Set(requested)).filter((id) => allowed.has(id));
     if (targets.length === 0) {
-      return NextResponse.json({ error: "Los candidatos ya no son elegibles." }, { status: 409 });
+      return privateJson({ error: "Los candidatos ya no son elegibles." }, { status: 409 });
     }
 
     const now = new Date().toISOString();
@@ -123,9 +139,9 @@ export async function POST(
       activatedUserIds.push(targetUserId);
     }
 
-    return NextResponse.json({ ok: true, activatedUserIds });
-  } catch (error: any) {
-    console.error("Error activando oferta manual:", error);
-    return NextResponse.json({ error: error?.message || "No se pudo activar la oferta." }, { status: 500 });
+    return privateJson({ ok: true, activatedUserIds });
+  } catch {
+    console.error("demand_opportunity_activation_failed");
+    return privateJson({ error: "No se pudo activar la oferta." }, { status: 500 });
   }
 }
