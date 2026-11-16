@@ -5,6 +5,7 @@ on:
       - "scripts/p0_donation_rls_preflight_read_only.sql"
       - "scripts/p0_donation_rls_remediation_review_only.sql"
       - "scripts/pilot-donation-rls-pg17-sandbox.sh"
+      - "scripts/pilot-donation-rls-concurrency-pg17.sh"
       - ".github/workflows/pilot-donation-rls-pg17-sandbox.yml"
   workflow_dispatch:
 permissions:
@@ -37,3 +38,5 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Reproduce baseline and test candidate only on disposable PostgreSQL
         run: bash scripts/pilot-donation-rls-pg17-sandbox.sh
+      - name: Two overlapping approval transactions (disposable PG17 only)
+        run: bash scripts/pilot-donation-rls-concurrency-pg17.sh
