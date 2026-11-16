@@ -40,7 +40,12 @@ export async function POST(request: Request) {
     // must never trust user data returned alongside an Auth provider failure.
     const auth = isOutboxWorker ? null : await supabase.auth.getUser();
     if (auth?.error) {
-      return privateJson({ error: "No se pudo comprobar la sesión." }, { status: 503 });
+      const sessionMissing = auth.error.name === "AuthSessionMissingError" ||
+        auth.error.code === "session_not_found";
+      return privateJson(
+        { error: sessionMissing ? "Debes iniciar sesión." : "No se pudo comprobar la sesión." },
+        { status: sessionMissing ? 401 : 503 }
+      );
     }
     const user = auth?.data?.user ?? null;
     if (!user && !isOutboxWorker) {
