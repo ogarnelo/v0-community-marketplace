@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: authData, error: authError } = await supabase.auth.getUser();
   // A failed identity provider is not a guest, even with stale user data.
-  if (authError) {
+  if (authError && authError.name !== "AuthSessionMissingError" && authError.code !== "session_not_found") {
     return NextResponse.json({ error: "No se pudo comprobar tu sesión." },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
