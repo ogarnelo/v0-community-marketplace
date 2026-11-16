@@ -137,3 +137,83 @@ for (const [label, path, method] of routes.slice(0, 3)) {
     assert.doesNotMatch(JSON.stringify(r.body), /PRIVATE_|DIAGNOSTIC/);
   });
 }
+
+const helperCases = [
+  ["getCurrentUser", "lib/auth/server-user.ts", "getCurrentUser"],
+  ["getCurrentProfile", "lib/supabase/get-profile.ts", "getCurrentProfile"],
+];
+function loadAuthHelper(file, method, opt={}) {
+  const operations=[];
+  const user={id:UID,email:"private@example.invalid"};
+  const client={
+    auth:{getUser:async()=>{
+      operations.push("AUTH");
+      if(opt.throws)throw new Error("PRIVATE_AUTH_EXCEPTION");
+      return {data:{user:opt.guest?null:user},error:
+        opt.missing?{name:"AuthSessionMissingError"}:
+        opt.missingCode?{code:"session_not_found"}:
+        opt.provider?{message:"PRIVATE_PROVIDER_DIAGNOSTIC"}:null};
+    }},
+    from:table=>{
+      operations.push("PROFILE_QUERY:"+table);
+      const query={select:()=>query,eq:()=>query,
+        single:async()=>({data:{id:UID,full_name:"Nombre sintético"},error:opt.profileError?{}:null})};
+      return query;
+    },
+  };
+  const mocks={
+    "server-only":{},
+    "react":{cache:fn=>fn},
+    "@/lib/supabase/server":{createClient:async()=>{
+      operations.push("CREATE_CLIENT");
+      if(opt.clientThrows)throw new Error("PRIVATE_CREATE_ERROR");
+      return client;
+    }},
+  };
+  const src=readFileSync(file,"utf8"),compiled=ts.transpileModule(src,{
+    fileName:file,reportDiagnostics:true,
+    compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});
+  assert.equal(compiled.diagnostics?.filter(x=>x.category===ts.DiagnosticCategory.Error).length??0,0);
+  const exp={};
+  vm.runInNewContext(compiled.outputText,{
+    exports:exp, require:id=>{
+      if(!(id in mocks))throw Error("Unexpected import: "+id);
+      return mocks[id];
+    }, Promise,Error,
+  },{timeout:1500,filename:file});
+  return {operations,run:()=>exp[method]()};
+}
+for(const [label,file,method] of helperCases) {
+  for(const [scenario,opt] of [
+    ["sin usuario", {guest:true}],
+    ["AuthSessionMissingError con usuario residual", {missing:true}],
+    ["session_not_found con usuario residual", {missingCode:true}],
+  ]) test(label+" — "+scenario+" no consulta perfil",async()=>{
+    const h=loadAuthHelper(file,method,opt),v=await h.run();
+    if(method==="getCurrentUser") assert.equal(v,null);
+    else {assert.equal(v.user,null);assert.equal(v.profile,null);}
+    assert.equal(h.operations.some(x=>x.startsWith("PROFILE_QUERY:")),false);
+  });
+  for(const [scenario,opt] of [
+    ["fallo real del proveedor con usuario residual", {provider:true}],
+    ["getUser lanza excepción", {throws:true}],
+    ["createClient lanza excepción", {clientThrows:true}],
+  ]) test(label+" — "+scenario+" falla cerrado sin revelar diagnóstico",async()=>{
+    const h=loadAuthHelper(file,method,opt);
+    await assert.rejects(h.run(),e=>{
+      assert.match(e.message,/^auth_(user|profile)_unavailable$/);
+      assert.doesNotMatch(e.message,/PRIVATE_/);
+      return true;
+    });
+    assert.equal(h.operations.some(x=>x.startsWith("PROFILE_QUERY:")),false);
+  });
+  test(label+" — Auth confirmada conserva usuario y lectura autorizada",async()=>{
+    const h=loadAuthHelper(file,method),v=await h.run();
+    if(method==="getCurrentUser") assert.equal(v.id,UID);
+    else {
+      assert.equal(v.user.id,UID);
+      assert.equal(v.profile.id,UID);
+      assert.equal(h.operations.includes("PROFILE_QUERY:profiles"),true);
+    }
+  });
+}
