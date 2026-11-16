@@ -51,12 +51,22 @@ export async function POST(request: Request) {
         listingId,
         conversationId: result.conversationId,
       });
-    } catch (attributionError) {
-      console.error("No se pudo atribuir la solicitud de donación a una necesidad", attributionError);
+    } catch {
+      console.error("donation_need_attribution_failed");
     }
 
     return privateJson({ ok: true, ...result });
-  } catch {
+  } catch (error: unknown) {
+    const name = error && typeof error === "object" && "name" in error ? error.name : null;
+    if (name === "DonationRequestConflictError") {
+      return privateJson({ error: "Ya has solicitado esta donación." }, { status: 409 });
+    }
+    if (name === "DonationRequestReconciliationError") {
+      return privateJson(
+        { error: "La solicitud se guardó, pero requiere conciliar el chat o la notificación." },
+        { status: 503 }
+      );
+    }
     console.error("donation_request_failed");
     return privateJson({ error: "No se pudo crear la solicitud." }, { status: 500 });
   }
