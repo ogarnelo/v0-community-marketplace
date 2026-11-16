@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { canRequestDonation } from "@/lib/marketplace/rules";
 import { createNotification } from "@/lib/notifications";
 import { buildDonationChatBody } from "@/lib/donations/chat-message";
-import { getOrCreateConversation, touchConversation } from "@/lib/services/conversations.service";
+import { getOrCreateConversation } from "@/lib/services/conversations.service";
 
 export type DonationAction = "accept" | "reject";
 
@@ -75,9 +75,10 @@ export async function requestDonationFlow(params: {
       }),
     });
     if (messageError) throw new Error("donation_message_not_confirmed");
-    const { error: touchError } = await supabase.from("conversations")
-      .update({ updated_at: now }).eq("id", conversationId);
-    if (touchError) throw new Error("donation_chat_touch_not_confirmed");
+    const { data: touched, error: touchError } = await supabase.from("conversations")
+      .update({ updated_at: now }).eq("id", conversationId)
+      .select("id").maybeSingle();
+    if (touchError || !touched) throw new Error("donation_chat_touch_not_confirmed");
     const { error: notificationError } = await createNotification(supabase, {
       user_id: listing.seller_id, kind: "donation_requested",
       title: "Han solicitado tu donación",
@@ -207,7 +208,10 @@ export async function respondToDonationFlow(params: {
     });
     if (messageError) throw new Error("message_not_confirmed");
 
-    await touchConversation(supabase, conversationId, now);
+    const { data: touched, error: touchError } = await supabase
+      .from("conversations").update({ updated_at: now })
+      .eq("id", conversationId).select("id").maybeSingle();
+    if (touchError || !touched) throw new Error("donation_decision_conversation_sync_failed");
     const { error: notificationError } = await createNotification(supabase, {
       user_id: donationRequest.requester_id,
       kind: action === "accept" ? "donation_approved" : "donation_rejected",
