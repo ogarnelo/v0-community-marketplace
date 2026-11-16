@@ -18,6 +18,10 @@ function harness(opts={}){
        if(table==="listings")return {data:opts.noListing?null:listing,error:opts.listingError?{message:"PRIVATE_LIST"}:null};
        if(table==="donation_requests")return {data:opts.existing?{id:ID}:null,
            error:opts.existingError?{message:"PRIVATE_EXIST"}:null};
+       if(table==="conversations"&&mode==="update")return {
+         data:opts.touchMissing?null:{id:SELLER},
+         error:opts.touchError?{message:"PRIVATE_TOUCH"}:null
+       };
        return {data:null,error:null};
      },
      insert:()=>{mode="insert";calls.push("INSERT:"+table);return q;},
@@ -84,6 +88,7 @@ for(const [name,opts] of [
  ["falla el evento",{eventError:true}],
  ["falla el mensaje",{messageError:true}],
  ["falla touch",{touchError:true}],
+ ["touch no actualiza ninguna fila",{touchMissing:true}],
  ["falla la notificación",{notificationError:true}]
 ]){
  test("solicitud ya guardada + "+name+" => conciliación",async()=>{

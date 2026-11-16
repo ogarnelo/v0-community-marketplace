@@ -29,6 +29,8 @@ function runtime(opts={}){
           }
           if(table==="listings")return {data:opts.archiveMissing?null:{id:U},
             error:opts.archiveError?{message:"PRIVATE_SQL_ARCHIVE"}:null};
+          if(table==="conversations")return {data:opts.touchMissing?null:{id:U},
+            error:opts.touchError?{message:"PRIVATE_SQL_TOUCH"}:null};
         }
         if(table==="donation_requests"){
           if(state.eqs.some(([k,v])=>k==="status"&&v==="approved")){
@@ -138,6 +140,16 @@ for(const action of ["accept","reject"]){
   const h=runtime({notificationError:true});
   await assert.rejects(h.run(action),e=>e.name==="DonationDecisionReconciliationError");
  });
+}
+for(const action of ["accept","reject"]){
+ for(const scenario of [{touchError:true},{touchMissing:true}]){
+  test(action+" · conversación no confirmada => conciliación sin notificar",async()=>{
+   const h=runtime(scenario);
+   await assert.rejects(h.run(action),e=>e.name==="DonationDecisionReconciliationError");
+   assert.ok(h.calls.some(x=>x.startsWith("UPDATE:conversations:")));
+   assert.equal(h.calls.includes("NOTIFY"),false);
+  });
+ }
 }
 for(const config of [{archiveError:true},{archiveMissing:true},{competitorError:true}]){
  test("aceptación: "+JSON.stringify(config)+" exige conciliación",async()=>{
