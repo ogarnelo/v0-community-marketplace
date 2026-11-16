@@ -62,7 +62,7 @@ function runtime(path,opts={}){
  return {calls,logs,call:async()=>{
   const response=await exp.POST(new Request("https://synthetic.invalid/api",{
    method:"POST",headers:{"Content-Type":"application/json"},
-   body:JSON.stringify({schoolId:"invalid",requestId:"",email:"",
+   body:JSON.stringify({schoolId:"",requestId:"",email:"",
     officialCode:"bad",mode:"preview"})}));
   return {status:response.status,cache:response.headers.get("cache-control"),body:await response.json()};
  }};
