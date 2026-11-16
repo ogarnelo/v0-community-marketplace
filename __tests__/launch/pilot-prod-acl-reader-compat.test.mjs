@@ -17,7 +17,9 @@ test("server bypass listing queries retain RLS-equivalent public status and scho
   assert.match(home,/\.eq\("status", "available"\)/);
   assert.match(feed,/\.eq\("status", "available"\)/);
   assert.match(school,/\.eq\("status", "available"\)/);
-  const auth=school.indexOf("if (authError || !user)");
+  const auth=school.indexOf("if (authError)");
+  const guest=school.indexOf("if (!user)");
+  assert.ok(guest>auth, "guest check must follow Auth failure denial");
   const filter=school.indexOf("const expression = makeMarketplaceSchoolFilter");
   const query=school.indexOf('admin.from("listings")');
   assert.ok(auth>=0&&filter>auth&&query>filter,"school scope must be verified before service role bypass");
