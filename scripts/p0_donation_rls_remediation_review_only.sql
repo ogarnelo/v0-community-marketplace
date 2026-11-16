@@ -1,5 +1,5 @@
 -- WETUDY #591 · CANDIDATO DDL REVIEW ONLY · NO APLICAR SIN AUTORIZACIÓN EXPRESA
--- Nunca se debe ejecutar este archivo automáticamente desde CI, Vercel o Supabase.
+-- Nunca ejecutar en CI/Vercel/Supabase contra producción. La prueba GitHub solo lo ejecuta en PostgreSQL 17 desechable.
 -- Requiere preflight read-only, aprobación independiente, prueba local y plan rollback.
 -- Este bloque puede tomar bloqueo de índice; se debe revisar la duración prevista.
 BEGIN;
@@ -14,7 +14,7 @@ BEGIN
   SELECT * INTO p FROM pg_policies WHERE schemaname='public'
     AND tablename='donation_requests' AND policyname='Users can create donation requests';
   IF NOT FOUND OR p.cmd <> 'INSERT' OR p.roles::text <> '{public}'
-     OR regexp_replace(coalesce(p.with_check,''),'\\s+','','g')
+     OR regexp_replace(coalesce(p.with_check,''),'[[:space:]]+','','g')
        NOT IN ('((SELECTauth.uid()ASuid)=requester_id)','((SELECTauth.uid())=requester_id)') THEN
     RAISE EXCEPTION 'NO_GO_591: original INSERT policy drifted; stop for human review';
   END IF;
