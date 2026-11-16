@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { respondToDonationFlow, type DonationAction } from "@/lib/services/donations.service";
@@ -10,12 +17,19 @@ function isDonationAction(value: unknown): value is DonationAction {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const body = await request.json();
@@ -23,7 +37,7 @@ export async function POST(request: Request) {
     const action = isDonationAction(body?.action) ? body.action : null;
 
     if (!requestId || !action) {
-      return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
+      return privateJson({ error: "Petición no válida." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -34,11 +48,9 @@ export async function POST(request: Request) {
       actorUserId: user.id,
     });
 
-    return NextResponse.json({ ok: true, ...result });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo responder a la solicitud." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, ...result });
+  } catch {
+    console.error("donation_response_failed");
+    return privateJson({ error: "No se pudo responder a la solicitud." }, { status: 500 });
   }
 }

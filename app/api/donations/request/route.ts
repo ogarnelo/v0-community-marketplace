@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requestDonationFlow } from "@/lib/services/donations.service";
@@ -7,12 +14,19 @@ import { attributeNeedToConversation } from "@/lib/demand/need-attribution";
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const body = await request.json();
@@ -20,7 +34,7 @@ export async function POST(request: Request) {
     const note = typeof body?.note === "string" ? body.note.trim().slice(0, 500) : "";
 
     if (!listingId) {
-      return NextResponse.json({ error: "Falta el anuncio." }, { status: 400 });
+      return privateJson({ error: "Falta el anuncio." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -41,11 +55,9 @@ export async function POST(request: Request) {
       console.error("No se pudo atribuir la solicitud de donación a una necesidad", attributionError);
     }
 
-    return NextResponse.json({ ok: true, ...result });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo crear la solicitud." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, ...result });
+  } catch {
+    console.error("donation_request_failed");
+    return privateJson({ error: "No se pudo crear la solicitud." }, { status: 500 });
   }
 }

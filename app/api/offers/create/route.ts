@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOfferFlow } from "@/lib/services/offers.service";
@@ -6,7 +13,7 @@ import { isLegacyCommerceEnabled } from "@/lib/launch/feature-gates";
 
 export async function POST(request: Request) {
   if (!isLegacyCommerceEnabled()) {
-    return NextResponse.json(
+    return privateJson(
       { error: "Esta función no está activa durante el lanzamiento inicial de Wetudy." },
       { status: 404 }
     );
@@ -14,12 +21,19 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 });
+      return privateJson({ error: "Debes iniciar sesión." }, { status: 401 });
     }
 
     const body = await request.json();
@@ -27,7 +41,7 @@ export async function POST(request: Request) {
     const offeredPrice = Number(body?.offeredPrice);
 
     if (!listingId || !Number.isFinite(offeredPrice) || offeredPrice <= 0) {
-      return NextResponse.json({ error: "La oferta no es válida." }, { status: 400 });
+      return privateJson({ error: "La oferta no es válida." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -39,7 +53,7 @@ export async function POST(request: Request) {
     });
 
     if (result.alreadyExists) {
-      return NextResponse.json(
+      return privateJson(
         {
           ok: false,
           redirectTo: `/messages/${result.conversationId}`,
@@ -51,11 +65,9 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, ...result });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo crear la oferta." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true, ...result });
+  } catch {
+    console.error("offer_creation_failed");
+    return privateJson({ error: "No se pudo crear la oferta." }, { status: 500 });
   }
 }
