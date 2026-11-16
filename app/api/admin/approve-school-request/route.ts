@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(payload: unknown, opts: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(payload, {
+    ...opts,
+    headers: { ...PRIVATE_HEADERS, ...(opts.headers || {}) },
+  });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { provisionSchoolAdminAccess } from "@/lib/admin/school-admin-invitation";
@@ -21,12 +31,19 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const guest = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: guest ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: guest ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     const { data: superAdminRoles, error: roleError } = await supabase
@@ -36,8 +53,10 @@ export async function POST(request: Request) {
       .eq("role", "super_admin")
       .limit(1);
 
+    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+
     if (roleError || !superAdminRoles?.length) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+      return privateJson({ error: "No autorizado." }, { status: 403 });
     }
 
     const body = (await request.json().catch(() => null)) as {
@@ -47,7 +66,7 @@ export async function POST(request: Request) {
     const requestId = body?.requestId?.trim();
 
     if (!requestId) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Falta el identificador de la solicitud." },
         { status: 400 }
       );
@@ -64,7 +83,7 @@ export async function POST(request: Request) {
     }
 
     if (!schoolRequest) {
-      return NextResponse.json(
+      return privateJson(
         { error: "No se ha encontrado la solicitud indicada." },
         { status: 404 }
       );
@@ -108,24 +127,15 @@ export async function POST(request: Request) {
         : "Se ha enviado un email corporativo para activar la cuenta, crear contraseña y entrar al panel del centro.";
     }
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       school_id: approvedSchoolId,
       access_code: accessCode,
       invite_sent: inviteSent,
       invite_message: inviteMessage,
     });
-  } catch (error: any) {
-    console.error("Error aprobando solicitud de centro:", error);
-
-    return NextResponse.json(
-      {
-        error:
-          error?.message ||
-          error?.details ||
-          "No se pudo aprobar la solicitud de centro.",
-      },
-      { status: 500 }
-    );
+  } catch {
+    console.error("school_approval_failed");
+    return privateJson({ error: "No se pudo aprobar la solicitud de centro." }, { status: 500 });
   }
 }

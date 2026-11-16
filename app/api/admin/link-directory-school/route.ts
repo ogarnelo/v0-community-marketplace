@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(payload: unknown, opts: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(payload, {
+    ...opts,
+    headers: { ...PRIVATE_HEADERS, ...(opts.headers || {}) },
+  });
+}
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -20,15 +30,34 @@ const normalize = (input: string | null | undefined) =>
 const noStore = { "Cache-Control": "private, no-store" };
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let supabase;
+  let authResult;
+  try {
+    supabase = await createClient();
+    authResult = await supabase.auth.getUser();
+  } catch {
+    console.error("school_directory_auth_unavailable");
+    return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503, headers: noStore });
+  }
+  if (authResult.error) {
+    const guest = authResult.error.name === "AuthSessionMissingError" ||
+      authResult.error.code === "session_not_found";
+    return privateJson(
+      { error: guest ? "No autenticado." : "No se pudo comprobar tu sesión." },
+      { status: guest ? 401 : 503, headers: noStore }
+    );
+  }
+  const user = authResult.data?.user ?? null;
   if (!user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401, headers: noStore });
+    return privateJson({ error: "No autenticado." }, { status: 401, headers: noStore });
   }
   const { data: roles, error: roleError } = await supabase.from("user_roles")
     .select("role").eq("user_id", user.id).eq("role", "super_admin").limit(1);
+  if (roleError) {
+    return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503, headers: noStore });
+  }
   if (roleError || !roles?.length) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 403, headers: noStore });
+    return privateJson({ error: "No autorizado." }, { status: 403, headers: noStore });
   }
 
   const body = await request.json().catch(() => null) as LinkPayload | null;
@@ -36,7 +65,7 @@ export async function POST(request: Request) {
   const officialCode = body?.officialCode?.trim() || "";
   if (!UUID.test(schoolId) || !CODE.test(officialCode) ||
       !["preview", "link"].includes(body?.mode || "")) {
-    return NextResponse.json({ error: "Código y centro inválidos." }, { status: 400, headers: noStore });
+    return privateJson({ error: "Código y centro inválidos." }, { status: 400, headers: noStore });
   }
   try {
     const admin = createAdminClient();
@@ -60,7 +89,7 @@ export async function POST(request: Request) {
       throw new Error("school_directory_verification_failed");
     }
     if (!school || !directory) {
-      return NextResponse.json({ error: "El centro o código oficial no existe." },
+      return privateJson({ error: "El centro o código oficial no existe." },
         { status: 404, headers: noStore });
     }
     const linked = directory.linked_school_id === schoolId;
@@ -86,12 +115,12 @@ export async function POST(request: Request) {
         postalCode: directory.postal_code },
     };
     if (body?.mode === "preview") {
-      return NextResponse.json(preview, { headers: noStore });
+      return privateJson(preview, { headers: noStore });
     }
     if (!ready || body?.confirm !== true ||
         body.confirmedSchoolName !== school.name ||
         body.confirmedDirectoryName !== directory.name) {
-      return NextResponse.json({ error: "Vinculación no verificada; vuelve a comprobar los datos." },
+      return privateJson({ error: "Vinculación no verificada; vuelve a comprobar los datos." },
         { status: 409, headers: noStore });
     }
     if (!linked) {
@@ -103,16 +132,16 @@ export async function POST(request: Request) {
         .is("linked_school_id", null)
         .select("official_code,linked_school_id").maybeSingle();
       if (updateError || !updated || updated.linked_school_id !== schoolId) {
-        return NextResponse.json({ error: "El enlace ha cambiado; vuelve a verificar." },
+        return privateJson({ error: "El enlace ha cambiado; vuelve a verificar." },
           { status: 409, headers: noStore });
       }
     }
-    return NextResponse.json({ ok: true, linked: true,
+    return privateJson({ ok: true, linked: true,
       message: "El colegio oficial y la comunidad están vinculados sin alterar los anuncios." },
       { headers: noStore });
   } catch (error) {
     console.error("Error verificando código oficial:", error);
-    return NextResponse.json({ error: "No se pudo verificar el centro." },
+    return privateJson({ error: "No se pudo verificar el centro." },
       { status: 503, headers: noStore });
   }
 }
