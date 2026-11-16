@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
@@ -6,16 +14,23 @@ import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPr
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     if (!(await canUserUseCommerce(user))) {
-      return NextResponse.json({ error: "No disponible." }, { status: 404 });
+      return privateJson({ error: "No disponible." }, { status: 404 });
     }
     if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
@@ -34,15 +49,15 @@ export async function POST(request: Request) {
       try {
         const parsedTrackingUrl = new URL(trackingUrl);
         if (parsedTrackingUrl.protocol !== "https:") {
-          return NextResponse.json({ error: "La URL de seguimiento debe usar HTTPS." }, { status: 400 });
+          return privateJson({ error: "La URL de seguimiento debe usar HTTPS." }, { status: 400 });
         }
       } catch {
-        return NextResponse.json({ error: "La URL de seguimiento no es válida." }, { status: 400 });
+        return privateJson({ error: "La URL de seguimiento no es válida." }, { status: 400 });
       }
     }
 
     if (!shipmentId) {
-      return NextResponse.json({ error: "Falta el envío." }, { status: 400 });
+      return privateJson({ error: "Falta el envío." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -52,16 +67,15 @@ export async function POST(request: Request) {
       .eq("id", shipmentId)
       .maybeSingle();
 
-    if (shipmentError || !shipment) {
-      return NextResponse.json({ error: "Envío no encontrado." }, { status: 404 });
-    }
+    if (shipmentError) return privateJson({ error: "No se pudo consultar el envío." }, { status: 503 });
+    if (!shipment) return privateJson({ error: "Envío no encontrado." }, { status: 404 });
 
     if (shipment.seller_id !== user.id) {
-      return NextResponse.json({ error: "No puedes actualizar este envío." }, { status: 403 });
+      return privateJson({ error: "No puedes actualizar este envío." }, { status: 403 });
     }
 
     if (shipment.status !== "label_ready") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Solo puedes marcar el envío cuando la etiqueta está lista." },
         { status: 409 }
       );
@@ -86,11 +100,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message || "No se pudo actualizar el envío." }, { status: 400 });
+      return privateJson({ error:  "No se pudo actualizar el envío." }, { status: 400 });
     }
 
     if (!updatedShipment) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El estado del envío ha cambiado. Actualiza la conversación e inténtalo de nuevo." },
         { status: 409 }
       );
@@ -107,11 +121,9 @@ export async function POST(request: Request) {
       created_at: now,
     });
 
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo actualizar el envío." },
-      { status: 500 }
-    );
+    return privateJson({ ok: true });
+  } catch {
+    console.error("shipping_dispatch_failed");
+    return privateJson({ error: "No se pudo actualizar el envío." }, { status: 500 });
   }
 }

@@ -1,4 +1,12 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number; headers?: Record<string, string> } = {}) {
+  return NextResponse.json(body, { ...options, headers: { ...PRIVATE_HEADERS, ...(options.headers || {}) } });
+}
+
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from "@/lib/payments/pricing";
@@ -16,16 +24,23 @@ function isDeliveryMethod(value: unknown): value is DeliveryMethod {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const noSession = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return privateJson(
+        { error: noSession ? "No autenticado." : "No se pudo comprobar tu sesión." },
+        { status: noSession ? 401 : 503 }
+      );
+    }
+    const user = authData?.user ?? null;
 
     if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+      return privateJson({ error: "No autenticado." }, { status: 401 });
     }
 
     if (!(await canUserUseCommerce(user))) {
-      return NextResponse.json({ error: "No disponible." }, { status: 404 });
+      return privateJson({ error: "No disponible." }, { status: 404 });
     }
     if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
@@ -39,7 +54,7 @@ export async function POST(request: Request) {
         : "none";
 
     if (!offerId) {
-      return NextResponse.json({ error: "Falta la oferta." }, { status: 400 });
+      return privateJson({ error: "Falta la oferta." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -51,21 +66,21 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!offer) {
-      return NextResponse.json({ error: "Oferta no encontrada." }, { status: 404 });
+      return privateJson({ error: "Oferta no encontrada." }, { status: 404 });
     }
 
     if (offer.buyer_id !== user.id) {
-      return NextResponse.json({ error: "No puedes preparar el pago de esta oferta." }, { status: 403 });
+      return privateJson({ error: "No puedes preparar el pago de esta oferta." }, { status: 403 });
     }
 
     if (offer.status !== "accepted") {
-      return NextResponse.json({ error: "La oferta aún no está aceptada." }, { status: 400 });
+      return privateJson({ error: "La oferta aún no está aceptada." }, { status: 400 });
     }
 
     const acceptedAmount = getAcceptedOfferAmount(offer);
 
     if (!Number.isFinite(acceptedAmount) || acceptedAmount <= 0) {
-      return NextResponse.json({ error: "El importe aceptado no es válido." }, { status: 400 });
+      return privateJson({ error: "El importe aceptado no es válido." }, { status: 400 });
     }
 
     const pricing = buildMarketplacePricing({
@@ -81,11 +96,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!listing) {
-      return NextResponse.json({ error: "El anuncio ya no está disponible." }, { status: 404 });
+      return privateJson({ error: "El anuncio ya no está disponible." }, { status: 404 });
     }
 
     if (!["available", "reserved", "sold"].includes(String(listing.status))) {
-      return NextResponse.json({ error: "El anuncio no permite preparar el pago." }, { status: 400 });
+      return privateJson({ error: "El anuncio no permite preparar el pago." }, { status: 400 });
     }
 
     const { data: conversation } = await adminSupabase
@@ -98,10 +113,40 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
 
-    const { data: paymentIntent, error } = await adminSupabase
-      .from("payment_intents")
-      .upsert(
-        {
+    // Production payment_intents(offer_id) has a partial UNIQUE index.
+    // Never let a retry downgrade "succeeded" or overwrite a payment amount.
+    const columns = "id,status,amount,currency,buyer_fee_amount,shipping_amount,seller_net_amount,shipment_tier,metadata,buyer_id,seller_id,listing_id,offer_id";
+    const { data: previous, error: previousError } = await adminSupabase
+      .from("payment_intents").select(columns).eq("offer_id", offer.id).maybeSingle();
+    if (previousError) {
+      return privateJson({ error: "No se pudo verificar el intento de pago." }, { status: 503 });
+    }
+    const sameCents = (a: unknown,b: number) =>
+      Number.isFinite(Number(a)) && Math.round(Number(a)*100) === Math.round(b*100);
+    const compatible = (intent: any) =>
+      intent?.status === "requires_payment_method" &&
+      intent.offer_id === offer.id && intent.listing_id === offer.listing_id &&
+      intent.buyer_id === offer.buyer_id && intent.seller_id === offer.seller_id &&
+      intent.currency === "EUR" && intent.shipment_tier === pricing.shipmentTier &&
+      intent.metadata?.delivery_method === pricing.deliveryMethod &&
+      sameCents(intent.amount,pricing.itemAmount) &&
+      sameCents(intent.buyer_fee_amount,pricing.buyerFeeAmount) &&
+      sameCents(intent.shipping_amount,pricing.shippingAmount) &&
+      sameCents(intent.seller_net_amount,pricing.sellerNetAmount);
+
+    let paymentIntent: any;
+    if (previous) {
+      if (!compatible(previous)) {
+        return privateJson(
+          { error: "Ya existe un intento de pago con otro estado o condiciones. No se puede modificar desde aquí." },
+          { status: 409 }
+        );
+      }
+      paymentIntent = previous; // read-only retry; no state or amount mutation
+    } else {
+      const { data: inserted, error: insertError } = await adminSupabase
+        .from("payment_intents")
+        .insert({
           listing_id: offer.listing_id,
           conversation_id: conversation?.id || null,
           offer_id: offer.id,
@@ -115,19 +160,21 @@ export async function POST(request: Request) {
           shipping_amount: pricing.shippingAmount,
           seller_net_amount: pricing.sellerNetAmount,
           shipment_tier: pricing.shipmentTier,
-          metadata: {
-            source: "offer_acceptance",
-            delivery_method: pricing.deliveryMethod,
-          },
+          metadata: { source: "offer_acceptance", delivery_method: pricing.deliveryMethod },
           updated_at: now,
-        },
-        { onConflict: "offer_id" }
-      )
-      .select("id, status, amount, currency, buyer_fee_amount, shipping_amount, seller_net_amount, shipment_tier, metadata")
-      .single();
-
-    if (error || !paymentIntent) {
-      return NextResponse.json({ error: "No se pudo preparar el pago." }, { status: 400 });
+        })
+        .select(columns)
+        .single();
+      if (insertError?.code === "23505") {
+        return privateJson(
+          { error: "Otro intento de pago ya se ha preparado; vuelve a consultar su estado." },
+          { status: 409 }
+        );
+      }
+      if (insertError || !inserted) {
+        return privateJson({ error: "No se pudo preparar el pago." }, { status: 503 });
+      }
+      paymentIntent = inserted;
     }
 
     if (listing.status === "available") {
@@ -138,7 +185,7 @@ export async function POST(request: Request) {
         .eq("status", "available");
     }
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       paymentIntent,
       checkout: {
@@ -152,7 +199,7 @@ export async function POST(request: Request) {
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     console.error("payment_intent_prepare_failed");
-    return NextResponse.json({ error: "No se pudo preparar el pago." }, {
+    return privateJson({ error: "No se pudo preparar el pago." }, {
       status: 500, headers: { "Cache-Control": "private, no-store" },
     });
   }
