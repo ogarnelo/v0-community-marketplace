@@ -1,0 +1,5 @@
+# PR589 — Resultado honesto de los efectos secundarios en la revisión de donaciones
+
+Fecha: 16/11/2026. Después de que la asignación/rechazo CAS de PR587 haya persistido, los pasos siguientes son consultas/escrituras separadas: cierre de otras solicitudes, archivado de anuncio, mensaje en conversación, actualización de fecha y notificaciones. Ahora se revisa explícitamente el `error` de cada una; cualquier fallo devuelve **503 de conciliación**, nunca falso `ok:true`. Los mensajes SQL internos no salen en JSON. Se limita longitud de nota a 600 caracteres. El resultado aprobado sigue persistido: **no se deshace ni se reintenta automáticamente**, para evitar duplicados; necesita verificación/conciliación humana. Son 11 pruebas runtime sintéticas (10 escenarios y un contrato estructural) sin escrituras reales.
+
+**Limitación abierta:** aún no es una transición atómica de solicitud + anuncio + mensajes + notificaciones. Una futura función transaccional exige diseño de idempotencia y autorización SQL específica antes de ejecutarse; el backend actual no debe presentarse como DR/E2E integral. El piloto general permanece NO-GO.
