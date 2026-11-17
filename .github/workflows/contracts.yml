@@ -95,3 +95,5 @@ jobs:
         run: node --test __tests__/launch/pilot-manual-school-report-partial-send.test.mjs
       - name: Post-load school activation and manual send checks
         run: node --test __tests__/launch/pilot-school-report-postload-active.test.mjs
+      - name: Supabase admin default ACL executor diagnostic is read only
+        run: node --test __tests__/launch/p0-admin-default-acl-executor-readonly.test.mjs
