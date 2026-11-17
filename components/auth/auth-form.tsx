@@ -347,8 +347,8 @@ export function AuthForm() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+    if (password.length < 12) {
+      setError("La contraseña debe tener al menos 12 caracteres.");
       return;
     }
 
@@ -688,7 +688,7 @@ export function AuthForm() {
                 placeholder="••••••••"
                 className="pl-10 pr-11"
                 required
-                minLength={mode === "signup" ? 8 : undefined}
+                minLength={mode === "signup" ? 12 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
