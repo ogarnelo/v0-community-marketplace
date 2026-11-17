@@ -111,3 +111,5 @@ jobs:
         run: node --test __tests__/launch/federation-report-filters-runtime.test.mjs
       - name: Federated report full-scope privacy and authorization runtime
         run: node --test __tests__/launch/federation-report-gateway-runtime.test.mjs
+      - name: Federation identity schema stays review only and deny-by-default
+        run: node --test __tests__/launch/p0-federation-schema-review-only.test.mjs
