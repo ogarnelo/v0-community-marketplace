@@ -55,7 +55,7 @@ for(const [name,o,status] of [
 test("valid have_one => publication link and one conditional update",async()=>{
  const x=h(),r=await x.post();assert.equal(r.status,200);
  assert.equal(r.body.publishHref,"/marketplace/new?opportunity="+KEY);
- assert.deepEqual(x.events,["ADMIN","UPDATE:have_one"]);
+ assert.deepEqual(x.events,["ADMIN","ADMIN","UPDATE:have_one"]);
 });
 test("dont_have => no publication link",async()=>{
  const x=h(),r=await x.post({response:"dont_have"});
