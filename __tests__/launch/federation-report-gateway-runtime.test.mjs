@@ -102,3 +102,24 @@ test("fresh verification must belong to same subject and federation",async()=>{
  const h=run({reloadAuthority:async()=>swapped});
  await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_CHANGED/);
 });
+
+test("changed verification path denies even if school scope remains identical",async()=>{
+ const changed=authority();
+ changed.representations[0].startsAt="2026-01-02T00:00:00Z";
+ const h=run({reloadAuthority:async()=>changed});
+ await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_CHANGED/);
+ assert.equal(h.calls.length,1);
+});
+test("redundant legal representation added mid-aggregation denies same school scope",async()=>{
+ const changed=authority();
+ changed.representations.push({...representation(school1),startsAt:"2026-02-01T00:00:00Z"});
+ const h=run({reloadAuthority:async()=>changed});
+ await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_CHANGED/);
+});
+test("order-only snapshot variation does not falsely revoke reporting authority",async()=>{
+ const changed=authority();
+ changed.representations.reverse();
+ const h=run({reloadAuthority:async()=>changed});
+ const report=await h.query;
+ assert.equal(report.schools.length,2);
+});

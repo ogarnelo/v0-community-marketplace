@@ -19,6 +19,28 @@ export type FederationReportResult = {
   total: PublicKpi | null;
   totalSuppressed: boolean;
 };
+/**
+ * Compare the entire effective representation snapshot, not merely the set
+ * of visible school IDs. Two different legal paths may expose the SAME school
+ * set; a mid-request revoked link or changed verification must still abort.
+ * Timestamp `now` is deliberately excluded: it must advance normally.
+ */
+function authoritySignature(input: FederationHierarchyInput): string {
+  const memberships=input.memberships.map(m=>[
+    m.userId,m.federationId,m.role,m.state,
+  ].join("|")).sort();
+  const links=input.links.map(x=>[
+    x.parentId,x.childId,x.status,x.startsAt,x.endsAt,
+  ].join("|")).sort();
+  const representations=input.representations.map(x=>[
+    x.federationId,x.schoolId,x.state,x.startsAt,x.endsAt,
+  ].join("|")).sort();
+  return JSON.stringify({
+    userId:input.userId,rootFederationId:input.rootFederationId,
+    memberships,links,representations,
+  });
+}
+
 type TrustedSchoolMetricsLoader = (scope: {
   schoolIds: readonly string[];
   start: string | null;
@@ -58,7 +80,8 @@ export async function createFederationReport(input: {
      fresh.now.getTime()<input.authority.now.getTime())
     throw new Error("FEDERATION_REPORT_SCOPE_CHANGED");
   const verified=resolveHierarchySchoolScope(fresh);
-  if(verified.length!==scope.length || verified.some((id,i)=>id!==scope[i]))
+  if(verified.length!==scope.length || verified.some((id,i)=>id!==scope[i]) ||
+     authoritySignature(fresh)!==authoritySignature(input.authority))
     throw new Error("FEDERATION_REPORT_SCOPE_CHANGED");
   const views=projectFederationSchoolKpis(rows,scope);
   if(views.length!==scope.length)throw new Error("INCOMPLETE_REPORTING_METRICS");
