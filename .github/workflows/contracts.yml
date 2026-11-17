@@ -119,3 +119,5 @@ jobs:
         run: node --test __tests__/launch/federation-authority-snapshot-runtime.test.mjs
       - name: Federated report service legal graph to KPI and fresh reauthorization
         run: node --test __tests__/launch/federation-report-service-runtime.test.mjs
+      - name: Federation dashboard view-model privacy and KPI integrity
+        run: node --test __tests__/launch/federation-dashboard-view-model-runtime.test.mjs
