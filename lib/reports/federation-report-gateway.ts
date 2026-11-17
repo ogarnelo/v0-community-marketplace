@@ -30,10 +30,13 @@ export async function createFederationReport(input: {
   requestedPeriod: unknown;
   requestedSchoolId: unknown;
   loadAuthorizedSchools: TrustedSchoolMetricsLoader;
+  /** MUST freshly reload membership + complete representation, uncached. */
+  reloadAuthority: () => Promise<FederationHierarchyInput>;
 }):Promise<FederationReportResult> {
   const scope=resolveHierarchySchoolScope(input.authority);
   if(scope.length===0)throw new Error("FEDERATION_REPORT_SCOPE_DENIED");
-  if(typeof input.loadAuthorizedSchools!=="function")
+  if(typeof input.loadAuthorizedSchools!=="function" ||
+     typeof input.reloadAuthority!=="function")
     throw new Error("REPORT_LOADER_UNAVAILABLE");
   const filter=parseFederationReportFilter({
     period:input.requestedPeriod,schoolId:input.requestedSchoolId,
@@ -45,6 +48,18 @@ export async function createFederationReport(input: {
     schoolIds:scope,start:filter.start,end:filter.end,
   });
   if(!Array.isArray(rows))throw new Error("INVALID_REPORTING_METRICS");
+  // Representation or membership may be revoked while privileged metrics are
+  // being calculated. Re-read a FRESH server-trusted snapshot immediately
+  // before releasing any result; reject all drift, not just lost schools.
+  const fresh=await input.reloadAuthority();
+  if(!fresh || fresh.userId!==input.authority.userId ||
+     fresh.rootFederationId!==input.authority.rootFederationId ||
+     !(fresh.now instanceof Date) ||
+     fresh.now.getTime()<input.authority.now.getTime())
+    throw new Error("FEDERATION_REPORT_SCOPE_CHANGED");
+  const verified=resolveHierarchySchoolScope(fresh);
+  if(verified.length!==scope.length || verified.some((id,i)=>id!==scope[i]))
+    throw new Error("FEDERATION_REPORT_SCOPE_CHANGED");
   const views=projectFederationSchoolKpis(rows,scope);
   if(views.length!==scope.length)throw new Error("INCOMPLETE_REPORTING_METRICS");
   const total=sumFederationKpis(views,scope);

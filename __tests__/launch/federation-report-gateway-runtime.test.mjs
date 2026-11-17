@@ -39,7 +39,8 @@ const run=(options={})=>{
  const query=gateway.createFederationReport({
   authority:options.authority??authority(),requestedPeriod:options.period??"90d",
   requestedSchoolId:options.schoolId,
-  loadAuthorizedSchools
+  loadAuthorizedSchools,
+  reloadAuthority:options.reloadAuthority??(async()=>authority())
  });
  return {calls,query};
 };
@@ -76,4 +77,28 @@ test("small school suppresses all-scope total EVEN if filter selects other schoo
 test("unrepresented extra row from loader errors, never silently ignored",async()=>{
  const h=run({rows:[metric(school1),metric(school2),metric("55555555-5555-4555-8555-555555555555")]});
  await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_DENIED/);
+});
+
+test("mid-request revoked membership denies report AFTER authorized aggregate loading",async()=>{
+ const revoked=authority();revoked.memberships[0].state="revoked";
+ const h=run({reloadAuthority:async()=>revoked});
+ await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_CHANGED/);
+ assert.equal(h.calls.length,1);
+});
+test("mid-request changed representation denies even if selected school still exists",async()=>{
+ const changed=authority();changed.representations.pop();
+ const h=run({schoolId:school1,reloadAuthority:async()=>changed});
+ await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_CHANGED/);
+ assert.equal(h.calls.length,1);
+});
+test("missing fresh verifier denies before ANY data can be released",async()=>{
+ await assert.rejects(gateway.createFederationReport({
+  authority:authority(),requestedPeriod:"90d",requestedSchoolId:school1,
+  loadAuthorizedSchools:async()=>{throw Error("SHOULD_NOT_LOAD")}
+ }),/REPORT_LOADER_UNAVAILABLE/);
+});
+test("fresh verification must belong to same subject and federation",async()=>{
+ const swapped=authority();swapped.userId="55555555-5555-4555-8555-555555555555";
+ const h=run({reloadAuthority:async()=>swapped});
+ await assert.rejects(h.query,/FEDERATION_REPORT_SCOPE_CHANGED/);
 });
