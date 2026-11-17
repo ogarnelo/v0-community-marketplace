@@ -59,7 +59,8 @@ test("personal account type changes adapt the existing educational context safel
   assert.match(typeRoute, /alias: null/);
   assert.match(typeRoute, /relationship: "guardian"/);
   assert.match(typeRoute, /updateUserById/);
-  assert.match(typeRoute, /Tus datos anteriores se han conservado/);
+  assert.match(typeRoute, /account_type_reconciliation_required/);
+  assert.doesNotMatch(typeRoute, /Tus datos anteriores se han conservado/);
 });
 
 test("email confirmation and later login cannot silently skip required educational onboarding", () => {
