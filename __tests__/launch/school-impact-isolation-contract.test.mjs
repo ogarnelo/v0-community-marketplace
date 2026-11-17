@@ -21,3 +21,12 @@ test("school PDF route denies exports for inactive centres", () => {
   assert.match(source, /status: 403/);
   assert.ok(source.indexOf("school.is_active === false") < source.indexOf("loadSchoolImpactReport({"));
 });
+
+test("school admin sees only their own report delivery history", () => {
+  const source = read("app/admin/school/page.tsx");
+  const start = source.indexOf('.from("school_impact_report_deliveries")');
+  assert.ok(start !== -1);
+  const query = source.slice(start, start + 450);
+  assert.match(query, /\.eq\("school_id", effectiveSchoolId\)/);
+  assert.match(query, /\.eq\("user_id", user\.id\)/);
+});
