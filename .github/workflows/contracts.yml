@@ -79,3 +79,5 @@ jobs:
         run: node --test __tests__/launch/pilot-prod-photo-rls-after-listings-acl.test.mjs
       - name: Listing detail authorized photo reads and metadata
         run: node --test __tests__/launch/pilot-listing-detail-private-photo-authorization-runtime.test.mjs
+      - name: School impact PDF scope and revoked school contracts
+        run: node --test __tests__/launch/school-impact-isolation-contract.test.mjs
