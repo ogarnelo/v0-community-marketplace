@@ -6,8 +6,8 @@ const source = readFileSync(new URL("../../lib/admin/school-admin-role.ts", impo
 
 test("school administrator grants reject deactivated schools", () => {
   assert.match(source, /\.select\("id, is_active"\)/);
-  assert.match(source, /school\.is_active === false/);
-  assert.ok(source.indexOf("school.is_active === false") < source.indexOf('.from("user_roles")'));
+  assert.match(source, /school\.is_active !== true/);
+  assert.ok(source.indexOf("school.is_active !== true") < source.indexOf('.from("user_roles")'));
 });
 
 test("school administrator grants reject a second school role", () => {
