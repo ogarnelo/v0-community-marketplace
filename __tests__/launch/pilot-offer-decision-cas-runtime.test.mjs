@@ -66,7 +66,7 @@ function runtime(opts={}){
 for(const action of ["accept","reject","counter"]){
  test(action+" stale CAS => 409 typed, no chat",async()=>{
   const h=runtime({race:true});
-  await assert.rejects(h.run(action),e=>e.name==="OfferDecisionConflictError");
+  await assert.rejects(h.run(action),e=>e.name=== (action==="accept" ? "OfferSideEffectReconciliationError" : "OfferDecisionConflictError"));
   assert.equal(h.calls.includes("CHAT"),false);
   assert.equal(h.calls.includes("NOTIFY"),false);
   const cas=h.calls.find(x=>x.startsWith("CAS:"));
@@ -104,9 +104,10 @@ test("counter cannot proceed with unavailable listing",async()=>{
  const h=runtime({unavailable:true});
  await assert.rejects(h.run("counter"),e=>e.name==="OfferDecisionConflictError");
 });
-test("failed reservation after accepted CAS requires reconciliation",async()=>{
+test("failed reservation BEFORE accepted CAS is conflict without offer update",async()=>{
  const h=runtime({reserveMissing:true});
- await assert.rejects(h.run("accept"),e=>e.name==="OfferSideEffectReconciliationError");
+ await assert.rejects(h.run("accept"),e=>e.name==="OfferDecisionConflictError");
+ assert.equal(h.calls.includes("UPDATE:listing_offers"),false);
  assert.equal(h.calls.includes("CHAT"),false);
 });
 test("route 409 conflict, 503 reconciliation, legacy gate unchanged",()=>{

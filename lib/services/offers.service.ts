@@ -204,16 +204,41 @@ export async function respondToOfferFlow(params: {
           current_actor: null, responded_at: now }
       : { status: "rejected", current_actor: null, responded_at: now };
 
-  // Compare-and-set protects against stale accept/reject/counter on the SAME offer.
-  const { data: changed, error: changeError } = await supabase
-    .from("listing_offers").update(payload).eq("id", offerId)
-    .eq("status", offer.status).eq("rounds_count", offer.rounds_count)
-    .select("id").maybeSingle();
-  if (changeError) throw new Error("No se pudo guardar la decisión de oferta.");
-  if (!changed) throw new OfferDecisionConflictError();
+  // Competing accept and buy-now routes must acquire the SAME exclusive listing
+  // transition before either persists an "accepted" offer.
+  // This is a cross-route CAS, NOT a cross-table transaction.
+  let listingReserved = false;
+  if (action === "accept") {
+    const { data: reserved, error: reserveError } = await supabase
+      .from("listings").update({ status: "reserved" })
+      .eq("id", offer.listing_id).eq("status", "available")
+      .select("id").maybeSingle();
+    if (reserveError) throw new Error("No se pudo reservar el anuncio.");
+    if (!reserved) throw new OfferDecisionConflictError();
+    listingReserved = true;
+  }
 
-  // The offer decision is already durable. Any later failure is PARTIAL SUCCESS.
-  // Never automatically replay the decision, message or notification.
+  // Compare-and-set protects stale accept/reject/counter on the SAME offer.
+  // After listingReserved, a failed offer update is PARTIAL SUCCESS. Do not
+  // release the reservation or let the client automatically retry.
+  let changed;
+  try {
+    const { data, error: changeError } = await supabase
+      .from("listing_offers").update(payload).eq("id", offerId)
+      .eq("status", offer.status).eq("rounds_count", offer.rounds_count)
+      .select("id").maybeSingle();
+    if (changeError) throw new Error("No se pudo guardar la decisión de oferta.");
+    if (!data) {
+      if (listingReserved) throw new Error("offer_changed_after_listing_reservation");
+      throw new OfferDecisionConflictError();
+    }
+    changed = data;
+  } catch (error) {
+    if (listingReserved) throw new OfferSideEffectReconciliationError();
+    throw error;
+  }
+
+  // The offer decision is durable. Errors now require reconciliation.
   try {
     if (action === "accept") {
       const { error: competingError } = await supabase
@@ -222,11 +247,6 @@ export async function respondToOfferFlow(params: {
         .eq("listing_id", offer.listing_id).neq("id", offerId)
         .in("status", ["pending", "countered"]);
       if (competingError) throw new Error("offer_competitors_not_confirmed");
-      const { data: reserved, error: reserveError } = await supabase
-        .from("listings").update({ status: "reserved" })
-        .eq("id", offer.listing_id).eq("status", "available")
-        .select("id").maybeSingle();
-      if (reserveError || !reserved) throw new Error("offer_listing_reserve_not_confirmed");
     }
 
     const conversationId = await getOrCreateConversation({
