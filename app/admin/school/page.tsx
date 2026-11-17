@@ -201,6 +201,7 @@ export default async function SchoolAdminPage() {
       .from("school_impact_report_deliveries")
       .select("id, email, period_key, period_label, source, sent_at")
       .eq("school_id", effectiveSchoolId)
+      .eq("user_id", user.id)
       .order("sent_at", { ascending: false })
       .limit(12)
       .returns<ImpactDeliveryRow[]>(),
