@@ -47,7 +47,7 @@ test("selected school fetches FULL trusted scope, not just client filter",async(
  const h=run({schoolId:school1}),report=await h.query;
  assert.equal(h.calls.length,1);
  assert.deepEqual(Array.from(h.calls[0].schoolIds),[school1,school2]);
- assert.deepEqual(report.schools.map(x=>x.schoolId),[school1]);
+ assert.deepEqual(Array.from(report.schools,x=>x.schoolId),[school1]);
  assert.equal(report.total.reusedItems,6);
  assert.doesNotMatch(JSON.stringify(report),/SECRET_EMAIL|members/);
 });
