@@ -90,6 +90,12 @@ export async function GET(request: Request) {
       periodKey: window.key,
     });
 
+    // The school can be disabled while the report is being loaded.
+    // Check the report's school state again immediately before generating a PDF.
+    if (!report?.school || report.school.is_active !== true) {
+      return privateJson({ error: "Centro no disponible." }, { status: 403 });
+    }
+
     const pdf = renderSchoolImpactPdf(report);
     const filename = `wetudy-impacto-${safeFilename(report.school.name) || "centro"}-${report.periodKey}.pdf`;
 
