@@ -11,6 +11,7 @@ const SUB = "33333333-3333-4333-8333-333333333333";
 
 function fixture(options = {}) {
   const events = [];
+  const logs = [];
   const output = {};
   const subscription = {
     id: SUB, school_id: SCHOOL, user_id: USER,
@@ -27,7 +28,7 @@ function fixture(options = {}) {
       events.push("FROM:"+table);
       const q = {
         select: () => q, eq: () => q,
-        returns: async () => ({data:[subscription],error:null}),
+        returns: async () => ({data:[subscription],error:options.subscriptionError?{message:"PRIVATE_SUBSCRIPTION_SQL"}:null}),
         maybeSingle: async () => {
           if (table === "user_roles") return {
             data:options.revokedRole?null:{user_id:USER},error:null,
@@ -40,7 +41,7 @@ function fixture(options = {}) {
         },
         insert: () => { events.push("DELIVERY"); return q; },
         update: () => { events.push("UPDATE"); return q; },
-        then: (resolve, reject) => Promise.resolve({error:null}).then(resolve,reject),
+        then: (resolve, reject) => Promise.resolve({error:options.deliveryError && table==="school_impact_report_deliveries"?{message:"PRIVATE_DELIVERY_SQL"}:null}).then(resolve,reject),
       };
       return q;
     },
@@ -70,9 +71,9 @@ function fixture(options = {}) {
       return mocks[name];
     },
     process:{env:{CRON_SECRET:"synthetic-secret"}},
-    Intl,Date,Response,Request,Promise,console:{error:()=>{}},
+    Intl,Date,Response,Request,Promise,console:{error:(...args)=>logs.push(args)},
   },{filename:"school-impact-cron.js",timeout:1800});
-  return {events,run:async()=>{
+  return {events,logs,run:async()=>{
     const response=await output.GET(new Request("https://wetudy.invalid/api/cron/school-impact-reports",{
       headers:{authorization:"Bearer synthetic-secret"},
     }));
@@ -118,4 +119,24 @@ test("verified admin of active school sends one synthetic report",async()=>{
   assert.equal(result.body.failed,0);
   for(const required of ["REPORT","PDF","EMAIL","DELIVERY","UPDATE"])
     assert.equal(h.events.includes(required),true,required);
+});
+
+test("cron subscription read error redacts provider messages",async()=>{
+ const h=fixture({subscriptionError:true}),result=await h.run();
+ assert.equal(result.status,500);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_SUBSCRIPTION_SQL|school@example/);
+});
+test("per-subscription failures are aggregate-only without subscriber IDs",async()=>{
+ const h=fixture({schoolError:true}),result=await h.run();
+ assert.equal(result.body.failed,1);
+ assert.equal(result.body.sent,0);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_SCHOOL_SQL|33333333-3333-4333/);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("post-send delivery SQL diagnostics are never included in cron logs",async()=>{
+ const h=fixture({deliveryError:true}),result=await h.run();
+ assert.equal(result.body.sent,1);
+ assert.equal(result.body.failed,0);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_DELIVERY_SQL|33333333-3333-4333/);
 });

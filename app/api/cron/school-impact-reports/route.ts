@@ -44,13 +44,13 @@ export async function GET(request: Request) {
     .returns<SubscriptionRow[]>();
 
   if (error) {
-    console.error("Error cargando reportes mensuales:", error);
+    console.error("school_impact_cron_subscriptions_read_failed");
     return Response.json({ ok: false }, { status: 500 });
   }
 
   let sent = 0;
   let skipped = 0;
-  const failures: Array<{ id: string; message: string }> = [];
+  let failed = 0;
 
   for (const subscription of subscriptions || []) {
     if (subscription.last_sent_month === period.key) {
@@ -132,7 +132,7 @@ export async function GET(request: Request) {
         });
 
       if (deliveryError) {
-        console.error("No se pudo registrar el historial del informe automático:", deliveryError);
+        console.error("school_impact_cron_delivery_record_failed");
       }
 
       const { error: updateError } = await admin
@@ -145,23 +145,22 @@ export async function GET(request: Request) {
 
       if (updateError) throw updateError;
       sent += 1;
-    } catch (cause: any) {
-      failures.push({
-        id: subscription.id,
-        message: cause?.message || "Error desconocido",
-      });
+    } catch {
+      // Subscription IDs and provider/SQL exception messages may contain private
+      // details. Report aggregate failure only, never echo individual records.
+      failed += 1;
     }
   }
 
-  if (failures.length > 0) {
-    console.error("Fallos enviando informes mensuales de impacto:", failures);
+  if (failed > 0) {
+    console.error("school_impact_cron_delivery_failed");
   }
 
   return Response.json({
-    ok: failures.length === 0,
+    ok: failed === 0,
     period: period.key,
     sent,
     skipped,
-    failed: failures.length,
+    failed,
   });
 }
