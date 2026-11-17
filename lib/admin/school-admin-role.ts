@@ -29,12 +29,13 @@ export async function grantSchoolAdminRole(params: {
 
   const { data: school, error: schoolError } = await admin
     .from("schools")
-    .select("id")
+    .select("id, is_active")
     .eq("id", params.schoolId)
     .maybeSingle();
 
   if (schoolError) throw schoolError;
   if (!school) throw new Error("El centro indicado no existe.");
+  if (school.is_active === false) throw new Error("No se pueden conceder permisos a un centro desactivado.");
 
   const { data: existingRole, error: roleLookupError } = await admin
     .from("user_roles")
