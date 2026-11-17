@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireCommerceLabSuperAdmin } from "@/lib/admin/commerce-lab-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   assertStripeTestMode,
@@ -8,34 +8,23 @@ import {
 import { stripe } from "@/lib/stripe";
 import { resolveStripePaymentIntentAndCharge } from "@/lib/commerce/settlement";
 
-async function requireSuperAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "No autenticado.", status: 401 as const };
-
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("role", "super_admin")
-    .limit(1);
-
-  if (!roles?.length) return { error: "No autorizado.", status: 403 as const };
-  return { user };
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number } = {}) {
+  return NextResponse.json(body, {...options, headers: PRIVATE_HEADERS});
 }
-
 export async function POST(request: Request) {
   if (!isPrivateCommercePreviewEnabled()) {
-    return NextResponse.json({ error: "No disponible." }, { status: 404 });
+    return privateJson({ error: "No disponible." }, { status: 404 });
   }
-  assertStripeTestMode();
-
-  const auth = await requireSuperAdmin();
+  const auth = await requireCommerceLabSuperAdmin();
   if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return privateJson({ error: auth.error }, { status: auth.status });
+  }
+  try {
+    assertStripeTestMode();
+  } catch {
+    return privateJson({ error: "La previsualización exige Stripe en modo test." }, { status: 503 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -43,7 +32,7 @@ export async function POST(request: Request) {
     typeof body?.paymentIntentId === "string" ? body.paymentIntentId.trim() : "";
 
   if (!paymentIntentId) {
-    return NextResponse.json({ error: "Falta paymentIntentId." }, { status: 400 });
+    return privateJson({ error: "Falta paymentIntentId." }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -58,7 +47,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (paymentError || !payment) {
-      return NextResponse.json({ error: "Pago no encontrado." }, { status: 404 });
+      return privateJson({ error: "Pago no encontrado." }, { status: 404 });
     }
 
     if (payment.status === "refunded") {
@@ -68,7 +57,7 @@ export async function POST(request: Request) {
         .eq("payment_intent_id", payment.id)
         .maybeSingle();
 
-      return NextResponse.json({
+      return privateJson({
         ok: true,
         refund: existingRefund,
         existing: true,
@@ -76,7 +65,7 @@ export async function POST(request: Request) {
     }
 
     if (payment.status !== "succeeded") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Solo se puede reembolsar un pago confirmado." },
         { status: 409 }
       );
@@ -89,7 +78,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (existingRefund?.status === "succeeded") {
-      return NextResponse.json({ ok: true, refund: existingRefund, existing: true });
+      return privateJson({ ok: true, refund: existingRefund, existing: true });
     }
 
     const totalAmount =
@@ -98,7 +87,7 @@ export async function POST(request: Request) {
       Number(payment.shipping_amount || 0);
 
     if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El importe total del pago no es válido." },
         { status: 409 }
       );
@@ -122,7 +111,7 @@ export async function POST(request: Request) {
       paymentIntent.amount_received !== expectedAmountCents ||
       paymentIntent.currency !== expectedCurrency
     ) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Stripe y Supabase no coinciden en estado, importe o moneda del pago." },
         { status: 409 }
       );
@@ -133,7 +122,7 @@ export async function POST(request: Request) {
       charge.amount !== expectedAmountCents ||
       charge.currency !== expectedCurrency
     ) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El cargo Stripe no coincide con el pago registrado." },
         { status: 409 }
       );
@@ -216,7 +205,7 @@ export async function POST(request: Request) {
         refund.amount !== expectedAmountCents ||
         refund.currency !== expectedCurrency
       ) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Stripe ya contiene un refund incompatible para este pago." },
           { status: 409 }
         );
@@ -227,7 +216,7 @@ export async function POST(request: Request) {
       }
     } else {
       if (charge.amount_refunded !== 0) {
-        return NextResponse.json(
+        return privateJson(
           {
             error:
               "El cargo ya tiene un refund ajeno o parcial; se requiere reconciliación manual antes de continuar.",
@@ -334,17 +323,17 @@ export async function POST(request: Request) {
 
     if (eventError) throw eventError;
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       refund: savedRefund,
       existing: reconciled,
       reconciled,
     });
-  } catch (error: any) {
-    console.error("No se pudo reembolsar la operación test", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo reembolsar la operación test." },
-      { status: 500 }
+  } catch {
+    console.error("commerce_lab_refund_reconciliation_required");
+    return privateJson(
+      { error: "No se completó el reembolso o requiere conciliación con Stripe." },
+      { status: 503 }
     );
   }
 }
