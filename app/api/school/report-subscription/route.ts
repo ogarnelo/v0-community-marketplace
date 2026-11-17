@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (schoolError) throw schoolError;
-    if (!school || school.is_active === false) {
+    if (!school || school.is_active !== true) {
       return privateJson({ error: "El centro está desactivado." }, { status: 400 });
     }
 

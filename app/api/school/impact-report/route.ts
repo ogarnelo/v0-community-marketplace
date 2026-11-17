@@ -77,7 +77,7 @@ export async function GET(request: Request) {
       .eq("id", schoolId)
       .maybeSingle();
     if (schoolError) return privateJson({ error: "No se pudo comprobar el centro." }, { status: 503 });
-    if (!school || school.is_active === false) {
+    if (!school || school.is_active !== true) {
       return privateJson({ error: "Centro no disponible." }, { status: 403 });
     }
 

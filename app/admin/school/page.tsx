@@ -217,7 +217,7 @@ export default async function SchoolAdminPage() {
   const safeAgreements = (agreements || []) as AgreementRow[];
 
   if (schoolLookupError) throw new Error("No se ha podido comprobar el estado del centro.");
-  if (!school || school.is_active === false) {
+  if (!school || school.is_active !== true) {
     redirect("/");
   }
 
