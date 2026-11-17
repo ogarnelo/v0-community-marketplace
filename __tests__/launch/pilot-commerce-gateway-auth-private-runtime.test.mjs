@@ -88,7 +88,7 @@ test("quote never reflects the provider's error.message or .details",()=>{
 });
 test("Connect onboarding redirects unauthorized/failed auth without running Stripe",()=>{
  const s=readFileSync("app/api/commerce/connect/onboarding/route.ts","utf8");
- assert.ok(s.indexOf("if (!auth.user)")<s.indexOf("ensureSellerConnectAccount"));
+ assert.ok(s.indexOf("if (!auth.user)")<s.indexOf("await ensureSellerConnectAccount({"));
  assert.match(s,/connect=error/);
  assert.match(s,/Cache-Control.*private, no-store/);
 });
