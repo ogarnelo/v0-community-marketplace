@@ -27,7 +27,12 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const day = now.getUTCDate();
+  // The subscription day is a calendar day in the pilot's local timezone.
+  // UTC can already be the following day while Madrid is still on the prior date.
+  const day = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid",
+    day: "numeric",
+  }).format(now));
   const period = previousCalendarMonth(now);
   const admin = createAdminClient();
 
