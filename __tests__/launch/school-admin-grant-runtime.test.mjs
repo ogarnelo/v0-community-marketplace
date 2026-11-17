@@ -9,6 +9,7 @@ const SCHOOL="11111111-1111-4111-8111-111111111111";
 const USER="22222222-2222-4222-8222-222222222222";
 function makeCase(opts={}) {
   const calls=[], out={};
+  let roleReadCount=0;
   const admin={from:(table)=>{
     const query={table,filters:[],method:"select",
       select:()=>query,
@@ -20,13 +21,13 @@ function makeCase(opts={}) {
         if(table==="schools")return {data:opts.missingSchool?null:
           {id:SCHOOL,is_active:opts.unknownSchoolActive?null:!opts.inactiveSchool},
           error:opts.schoolError?{message:"PRIVATE_SCHOOL_ERROR"}:null};
-        if(table==="user_roles")return {data:opts.existingRole?{id:SCHOOL}:null,
+        if(table==="user_roles")return {data:opts.existingRole || (opts.duplicateSameSchool && ++roleReadCount>1)?{id:SCHOOL}:null,
           error:opts.roleError?{message:"PRIVATE_ROLE_ERROR"}:null};
         if(table==="profiles")return {data:opts.profileMissing?null:{id:USER},
           error:opts.profileSqlError?{message:"PRIVATE_PROFILE_SQL"}:null};
         throw Error("Unexpected "+table);
       },
-      insert:async()=>{calls.push("ROLE_INSERT");return {error:null};},
+      insert:async()=>{calls.push("ROLE_INSERT");return {error:opts.duplicateSameSchool||opts.duplicateOtherSchool?{code:"23505",message:"PRIVATE_UNIQUE_ERROR"}:null};},
       update:()=>{calls.push("PROFILE_UPDATE");return query;},
     };
     calls.push("READ:"+table);
@@ -85,4 +86,17 @@ test("null school activation cannot grant administrator privileges",async()=>{
  const h=makeCase({unknownSchoolActive:true});
  await assert.rejects(h.grant(),/desactivado/);
  assert.deepEqual(h.calls,["READ:schools"]);
+});
+
+test("23505 for another school role cannot rewrite profile",async()=>{
+  const h=makeCase({duplicateOtherSchool:true});
+  await assert.rejects(h.grant(),/confirmar el permiso del centro/);
+  assert.ok(h.calls.includes("ROLE_INSERT"));
+  assert.equal(h.calls.includes("PROFILE_UPDATE"),false);
+});
+test("23505 for confirmed same-school concurrent insert can proceed",async()=>{
+  const h=makeCase({duplicateSameSchool:true});
+  await h.grant();
+  assert.ok(h.calls.filter(x=>x==="READ:user_roles").length>=3);
+  assert.equal(h.calls.includes("PROFILE_UPDATE"),true);
 });
