@@ -89,3 +89,5 @@ jobs:
         run: node --test __tests__/launch/school-admin-grant-guard.test.mjs __tests__/launch/school-admin-grant-runtime.test.mjs
       - name: Buy-now notification minimizes buyer identity
         run: node --test __tests__/launch/pilot-buy-now-notification-minimization.test.mjs
+      - name: Read-only commerce reconciliation respects agreement flows
+        run: node --test __tests__/launch/pilot-commerce-readonly-audit.test.mjs
