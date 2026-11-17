@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     });
     if (error) {
       // Invalid/expired token is a client error, but provider outages must
-      // never be presented as bad credentials. Never echo error.message.
+      // never be presented as bad credentials. Never echo provider diagnostics.
       const invalidToken = [400,401,403,422].includes(error.status ?? 0) ||
         ["otp_expired", "otp_disabled", "validation_failed"].includes(error.code ?? "");
       return privateJson({
