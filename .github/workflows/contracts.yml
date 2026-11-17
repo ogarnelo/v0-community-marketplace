@@ -91,3 +91,5 @@ jobs:
         run: node --test __tests__/launch/pilot-buy-now-notification-minimization.test.mjs
       - name: Read-only commerce reconciliation respects agreement flows
         run: node --test __tests__/launch/pilot-commerce-readonly-audit.test.mjs
+      - name: Recheck active centre after report load
+        run: node --test __tests__/launch/pilot-school-report-postload-active.test.mjs
