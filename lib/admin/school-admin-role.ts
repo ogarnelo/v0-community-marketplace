@@ -69,7 +69,21 @@ export async function grantSchoolAdminRole(params: {
       school_id: params.schoolId,
     });
 
-    if (roleInsertError && roleInsertError.code !== "23505") {
+    if (roleInsertError?.code === "23505") {
+      // A 23505 might mean the SAME school role won a race, or a DIFFERENT
+      // school won a global unique index race. Do not rewrite profiles.school_id
+      // without confirming the exact role we intended to grant.
+      const { data: confirmedRole, error: confirmError } = await admin
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", params.userId)
+        .eq("role", "school_admin")
+        .eq("school_id", params.schoolId)
+        .maybeSingle();
+      if (confirmError || !confirmedRole?.id) {
+        throw new Error("No se pudo confirmar el permiso del centro. Revisa los roles antes de reintentar.");
+      }
+    } else if (roleInsertError) {
       throw roleInsertError;
     }
   }
