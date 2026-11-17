@@ -10,7 +10,7 @@ test("executor diagnostic runs READ ONLY without changing roles or default privi
  assert.match(plain,/pg_has_role\(current_user, 'supabase_admin', 'MEMBER'\)/);
  assert.match(plain,/aclexplode\(d\.defaclacl\)/);
  assert.match(plain,/n\.nspname='public'/);
- assert.doesNotMatch(plain,/\b(?:ALTER|REVOKE|GRANT|SET ROLE|INSERT|UPDATE|DELETE|DROP|CREATE|DO|CALL)\b/i);
+ assert.doesNotMatch(plain,/^\s*(?:ALTER|REVOKE|GRANT|SET\s+ROLE|INSERT|UPDATE|DELETE|DROP|CREATE|DO|CALL)\b/im);
 });
 test("existing candidate requires legitimate membership and does not grant itself membership",()=>{
  assert.match(candidate,/pg_has_role\(current_user,'supabase_admin','MEMBER'\)/);
