@@ -38,7 +38,7 @@ function total(a:PublicKpi,b:PublicKpi):PublicKpi{
   listingViews:a.listingViews+b.listingViews,
  };
 }
-function demoReport(period:Period,scenario:Scenario):FederationReportResult{
+export function makeSyntheticFederationReport(period:Period,scenario:Scenario):FederationReportResult{
  const a=exampleMetrics(period,"a"),b=exampleMetrics(period,"b");
  const schools:SchoolKpiView[]=[
   {schoolId:ID_A,schoolName:"CEIP Ejemplo Norte (sintético)",metrics:a,suppressed:false},
@@ -60,7 +60,7 @@ export function FederationDashboardLocalDemo(){
   organization:scenario==="suppressed"
     ?"FAMPA de ensayo — privacidad"
     :"FAMPA de ensayo — resultados",
-  report:demoReport(period,scenario),
+  report:makeSyntheticFederationReport(period,scenario),
  });
  return (
   <div className="space-y-6">
