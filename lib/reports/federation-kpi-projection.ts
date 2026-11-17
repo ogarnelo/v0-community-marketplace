@@ -85,6 +85,7 @@ export function sumFederationKpis(
 ):PublicKpi | null {
   const expected=new Set(expectedSchoolIds.map(x=>x.toLowerCase()));
   if(expected.size===0 || views.length!==expected.size ||
+     new Set(views.map(x=>x.schoolId)).size!==expected.size ||
      views.some(x=>!expected.has(x.schoolId) || x.suppressed || !x.metrics)) return null;
   const zero:PublicKpi={reusedItems:0,donatedItems:0,soldItems:0,circularValue:0,
     estimatedAvoidedCo2:0,activeListings:0,listingViews:0};
