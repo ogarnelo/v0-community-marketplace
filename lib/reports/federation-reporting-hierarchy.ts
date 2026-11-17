@@ -43,9 +43,13 @@ export function resolveHierarchySchoolScope(input:FederationHierarchyInput):read
      !Array.isArray(memberships) || !Array.isArray(links) ||
      !Array.isArray(representations) || !(now instanceof Date) ||
      !Number.isFinite(now.getTime())) return [];
-  const member=memberships.some(m=>m.userId===userId && m.federationId===rootFederationId &&
-    m.state==="active" && m.role==="report_viewer");
-  if(!member) return [];
+  // Do not let a stale active root membership override an explicit revoked
+  // or contradictory duplicate. The same fail-closed invariant as the direct
+  // FAMPA scope resolver must apply to CEAPA's inherited school scope.
+  const relevant = memberships.filter(m=>m.userId===userId &&
+    m.federationId===rootFederationId);
+  if(relevant.length!==1 || relevant[0].state!=="active" ||
+     relevant[0].role!=="report_viewer") return [];
   const children=new Map<string,string[]>();
   const parents=new Map<string,string>();
   // Contradictory copies of the same edge, including an explicit revocation,
