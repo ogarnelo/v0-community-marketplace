@@ -105,3 +105,5 @@ jobs:
         run: node --test __tests__/launch/federation-reporting-scope-runtime.test.mjs
       - name: Federation KPI projection suppresses small school metrics
         run: node --test __tests__/launch/federation-kpi-projection-runtime.test.mjs
+      - name: Federation reporting hierarchy denies cycles and unverified links
+        run: node --test __tests__/launch/federation-reporting-hierarchy-runtime.test.mjs
