@@ -74,10 +74,17 @@ export async function grantSchoolAdminRole(params: {
     }
   }
 
-  const { error: profileError } = await admin
+  // A successful HTTP/SQL response can still affect zero profiles. If a role
+  // was inserted before this point, never report the operation as fully done:
+  // a missing profile needs administrator reconciliation, not silent success.
+  const { data: updatedProfile, error: profileError } = await admin
     .from("profiles")
     .update({ school_id: params.schoolId })
-    .eq("id", params.userId);
+    .eq("id", params.userId)
+    .select("id")
+    .maybeSingle();
 
-  if (profileError) throw profileError;
+  if (profileError || !updatedProfile?.id) {
+    throw new Error("No se pudo confirmar el perfil. Revisa la asignación antes de reintentar.");
+  }
 }
