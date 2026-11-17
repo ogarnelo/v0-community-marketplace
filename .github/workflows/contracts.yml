@@ -83,3 +83,5 @@ jobs:
         run: node --test __tests__/launch/school-impact-report-recipient-security.test.mjs __tests__/launch/school-impact-schedule-calendar.test.mjs __tests__/launch/pilot-school-impact-cron-authorization-runtime.test.mjs
       - name: School impact PDF scope and revoked school contracts
         run: node --test __tests__/launch/school-impact-isolation-contract.test.mjs
+      - name: New password forms agree on minimum length and messages
+        run: node --test __tests__/launch/password-minimum-consistency.test.mjs
