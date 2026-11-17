@@ -139,13 +139,15 @@ export async function loadSchoolImpactReport(params: {
       .eq("school_id", schoolId)
       .eq("is_demo", false)
       .returns<ListingRow[]>(),
+    // Exact database counts avoid downloading user IDs and the implicit
+    // PostgREST row limit (typically 1,000) under-counting larger schools.
     admin
       .from("profiles")
-      .select("id")
+      .select("id", { count: "exact", head: true })
       .eq("school_id", schoolId),
     admin
       .from("user_roles")
-      .select("user_id")
+      .select("user_id", { count: "exact", head: true })
       .eq("school_id", schoolId)
       .eq("role", "school_admin"),
     (() => {
@@ -166,6 +168,12 @@ export async function loadSchoolImpactReport(params: {
   if (listingsResult.error) throw listingsResult.error;
   if (membersResult.error) throw membersResult.error;
   if (adminsResult.error) throw adminsResult.error;
+  if (membersResult.count === null || !Number.isSafeInteger(membersResult.count) ||
+      membersResult.count < 0)
+    throw new Error("SCHOOL_REPORT_MEMBERS_COUNT_UNAVAILABLE");
+  if (adminsResult.count === null || !Number.isSafeInteger(adminsResult.count) ||
+      adminsResult.count < 0)
+    throw new Error("SCHOOL_REPORT_ADMINS_COUNT_UNAVAILABLE");
   if (agreementsResult.error) throw agreementsResult.error;
 
   const listings = (listingsResult.data || []) as ListingRow[];
@@ -239,8 +247,8 @@ export async function loadSchoolImpactReport(params: {
     reusedBooks,
     estimatedAvoidedCo2: reusedBooks * SCHOOL_BOOK_CO2E_KG,
     unquantifiedItems: Math.max(0, reusedItems - reusedBooks),
-    members: membersResult.data?.length || 0,
-    administrators: adminsResult.data?.length || 0,
+    members: membersResult.count,
+    administrators: adminsResult.count,
     activeListings: listings.filter((listing) =>
       ["available", "reserved"].includes(listing.status || "")
     ).length,
