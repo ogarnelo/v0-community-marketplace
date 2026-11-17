@@ -109,3 +109,5 @@ jobs:
         run: node --test __tests__/launch/federation-reporting-hierarchy-runtime.test.mjs
       - name: Federation report filter authorization runtime
         run: node --test __tests__/launch/federation-report-filters-runtime.test.mjs
+      - name: Federated report full-scope privacy and authorization runtime
+        run: node --test __tests__/launch/federation-report-gateway-runtime.test.mjs
