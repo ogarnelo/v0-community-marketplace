@@ -48,7 +48,14 @@ export function resolveHierarchySchoolScope(input:FederationHierarchyInput):read
   if(!member) return [];
   const children=new Map<string,string[]>();
   const parents=new Map<string,string>();
+  // Contradictory copies of the same edge, including an explicit revocation,
+  // must never be resolved by silently selecting the verified copy.
+  const edgeKeys=new Set<string>();
   for (const link of links) {
+    if(!UUID.test(link.parentId) || !UUID.test(link.childId))return [];
+    const key=link.parentId.toLowerCase()+":"+link.childId.toLowerCase();
+    if(edgeKeys.has(key))return [];
+    edgeKeys.add(key);
     if (link.status!=="verified" ||
         !activeTime(link.startsAt,link.endsAt,now.getTime())) continue;
     if(!UUID.test(link.parentId)||!UUID.test(link.childId) ||
