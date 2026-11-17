@@ -22,8 +22,8 @@ export default function ChangePasswordForm() {
     setError("");
     setSuccess(false);
 
-    if (password.length < 8) {
-      setError("La nueva contraseña debe tener al menos 8 caracteres.");
+    if (password.length < 12) {
+      setError("La nueva contraseña debe tener al menos 12 caracteres.");
       return;
     }
 
@@ -58,7 +58,7 @@ export default function ChangePasswordForm() {
         </div>
         <CardTitle>Cambiar contraseña</CardTitle>
         <CardDescription>
-          Define una nueva contraseña para tu cuenta. Debe tener al menos 8 caracteres.
+          Define una nueva contraseña para tu cuenta. Debe tener al menos 12 caracteres.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -73,7 +73,7 @@ export default function ChangePasswordForm() {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Mínimo 8 caracteres"
               required
-              minLength={8}
+              minLength={12}
             />
           </div>
 
@@ -87,7 +87,7 @@ export default function ChangePasswordForm() {
               onChange={(event) => setConfirmation(event.target.value)}
               placeholder="Repite la contraseña"
               required
-              minLength={8}
+              minLength={12}
             />
           </div>
 
