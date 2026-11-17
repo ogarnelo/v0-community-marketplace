@@ -128,7 +128,7 @@ export async function POST(request: Request) {
       });
 
     if (deliveryError) {
-      console.error("No se pudo registrar el historial del informe manual:", deliveryError);
+      console.error("school_impact_manual_delivery_record_failed");
     }
 
     const { data: existingSubscription, error: subscriptionReadError } = await admin
@@ -138,7 +138,14 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .maybeSingle<{ enabled: boolean; day_of_month: number }>();
 
-    if (subscriptionReadError) throw subscriptionReadError;
+    if (subscriptionReadError) {
+      // The provider already accepted the email. Do not misreport this as a
+      // failed send: a retry could deliver the same private PDF twice.
+      return privateJson(
+        { error: "El informe se envió, pero no se pudo conciliar la suscripción. Revisa el historial antes de repetir." },
+        { status: 503 }
+      );
+    }
 
     const { error: subscriptionWriteError } = await admin
       .from("school_impact_report_subscriptions")
@@ -155,7 +162,12 @@ export async function POST(request: Request) {
         { onConflict: "school_id,user_id" }
       );
 
-    if (subscriptionWriteError) throw subscriptionWriteError;
+    if (subscriptionWriteError) {
+      return privateJson(
+        { error: "El informe se envió, pero no se pudo actualizar la suscripción. Revisa el historial antes de repetir." },
+        { status: 503 }
+      );
+    }
 
     return privateJson({
       ok: true,
