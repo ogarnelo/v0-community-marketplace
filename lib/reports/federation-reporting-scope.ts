@@ -42,8 +42,12 @@ export function resolveFederationSchoolScope(input: ReportingScopeInput): readon
   if (!isUuid(subjectUserId) || !isUuid(federationId) || !(now instanceof Date) ||
       !Number.isFinite(now.getTime()) || !Array.isArray(memberships) ||
       !Array.isArray(representations)) return [];
-  if (!memberships.some(m => m.userId === subjectUserId &&
-      m.federationId === federationId && m.role === "report_viewer" && m.state === "active")) return [];
+  // A stale active copy must never override an explicit revocation or a
+  // contradictory duplicate. Unique memberships are required for authority.
+  const relevant = memberships.filter(m => m.userId === subjectUserId &&
+      m.federationId === federationId);
+  if (relevant.length !== 1 || relevant[0].role !== "report_viewer" ||
+      relevant[0].state !== "active") return [];
 
   const schools = new Set<string>();
   for (const row of representations) {

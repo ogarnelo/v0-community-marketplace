@@ -45,3 +45,13 @@ test("no duplicate school IDs and no automatic hierarchy inheritance",()=>{
  const allowed=scope(m,[rows[0],rows[0],{...rows[0],schoolId:school2,federationId:school3}]);
  assert.deepEqual(allowed,[school1]);
 });
+
+test("active and revoked duplicate memberships cannot revive withdrawn access",()=>{
+ const active={...m[0]};
+ const revoked={...m[0],state:"revoked"};
+ assert.deepEqual(scope([active,revoked]),[]);
+ assert.deepEqual(scope([revoked,active]),[]);
+});
+test("duplicate active membership is an ambiguous authority source and fails closed",()=>{
+ assert.deepEqual(scope([m[0],{...m[0]}]),[]);
+});
