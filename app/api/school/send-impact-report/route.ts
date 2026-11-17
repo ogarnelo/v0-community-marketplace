@@ -64,6 +64,13 @@ export async function POST(request: Request) {
 
     const email = (body?.email || user.email || "").trim().toLowerCase();
 
+    // Only the authenticated user's verified address may receive school reports.
+    // A supplied address cannot redirect a report to an arbitrary third party.
+    const verifiedEmail = user.email_confirmed_at ? (user.email || "").trim().toLowerCase() : "";
+    if (!verifiedEmail || email !== verifiedEmail) {
+      return privateJson({ error: "Solo puedes usar el email verificado de tu cuenta." }, { status: 403 });
+    }
+
     if (!isEmail(email)) {
       return privateJson(
         { error: "Introduce un email válido." },
