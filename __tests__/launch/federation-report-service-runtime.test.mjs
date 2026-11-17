@@ -115,7 +115,7 @@ test("incomplete snapshot rejects before any privileged school report loading",a
 });
 test("deactivated school on initial snapshot cannot produce metrics",async()=>{
  const first=makeSnapshot();first.schools[1].is_active=false;
- const x=run({first});
+ const x=run({first,second:first});
  const result=await x.report;
  assert.equal(result.schools.length,1);
  assert.equal(x.calls.filter(c=>c.startsWith("REPORT:")).length,1);
