@@ -17,9 +17,9 @@ test("school impact report queries remain scoped to the requested school", () =>
 
 test("school PDF route denies exports for inactive centres", () => {
   const source = read("app/api/school/impact-report/route.ts");
-  assert.match(source, /school\.is_active === false/);
+  assert.match(source, /school\.is_active !== true/);
   assert.match(source, /status: 403/);
-  assert.ok(source.indexOf("school.is_active === false") < source.indexOf("loadSchoolImpactReport({"));
+  assert.ok(source.indexOf("school.is_active !== true") < source.indexOf("loadSchoolImpactReport({"));
 });
 
 test("school admin sees only their own report delivery history", () => {
@@ -35,7 +35,7 @@ test("school dashboard fails closed when role lookup fails or centre is absent",
   const source = read("app/admin/school/page.tsx");
   assert.match(source, /if \(rolesError\) throw/);
   assert.match(source, /if \(schoolLookupError\) throw/);
-  assert.match(source, /if \(!school \|\| school\.is_active === false\)/);
+  assert.match(source, /if \(!school \|\| school\.is_active !== true\)/);
 });
 
 
