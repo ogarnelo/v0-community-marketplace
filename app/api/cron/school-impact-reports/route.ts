@@ -51,6 +51,7 @@ export async function GET(request: Request) {
   let sent = 0;
   let skipped = 0;
   let failed = 0;
+  let unrecorded = 0;
 
   for (const subscription of subscriptions || []) {
     if (subscription.last_sent_month === period.key) {
@@ -132,6 +133,9 @@ export async function GET(request: Request) {
         });
 
       if (deliveryError) {
+        // The provider has accepted the report. Preserve last_sent_month to
+        // avoid a duplicate next run, but surface that its audit row is missing.
+        unrecorded += 1;
         console.error("school_impact_cron_delivery_record_failed");
       }
 
@@ -157,10 +161,11 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
-    ok: failed === 0,
+    ok: failed === 0 && unrecorded === 0,
     period: period.key,
     sent,
     skipped,
     failed,
+    unrecorded,
   });
 }

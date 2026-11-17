@@ -117,6 +117,7 @@ test("verified admin of active school sends one synthetic report",async()=>{
   const h=fixture(),result=await h.run();
   assert.equal(result.body.sent,1);
   assert.equal(result.body.failed,0);
+  assert.equal(result.body.unrecorded,0);
   for(const required of ["REPORT","PDF","EMAIL","DELIVERY","UPDATE"])
     assert.equal(h.events.includes(required),true,required);
 });
@@ -139,4 +140,15 @@ test("post-send delivery SQL diagnostics are never included in cron logs",async(
  assert.equal(result.body.sent,1);
  assert.equal(result.body.failed,0);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_DELIVERY_SQL|33333333-3333-4333/);
+});
+
+test("provider acceptance with failed audit row is visible without requesting a resend",async()=>{
+  const h=fixture({deliveryError:true}),result=await h.run();
+  assert.equal(result.body.sent,1);
+  assert.equal(result.body.failed,0);
+  assert.equal(result.body.unrecorded,1);
+  assert.equal(result.body.ok,false);
+  assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
+  assert.equal(h.events.includes("UPDATE"),true);
+  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_DELIVERY_SQL|school@example.invalid|33333333-3333/);
 });

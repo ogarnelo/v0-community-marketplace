@@ -54,7 +54,7 @@ function run(path,method,opts={}){
   "@/lib/reports/school-impact-report":{
     dashboardRange:()=>({start:null,end:null,label:"Synthetic",key:"2026-11"}),
     previousCalendarMonth:()=>({start:null,end:null,label:"Synthetic",key:"2026-11"}),
-    loadSchoolImpactReport:async()=>{calls.push("REPORT");return {school:{name:"QA"},periodKey:"2026-11"};},
+    loadSchoolImpactReport:async()=>{calls.push("REPORT");return {school:{name:"QA",is_active:!opts.reportInactive},periodKey:"2026-11"};},
     renderSchoolImpactPdf:()=>new Uint8Array([37,80,68,70])
   },
   "@/lib/emails/school-impact-report-email":{sendMonthlySchoolImpactEmail:async()=>{
@@ -121,4 +121,12 @@ test("school PDF — inactive centre cannot export",async()=>{
  const h=run("app/api/school/impact-report/route.ts","GET",{inactiveSchool:true}),r=await h.call();
  assert.equal(r.status,403);
  assert.ok(!h.calls.includes("REPORT"));
+});
+
+test("school PDF — centre deactivated during report loading cannot export",async()=>{
+ const h=run("app/api/school/impact-report/route.ts","GET",{reportInactive:true}),r=await h.call();
+ assert.equal(r.status,403);
+ assert.equal(r.cache,"private, no-store");
+ assert.ok(h.calls.includes("REPORT"));
+ assert.ok(!r.type.includes("application/pdf"));
 });
