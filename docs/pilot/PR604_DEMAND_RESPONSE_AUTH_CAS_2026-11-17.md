@@ -1,0 +1,3 @@
+# PR604 — Oportunidades de demanda · Auth y respuesta de un solo uso
+
+17/11/2026. La ruta POST ya no admite usuario residual tras error de Supabase Auth. Respuestas 401/503 privadas y sin eco de SQL. Se verifica pertenencia del mensaje al target_user_id y acción seller_contacted, error de SELECT, formato key opp_24hex. La primera respuesta exige responded_at IS NULL, confirma fila; carrera o reescritura => 409. Repetición idéntica => 200 sin escritura. La página server-rendered también falla cerrada frente a Auth indisponible. Tests runtime simulados y contrato de la página; no DB real, emails ni permisos modificados. Piloto general NO-GO.
