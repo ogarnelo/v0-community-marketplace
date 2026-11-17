@@ -245,7 +245,13 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (error instanceof BuyNowPaymentError) {
-        return privateJson({ error: error.publicMessage }, { status: error.status });
+        // The listing and offer were already persisted before preparing payment.
+        // A 409 here looks retryable but the reserved listing may be stranded.
+        // Never restart checkout automatically after any post-reservation error.
+        return privateJson(
+          { error: "El anuncio quedó reservado y el pago requiere conciliación. Consulta su estado antes de reintentar." },
+          { status: 503 }
+        );
       }
       throw error;
     }

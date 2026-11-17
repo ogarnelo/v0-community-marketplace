@@ -83,3 +83,68 @@ test("purchase success and every JSON response preserve no-store",()=>{
  assert.match(s,/if \(messageError\)/);
  assert.match(s,/if \(notifyError\)/);
 });
+
+
+test("post-reservation payment conflict is 503 reconciliation, never retryable 409",async()=>{
+ const events=[],out={};
+ const USER="22222222-2222-4222-8222-222222222222";
+ const SELLER="33333333-3333-4333-8333-333333333333";
+ class PaymentError extends Error {
+   constructor(status,publicMessage){super(publicMessage);this.status=status;this.publicMessage=publicMessage;}
+ }
+ const query=(table)=>{
+   const q={
+     select:()=>q,eq:()=>q,in:()=>q,order:()=>q,limit:()=>q,delete:()=>q,update:()=>q,
+     insert:()=>{events.push("INSERT:"+table);return q;},
+     maybeSingle:async()=>({
+       data:table==="listings"
+         ?{id:ID,title:"Test",seller_id:SELLER,school_id:null,status:"available",price:15,listing_type:"sale"}
+         :table==="conversations"?{id:ID}:null,
+       error:null,
+     }),
+     single:async()=>({data:{id:ID},error:null}),
+     then:(resolve,reject)=>Promise.resolve({error:null}).then(resolve,reject),
+   };
+   return q;
+ };
+ const deps={
+   "next/server":{NextResponse:{json:(body,options={})=>new Response(JSON.stringify(body),{
+     status:options.status??200,headers:options.headers??{},
+   })}},
+   "@/lib/supabase/server":{createClient:async()=>({auth:{getUser:async()=>({data:{user:{
+     id:USER,user_metadata:{},email:"buyer@example.invalid",
+   }},error:null})}})},
+   "@/lib/supabase/admin":{createAdminClient:()=>({from:query})},
+   "@/lib/payments/pricing":{buildMarketplacePricing:()=>({itemAmount:15,totalBuyerAmount:16,
+     buyerFeeAmount:1,shippingAmount:0,sellerNetAmount:15,shipmentTier:"none"})},
+   "@/lib/offers/chat-message":{buildOfferChatBody:()=> "test"},
+   "@/lib/notifications":{createNotifications:async()=>{events.push("NOTIFICATION");return {error:null};}},
+   "@/lib/marketplace/listing-type":{getListingTypeFromRow:()=> "sale"},
+   "@/lib/commerce/private-access":{canUserUseCommerce:async()=>true,
+     isPublicCommerceEnabled:()=>false,assertStripeTestMode:()=>{},
+     isPrivateShippingLabelCreationEnabled:()=>false},
+   "@/lib/analytics/product-events.server":{deferProductEvent:()=>{}},
+   "@/lib/payments/safe-buy-now-intent":{BuyNowPaymentError:PaymentError,
+     prepareBuyNowPaymentIntent:async()=>{events.push("PAYMENT");throw new PaymentError(409,"PAYMENT_PRIVATE_CONFLICT");}},
+   "@/lib/commerce/buy-now-reservation":{BuyNowReservationError:class extends Error{},
+     reserveAvailableListing:async()=>{events.push("CAS_RESERVED");return ID;}},
+ };
+ const src=readFileSync("app/api/offers/buy-now/route.ts","utf8");
+ const trans=ts.transpileModule(src,{fileName:"buy-now/route.ts",reportDiagnostics:true,
+   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}});
+ assert.equal((trans.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
+ vm.runInNewContext(trans.outputText,{exports:out,require:name=>{
+   assert.ok(name in deps,"Unexpected module "+name);return deps[name];
+ },Request,Response,Promise,Date,console:{error:()=>{}}},{filename:"route.js",timeout:2000});
+ const response=await out.POST(new Request("https://wetudy.invalid/api/offers/buy-now",{
+   method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({listingId:ID})
+ }));
+ const body=await response.json();
+ assert.equal(response.status,503);
+ assert.equal(response.headers.get("cache-control"),"private, no-store");
+ assert.match(body.error,/reservado.*conciliación/);
+ assert.doesNotMatch(JSON.stringify(body),/PAYMENT_PRIVATE_CONFLICT/);
+ assert.ok(events.indexOf("CAS_RESERVED")>=0 && events.indexOf("CAS_RESERVED")<events.indexOf("PAYMENT"));
+ assert.ok(events.includes("INSERT:listing_offers"));
+ assert.equal(events.includes("NOTIFICATION"),false);
+});
