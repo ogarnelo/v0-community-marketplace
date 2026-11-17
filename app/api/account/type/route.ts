@@ -2,21 +2,31 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
 type AccountType = "student" | "parent";
 
 function jsonError(message: string, status: number, code: string) {
-  return NextResponse.json({ error: message, code }, { status });
+  return NextResponse.json({ error: message, code }, { status, headers: PRIVATE_HEADERS });
 }
 
 export async function PATCH(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return jsonError("Debes iniciar sesión.", 401, "unauthorized");
+  let user;
+  try {
+    const supabase = await createClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const guest = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return guest
+        ? jsonError("Debes iniciar sesión.", 401, "unauthorized")
+        : jsonError("No se pudo comprobar tu sesión.", 503, "auth_unavailable");
+    }
+    user = authData?.user ?? null;
+  } catch {
+    return jsonError("No se pudo comprobar tu sesión.", 503, "auth_unavailable");
   }
+  if (!user) return jsonError("Debes iniciar sesión.", 401, "unauthorized");
 
   const body = await request.json().catch(() => null);
   const targetType =
@@ -47,12 +57,12 @@ export async function PATCH(request: Request) {
     ]);
 
   if (profileError || !profile) {
-    console.error("Cambio de tipo: error cargando perfil", profileError);
+    console.error("account_type_profile_load_failed");
     return jsonError("No se pudo cargar tu perfil.", 500, "profile_load_failed");
   }
 
   if (studentsError) {
-    console.error("Cambio de tipo: error cargando estudiantes", studentsError);
+    console.error("account_type_students_load_failed");
     return jsonError(
       "No se pudieron revisar tus estudiantes.",
       500,
@@ -74,7 +84,7 @@ export async function PATCH(request: Request) {
   }
 
   if (currentType === targetType) {
-    return NextResponse.json({ userType: targetType });
+    return NextResponse.json({ userType: targetType }, { headers: PRIVATE_HEADERS });
   }
 
   const activeStudents = students || [];
@@ -184,13 +194,15 @@ export async function PATCH(request: Request) {
       throw authUpdateError;
     }
 
-    return NextResponse.json({ userType: targetType });
+    return NextResponse.json({ userType: targetType }, { headers: PRIVATE_HEADERS });
   } catch (error) {
-    console.error("Error cambiando tipo de cuenta:", error);
+    // Rollback is best effort across PostgreSQL and Auth; never guarantee
+    // a fully preserved previous state unless verified transactionally.
+    console.error("account_type_reconciliation_required");
     return jsonError(
-      "No se pudo cambiar el tipo de cuenta. Tus datos anteriores se han conservado.",
-      500,
-      "account_type_change_failed"
+      "El cambio no se completó. Revisa tu cuenta antes de reintentarlo.",
+      503,
+      "account_type_reconciliation_required"
     );
   }
 }
