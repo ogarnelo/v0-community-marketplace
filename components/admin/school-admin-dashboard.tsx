@@ -222,7 +222,7 @@ export default function SchoolAdminDashboard({
   const [activeTab, setActiveTab] = useState("impact");
   const [qrShareStatus, setQrShareStatus] = useState("");
   const [monthlyEnabled, setMonthlyEnabled] = useState(reportSubscription?.enabled ?? false);
-  const [monthlyEmail, setMonthlyEmail] = useState(reportSubscription?.email || currentUserEmail);
+  const monthlyEmail = currentUserEmail;
   const [monthlyDay, setMonthlyDay] = useState(reportSubscription?.day_of_month || 1);
   const [monthlySaving, setMonthlySaving] = useState(false);
   const [monthlySending, setMonthlySending] = useState(false);
@@ -715,10 +715,12 @@ export default function SchoolAdminDashboard({
                     <input
                       type="email"
                       value={monthlyEmail}
-                      onChange={(event) => setMonthlyEmail(event.target.value)}
+                      readOnly
+                      aria-describedby="school-report-email-note"
                       className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                      placeholder="admin@centro.es"
+                      placeholder="Correo verificado de tu cuenta"
                     />
+                    <span id="school-report-email-note" className="block text-xs text-muted-foreground">Solo se admite el correo verificado de tu cuenta.</span>
                   </label>
                   <label className="space-y-1.5 text-sm">
                     <span className="font-medium">Día</span>
