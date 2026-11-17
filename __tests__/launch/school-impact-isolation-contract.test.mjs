@@ -30,3 +30,10 @@ test("school admin sees only their own report delivery history", () => {
   assert.match(query, /\.eq\("school_id", effectiveSchoolId\)/);
   assert.match(query, /\.eq\("user_id", user\.id\)/);
 });
+
+test("school dashboard fails closed when role lookup fails or centre is absent", () => {
+  const source = read("app/admin/school/page.tsx");
+  assert.match(source, /if \(rolesError\) throw/);
+  assert.match(source, /if \(schoolLookupError\) throw/);
+  assert.match(source, /if \(!school \|\| school\.is_active === false\)/);
+});
