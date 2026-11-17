@@ -269,7 +269,7 @@ export async function POST(request: Request) {
         user_id: listing.seller_id,
         kind: "offer_accepted",
         title: "Han iniciado una compra directa",
-        body: `${user.user_metadata?.full_name || user.email || "Un usuario"} quiere comprar ${listing.title || "tu anuncio"}.`,
+        body: `Han iniciado una compra directa de ${listing.title || "tu anuncio"}.`,
         href: conversationId ? `/messages/${conversationId}` : "/messages",
         metadata: { listing_id: listingId, offer_id: offerId, conversation_id: conversationId },
       },
