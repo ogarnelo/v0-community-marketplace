@@ -123,3 +123,5 @@ jobs:
         run: node --test __tests__/launch/federation-dashboard-view-model-runtime.test.mjs
       - name: FAMPA and CEAPA read-only dashboard render and suppression
         run: node --test __tests__/launch/federation-dashboard-component-runtime.test.mjs
+      - name: Local federation dashboard preview must stay 404 in production
+        run: node --test __tests__/launch/federation-dashboard-local-preview-runtime.test.mjs
