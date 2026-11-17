@@ -87,3 +87,5 @@ jobs:
         run: node --test __tests__/launch/password-minimum-consistency.test.mjs
       - name: School administrator grant denials and runtime tests
         run: node --test __tests__/launch/school-admin-grant-guard.test.mjs __tests__/launch/school-admin-grant-runtime.test.mjs
+      - name: Read-only commerce reconciliation respects agreement flows
+        run: node --test __tests__/launch/pilot-commerce-readonly-audit.test.mjs
