@@ -25,6 +25,7 @@ const gateway=load(prefix+"federation-report-gateway.ts",{
 const snapshotAdapter=load(prefix+"federation-authority-snapshot.ts");
 const schoolAdapter=load(prefix+"federation-school-kpi-adapter.ts");
 const service=load(prefix+"federation-report-service.ts",{
+ "server-only":{},
  "./federation-authority-snapshot":snapshotAdapter,
  "./federation-report-gateway":gateway,
  "./federation-school-kpi-adapter":schoolAdapter,
@@ -127,3 +128,14 @@ test("deactivated school in load report denies before final publication",async()
  await assert.rejects(bad.report,/FEDERATION_SCHOOL_INACTIVE_OR_MISMATCH/);
  await x.report;
 });
+
+test("federation reporting orchestration is explicitly server-only",()=>{
+ const source=readFileSync("lib/reports/federation-report-service.ts","utf8");
+ assert.match(source,/^import ["']server-only["'];/m);
+ const fs=requireFileGuards();
+ assert.equal(fs.authenticatedIdentityFromClient, false);
+});
+function requireFileGuards(){
+ const source=readFileSync("lib/reports/federation-report-service.ts","utf8");
+ return {authenticatedIdentityFromClient:/fetch\s*\(.*\/auth\/v1\/user/.test(source)};
+}
