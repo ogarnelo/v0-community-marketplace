@@ -77,3 +77,11 @@ test("legal identity and school are different; invalid timestamp fails safely",(
  assert.throws(()=>build(good({organizationAssociations:[
   {...x.organizationAssociations[0],valid_from:"not-a-date"}]})),/INVALID_FEDERATION_TIMESTAMP/);
 });
+
+test("contradictory duplicate legal relationships cannot restore a revoked grant",()=>{
+ const x=good();const original=x.organizationAssociations[0];
+ assert.throws(()=>build(good({organizationAssociations:[original,
+  {...original,status:"revoked"}]})),/CONFLICTING_FEDERATION_SNAPSHOT/);
+ assert.throws(()=>build(good({schools:[{id:school,is_active:true},{id:school,is_active:false}]})),
+  /CONFLICTING_FEDERATION_SNAPSHOT/);
+});
