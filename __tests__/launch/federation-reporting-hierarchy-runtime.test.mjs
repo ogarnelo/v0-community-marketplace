@@ -67,3 +67,13 @@ test("duplicate verified edges and malformed edge identity fail closed",()=>{
  assert.deepEqual(resolve({links:[link,{...link}]}),[]);
  assert.deepEqual(resolve({links:[{...link,childId:"not-a-uuid"}]}),[]);
 });
+
+test("CEAPA root revoked duplicate cannot be bypassed by a stale active membership",()=>{
+ const active={...membership[0]};
+ const revoked={...membership[0],state:"revoked"};
+ assert.deepEqual(resolve({memberships:[active,revoked]}),[]);
+ assert.deepEqual(resolve({memberships:[revoked,active]}),[]);
+});
+test("duplicate active CEAPA reporting memberships are ambiguous and deny inheritance",()=>{
+ assert.deepEqual(resolve({memberships:[membership[0],{...membership[0]}]}),[]);
+});
