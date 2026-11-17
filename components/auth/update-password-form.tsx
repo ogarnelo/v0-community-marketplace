@@ -38,8 +38,8 @@ export function UpdatePasswordForm() {
     event.preventDefault();
     setError("");
 
-    if (password.length < 8) {
-      setError("La nueva contraseña debe tener al menos 8 caracteres.");
+    if (password.length < 12) {
+      setError("La nueva contraseña debe tener al menos 12 caracteres.");
       return;
     }
 
@@ -137,7 +137,7 @@ export function UpdatePasswordForm() {
                 autoComplete="new-password"
                 className="pl-10"
                 required
-                minLength={8}
+                minLength={12}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
@@ -154,7 +154,7 @@ export function UpdatePasswordForm() {
                 autoComplete="new-password"
                 className="pl-10"
                 required
-                minLength={8}
+                minLength={12}
                 value={repeatPassword}
                 onChange={(event) => setRepeatPassword(event.target.value)}
               />
