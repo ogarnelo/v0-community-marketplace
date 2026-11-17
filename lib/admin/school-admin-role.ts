@@ -47,6 +47,21 @@ export async function grantSchoolAdminRole(params: {
 
   if (roleLookupError) throw roleLookupError;
 
+  // The current school admin dashboard resolves one school per account.
+  // Reject a second, conflicting school role rather than silently changing
+  // profiles.school_id and leaving authorization ambiguous.
+  const { data: otherRoles, error: otherRolesError } = await admin
+    .from("user_roles")
+    .select("school_id")
+    .eq("user_id", params.userId)
+    .eq("role", "school_admin")
+    .neq("school_id", params.schoolId)
+    .limit(1);
+  if (otherRolesError) throw otherRolesError;
+  if (otherRoles && otherRoles.length > 0) {
+    throw new Error("El usuario ya administra otro centro. Revisa sus permisos antes de asignarle uno nuevo.");
+  }
+
   if (!existingRole) {
     const { error: roleInsertError } = await admin.from("user_roles").insert({
       user_id: params.userId,
