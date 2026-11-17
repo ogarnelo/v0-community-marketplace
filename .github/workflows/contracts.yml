@@ -93,3 +93,5 @@ jobs:
         run: node --test __tests__/launch/pilot-commerce-readonly-audit.test.mjs
       - name: Manual school report partial-send reconciliation
         run: node --test __tests__/launch/pilot-manual-school-report-partial-send.test.mjs
+      - name: Post-load school activation and manual send checks
+        run: node --test __tests__/launch/pilot-school-report-postload-active.test.mjs
