@@ -9,7 +9,8 @@ const js=ts.transpileModule(file,{fileName:"school-impact-report.ts",
  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const uuid=n=>String(n).padStart(8,"0")+"-1111-4111-8111-111111111111";
 const schoolId=uuid(1),otherSchool=uuid(2);
-function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCount=false}={}){
+function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCount=false,
+ membersCount=2400,adminsCount=20,missingMembersCount=false,missingAdminsCount=false}={}){
  const records=[];
  const listings=Array.from({length:listingCount},(_,i)=>({
   id:uuid(100+i),title:"Libro",category:"libros",isbn:null,
@@ -34,8 +35,8 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
    records.push({table,filters:{...filters}});
    if(table==="schools")return {data:{id:schoolId,name:"Colegio",is_active:true,city:null,region:null},error:null};
    if(table==="listings")return {data:listings,error:null};
-   if(table==="profiles")return {data:[{id:uuid(1)}],error:null};
-   if(table==="user_roles")return {data:[{user_id:uuid(1)}],error:null};
+   if(table==="profiles")return {data:null,count:missingMembersCount?null:membersCount,error:null};
+   if(table==="user_roles")return {data:null,count:missingAdminsCount?null:adminsCount,error:null};
    if(table==="agreements")return {data:[],error:null};
    if(table==="listing_views")return {data:null,count:missingViewCount?null:viewCount,error:null};
    if(table==="reports"){
@@ -86,4 +87,24 @@ test("incident database failures fail closed rather than reporting zero",async()
 test("missing authoritative listing-view count fails rather than reporting zero",async()=>{
  const h=harness({missingViewCount:true});
  await assert.rejects(h.load(),/SCHOOL_REPORT_VIEW_COUNT_UNAVAILABLE/);
+});
+
+test("member and school-admin counts use exact head-only queries, even beyond 1000 users",async()=>{
+ const h=harness({membersCount:2400,adminsCount:1100}),result=await h.load();
+ assert.equal(result.members,2400);
+ assert.equal(result.administrators,1100);
+ for(const table of ["profiles","user_roles"]){
+  const q=h.records.find(entry=>entry.table===table);
+  assert.equal(q.filters.select[1].head,true);
+  assert.equal(q.filters.select[1].count,"exact");
+  assert.equal(q.filters.school_id,schoolId);
+ }
+});
+test("null authoritative member count blocks report and prevents false small-group privacy",async()=>{
+ const h=harness({missingMembersCount:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_MEMBERS_COUNT_UNAVAILABLE/);
+});
+test("null authoritative admin count fails instead of showing zero",async()=>{
+ const h=harness({missingAdminsCount:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_ADMINS_COUNT_UNAVAILABLE/);
 });
