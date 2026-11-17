@@ -85,3 +85,5 @@ jobs:
         run: node --test __tests__/launch/school-impact-isolation-contract.test.mjs
       - name: New password forms agree on minimum length and messages
         run: node --test __tests__/launch/password-minimum-consistency.test.mjs
+      - name: School administrator grant denials and runtime tests
+        run: node --test __tests__/launch/school-admin-grant-guard.test.mjs __tests__/launch/school-admin-grant-runtime.test.mjs
