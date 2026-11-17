@@ -1,69 +1,60 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireCommerceLabSuperAdmin } from "@/lib/admin/commerce-lab-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isPrivateCommercePreviewEnabled } from "@/lib/commerce/private-access";
 
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: {status?:number} = {}) {
+  return NextResponse.json(body, {...options, headers: PRIVATE_HEADERS});
+}
 export async function POST(request: Request) {
   if (!isPrivateCommercePreviewEnabled()) {
-    return NextResponse.json({ error: "No disponible." }, { status: 404 });
+    return privateJson({ error: "No disponible." }, { status: 404 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  }
-
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("role", "super_admin")
-    .limit(1);
-
-  if (!roles?.length) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
-  }
+  const auth = await requireCommerceLabSuperAdmin();
+  if ("error" in auth) return privateJson({ error: auth.error }, { status: auth.status });
+  const user = auth.user;
 
   const body = await request.json().catch(() => ({}));
   const shipmentId =
     typeof body?.shipmentId === "string" ? body.shipmentId.trim() : "";
 
   if (!shipmentId) {
-    return NextResponse.json({ error: "Falta shipmentId." }, { status: 400 });
+    return privateJson({ error: "Falta shipmentId." }, { status: 400 });
   }
 
   const admin = createAdminClient();
-  const { data: shipment } = await admin
+  const { data: shipment, error: shipmentLookupError } = await admin
     .from("shipments")
     .select("id, payment_intent_id, status, payload")
     .eq("id", shipmentId)
     .maybeSingle();
 
+  if (shipmentLookupError) return privateJson({ error: "No se pudo comprobar el envío." }, { status: 503 });
   if (!shipment) {
-    return NextResponse.json({ error: "Envío no encontrado." }, { status: 404 });
+    return privateJson({ error: "Envío no encontrado." }, { status: 404 });
   }
 
   if (!["draft", "quoted", "label_pending"].includes(String(shipment.status))) {
-    return NextResponse.json(
+    return privateJson(
       { error: "El envío no admite simular etiqueta desde su estado actual." },
       { status: 409 }
     );
   }
 
-  const { data: payment } = shipment.payment_intent_id
+  const { data: payment, error: paymentLookupError } = shipment.payment_intent_id
     ? await admin
         .from("payment_intents")
         .select("id, status")
         .eq("id", shipment.payment_intent_id)
         .maybeSingle()
-    : { data: null };
+    : { data: null, error: null };
 
+  if (paymentLookupError) return privateJson({ error: "No se pudo comprobar el pago." }, { status: 503 });
   if (!payment || payment.status !== "succeeded") {
-    return NextResponse.json(
+    return privateJson(
       { error: "La simulación exige un pago Stripe test confirmado." },
       { status: 409 }
     );
@@ -92,14 +83,10 @@ export async function POST(request: Request) {
     .select("*")
     .maybeSingle();
 
-  if (error || !updated) {
-    return NextResponse.json(
-      { error: error?.message || "No se pudo simular la etiqueta." },
-      { status: 409 }
-    );
-  }
+  if (error) return privateJson({ error: "No se pudo simular la etiqueta." }, { status: 503 });
+  if (!updated) return privateJson({ error: "El envío ha cambiado. Actualiza la página." }, { status: 409 });
 
-  await admin.from("shipment_events").insert({
+  const { error: eventError } = await admin.from("shipment_events").insert({
     shipment_id: shipment.id,
     event_type: "sandbox_label_ready",
     payload: {
@@ -110,5 +97,8 @@ export async function POST(request: Request) {
     created_at: now,
   });
 
-  return NextResponse.json({ ok: true, shipment: updated });
+  if (eventError) return privateJson({
+    error: "La etiqueta se simuló, pero requiere conciliar el historial.",
+  }, {status:503});
+  return privateJson({ ok: true, shipment: updated });
 }

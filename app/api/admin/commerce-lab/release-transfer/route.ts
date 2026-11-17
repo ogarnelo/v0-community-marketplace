@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireCommerceLabSuperAdmin } from "@/lib/admin/commerce-lab-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   assertStripeTestMode,
@@ -9,34 +9,23 @@ import { stripe } from "@/lib/stripe";
 import { resolveStripePaymentIntentAndCharge } from "@/lib/commerce/settlement";
 import { syncSellerConnectAccount } from "@/lib/commerce/connect";
 
-async function requireSuperAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "No autenticado.", status: 401 as const };
-
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("role", "super_admin")
-    .limit(1);
-
-  if (!roles?.length) return { error: "No autorizado.", status: 403 as const };
-  return { user };
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(body: unknown, options: { status?: number } = {}) {
+  return NextResponse.json(body, {...options, headers: PRIVATE_HEADERS});
 }
-
 export async function POST(request: Request) {
   if (!isPrivateCommercePreviewEnabled()) {
-    return NextResponse.json({ error: "No disponible." }, { status: 404 });
+    return privateJson({ error: "No disponible." }, { status: 404 });
   }
-  assertStripeTestMode();
-
-  const auth = await requireSuperAdmin();
+  const auth = await requireCommerceLabSuperAdmin();
   if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return privateJson({ error: auth.error }, { status: auth.status });
+  }
+  try {
+    assertStripeTestMode();
+  } catch {
+    return privateJson({ error: "La previsualización exige Stripe en modo test." }, { status: 503 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -44,7 +33,7 @@ export async function POST(request: Request) {
     typeof body?.paymentIntentId === "string" ? body.paymentIntentId.trim() : "";
 
   if (!paymentIntentId) {
-    return NextResponse.json({ error: "Falta paymentIntentId." }, { status: 400 });
+    return privateJson({ error: "Falta paymentIntentId." }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -59,11 +48,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (paymentError || !payment) {
-      return NextResponse.json({ error: "Pago no encontrado." }, { status: 404 });
+      return privateJson({ error: "Pago no encontrado." }, { status: 404 });
     }
 
     if (payment.status !== "succeeded") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Solo se puede liberar un pago confirmado." },
         { status: 409 }
       );
@@ -76,7 +65,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (existingRefund) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Existe un refund registrado para este pago; no se pueden liberar fondos." },
         { status: 409 }
       );
@@ -84,7 +73,7 @@ export async function POST(request: Request) {
 
     const sellerNetAmount = Number(payment.seller_net_amount);
     if (!Number.isFinite(sellerNetAmount) || sellerNetAmount <= 0) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El importe neto del vendedor no es válido." },
         { status: 409 }
       );
@@ -99,7 +88,7 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (!shipment || shipment.status !== "delivered") {
-        return NextResponse.json(
+        return privateJson(
           { error: "El envío debe estar entregado antes de liberar fondos." },
           { status: 409 }
         );
@@ -113,7 +102,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!connectRow?.stripe_account_id) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El vendedor todavía no tiene una cuenta Stripe Connect test." },
         { status: 409 }
       );
@@ -125,7 +114,7 @@ export async function POST(request: Request) {
     });
 
     if (!connectStatus.transfersActive || !connectStatus.payoutsEnabled) {
-      return NextResponse.json(
+      return privateJson(
         { error: "La cuenta Stripe del vendedor todavía no está lista para recibir fondos." },
         { status: 409 }
       );
@@ -138,10 +127,10 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (existingTransfer?.status === "released") {
-      return NextResponse.json({ ok: true, transfer: existingTransfer, existing: true });
+      return privateJson({ ok: true, transfer: existingTransfer, existing: true });
     }
     if (existingTransfer?.status === "reversed") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Esta transferencia ya fue revertida y no puede liberarse de nuevo." },
         { status: 409 }
       );
@@ -171,7 +160,7 @@ export async function POST(request: Request) {
       expectedTotalAmount <= 0 ||
       expectedTotalCents <= 0
     ) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El total esperado del pago no es válido." },
         { status: 409 }
       );
@@ -182,14 +171,14 @@ export async function POST(request: Request) {
       paymentIntent.amount_received !== expectedTotalCents ||
       paymentIntent.currency !== expectedCurrency
     ) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Stripe y Supabase no coinciden en estado, importe o moneda del pago." },
         { status: 409 }
       );
     }
 
     if (amountCents <= 0 || amountCents > expectedTotalCents) {
-      return NextResponse.json(
+      return privateJson(
         { error: "El neto del vendedor no es compatible con el total cobrado." },
         { status: 409 }
       );
@@ -221,7 +210,7 @@ export async function POST(request: Request) {
         stripeExistingTransfer.amount_reversed > 0 &&
         !stripeExistingTransfer.reversed
       ) {
-        return NextResponse.json(
+        return privateJson(
           {
             error:
               "Stripe contiene una reversión parcial de esta transferencia; se requiere reconciliación manual.",
@@ -235,7 +224,7 @@ export async function POST(request: Request) {
         stripeExistingTransfer.currency !== expectedCurrency ||
         existingSourceTransaction !== chargeId
       ) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Stripe ya contiene una transferencia incompatible para este pago." },
           { status: 409 }
         );
@@ -273,7 +262,7 @@ export async function POST(request: Request) {
       if (reconcileError) throw reconcileError;
 
       if (stripeExistingTransfer.reversed) {
-        return NextResponse.json(
+        return privateJson(
           {
             error:
               "La transferencia ya está completamente revertida en Stripe y no puede liberarse de nuevo.",
@@ -284,7 +273,7 @@ export async function POST(request: Request) {
         );
       }
 
-      return NextResponse.json({
+      return privateJson({
         ok: true,
         transfer: reconciledTransfer,
         existing: true,
@@ -339,7 +328,7 @@ export async function POST(request: Request) {
 
     if (saveError) throw saveError;
 
-    await admin.from("payment_events").insert({
+    const { error: eventError } = await admin.from("payment_events").insert({
       payment_intent_id: payment.id,
       event_type: "sandbox_transfer_released",
       provider_event_id: null,
@@ -351,12 +340,15 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true, transfer: savedTransfer });
-  } catch (error: any) {
-    console.error("No se pudo liberar la transferencia test", error);
-    return NextResponse.json(
-      { error: error?.message || "No se pudo liberar la transferencia test." },
-      { status: 500 }
+    if (eventError) {
+      return privateJson({ error: "La transferencia se realizó, pero requiere conciliar el registro." }, { status: 503 });
+    }
+    return privateJson({ ok: true, transfer: savedTransfer });
+  } catch {
+    console.error("commerce_lab_transfer_reconciliation_required");
+    return privateJson(
+      { error: "No se completó la transferencia o requiere conciliación con Stripe." },
+      { status: 503 }
     );
   }
 }
