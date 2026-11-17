@@ -50,9 +50,22 @@ export function resolveFederationSchoolScope(input: ReportingScopeInput): readon
       relevant[0].state !== "active") return [];
 
   const schools = new Set<string>();
+  // A revoked representation for the same federation/school must not be
+  // overridden by a second active row (e.g. a stale flattened AMPA mapping).
+  // Consistently active duplicate rows still represent one school.
+  const representationStates = new Map<string, Set<string>>();
   for (const row of representations) {
-    if (row.federationId !== federationId || !isUuid(row.schoolId) ||
-        row.state !== "active") continue;
+    if (row.federationId !== federationId) continue;
+    if (!isUuid(row.schoolId)) return [];
+    const key = row.schoolId.toLowerCase();
+    const states = representationStates.get(key) ?? new Set<string>();
+    states.add(row.state);
+    representationStates.set(key, states);
+  }
+  if ([...representationStates.values()].some(states => states.size !== 1)) return [];
+
+  for (const row of representations) {
+    if (row.federationId !== federationId || row.state !== "active") continue;
     const start = parseInstant(row.startsAt);
     const end = parseInstant(row.endsAt);
     if (start === null || start > now.getTime() ||

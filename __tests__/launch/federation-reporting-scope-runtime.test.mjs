@@ -55,3 +55,15 @@ test("active and revoked duplicate memberships cannot revive withdrawn access",(
 test("duplicate active membership is an ambiguous authority source and fails closed",()=>{
  assert.deepEqual(scope([m[0],{...m[0]}]),[]);
 });
+
+test("a revoked representation shadowed by an active copy denies the entire scope",()=>{
+ const revoked={...rows[0],state:"revoked"};
+ assert.deepEqual(scope(m,[rows[0],revoked]),[]);
+ assert.deepEqual(scope(m,[revoked,rows[0]]),[]);
+});
+test("an active and pending representation for the same school cannot confer access",()=>{
+ assert.deepEqual(scope(m,[rows[0],{...rows[0],state:"pending"}]),[]);
+});
+test("malformed school identifiers in matching federation data fail closed",()=>{
+ assert.deepEqual(scope(m,[rows[0],{...rows[0],schoolId:"not-a-uuid"}]),[]);
+});
