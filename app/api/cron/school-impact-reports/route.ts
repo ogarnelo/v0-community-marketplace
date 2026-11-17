@@ -27,7 +27,12 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const day = now.getUTCDate();
+  // The subscription day is a calendar day in the pilot's local timezone.
+  // UTC can already be the following day while Madrid is still on the prior date.
+  const day = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid",
+    day: "numeric",
+  }).format(now));
   const period = previousCalendarMonth(now);
   const admin = createAdminClient();
 
@@ -54,6 +59,41 @@ export async function GET(request: Request) {
     }
 
     try {
+      // Revalidate legacy subscriptions at send time: a saved arbitrary email
+      // must never bypass the restriction introduced on the API routes.
+      const { data: account, error: accountError } = await admin.auth.admin.getUserById(subscription.user_id);
+      if (accountError || !account?.user?.email_confirmed_at ||
+          !account.user.email ||
+          account.user.email.trim().toLowerCase() !== subscription.email.trim().toLowerCase()) {
+        skipped += 1;
+        continue;
+      }
+      const { data: currentRole, error: currentRoleError } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .eq("user_id", subscription.user_id)
+        .eq("school_id", subscription.school_id)
+        .eq("role", "school_admin")
+        .maybeSingle();
+      if (currentRoleError) throw currentRoleError;
+      if (!currentRole) {
+        skipped += 1;
+        continue;
+      }
+
+      // Recheck the centre before privileged report data is loaded, not only
+      // after rendering. A revoked or deactivated school has no report access.
+      const { data: currentSchool, error: schoolError } = await admin
+        .from("schools")
+        .select("id, is_active")
+        .eq("id", subscription.school_id)
+        .maybeSingle();
+      if (schoolError) throw new Error("school_status_unavailable");
+      if (!currentSchool || currentSchool.is_active !== true) {
+        skipped += 1;
+        continue;
+      }
+
       const report = await loadSchoolImpactReport({
         schoolId: subscription.school_id,
         start: period.start,
@@ -62,7 +102,7 @@ export async function GET(request: Request) {
         periodKey: period.key,
       });
 
-      if (report.school.is_active === false) {
+      if (!report?.school || report.school.is_active !== true) {
         skipped += 1;
         continue;
       }

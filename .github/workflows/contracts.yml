@@ -79,3 +79,5 @@ jobs:
         run: node --test __tests__/launch/pilot-prod-photo-rls-after-listings-acl.test.mjs
       - name: Listing detail authorized photo reads and metadata
         run: node --test __tests__/launch/pilot-listing-detail-private-photo-authorization-runtime.test.mjs
+      - name: School report cron denies revoked admins and inactive centres
+        run: node --test __tests__/launch/school-impact-report-recipient-security.test.mjs __tests__/launch/school-impact-schedule-calendar.test.mjs __tests__/launch/pilot-school-impact-cron-authorization-runtime.test.mjs
