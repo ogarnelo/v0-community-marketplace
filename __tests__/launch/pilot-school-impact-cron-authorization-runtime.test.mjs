@@ -28,11 +28,13 @@ function fixture(options = {}) {
       events.push("FROM:"+table);
       const q = {
         select: () => q, eq: () => q,
+        is: (column,value) => { if (column==="last_sent_month") events.push("MARKER_IS_NULL:"+String(value));return q; },
         returns: async () => ({data:[subscription],error:options.subscriptionError?{message:"PRIVATE_SUBSCRIPTION_SQL"}:null}),
         maybeSingle: async () => {
           if (table === "user_roles") return {
             data:options.revokedRole?null:{user_id:USER},error:null,
           };
+          if (table === "school_impact_report_subscriptions") return {data:options.markerMissing?null:{id:SUB},error:options.markerError?{message:"PRIVATE_MARKER_SQL"}:null};
           if (table === "schools") return {
             data:options.missingSchool?null:{id:SCHOOL,is_active:!options.inactiveSchool},
             error:options.schoolError?{message:"PRIVATE_SCHOOL_SQL"}:null,
@@ -151,4 +153,21 @@ test("provider acceptance with failed audit row is visible without requesting a 
   assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
   assert.equal(h.events.includes("UPDATE"),true);
   assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_DELIVERY_SQL|school@example.invalid|33333333-3333/);
+});
+
+test("missing affected row after email acceptance does not count as a completed report",async()=>{
+ const h=fixture({markerMissing:true}),result=await h.run();
+ assert.equal(result.body.sent,0);
+ assert.equal(result.body.failed,1);
+ assert.equal(result.body.ok,false);
+ assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
+ assert.ok(h.events.includes("MARKER_IS_NULL:null"));
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_MARKER_SQL|33333333-3333/);
+});
+test("sent-marker query error after provider acceptance requires manual reconciliation",async()=>{
+ const h=fixture({markerError:true}),result=await h.run();
+ assert.equal(result.body.sent,0);
+ assert.equal(result.body.failed,1);
+ assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_MARKER_SQL|school@example.invalid/);
 });
