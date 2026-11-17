@@ -81,6 +81,19 @@ export async function GET(request: Request) {
         continue;
       }
 
+      // Recheck the centre before privileged report data is loaded, not only
+      // after rendering. A revoked or deactivated school has no report access.
+      const { data: currentSchool, error: schoolError } = await admin
+        .from("schools")
+        .select("id, is_active")
+        .eq("id", subscription.school_id)
+        .maybeSingle();
+      if (schoolError) throw new Error("school_status_unavailable");
+      if (!currentSchool || currentSchool.is_active !== true) {
+        skipped += 1;
+        continue;
+      }
+
       const report = await loadSchoolImpactReport({
         schoolId: subscription.school_id,
         start: period.start,
@@ -89,7 +102,7 @@ export async function GET(request: Request) {
         periodKey: period.key,
       });
 
-      if (report.school.is_active === false) {
+      if (!report?.school || report.school.is_active !== true) {
         skipped += 1;
         continue;
       }
