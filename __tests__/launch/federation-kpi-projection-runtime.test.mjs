@@ -48,7 +48,8 @@ test("malformed, negative, Infinity and NaN metrics are rejected",()=>{
 });
 
 test("integer overflow across valid schools suppresses totals rather than rounding",()=>{
- const large={...row(a),reusedItems:Number.MAX_SAFE_INTEGER};
+ const large={...row(a),reusedItems:Number.MAX_SAFE_INTEGER,
+  soldItems:Number.MAX_SAFE_INTEGER-2,donatedItems:2};
  const views=exp.projectFederationSchoolKpis([large,row(b)],[a,b]);
  assert.equal(exp.sumFederationKpis(views,[a,b]),null);
 });
@@ -56,4 +57,19 @@ test("floating-point overflow across valid schools suppresses totals",()=>{
  const large={...row(a),circularValue:Number.MAX_VALUE};
  const views=exp.projectFederationSchoolKpis([large,{...row(b),circularValue:Number.MAX_VALUE}],[a,b]);
  assert.equal(exp.sumFederationKpis(views,[a,b]),null);
+});
+
+test("sale plus donation must equal confirmed reused items",()=>{
+ for(const bad of [
+  {...row(a),reusedItems:4,donatedItems:1,soldItems:2},
+  {...row(a),reusedItems:4,donatedItems:3,soldItems:2},
+  {...row(a),reusedItems:0,donatedItems:1,soldItems:0},
+ ]){
+  assert.throws(()=>exp.projectFederationSchoolKpis([bad],[a]),/INVALID_REPORTING_METRIC/);
+ }
+});
+test("agreement count arithmetic overflows before it may be published",()=>{
+ const bad={...row(a),reusedItems:Number.MAX_SAFE_INTEGER,
+   soldItems:Number.MAX_SAFE_INTEGER,donatedItems:1};
+ assert.throws(()=>exp.projectFederationSchoolKpis([bad],[a]),/INVALID_REPORTING_METRIC/);
 });
