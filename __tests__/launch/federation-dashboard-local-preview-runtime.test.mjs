@@ -13,7 +13,7 @@ const load=(src,env={NODE_ENV:"development"})=>{
  const transpiled=ts.transpileModule(src,{
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX},
  }).outputText;
- vm.runInNewContext(transpiled,{module,exports:mod.exports,
+ vm.runInNewContext(transpiled,{module:mod,exports:mod.exports,
   require:name=>{
    if(name==="@/components/admin/federation-kpi-dashboard")return {FederationKpiDashboard:()=>null};
    if(name==="@/components/admin/federation-dashboard-local-demo")return {FederationDashboardLocalDemo:()=>null};
