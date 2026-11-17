@@ -133,6 +133,8 @@ export async function POST(request: Request) {
       });
 
     if (deliveryError) {
+      // Email is already accepted. Keep updating last_sent_month to avoid an
+      // automatic duplicate, then expose the missing delivery audit explicitly.
       console.error("school_impact_manual_delivery_record_failed");
     }
 
@@ -170,6 +172,13 @@ export async function POST(request: Request) {
     if (subscriptionWriteError) {
       return privateJson(
         { error: "El informe se envió, pero no se pudo actualizar la suscripción. Revisa el historial antes de repetir." },
+        { status: 503 }
+      );
+    }
+
+    if (deliveryError) {
+      return privateJson(
+        { error: "El informe se envió, pero no se pudo registrar su entrega. Revisa el historial antes de repetir." },
         { status: 503 }
       );
     }
