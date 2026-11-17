@@ -10,7 +10,7 @@ test("manual and scheduled school report endpoints reject unverified or third-pa
     "app/api/school/report-subscription/route.ts",
   ]) {
     const source = read(path);
-    assert.match(source, /user\.email_confirmed_at/);
+  assert.match(source, /account\\?\\.user\\?\\.email_confirmed_at/);
     assert.match(source, /email !== verifiedEmail/);
     assert.match(source, /status: 403/);
   }
