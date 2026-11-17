@@ -97,3 +97,5 @@ jobs:
         run: node --test __tests__/launch/pilot-school-report-postload-active.test.mjs
       - name: Review-only cross-school administrator index safety contracts
         run: node --test __tests__/launch/p0-school-admin-global-unique-review.test.mjs
+      - name: Two-school donation Data API probe mock-contracts only
+        run: node --test __tests__/launch/p0-donation-two-school-data-api-readonly.test.mjs
