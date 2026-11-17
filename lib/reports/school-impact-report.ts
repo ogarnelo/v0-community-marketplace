@@ -111,6 +111,38 @@ export function dashboardRange(range: "90d" | "365d" | "total", now = new Date()
   };
 }
 
+/**
+ * PostgREST limits returned rows by default. A report must never publish
+ * partial school totals as if they were complete. Read deterministic pages,
+ * reject duplicate IDs, and fail closed on excessive volume or query errors.
+ */
+async function readAllSchoolImpactRows<T extends { id: string }>(
+  loadPage: (first: number, last: number) => PromiseLike<{
+    data: T[] | null;
+    error: unknown;
+  }>,
+): Promise<T[]> {
+  const pageSize = 250;
+  const maxRows = 10000;
+  const result: T[] = [];
+  const seen = new Set<string>();
+  for (let first = 0; first <= maxRows; first += pageSize) {
+    const { data, error } = await loadPage(first, first + pageSize - 1);
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error("SCHOOL_REPORT_PAGE_UNAVAILABLE");
+    if (result.length + data.length > maxRows)
+      throw new Error("SCHOOL_REPORT_ROW_LIMIT_EXCEEDED");
+    for (const row of data) {
+      if (!row?.id || seen.has(row.id))
+        throw new Error("SCHOOL_REPORT_PAGINATION_INCONSISTENT");
+      seen.add(row.id);
+      result.push(row);
+    }
+    if (data.length < pageSize) return result;
+  }
+  throw new Error("SCHOOL_REPORT_ROW_LIMIT_EXCEEDED");
+}
+
 export async function loadSchoolImpactReport(params: {
   schoolId: string;
   start: Date | null;
@@ -133,12 +165,16 @@ export async function loadSchoolImpactReport(params: {
       .select("id, name, city, region, is_active")
       .eq("id", schoolId)
       .maybeSingle<SchoolRow>(),
-    admin
-      .from("listings")
-      .select("id, title, category, isbn, status, created_at")
-      .eq("school_id", schoolId)
-      .eq("is_demo", false)
-      .returns<ListingRow[]>(),
+    readAllSchoolImpactRows<ListingRow>((first, last) =>
+      admin
+        .from("listings")
+        .select("id, title, category, isbn, status, created_at")
+        .eq("school_id", schoolId)
+        .eq("is_demo", false)
+        .order("id", { ascending: true })
+        .range(first, last)
+        .returns<ListingRow[]>()
+    ),
     // Exact database counts avoid downloading user IDs and the implicit
     // PostgREST row limit (typically 1,000) under-counting larger schools.
     admin
@@ -150,22 +186,24 @@ export async function loadSchoolImpactReport(params: {
       .select("user_id", { count: "exact", head: true })
       .eq("school_id", schoolId)
       .eq("role", "school_admin"),
-    (() => {
+    readAllSchoolImpactRows<AgreementRow>((first, last) => {
       let query = admin
         .from("agreements")
         .select("id, listing_id, agreement_type, status, amount, confirmed_at, created_at")
         .eq("school_id", schoolId)
         .eq("status", "confirmed")
         .lt("confirmed_at", end.toISOString());
-
       if (start) query = query.gte("confirmed_at", start.toISOString());
-      return query.returns<AgreementRow[]>();
-    })(),
+      return query
+        .order("id", { ascending: true })
+        .range(first, last)
+        .returns<AgreementRow[]>();
+    }),
   ]);
 
   if (schoolResult.error) throw schoolResult.error;
   if (!schoolResult.data) throw new Error("Centro no encontrado.");
-  if (listingsResult.error) throw listingsResult.error;
+
   if (membersResult.error) throw membersResult.error;
   if (adminsResult.error) throw adminsResult.error;
   if (membersResult.count === null || !Number.isSafeInteger(membersResult.count) ||
@@ -174,11 +212,11 @@ export async function loadSchoolImpactReport(params: {
   if (adminsResult.count === null || !Number.isSafeInteger(adminsResult.count) ||
       adminsResult.count < 0)
     throw new Error("SCHOOL_REPORT_ADMINS_COUNT_UNAVAILABLE");
-  if (agreementsResult.error) throw agreementsResult.error;
 
-  const listings = (listingsResult.data || []) as ListingRow[];
+
+  const listings = listingsResult;
   const listingById = new Map(listings.map((listing) => [listing.id, listing]));
-  const agreements = ((agreementsResult.data || []) as AgreementRow[])
+  const agreements = agreementsResult
     .filter((agreement) => Boolean(agreement.listing_id && listingById.has(agreement.listing_id)));
 
   const reusedItems = agreements.length;
@@ -222,14 +260,19 @@ export async function loadSchoolImpactReport(params: {
     if (!Number.isSafeInteger(listingViews))
       throw new Error("SCHOOL_REPORT_VIEW_COUNT_UNSAFE");
 
-    const { data: incidentRows, error: incidentsError } = await admin
-      .from("reports")
-      .select("listing_id")
-      .eq("target_type", "listing")
-      .in("status", ["open", "reviewing"])
-      .in("listing_id", ids)
-      .returns<Array<{ listing_id: string | null }>>();
-    if (incidentsError) throw incidentsError;
+    const incidentRows = await readAllSchoolImpactRows<{
+      id: string; listing_id: string | null;
+    }>((first, last) =>
+      admin
+        .from("reports")
+        .select("id, listing_id")
+        .eq("target_type", "listing")
+        .in("status", ["open", "reviewing"])
+        .in("listing_id", ids)
+        .order("id", { ascending: true })
+        .range(first, last)
+        .returns<Array<{ id: string; listing_id: string | null }>>()
+    );
     for (const row of incidentRows || []) {
       if (row.listing_id && ids.includes(row.listing_id))
         openReportListingIds.add(row.listing_id);

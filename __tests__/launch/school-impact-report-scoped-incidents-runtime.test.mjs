@@ -16,13 +16,15 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
   id:uuid(100+i),title:"Libro",category:"libros",isbn:null,
   status:"available",created_at:"2026-01-01T00:00:00Z",
  }));
- const allReports=[{listing_id:uuid(100),status:"open",target_type:"listing"},
-  {listing_id:uuid(101),status:"reviewing",target_type:"listing"},
-  {listing_id:uuid(9999),status:"open",target_type:"listing",schoolId:otherSchool}];
+ const allReports=[{id:uuid(50001),listing_id:uuid(100),status:"open",target_type:"listing"},
+  {id:uuid(50002),listing_id:uuid(101),status:"reviewing",target_type:"listing"},
+  {id:uuid(50003),listing_id:uuid(9999),status:"open",target_type:"listing",schoolId:otherSchool}];
  function makeQuery(table){
   const filters={};
   const q={
    select(...args){filters.select=args;return q},
+   order(column,opts){filters.order=[column,opts];return q},
+   range(first,last){filters.range=[first,last];return q},
    eq(key,value){filters[key]=value;return q},
    in(key,value){filters[key]=value;return q},
    lt(key,value){filters[key+"-lt"]=value;return q},
@@ -34,7 +36,8 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
   function result(){
    records.push({table,filters:{...filters}});
    if(table==="schools")return {data:{id:schoolId,name:"Colegio",is_active:true,city:null,region:null},error:null};
-   if(table==="listings")return {data:listings,error:null};
+   if(table==="listings")return {data:filters.range
+     ? listings.slice(filters.range[0],filters.range[1]+1):listings,error:null};
    if(table==="profiles")return {data:null,count:missingMembersCount?null:membersCount,error:null};
    if(table==="user_roles")return {data:null,count:missingAdminsCount?null:adminsCount,error:null};
    if(table==="agreements")return {data:[],error:null};
@@ -42,7 +45,9 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
    if(table==="reports"){
     if(incidentError)return {data:null,error:new Error("REPORTS_DB_FAILURE")};
     if(!Array.isArray(filters.listing_id))throw Error("CROSS_SCHOOL_REPORT_QUERY");
-    return {data:allReports.filter(x=>filters.listing_id.includes(x.listing_id)),error:null};
+    const matching=allReports.filter(x=>filters.listing_id.includes(x.listing_id));
+    return {data:filters.range
+      ? matching.slice(filters.range[0],filters.range[1]+1):matching,error:null};
    }
    throw Error("unexpected "+table);
   }
@@ -107,4 +112,20 @@ test("null authoritative member count blocks report and prevents false small-gro
 test("null authoritative admin count fails instead of showing zero",async()=>{
  const h=harness({missingAdminsCount:true});
  await assert.rejects(h.load(),/SCHOOL_REPORT_ADMINS_COUNT_UNAVAILABLE/);
+});
+
+test("more than 1000 school listings are loaded completely across ordered bounded pages",async()=>{
+ const h=harness({listingCount:1101}),report=await h.load();
+ assert.equal(report.activeListings,1101);
+ const pages=h.records.filter(q=>q.table==="listings");
+ assert.equal(pages.length,5);
+ assert.deepEqual(Array.from(pages.map(q=>q.filters.range)),[
+  [0,249],[250,499],[500,749],[750,999],[1000,1249],
+ ]);
+ assert.ok(pages.every(q=>q.filters.order[0]==="id"));
+ assert.equal(h.records.filter(q=>q.table==="reports").length,15);
+});
+test("pagination fails closed rather than silently showing first 1000 of >10000",async()=>{
+ const h=harness({listingCount:10001});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_ROW_LIMIT_EXCEEDED/);
 });
