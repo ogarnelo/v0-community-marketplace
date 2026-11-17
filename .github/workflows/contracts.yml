@@ -83,3 +83,5 @@ jobs:
         run: node --test __tests__/launch/school-impact-report-recipient-security.test.mjs __tests__/launch/school-impact-schedule-calendar.test.mjs __tests__/launch/pilot-school-impact-cron-authorization-runtime.test.mjs
       - name: School impact PDF scope and revoked school contracts
         run: node --test __tests__/launch/school-impact-isolation-contract.test.mjs
+      - name: School administrator grant denials and runtime tests
+        run: node --test __tests__/launch/school-admin-grant-guard.test.mjs __tests__/launch/school-admin-grant-runtime.test.mjs
