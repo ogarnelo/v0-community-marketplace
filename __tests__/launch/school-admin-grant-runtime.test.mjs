@@ -18,7 +18,7 @@ function makeCase(opts={}) {
         error:opts.conflictQueryError?{message:"PRIVATE_CONFLICT_ERROR"}:null}),
       maybeSingle:async()=>{
         if(table==="schools")return {data:opts.missingSchool?null:
-          {id:SCHOOL,is_active:!opts.inactiveSchool},
+          {id:SCHOOL,is_active:opts.unknownSchoolActive?null:!opts.inactiveSchool},
           error:opts.schoolError?{message:"PRIVATE_SCHOOL_ERROR"}:null};
         if(table==="user_roles")return {data:opts.existingRole?{id:SCHOOL}:null,
           error:opts.roleError?{message:"PRIVATE_ROLE_ERROR"}:null};
@@ -79,4 +79,10 @@ test("profile SQL error after grant requires reconciliation",async()=>{
   const h=makeCase({profileSqlError:true});
   await assert.rejects(h.grant(),/confirmar el perfil/);
   assert.ok(h.calls.includes("ROLE_INSERT"));
+});
+
+test("null school activation cannot grant administrator privileges",async()=>{
+ const h=makeCase({unknownSchoolActive:true});
+ await assert.rejects(h.grant(),/desactivado/);
+ assert.deepEqual(h.calls,["READ:schools"]);
 });
