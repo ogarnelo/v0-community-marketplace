@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getVerifiedCommerceUser } from "@/lib/commerce/verified-user";
 import {
   assertStripeTestMode,
   canUserAccessPrivateCommercePreview,
@@ -8,24 +8,21 @@ import { ensureSellerConnectAccount } from "@/lib/commerce/connect";
 import { stripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.redirect(new URL("/auth", request.url));
+  const auth = await getVerifiedCommerceUser();
+  if (!auth.user) {
+    const dest = auth.errorStatus === 401 ? "/auth" : "/account/commerce-preview?connect=error";
+    return NextResponse.redirect(new URL(dest, request.url), { headers: PRIVATE_HEADERS });
   }
-
-  if (!(await canUserAccessPrivateCommercePreview(user))) {
-    return NextResponse.redirect(new URL("/account", request.url));
-  }
-
-  assertStripeTestMode();
+  const user = auth.user;
 
   try {
+    if (!(await canUserAccessPrivateCommercePreview(user))) {
+      return NextResponse.redirect(new URL("/account", request.url), { headers: PRIVATE_HEADERS });
+    }
+    assertStripeTestMode();
     const { account } = await ensureSellerConnectAccount({
       userId: user.id,
       email: user.email,
@@ -41,11 +38,12 @@ export async function GET(request: Request) {
       type: "account_onboarding",
     });
 
-    return NextResponse.redirect(accountLink.url);
-  } catch (error) {
-    console.error("No se pudo regenerar onboarding Connect", error);
+    return NextResponse.redirect(accountLink.url, { headers: PRIVATE_HEADERS });
+  } catch {
+    console.error("seller_connect_onboarding_refresh_failed");
     return NextResponse.redirect(
-      new URL("/account/commerce-preview?connect=error", request.url)
+      new URL("/account/commerce-preview?connect=error", request.url),
+      { headers: PRIVATE_HEADERS }
     );
   }
 }

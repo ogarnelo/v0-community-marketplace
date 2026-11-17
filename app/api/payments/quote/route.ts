@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getVerifiedCommerceUser } from "@/lib/commerce/verified-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPaymentQuote } from "@/lib/services/payments.service";
-import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
+import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode } from "@/lib/commerce/private-access";
 
+export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(payload: unknown, opts:{status?:number}={}) {
+  return NextResponse.json(payload,{...opts,headers:PRIVATE_HEADERS});
+}
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    }
+    const auth = await getVerifiedCommerceUser();
+    if (!auth.user) return privateJson(
+      { error: auth.errorStatus === 401 ? "No autenticado." : "No se pudo comprobar tu sesión." },
+      { status: auth.errorStatus ?? 503 }
+    );
+    const user = auth.user;
 
     if (!(await canUserUseCommerce(user))) {
-      return NextResponse.json({ error: "No disponible." }, { status: 404 });
+      return privateJson({ error: "No disponible." }, { status: 404 });
     }
     if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
@@ -24,7 +27,7 @@ export async function POST(request: Request) {
     const offerId = typeof body?.offerId === "string" ? body.offerId.trim() : "";
 
     if (!offerId) {
-      return NextResponse.json({ error: "Falta la oferta." }, { status: 400 });
+      return privateJson({ error: "Falta la oferta." }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();
@@ -36,11 +39,12 @@ export async function POST(request: Request) {
       shipmentTier: body?.shipmentTier,
     });
 
-    return NextResponse.json({ ok: true, quote: result.quote });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || error?.details || "No se pudo calcular el importe total." },
-      { status: 500 }
+    return privateJson({ ok: true, quote: result.quote });
+  } catch {
+    console.error("payment_quote_failed");
+    return privateJson(
+      { error: "No se pudo calcular el importe total." },
+      { status: 503 }
     );
   }
 }

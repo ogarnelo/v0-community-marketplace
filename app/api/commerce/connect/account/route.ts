@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getVerifiedCommerceUser } from "@/lib/commerce/verified-user";
 import {
   assertStripeTestMode,
   canUserAccessPrivateCommercePreview,
@@ -12,22 +12,24 @@ import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+function privateJson(payload: unknown, opts: {status?:number}={}) {
+  return NextResponse.json(payload, {...opts, headers: PRIVATE_HEADERS});
+}
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  }
-  if (!(await canUserAccessPrivateCommercePreview(user))) {
-    return NextResponse.json({ error: "No disponible." }, { status: 404 });
-  }
-  assertStripeTestMode();
+  const auth = await getVerifiedCommerceUser();
+  if (!auth.user) return privateJson(
+    { error: auth.errorStatus === 401 ? "No autenticado." : "No se pudo comprobar tu sesión." },
+    { status: auth.errorStatus ?? 503 }
+  );
+  const user = auth.user;
 
   try {
+    if (!(await canUserAccessPrivateCommercePreview(user))) {
+      return privateJson({ error: "No disponible." }, { status: 404 });
+    }
+    assertStripeTestMode();
     const admin = createAdminClient();
     const { data: existing, error: lookupError } = await admin
       .from("seller_connect_accounts")
@@ -37,7 +39,7 @@ export async function GET() {
 
     if (lookupError) throw lookupError;
     if (!existing?.stripe_account_id) {
-      return NextResponse.json({ ok: true, account: null });
+      return privateJson({ ok: true, account: null });
     }
 
     const { account, status } = await syncSellerConnectAccount({
@@ -45,7 +47,7 @@ export async function GET() {
       stripeAccountId: existing.stripe_account_id,
     });
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       account: {
         id: account.id,
@@ -54,9 +56,9 @@ export async function GET() {
         ...status,
       },
     });
-  } catch (error) {
-    console.error("No se pudo cargar Stripe Connect", error);
-    return NextResponse.json(
+  } catch {
+    console.error("seller_connect_state_failed");
+    return privateJson(
       { error: "No se pudo cargar el estado de cobros del vendedor." },
       { status: 500 }
     );
@@ -64,20 +66,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  }
-  if (!(await canUserAccessPrivateCommercePreview(user))) {
-    return NextResponse.json({ error: "No disponible." }, { status: 404 });
-  }
-  assertStripeTestMode();
+  const auth = await getVerifiedCommerceUser();
+  if (!auth.user) return privateJson(
+    { error: auth.errorStatus === 401 ? "No autenticado." : "No se pudo comprobar tu sesión." },
+    { status: auth.errorStatus ?? 503 }
+  );
+  const user = auth.user;
 
   try {
+    if (!(await canUserAccessPrivateCommercePreview(user))) {
+      return privateJson({ error: "No disponible." }, { status: 404 });
+    }
+    assertStripeTestMode();
     const { account } = await ensureSellerConnectAccount({
       userId: user.id,
       email: user.email,
@@ -113,10 +113,10 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true, url: accountLink.url });
-  } catch (error) {
-    console.error("No se pudo iniciar onboarding Stripe Connect", error);
-    return NextResponse.json(
+    return privateJson({ ok: true, url: accountLink.url });
+  } catch {
+    console.error("seller_connect_onboarding_failed");
+    return privateJson(
       { error: "No se pudo iniciar la verificación con Stripe." },
       { status: 500 }
     );
