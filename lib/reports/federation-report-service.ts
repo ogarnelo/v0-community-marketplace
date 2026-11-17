@@ -6,6 +6,8 @@
  * session and UN-CACHED database reads for all seven source collections.
  * This service cannot be exposed directly to a browser or client JWT.
  */
+import "server-only";
+
 import {buildFederationAuthoritySnapshot,
   type TrustedFederationSnapshot} from "./federation-authority-snapshot";
 import {createFederationReport,
