@@ -23,7 +23,14 @@ export default async function SupplyOpportunityPage({
 }) {
   const { key } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    const guest = authError.name === "AuthSessionMissingError" ||
+      authError.code === "session_not_found";
+    if (!guest) throw new Error("No se pudo comprobar la sesión.");
+    redirect(`/auth?next=/supply-opportunity/${encodeURIComponent(key)}`);
+  }
+  const user = authData?.user ?? null;
   if (!user) redirect(`/auth?next=/supply-opportunity/${encodeURIComponent(key)}`);
 
   const admin = createAdminClient();
@@ -45,6 +52,7 @@ export default async function SupplyOpportunityPage({
       .maybeSingle(),
   ]);
 
+  if (actionResult.error || campaignResult.error) throw new Error("No se pudo verificar la oportunidad.");
   const action = actionResult.data;
   const campaign = campaignResult.data;
   if (!action || !campaign) notFound();
