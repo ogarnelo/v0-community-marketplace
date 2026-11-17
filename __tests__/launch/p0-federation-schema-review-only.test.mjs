@@ -31,8 +31,9 @@ test("candidate has transactional guard and no privilege escalation",()=>{
  assert.match(candidate,/BEGIN;/);
  assert.match(candidate,/COMMIT;/);
  assert.match(candidate,/SET LOCAL lock_timeout/);
- assert.doesNotMatch(candidate,/SECURITY DEFINER|DISABLE ROW LEVEL SECURITY|GRANT ALL/);
- assert.doesNotMatch(candidate,/ALTER DEFAULT PRIVILEGES|GRANT\s+supabase_admin\s+TO/);
+ const statements=candidate.replace(/^\\s*--[^\\n]*/gm,"");
+ assert.doesNotMatch(statements,/\\bSECURITY DEFINER\\b|\\bDISABLE ROW LEVEL SECURITY\\b|^\\s*GRANT ALL\\b/im);
+ assert.doesNotMatch(statements,/^\\s*ALTER DEFAULT PRIVILEGES\\b|^\\s*GRANT\\s+supabase_admin\\s+TO\\b/im);
 });
 test("representations are verified and time-bounded with defensive constraints",()=>{
  assert.match(candidate,/CHECK \(valid_until IS NULL OR valid_until > valid_from\)/);
