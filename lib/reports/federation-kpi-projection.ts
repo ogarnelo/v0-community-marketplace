@@ -41,6 +41,10 @@ function validate(row: RawSchoolKpi): boolean {
   for(const key of COUNT_KEYS) {
     if(!Number.isSafeInteger(row[key]) || row[key]<0) return false;
   }
+  // A confirmed reuse agreement is either a sale or a donation.
+  // Never publish inconsistent business KPIs as a seemingly correct total.
+  const deals=row.soldItems+row.donatedItems;
+  if(!Number.isSafeInteger(deals) || deals!==row.reusedItems)return false;
   for(const key of VALUE_KEYS) {
     if(!Number.isFinite(row[key]) || row[key]<0) return false;
   }
