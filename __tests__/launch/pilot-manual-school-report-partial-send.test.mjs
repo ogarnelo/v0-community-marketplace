@@ -69,8 +69,11 @@ test("successful send returns success only after subscription persistence",async
  assert.equal(r.status,200);assert.equal(r.body.ok,true);
  assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
 });
-test("failed delivery history recording never logs provider SQL errors",async()=>{
+test("accepted email with failed delivery audit requires reconciliation but updates marker",async()=>{
  const f=fixture({deliveryFailure:true}),r=await f.send();
- assert.equal(r.status,200);
+ assert.equal(r.status,503);
+ assert.match(r.body.error,/se envió.*registrar su entrega/);
+ assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.equal(r.cache,"private, no-store");
  assert.doesNotMatch(JSON.stringify(f.errors),/PRIVATE_DELIVERY_SQL|verified@example.invalid|synthetic-provider-id/);
 });
