@@ -122,10 +122,12 @@ export default async function SchoolAdminPage() {
     redirect("/auth?next=/admin/school");
   }
 
-  const [{ data: profile }, { data: roles }] = await Promise.all([
+  const [{ data: profile }, { data: roles, error: rolesError }] = await Promise.all([
     supabase.from("profiles").select("full_name, school_id").eq("id", user.id).maybeSingle(),
     supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<RoleRow[]>(),
   ]);
+
+  if (rolesError) throw new Error("No se han podido comprobar los permisos del centro.");
 
   const isSuperAdmin = (roles || []).some((role) => role.role === "super_admin");
   const schoolAdminRole = (roles || []).find(
@@ -142,7 +144,7 @@ export default async function SchoolAdminPage() {
   }
 
   const [
-    { data: school },
+    { data: school, error: schoolLookupError },
     { data: listings },
     { data: memberCountData, error: memberCountError },
     { data: accessCodes },
@@ -214,7 +216,8 @@ export default async function SchoolAdminPage() {
   const safeDonationRequests = (donationRequests || []) as DonationRequestRow[];
   const safeAgreements = (agreements || []) as AgreementRow[];
 
-  if (school?.is_active === false && !isSuperAdmin) {
+  if (schoolLookupError) throw new Error("No se ha podido comprobar el estado del centro.");
+  if (!school || school.is_active === false) {
     redirect("/");
   }
 
