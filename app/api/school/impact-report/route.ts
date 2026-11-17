@@ -10,6 +10,7 @@ function privateJson(body: unknown, options: { status?: number; headers?: Record
 }
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   dashboardRange,
   loadSchoolImpactReport,
@@ -66,6 +67,18 @@ export async function GET(request: Request) {
 
     if (!schoolId) {
       return privateJson({ error: "No tienes un centro administrable." }, { status: 403 });
+    }
+
+    // A stale school role must not permit exports after a centre is deactivated.
+    const admin = createAdminClient();
+    const { data: school, error: schoolError } = await admin
+      .from("schools")
+      .select("id, is_active")
+      .eq("id", schoolId)
+      .maybeSingle();
+    if (schoolError) return privateJson({ error: "No se pudo comprobar el centro." }, { status: 503 });
+    if (!school || school.is_active === false) {
+      return privateJson({ error: "Centro no disponible." }, { status: 403 });
     }
 
     const window = dashboardRange(range);

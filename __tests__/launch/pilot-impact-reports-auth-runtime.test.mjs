@@ -38,7 +38,14 @@ function run(path,method,opts={}){
     calls.push("CREATE_CLIENT");
     if(opts.throwClient)throw Error("PRIVATE_CLIENT_EXCEPTION");return supabase;
   }},
-  "@/lib/supabase/admin":{createAdminClient:()=>{calls.push("PRIVILEGED");throw Error("MUST_NOT_RUN_ADMIN");}},
+  "@/lib/supabase/admin":{createAdminClient:()=>{
+    calls.push("PRIVILEGED");
+    if(path==="app/api/school/impact-report/route.ts" && !opts.inactiveSchool)
+      return {from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:ID,is_active:true},error:null})})})})};
+    if(path==="app/api/school/impact-report/route.ts" && opts.inactiveSchool)
+      return {from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:ID,is_active:false},error:null})})})})};
+    throw Error("MUST_NOT_RUN_ADMIN");
+  }},
   "@/lib/reports/super-admin-report":{
     normalizeSuperAdminRange:()=> "30d",loadSuperAdminReport:async()=>{calls.push("REPORT");return {title:"Synthetic"};},
     renderSuperAdminCsv:()=> "date,value\n2026-11-16,0\n",
@@ -109,3 +116,9 @@ for(const [label,path] of [
   assert.ok(r.type.includes(path.includes("super")?"text/csv":"application/pdf"));
  });
 }
+
+test("school PDF — inactive centre cannot export",async()=>{
+ const h=run("app/api/school/impact-report/route.ts","GET",{inactiveSchool:true}),r=await h.call();
+ assert.equal(r.status,403);
+ assert.ok(!h.calls.includes("REPORT"));
+});
