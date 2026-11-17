@@ -102,6 +102,11 @@ export async function POST(request: Request) {
       periodLabel: period.label,
       periodKey: period.key,
     });
+    // A centre may be deactivated while its metrics are being loaded.
+    if (!report?.school || report.school.is_active !== true) {
+      return privateJson({ error: "Centro no disponible." }, { status: 403 });
+    }
+
     const pdf = renderSchoolImpactPdf(report);
 
     const emailResult = await sendMonthlySchoolImpactEmail({
