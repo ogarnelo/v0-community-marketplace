@@ -117,3 +117,5 @@ jobs:
         run: node --test __tests__/launch/federation-school-kpi-adapter-runtime.test.mjs
       - name: Federation verified legal AMPA snapshot and complete scope
         run: node --test __tests__/launch/federation-authority-snapshot-runtime.test.mjs
+      - name: Federated report service legal graph to KPI and fresh reauthorization
+        run: node --test __tests__/launch/federation-report-service-runtime.test.mjs
