@@ -139,15 +139,22 @@ export async function GET(request: Request) {
         console.error("school_impact_cron_delivery_record_failed");
       }
 
-      const { error: updateError } = await admin
+      const { data: updatedMarker, error: updateError } = await admin
         .from("school_impact_report_subscriptions")
         .update({
           last_sent_month: period.key,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", subscription.id);
+        .eq("id", subscription.id)
+        .eq("last_sent_month", subscription.last_sent_month)
+        .select("id")
+        .maybeSingle();
 
-      if (updateError) throw updateError;
+      // The mail has already been accepted. An unconfirmed marker requires
+      // manual reconciliation, never a successful cron outcome or blind retry.
+      if (updateError || !updatedMarker?.id) {
+        throw new Error("school_impact_sent_marker_unconfirmed");
+      }
       sent += 1;
     } catch {
       // Subscription IDs and provider/SQL exception messages may contain private
