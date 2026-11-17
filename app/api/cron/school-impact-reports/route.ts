@@ -54,6 +54,28 @@ export async function GET(request: Request) {
     }
 
     try {
+      // Revalidate legacy subscriptions at send time: a saved arbitrary email
+      // must never bypass the restriction introduced on the API routes.
+      const { data: account, error: accountError } = await admin.auth.admin.getUserById(subscription.user_id);
+      if (accountError || !account?.user?.email_confirmed_at ||
+          !account.user.email ||
+          account.user.email.trim().toLowerCase() !== subscription.email.trim().toLowerCase()) {
+        skipped += 1;
+        continue;
+      }
+      const { data: currentRole, error: currentRoleError } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .eq("user_id", subscription.user_id)
+        .eq("school_id", subscription.school_id)
+        .eq("role", "school_admin")
+        .maybeSingle();
+      if (currentRoleError) throw currentRoleError;
+      if (!currentRole) {
+        skipped += 1;
+        continue;
+      }
+
       const report = await loadSchoolImpactReport({
         schoolId: subscription.school_id,
         start: period.start,
