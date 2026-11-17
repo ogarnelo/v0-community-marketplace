@@ -15,6 +15,7 @@ import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
 import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode, isPrivateShippingLabelCreationEnabled } from "@/lib/commerce/private-access";
 import { deferProductEvent } from "@/lib/analytics/product-events.server";
 import { prepareBuyNowPaymentIntent, BuyNowPaymentError } from "@/lib/payments/safe-buy-now-intent";
+import { reserveAvailableListing, BuyNowReservationError } from "@/lib/commerce/buy-now-reservation";
 
 function isDeliveryMethod(value: unknown): value is DeliveryMethod {
   return value === "in_person" || value === "shipping";
@@ -25,6 +26,7 @@ function isShipmentTier(value: unknown): value is ShipmentTier {
 }
 
 export async function POST(request: Request) {
+  let listingReserved = false;
   try {
     const supabase = await createClient();
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -85,6 +87,36 @@ export async function POST(request: Request) {
       return privateJson({ error: "El anuncio no tiene un precio válido." }, { status: 400 });
     }
 
+    const { data: otherAccepted, error: otherAcceptedError } = await admin.from("listing_offers")
+      .select("id").eq("listing_id", listingId).eq("status", "accepted").limit(1).maybeSingle();
+    if (otherAcceptedError) return privateJson({ error: "No se pudo verificar la compra." }, { status: 503 });
+    if (otherAccepted?.id) {
+      return privateJson({ error: "Este anuncio ya tiene una oferta aceptada." }, { status: 409 });
+    }
+
+    const { data: activeOffer, error: activeOfferError } = await admin.from("listing_offers")
+      .select("id,status").eq("listing_id", listingId).eq("buyer_id", user.id)
+      .eq("seller_id", listing.seller_id)
+      .in("status", ["pending", "countered", "accepted"])
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (activeOfferError) return privateJson({ error: "No se pudo verificar la negociación." }, { status: 503 });
+    if (activeOffer?.id) {
+      return privateJson({ error: "Este anuncio ya tiene una negociación. Actualízala desde el chat." }, { status: 409 });
+    }
+
+    // The only write allowed before a financial offer is an exclusive
+    // availability compare-and-set. A losing request must leave no chat,
+    // accepted offer, event or payment behind.
+    try {
+      await reserveAvailableListing({ admin, listingId });
+      listingReserved = true;
+    } catch (error) {
+      if (error instanceof BuyNowReservationError) {
+        return privateJson({ error: error.publicMessage }, { status: error.status });
+      }
+      throw error;
+    }
+
     const { data: existingConversation, error: existingConversationError } = await admin
       .from("conversations")
       .select("id")
@@ -135,34 +167,10 @@ export async function POST(request: Request) {
       if (unhideError) return privateJson({ error: "No se pudo recuperar el chat." }, { status: 503 });
     }
 
-    const { data: activeOffer, error: activeOfferError } = await admin
-      .from("listing_offers")
-      .select("id, status")
-      .eq("listing_id", listingId)
-      .eq("buyer_id", user.id)
-      .eq("seller_id", listing.seller_id)
-      .in("status", ["pending", "countered", "accepted"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (activeOfferError) return privateJson({ error: "No se pudo verificar la negociación." }, { status: 503 });
-
-    let offerId = activeOffer?.id || null;
+    let offerId: string | null = null;
     const now = new Date().toISOString();
 
-    if (activeOffer?.status === "pending" || activeOffer?.status === "countered") {
-      return privateJson(
-        {
-          error: "Ya tienes una negociación abierta para este anuncio. Te llevamos al chat para continuarla.",
-          conversationId,
-          redirectTo: conversationId ? `/messages/${conversationId}` : `/marketplace/listing/${listingId}`,
-          offerId: activeOffer.id,
-        },
-        { status: 409 }
-      );
-    }
-
-    if (!offerId) {
+    {
       const { data: offer, error: offerError } = await admin
         .from("listing_offers")
         .insert({
@@ -180,7 +188,7 @@ export async function POST(request: Request) {
         .select("id")
         .single();
 
-      if (offerError?.code === "23505") return privateJson({ error: "Otra petición ha creado una oferta. Revisa el anuncio." }, { status: 409 });
+      if (offerError?.code === "23505") return privateJson({ error: "El anuncio quedó reservado y requiere conciliar otra oferta." }, { status: 503 });
       if (offerError || !offer) return privateJson({ error: "No se pudo crear la compra." }, { status: 503 });
 
       offerId = offer.id;
@@ -271,6 +279,12 @@ export async function POST(request: Request) {
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     console.error("buy_now_checkout_failed");
+    if (listingReserved) {
+      return privateJson(
+        { error: "El anuncio quedó reservado, pero la compra necesita conciliación." },
+        { status: 503 }
+      );
+    }
     return privateJson({ error: "No se pudo iniciar la compra." }, {
       status: 500, headers: { "Cache-Control": "private, no-store" },
     });
