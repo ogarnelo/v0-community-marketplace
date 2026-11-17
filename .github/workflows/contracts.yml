@@ -103,3 +103,5 @@ jobs:
         run: node --test __tests__/launch/p0-admin-default-acl-executor-readonly.test.mjs
       - name: Federation reporting scope revocation and runtime denials
         run: node --test __tests__/launch/federation-reporting-scope-runtime.test.mjs
+      - name: Federation KPI projection suppresses small school metrics
+        run: node --test __tests__/launch/federation-kpi-projection-runtime.test.mjs
