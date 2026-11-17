@@ -125,3 +125,5 @@ jobs:
         run: node --test __tests__/launch/federation-dashboard-component-runtime.test.mjs
       - name: Local federation dashboard preview must stay 404 in production
         run: node --test __tests__/launch/federation-dashboard-local-preview-runtime.test.mjs
+      - name: School impact reporting incidents read only own listings
+        run: node --test __tests__/launch/school-impact-report-scoped-incidents-runtime.test.mjs

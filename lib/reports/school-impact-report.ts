@@ -127,7 +127,6 @@ export async function loadSchoolImpactReport(params: {
     membersResult,
     adminsResult,
     agreementsResult,
-    reportsResult,
   ] = await Promise.all([
     admin
       .from("schools")
@@ -160,11 +159,6 @@ export async function loadSchoolImpactReport(params: {
       if (start) query = query.gte("confirmed_at", start.toISOString());
       return query.returns<AgreementRow[]>();
     })(),
-    admin
-      .from("reports")
-      .select("id, listing_id, status")
-      .eq("target_type", "listing")
-      .in("status", ["open", "reviewing"]),
   ]);
 
   if (schoolResult.error) throw schoolResult.error;
@@ -173,7 +167,6 @@ export async function loadSchoolImpactReport(params: {
   if (membersResult.error) throw membersResult.error;
   if (adminsResult.error) throw adminsResult.error;
   if (agreementsResult.error) throw agreementsResult.error;
-  if (reportsResult.error) throw reportsResult.error;
 
   const listings = (listingsResult.data || []) as ListingRow[];
   const listingById = new Map(listings.map((listing) => [listing.id, listing]));
@@ -198,25 +191,42 @@ export async function loadSchoolImpactReport(params: {
 
   const listingIds = listings.map((listing) => listing.id);
   let listingViews = 0;
+  const openReportListingIds = new Set<string>();
 
-  if (listingIds.length > 0) {
+  // Restrict privileged incident reads to THIS school's known listings in SQL,
+  // never retrieve reports about unrelated schools and filter them in memory.
+  // Chunk IN predicates to avoid unbounded PostgREST URL/query size.
+  const chunkSize = 75;
+  for (let offset = 0; offset < listingIds.length; offset += chunkSize) {
+    const ids = listingIds.slice(offset, offset + chunkSize);
     let viewQuery = admin
       .from("listing_views")
       .select("id", { count: "exact", head: true })
-      .in("listing_id", listingIds)
+      .in("listing_id", ids)
       .lt("viewed_at", end.toISOString());
 
     if (start) viewQuery = viewQuery.gte("viewed_at", start.toISOString());
     const viewResult = await viewQuery;
     if (viewResult.error) throw viewResult.error;
-    listingViews = viewResult.count || 0;
-  }
+    if (viewResult.count === null || !Number.isSafeInteger(viewResult.count))
+      throw new Error("SCHOOL_REPORT_VIEW_COUNT_UNAVAILABLE");
+    listingViews += viewResult.count;
+    if (!Number.isSafeInteger(listingViews))
+      throw new Error("SCHOOL_REPORT_VIEW_COUNT_UNSAFE");
 
-  const openReportListingIds = new Set(
-    (reportsResult.data || [])
-      .map((report: any) => report.listing_id)
-      .filter((value: string | null): value is string => Boolean(value))
-  );
+    const { data: incidentRows, error: incidentsError } = await admin
+      .from("reports")
+      .select("listing_id")
+      .eq("target_type", "listing")
+      .in("status", ["open", "reviewing"])
+      .in("listing_id", ids)
+      .returns<Array<{ listing_id: string | null }>>();
+    if (incidentsError) throw incidentsError;
+    for (const row of incidentRows || []) {
+      if (row.listing_id && ids.includes(row.listing_id))
+        openReportListingIds.add(row.listing_id);
+    }
+  }
 
   return {
     school: schoolResult.data,

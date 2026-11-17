@@ -11,7 +11,9 @@ test("school impact report queries remain scoped to the requested school", () =>
     const fragment = source.slice(start, start + 500);
     assert.match(fragment, /\.eq\("school_id", schoolId\)|\.eq\("id", schoolId\)/, `${table} must be school-scoped`);
   }
-  assert.match(source, /\.in\("listing_id", listingIds\)/);
+  assert.match(source, /const ids = listingIds\.slice\(offset, offset \+ chunkSize\)/);
+  assert.match(source, /\.in\("listing_id", ids\)/);
+  assert.match(source, /\.from\("reports"\)[\s\S]{0,180}\.in\("listing_id", ids\)/);
   assert.match(source, /listingById\.has\(agreement\.listing_id\)/);
 });
 
