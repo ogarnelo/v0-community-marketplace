@@ -37,3 +37,18 @@ test("school dashboard fails closed when role lookup fails or centre is absent",
   assert.match(source, /if \(schoolLookupError\) throw/);
   assert.match(source, /if \(!school \|\| school\.is_active === false\)/);
 });
+
+
+test("school PDF verifies authority before privileged client and handles school-query outage", () => {
+  const source=read("app/api/school/impact-report/route.ts");
+  const identity=source.indexOf("const user = authData?.user");
+  const roles=source.indexOf("if (roleError)");
+  const denied=source.indexOf("if (!schoolId)");
+  const privileged=source.indexOf("const admin = createAdminClient()");
+  const unavailable=source.indexOf("if (schoolError)");
+  const report=source.indexOf("loadSchoolImpactReport({");
+  assert.ok(identity>=0 && identity<roles && roles<denied &&
+    denied<privileged && privileged<unavailable && unavailable<report);
+  assert.match(source, /if \(schoolError\) return privateJson\(\{ error: "No se pudo comprobar el centro\." \}, \{ status: 503 \}\)/);
+  assert.match(source, /Cache-Control.*private, no-store/);
+});
