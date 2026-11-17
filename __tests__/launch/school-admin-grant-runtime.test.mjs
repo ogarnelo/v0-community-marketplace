@@ -22,12 +22,12 @@ function makeCase(opts={}) {
           error:opts.schoolError?{message:"PRIVATE_SCHOOL_ERROR"}:null};
         if(table==="user_roles")return {data:opts.existingRole?{id:SCHOOL}:null,
           error:opts.roleError?{message:"PRIVATE_ROLE_ERROR"}:null};
+        if(table==="profiles")return {data:opts.profileMissing?null:{id:USER},
+          error:opts.profileSqlError?{message:"PRIVATE_PROFILE_SQL"}:null};
         throw Error("Unexpected "+table);
       },
       insert:async()=>{calls.push("ROLE_INSERT");return {error:null};},
-      update:()=>{calls.push("PROFILE_UPDATE");return {
-        eq:async()=>({error:null}),
-      };},
+      update:()=>{calls.push("PROFILE_UPDATE");return query;},
     };
     calls.push("READ:"+table);
     return query;
@@ -67,4 +67,16 @@ test("valid school admin grant updates profile after role insertion",async()=>{
   const h=makeCase();await h.grant();
   assert.ok(h.calls.indexOf("ROLE_INSERT")>=0);
   assert.ok(h.calls.indexOf("PROFILE_UPDATE")>h.calls.indexOf("ROLE_INSERT"));
+});
+
+test("zero affected profile rows is partial success, not successful role grant",async()=>{
+  const h=makeCase({profileMissing:true});
+  await assert.rejects(h.grant(),/confirmar el perfil/);
+  assert.ok(h.calls.includes("ROLE_INSERT"));
+  assert.ok(h.calls.includes("PROFILE_UPDATE"));
+});
+test("profile SQL error after grant requires reconciliation",async()=>{
+  const h=makeCase({profileSqlError:true});
+  await assert.rejects(h.grant(),/confirmar el perfil/);
+  assert.ok(h.calls.includes("ROLE_INSERT"));
 });
