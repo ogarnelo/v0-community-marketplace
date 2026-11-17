@@ -139,14 +139,17 @@ export async function GET(request: Request) {
         console.error("school_impact_cron_delivery_record_failed");
       }
 
-      const { data: updatedMarker, error: updateError } = await admin
+      let markerUpdate = admin
         .from("school_impact_report_subscriptions")
         .update({
           last_sent_month: period.key,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", subscription.id)
-        .eq("last_sent_month", subscription.last_sent_month)
+        .eq("id", subscription.id);
+      markerUpdate = subscription.last_sent_month === null
+        ? markerUpdate.is("last_sent_month", null)
+        : markerUpdate.eq("last_sent_month", subscription.last_sent_month);
+      const { data: updatedMarker, error: updateError } = await markerUpdate
         .select("id")
         .maybeSingle();
 
