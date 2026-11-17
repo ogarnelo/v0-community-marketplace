@@ -91,7 +91,12 @@ export function sumFederationKpis(
     estimatedAvoidedCo2:0,activeListings:0,listingViews:0};
   for(const view of views){
     const m=view.metrics!;
-    for(const key of [...COUNT_KEYS,...VALUE_KEYS]) zero[key]+=m[key];
+    for(const key of [...COUNT_KEYS,...VALUE_KEYS]) {
+      const next=zero[key]+m[key];
+      if (!Number.isFinite(next) || (COUNT_KEYS as readonly string[]).includes(key) && !Number.isSafeInteger(next))
+        return null;
+      zero[key]=next;
+    }
   }
   return zero;
 }
