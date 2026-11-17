@@ -19,7 +19,7 @@ test("manual and scheduled school report endpoints reject unverified or third-pa
 test("cron rechecks verified recipient and current school role for legacy subscriptions", () => {
   const source = read("app/api/cron/school-impact-reports/route.ts");
   assert.match(source, /admin\.auth\.admin\.getUserById\(subscription\.user_id\)/);
-  assert.match(source, /account\.user\.email_confirmed_at/);
+  assert.match(source, /account\?\.user\?\.email_confirmed_at/);
   assert.match(source, /subscription\.email\.trim\(\)\.toLowerCase\(\)/);
   assert.match(source, /\.eq\("school_id", subscription\.school_id\)/);
   assert.match(source, /\.eq\("role", "school_admin"\)/);
