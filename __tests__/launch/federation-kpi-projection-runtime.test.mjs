@@ -48,7 +48,8 @@ test("malformed, negative, Infinity and NaN metrics are rejected",()=>{
 });
 
 test("integer overflow across valid schools suppresses totals rather than rounding",()=>{
- const large={...row(a),reusedItems:Number.MAX_SAFE_INTEGER};
+ const large={...row(a),reusedItems:Number.MAX_SAFE_INTEGER,
+  soldItems:Number.MAX_SAFE_INTEGER-2,donatedItems:2};
  const views=exp.projectFederationSchoolKpis([large,row(b)],[a,b]);
  assert.equal(exp.sumFederationKpis(views,[a,b]),null);
 });
