@@ -35,7 +35,7 @@ export async function grantSchoolAdminRole(params: {
 
   if (schoolError) throw schoolError;
   if (!school) throw new Error("El centro indicado no existe.");
-  if (school.is_active === false) throw new Error("No se pueden conceder permisos a un centro desactivado.");
+  if (school.is_active !== true) throw new Error("No se pueden conceder permisos a un centro desactivado.");
 
   const { data: existingRole, error: roleLookupError } = await admin
     .from("user_roles")
