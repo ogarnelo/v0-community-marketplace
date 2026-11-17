@@ -88,7 +88,7 @@ test("buy-now and offer acceptance share availability status CAS field names",()
  for(const input of [s,b]){
    assert.match(input,/update\(\{ status: "reserved" \}\)/);
    assert.match(input,/eq\("status", "available"\)/);
-   assert.match(input,/select\("id"\)\.maybeSingle\(\)/);
+   assert.match(input,/select\("id"\)\s*\.maybeSingle\(\)/);
  }
 });
 test("both route guards stay closed and response offers no automated compensating unlock",()=>{
