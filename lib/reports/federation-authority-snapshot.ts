@@ -53,6 +53,18 @@ export function buildFederationAuthoritySnapshot(input:{
     ![s.organizations,s.associations,s.schools,s.associationSchools,
       s.organizationAssociations,s.hierarchy,s.memberships].every(Array.isArray))
    throw Error("INCOMPLETE_FEDERATION_AUTHORITY_SNAPSHOT");
+ // Any duplicate primary-key mapping is an incomplete/contradictory read.
+ // Never pick the more permissive of two snapshots of the same relationship.
+ const unique=(keys:readonly string[])=>{
+   if(new Set(keys).size!==keys.length)throw Error("CONFLICTING_FEDERATION_SNAPSHOT");
+ };
+ unique(s.organizations.map(x=>requireId(x.id)));
+ unique(s.associations.map(x=>requireId(x.id)));
+ unique(s.schools.map(x=>requireId(x.id)));
+ unique(s.associationSchools.map(x=>requireId(x.association_id)+":"+requireId(x.school_id)));
+ unique(s.organizationAssociations.map(x=>requireId(x.organization_id)+":"+requireId(x.association_id)));
+ unique(s.hierarchy.map(x=>requireId(x.parent_id)+":"+requireId(x.child_id)));
+ unique(s.memberships.map(x=>requireId(x.organization_id)+":"+requireId(x.user_id)));
  const orgs=new Set(s.organizations.filter(x=>x.status==="verified").map(x=>requireId(x.id)));
  const associations=new Set(s.associations.filter(x=>x.status==="verified").map(x=>requireId(x.id)));
  const schools=new Set(s.schools.filter(x=>x.is_active===true).map(x=>requireId(x.id)));
