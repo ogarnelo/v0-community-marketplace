@@ -28,8 +28,8 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
     event.preventDefault();
     setError("");
 
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+    if (password.length < 12) {
+      setError("La contraseña debe tener al menos 12 caracteres.");
       return;
     }
 
@@ -88,7 +88,7 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
                 id="school-invite-password"
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
-                minLength={8}
+                minLength={12}
                 required
                 className="pl-10 pr-11"
                 value={password}
@@ -114,7 +114,7 @@ export function CompleteSchoolInviteForm({ schoolName }: { schoolName?: string |
                 id="school-invite-password-repeat"
                 type={showRepeatPassword ? "text" : "password"}
                 autoComplete="new-password"
-                minLength={8}
+                minLength={12}
                 required
                 className="pl-10 pr-11"
                 value={repeatPassword}
