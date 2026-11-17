@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
     const enabled = body?.enabled === true;
     const email = (body?.email || user.email || "").trim().toLowerCase();
-    const dayOfMonth = Number(body?.dayOfMonth || 1);
+    const dayOfMonth = body?.dayOfMonth === undefined ? 1 : body.dayOfMonth;
 
     // Only the authenticated user's verified address may receive school reports.
     // A supplied address cannot redirect a report to an arbitrary third party.
