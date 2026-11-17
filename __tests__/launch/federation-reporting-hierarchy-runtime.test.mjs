@@ -58,3 +58,12 @@ test("revoked school representation and revoked parent scope fail closed",()=>{
  assert.deepEqual(resolve({representations:reps.map(x=>({...x,state:"revoked"}))}),[]);
  assert.deepEqual(resolve({links:[{...link,status:"pending"}]}),[]);
 });
+
+test("verified hierarchy edge shadowed by revoked copy fails closed",()=>{
+ assert.deepEqual(resolve({links:[link,{...link,status:"revoked"}]}),[]);
+ assert.deepEqual(resolve({links:[{...link,status:"revoked"},link]}),[]);
+});
+test("duplicate verified edges and malformed edge identity fail closed",()=>{
+ assert.deepEqual(resolve({links:[link,{...link}]}),[]);
+ assert.deepEqual(resolve({links:[{...link,childId:"not-a-uuid"}]}),[]);
+});
