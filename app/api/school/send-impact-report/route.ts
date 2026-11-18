@@ -55,6 +55,19 @@ async function manualMonthDeliveryState(
     ? "sent" : "unsent";
 }
 
+/** School reports have exactly one school scope; refuse ambiguous grants. */
+function uniqueSchoolAdminRole(roles: unknown): { school_id: string } | null {
+  if (!Array.isArray(roles)) return null;
+  const schools = new Set<string>();
+  for (const role of roles) {
+    if (role?.role !== "school_admin") continue;
+    if (typeof role.school_id !== "string" || !role.school_id) return null;
+    schools.add(role.school_id);
+    if (schools.size > 1) return null;
+  }
+  return schools.size === 1 ? { school_id: [...schools][0] } : null;
+}
+
 export async function POST(request: Request) {
   // Once the provider has accepted the email, an exception cannot safely be
   // presented as a failed send: the caller might retry a private PDF.
@@ -83,9 +96,7 @@ export async function POST(request: Request) {
 
     if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
 
-    const schoolRole = (roles || []).find(
-      (role) => role.role === "school_admin" && role.school_id
-    );
+    const schoolRole = uniqueSchoolAdminRole(roles);
 
     if (!schoolRole?.school_id) {
       return privateJson(
@@ -174,8 +185,7 @@ export async function POST(request: Request) {
     if (activeRoleError || !Array.isArray(activeRoles)) {
       return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
     }
-    if (!activeRoles.some(role => role.role === "school_admin" &&
-        role.school_id === schoolRole.school_id)) {
+    if (uniqueSchoolAdminRole(activeRoles)?.school_id !== schoolRole.school_id) {
       return privateJson({ error: "Permiso revocado." }, { status: 403 });
     }
     const { data: freshSchool, error: freshSchoolError } = await admin
