@@ -178,3 +178,19 @@ test("buy-now passes preflight price and seller to guarded reservation",()=>{
  assert.match(s,/expectedSellerId: listing\.seller_id/);
  assert.match(s,/expectedPrice: itemAmount/);
 });
+
+test("accepted buy-now offer respects PostgreSQL current_actor CHECK (buyer/seller/NULL only)",()=>{
+ const route=readFileSync("app/api/offers/buy-now/route.ts","utf8");
+ const from=route.indexOf('.from("listing_offers")\n        .insert({');
+ assert.ok(from>=0,"Accepted offer INSERT must remain present");
+ const end=route.indexOf("}).select",from);
+ const section=end>from?route.slice(from,end):route.slice(from,from+800);
+ assert.match(section,/current_actor:\s*null/);
+ assert.match(section,/status:\s*"accepted"/);
+ assert.doesNotMatch(section,/current_actor:\s*"closed"/);
+});
+test("offer chat body may still describe a closed turn without violating SQL actor enum",()=>{
+ const route=readFileSync("app/api/offers/buy-now/route.ts","utf8");
+ assert.match(route,/currentActor:\s*"closed"/);
+ assert.match(route,/current_actor:\s*null/);
+});
