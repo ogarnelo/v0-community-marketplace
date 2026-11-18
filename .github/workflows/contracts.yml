@@ -160,3 +160,6 @@ jobs:
 
       - name: Payment service must not downgrade captured or processing intents
         run: node --test __tests__/launch/p0-payment-draft-no-downgrade-runtime.test.mjs
+
+      - name: Stripe checkout payment status CAS and strict shipping guard
+        run: node --test __tests__/launch/p0-stripe-checkout-status-cas-runtime.test.mjs

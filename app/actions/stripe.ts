@@ -3,7 +3,7 @@
 import { stripe } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { buildMarketplacePricing, type DeliveryMethod, type ShipmentTier } from '@/lib/payments/pricing'
+import { buildMarketplacePricing, isDeliveryMethod, isShipmentTier, type DeliveryMethod, type ShipmentTier } from '@/lib/payments/pricing'
 import { getAcceptedOfferAmount } from '@/lib/payments/offer-amount'
 import { canUserUseCommerce, isPublicCommerceEnabled, assertStripeTestMode } from '@/lib/commerce/private-access'
 
@@ -31,6 +31,15 @@ export async function startCheckoutSession(params: {
   shipmentTier: ShipmentTier
 }) {
   const { offerId, deliveryMethod, shipmentTier } = params
+  // Server Action arguments are untrusted at runtime despite TypeScript types.
+  // Reject a free-shipping tier and malformed selections before privileged
+  // reads or an irreversible Stripe session request.
+  if (typeof offerId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offerId) ||
+      !isDeliveryMethod(deliveryMethod) || !isShipmentTier(shipmentTier) ||
+      (deliveryMethod === 'shipping' && shipmentTier === 'none') ||
+      (deliveryMethod === 'in_person' && shipmentTier !== 'none')) {
+    throw new Error('Parámetros de checkout inválidos.')
+  }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -116,12 +125,23 @@ export async function startCheckoutSession(params: {
   const expectedTotalCents = Math.round(pricing.totalBuyerAmount * 100)
   const { data: existingPayment, error: existingPaymentError } = await adminSupabase
     .from('payment_intents')
-    .select('id, status, shipment_tier, metadata')
+    .select('id, status, shipment_tier, metadata, buyer_id, seller_id, listing_id, provider')
     .eq('offer_id', offerId)
     .maybeSingle()
 
   if (existingPaymentError) {
-    throw new Error(`No se pudo comprobar un checkout previo: ${existingPaymentError.message}`)
+    throw new Error('No se pudo comprobar el checkout anterior.')
+  }
+  if (existingPayment && (
+    existingPayment.status !== 'requires_payment_method' ||
+    existingPayment.buyer_id !== user.id ||
+    existingPayment.seller_id !== typedOffer.seller_id ||
+    existingPayment.listing_id !== typedOffer.listing_id ||
+    existingPayment.provider !== 'stripe'
+  )) {
+    // Never create a Stripe session or downgrade succeeded/processing payments,
+    // even when the historical record has no checkout session metadata.
+    throw new Error('Esta operación ya tiene un pago con estado o titular incompatible. Requiere conciliación.')
   }
 
   const previousSessionId =
@@ -227,37 +247,58 @@ export async function startCheckoutSession(params: {
 
   const now = new Date().toISOString()
 
-  const { error: paymentWriteError } = await adminSupabase
-    .from('payment_intents')
-    .upsert(
-      {
-        offer_id: offerId,
-        listing_id: typedOffer.listing_id,
-        conversation_id: conversation?.id || null,
-        buyer_id: user.id,
-        seller_id: typedOffer.seller_id,
-        amount: pricing.itemAmount,
-        currency: 'EUR',
-        provider: 'stripe',
-        status: 'requires_payment_method',
-        buyer_fee_amount: pricing.buyerFeeAmount,
-        shipping_amount: pricing.shippingAmount,
-        seller_net_amount: pricing.sellerNetAmount,
-        platform_fee_amount: pricing.buyerFeeAmount,
-        shipment_tier: pricing.shipmentTier,
-        metadata: {
-          source: 'stripe_checkout',
-          delivery_method: pricing.deliveryMethod,
-          total_buyer_amount: pricing.totalBuyerAmount,
-          stripe_checkout_session_id: session.id,
-        },
-        updated_at: now,
-      },
-      { onConflict: 'offer_id' }
-    )
+  const paymentRow = {
+    offer_id: offerId,
+    listing_id: typedOffer.listing_id,
+    conversation_id: conversation?.id || null,
+    buyer_id: user.id,
+    seller_id: typedOffer.seller_id,
+    amount: pricing.itemAmount,
+    currency: 'EUR',
+    provider: 'stripe',
+    status: 'requires_payment_method',
+    buyer_fee_amount: pricing.buyerFeeAmount,
+    shipping_amount: pricing.shippingAmount,
+    seller_net_amount: pricing.sellerNetAmount,
+    platform_fee_amount: pricing.buyerFeeAmount,
+    shipment_tier: pricing.shipmentTier,
+    metadata: {
+      source: 'stripe_checkout',
+      delivery_method: pricing.deliveryMethod,
+      total_buyer_amount: pricing.totalBuyerAmount,
+      stripe_checkout_session_id: session.id,
+    },
+    updated_at: now,
+  }
 
-  if (paymentWriteError) {
-    throw new Error(`Stripe creó la sesión, pero no se pudo registrar el pago: ${paymentWriteError.message}`)
+  let paymentPersisted = false
+  if (existingPayment) {
+    // Compare-and-set prevents a webhook's concurrent succeeded transition
+    // from being downgraded by a stale checkout attempt.
+    const { data: updated, error: paymentWriteError } = await adminSupabase
+      .from('payment_intents')
+      .update(paymentRow)
+      .eq('id', existingPayment.id)
+      .eq('offer_id', offerId)
+      .eq('buyer_id', user.id)
+      .eq('seller_id', typedOffer.seller_id)
+      .eq('status', 'requires_payment_method')
+      .select('id')
+      .maybeSingle()
+    paymentPersisted = !paymentWriteError && updated?.id === existingPayment.id
+  } else {
+    const { data: inserted, error: paymentWriteError } = await adminSupabase
+      .from('payment_intents')
+      .insert(paymentRow)
+      .select('id')
+      .single()
+    paymentPersisted = !paymentWriteError && Boolean(inserted?.id)
+  }
+
+  if (!paymentPersisted) {
+    // A Stripe session was already created. Do not retry blindly or report
+    // success: a failed/competing DB write requires manual reconciliation.
+    throw new Error('Stripe creó la sesión, pero el registro requiere conciliación antes de reintentar.')
   }
 
   const { error: listingReserveError } = await adminSupabase
