@@ -8,7 +8,7 @@ const SCHOOL="11111111-1111-4111-8111-111111111111";
 const USER="22222222-2222-4222-8222-222222222222";
 const OTHER="33333333-3333-4333-8333-333333333333";
 function fixture(options={}){
- const events=[];let authReads=0,roleReads=0,schoolReads=0,subscriptionReads=0,deliveryReads=0;
+ const events=[];let authReads=0,roleReads=0,schoolReads=0,subscriptionReads=0,deliveryReads=0,markerUpdating=false;
  const userBase={id:USER,email:"school@example.invalid",
   email_confirmed_at:"2026-11-01T00:00:00Z"};
  const supabase={
@@ -51,15 +51,20 @@ function fixture(options={}){
   };
   if(table==="school_impact_report_subscriptions")return {
    select(){return this},eq(){return this},
+   update(fields){events.push("MARKER_ONLY_UPDATE");markerUpdating=true;
+    assert.equal(Object.hasOwn(fields,"enabled"),false);
+    assert.equal(Object.hasOwn(fields,"day_of_month"),false);
+    assert.equal(Object.hasOwn(fields,"email"),false);
+    return this;},
    maybeSingle:async()=>{
+    if(markerUpdating)return {data:{id:"subscription-id"},error:null};
     subscriptionReads++;events.push("SUBSCRIPTION_LOOKUP"+subscriptionReads);
     return {data:options.sentMarker ||
       options.markerDuringLoad&&subscriptionReads===2
       ? {last_sent_month:"2026-10"}:null,
       error:options.subscriptionReadOutage&&subscriptionReads===2
         ? new Error("PRIVATE_MARKER"):null};
-   },
-   upsert:async()=>{events.push("SUBSCRIPTION");return {error:null}}
+   }
   };
   throw Error("unknown table "+table);
  }};
@@ -156,4 +161,11 @@ test("legitimate manual monthly send rechecks BOTH independent markers before pr
  assert.equal(h.events.filter(x=>x==="DELIVERY_LOOKUP2").length,1);
  assert.ok(h.events.indexOf("DELIVERY_LOOKUP2")>h.events.indexOf("PDF"));
  assert.ok(h.events.indexOf("EMAIL")>h.events.indexOf("DELIVERY_LOOKUP2"));
+});
+
+test("manual marker update does not overwrite a concurrent subscription preference change",async()=>{
+ const h=fixture(),res=await h.run();
+ assert.equal(res.status,200);
+ assert.equal(h.events.includes("MARKER_ONLY_UPDATE"),true);
+ assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
 });

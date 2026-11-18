@@ -7,25 +7,28 @@ const ts=createRequire(import.meta.url)("typescript");
 const USER="11111111-1111-4111-8111-111111111111", SCHOOL="22222222-2222-4222-8222-222222222222";
 function fixture(opts={}){
  const events=[],errors=[], exports={};
- let subscriptionReads=0;
+ let subscriptionReads=0, markerUpdate=false;
  const from=(table)=>{
   const q={
    select:()=>q,eq:()=>q,limit:()=>q,
+   update:(body)=>{events.push("SUBSCRIPTION_WRITE");markerUpdate=true;assert.equal(Object.hasOwn(body,"enabled"),false);assert.equal(Object.hasOwn(body,"day_of_month"),false);assert.equal(Object.hasOwn(body,"email"),false);return q;},
    maybeSingle:async()=>{
     if(table==="schools")return {data:{id:SCHOOL,is_active:true},error:null};
     if(table==="school_impact_report_deliveries")
       return {data:null,error:null};
     if(table==="school_impact_report_subscriptions"){
       subscriptionReads++;
-      // First two reads are BEFORE provider. A failing third read checks
-      // reconciliation after accepted delivery, as this test originally did.
-      return {data:{enabled:false,day_of_month:1,last_sent_month:null},
-        error:opts.readFailure&&subscriptionReads===3?{message:"PRIVATE_READ_SQL"}:null};
+      if(markerUpdate){
+        if(opts.writeThrows)throw Error("PRIVATE_THROW_SQL");
+        return {data:opts.markerMissing?null:{id:"synthetic-subscription-id"},
+          error:opts.writeFailure?{message:"PRIVATE_WRITE_SQL"}:null};
+      }
+      return {data:{enabled:false,day_of_month:1,last_sent_month:null},error:null};
     }
     throw Error("unexpected "+table);
    },
    insert:async()=>{events.push("DELIVERY");if(opts.deliveryThrows)throw Error("PRIVATE_THROW_SQL");return {error:opts.deliveryFailure?{message:"PRIVATE_DELIVERY_SQL"}:null};},
-   upsert:async()=>{events.push("SUBSCRIPTION_WRITE");if(opts.writeThrows)throw Error("PRIVATE_THROW_SQL");return {error:opts.writeFailure?{message:"PRIVATE_WRITE_SQL"}:null};}
+
   };return q;
  };
  const deps={
@@ -59,15 +62,14 @@ function fixture(opts={}){
   return {status:r.status,body:await r.json(),cache:r.headers.get("cache-control")};
  }};
 }
-test("successful provider acceptance followed by subscription read failure requires reconciliation",async()=>{
- const f=fixture({readFailure:true}),r=await f.send();
+test("successful provider acceptance followed by missing marker update requires reconciliation",async()=>{
+ const f=fixture({markerMissing:true}),r=await f.send();
  assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliar/);
- assert.equal(r.cache,"private, no-store");assert.deepEqual(f.events,["EMAIL","DELIVERY"]);
- assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_READ_SQL/);
+ assert.equal(r.cache,"private, no-store");assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
 });
 test("subscription write failure does not report that the email was not sent",async()=>{
  const f=fixture({writeFailure:true}),r=await f.send();
- assert.equal(r.status,503);assert.match(r.body.error,/se envió.*suscripción/);
+ assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliar/);
  assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_WRITE_SQL/);
 });
