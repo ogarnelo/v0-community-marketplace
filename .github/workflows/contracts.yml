@@ -139,3 +139,5 @@ jobs:
         run: node --test __tests__/launch/p0-buy-now-atomic-candidate-contract.test.mjs
       - name: P0 cron durable claim contract remains review-only
         run: node --test __tests__/launch/p0-school-impact-cron-claim-contract.test.mjs
+      - name: School impact subscription write requires fresh school authorization
+        run: node --test __tests__/launch/school-impact-subscription-postflight-runtime.test.mjs

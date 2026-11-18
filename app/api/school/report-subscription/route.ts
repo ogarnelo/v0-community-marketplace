@@ -84,6 +84,45 @@ export async function POST(request: Request) {
       return privateJson({ error: "El centro está desactivado." }, { status: 400 });
     }
 
+    // Authorizing a configuration mutation only at request start leaves a
+    // gap: session, confirmed email, school role or school status can change
+    // while privileged checks run. Revalidate before writing the subscription.
+    const { data: freshAuth, error: freshAuthError } = await supabase.auth.getUser();
+    if (freshAuthError) {
+      return privateJson({ error: "No se pudo volver a comprobar tu sesión." }, { status: 503 });
+    }
+    const freshUser = freshAuth?.user;
+    const freshEmail = freshUser?.email_confirmed_at
+      ? (freshUser.email || "").trim().toLowerCase() : "";
+    if (!freshUser || freshUser.id !== user.id || !freshEmail || freshEmail !== email) {
+      return privateJson({ error: "La sesión o el correo verificado han cambiado." }, { status: 403 });
+    }
+
+    const { data: freshRoles, error: freshRoleError } = await supabase
+      .from("user_roles")
+      .select("role, school_id")
+      .eq("user_id", user.id);
+    if (freshRoleError || !Array.isArray(freshRoles)) {
+      return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    }
+    if (!freshRoles.some(role => role.role === "school_admin" &&
+        role.school_id === schoolRole.school_id)) {
+      return privateJson({ error: "Permiso escolar revocado." }, { status: 403 });
+    }
+
+    const { data: freshSchool, error: freshSchoolError } = await admin
+      .from("schools")
+      .select("id, is_active")
+      .eq("id", schoolRole.school_id)
+      .maybeSingle();
+    if (freshSchoolError) {
+      return privateJson({ error: "No se pudo comprobar el colegio." }, { status: 503 });
+    }
+    if (!freshSchool || freshSchool.id !== schoolRole.school_id ||
+        freshSchool.is_active !== true) {
+      return privateJson({ error: "El colegio ya no está activo." }, { status: 403 });
+    }
+
     const { error } = await admin
       .from("school_impact_report_subscriptions")
       .upsert(
