@@ -131,3 +131,5 @@ jobs:
         run: node --test __tests__/launch/school-impact-pdf-postflight-runtime.test.mjs
       - name: Manual school impact email reauth before provider call
         run: node --test __tests__/launch/school-impact-manual-send-postflight-runtime.test.mjs
+      - name: School impact cron subscription complete-page and count-fence tests
+        run: node --test __tests__/launch/school-impact-cron-subscription-pages-runtime.test.mjs
