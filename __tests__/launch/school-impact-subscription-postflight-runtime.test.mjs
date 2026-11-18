@@ -40,7 +40,13 @@ function fixture(opts={}){
       }};
     }
     if(table==="school_impact_report_subscriptions"){
-      return {upsert:async()=>{calls.push("UPSERT");return {error:null}}};
+      const q={
+        update:(data)=>{calls.push("UPDATE");assert.equal(Object.hasOwn(data,"last_sent_month"),false);return q;},
+        eq:()=>q,select:()=>q,
+        maybeSingle:async()=>({data:{id:"synthetic-subscription"},error:null}),
+        insert:async()=>{calls.push("INSERT");return {error:null}},
+      };
+      return q;
     }
     throw Error("Unexpected table "+table);
   }};
@@ -67,27 +73,27 @@ function fixture(opts={}){
 test("valid same school-admin configuration writes once after second verification",async()=>{
  const h=fixture(),res=await h.run();
  assert.equal(res.status,200);assert.equal(res.cache,"private, no-store");
- assert.deepEqual(h.calls,["AUTH1","ROLE1","SCHOOL1","AUTH2","ROLE2","SCHOOL2","UPSERT"]);
+ assert.deepEqual(h.calls,["AUTH1","ROLE1","SCHOOL1","AUTH2","ROLE2","SCHOOL2","UPDATE"]);
 });
 test("role revoked after initial validation never creates or updates subscription",async()=>{
  const h=fixture({revokedRole:true}),res=await h.run();
- assert.equal(res.status,403);assert.ok(!h.calls.includes("UPSERT"));
+ assert.equal(res.status,403);assert.ok(!h.calls.includes("UPDATE"));
 });
 test("session switch, verified email change or loss of confirmation aborts before write",async()=>{
  for(const opt of [{changedUser:true},{changedEmail:true},{unverified:true}]){
   const h=fixture(opt),res=await h.run();
-  assert.equal(res.status,403);assert.ok(!h.calls.includes("UPSERT"));
+  assert.equal(res.status,403);assert.ok(!h.calls.includes("UPDATE"));
  }
 });
 test("school deactivated or replaced during request blocks subscription write",async()=>{
  for(const opt of [{inactiveSchool:true},{wrongSchool:true}]){
   const h=fixture(opt),res=await h.run();
-  assert.equal(res.status,403);assert.ok(!h.calls.includes("UPSERT"));
+  assert.equal(res.status,403);assert.ok(!h.calls.includes("UPDATE"));
  }
 });
 test("postflight auth, role and school outages fail closed with no upsert",async()=>{
  for(const opt of [{authOutage:true},{roleOutage:true},{schoolOutage:true}]){
   const h=fixture(opt),res=await h.run();
-  assert.equal(res.status,503);assert.ok(!h.calls.includes("UPSERT"));
+  assert.equal(res.status,503);assert.ok(!h.calls.includes("UPDATE"));
  }
 });
