@@ -360,7 +360,7 @@ export async function confirmPaymentComplete(params: {
 }) {
   const offerId = params?.offerId
   if (typeof offerId !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offerId)) {
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offerId)) {
     throw new Error('Oferta de pago inválida.')
   }
 
