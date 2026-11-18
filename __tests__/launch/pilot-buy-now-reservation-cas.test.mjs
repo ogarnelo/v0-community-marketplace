@@ -26,13 +26,16 @@ function setup(opts={}){
   };
   return q;
  };
- return {events,reserve:()=>exp.reserveAvailableListing({admin:{from},listingId:ID})};
+ return {events,reserve:(overrides={})=>exp.reserveAvailableListing({
+  admin:{from},listingId:ID,expectedSellerId:"22222222-2222-4222-8222-222222222222",
+  expectedPrice:15,...overrides,
+ })};
 }
 test("atomic status CAS succeeds and confirms the listing id",async()=>{
  const h=setup(),id=await h.reserve();
  assert.equal(id,ID);
  assert.ok(h.events.includes('UPDATE:{"status":"reserved"}'));
- assert.ok(h.events.includes('FILTERS:[["id","'+ID+'"],["status","available"]]'));
+ assert.ok(h.events.includes('FILTERS:[["id","'+ID+'"],["status","available"],["seller_id","22222222-2222-4222-8222-222222222222"],["price",15]]'));
 });
 test("losing reserve CAS returns 409 without provider details",async()=>{
  const h=setup({conflict:true});
@@ -147,4 +150,31 @@ test("post-reservation payment conflict is 503 reconciliation, never retryable 4
  assert.ok(events.indexOf("CAS_RESERVED")>=0 && events.indexOf("CAS_RESERVED")<events.indexOf("PAYMENT"));
  assert.ok(events.includes("INSERT:listing_offers"));
  assert.equal(events.includes("NOTIFICATION"),false);
+});
+
+test("buyer reservation CAS checks price AND seller at same atomic write",async()=>{
+ const h=setup(),result=await h.reserve();
+ assert.equal(result,ID);
+ const filters=h.events.find(event=>event.startsWith("FILTERS:"));
+ assert.match(filters,/"seller_id","22222222-2222-4222-8222-222222222222"/);
+ assert.match(filters,/"price",15/);
+});
+test("concurrent seller price change loses reservation without commerce side effects",async()=>{
+ const h=setup({conflict:true});
+ await assert.rejects(h.reserve(),e=>e.status===409);
+ assert.ok(h.events.some(e=>e.includes('"price",15')));
+ assert.equal(h.events.some(e=>/INSERT:|PAYMENT:|CONVERSATION:/.test(e)),false);
+});
+test("invalid price, seller or listing is rejected before DB write",async()=>{
+ for(const overrides of [{expectedPrice:15.001},{expectedPrice:0},{expectedPrice:Infinity},
+   {expectedPrice:1e20},{expectedSellerId:"invalid"},{listingId:"not-uuid"}]){
+  const h=setup();
+  await assert.rejects(h.reserve(overrides),e=>e.status===503);
+  assert.equal(h.events.filter(x=>x.startsWith("FROM:")).length,0);
+ }
+});
+test("buy-now passes preflight price and seller to guarded reservation",()=>{
+ const s=readFileSync("app/api/offers/buy-now/route.ts","utf8");
+ assert.match(s,/expectedSellerId: listing\.seller_id/);
+ assert.match(s,/expectedPrice: itemAmount/);
 });
