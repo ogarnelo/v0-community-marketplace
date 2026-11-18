@@ -109,6 +109,44 @@ export async function POST(request: Request) {
 
     const pdf = renderSchoolImpactPdf(report);
 
+    // An authorization/verified-recipient change while generating the private
+    // PDF must prevent an external email delivery. Re-read the live session,
+    // the original school-admin grant and the active school immediately before
+    // invoking the email provider; never rely on the initial checks alone.
+    const { data: freshAuth, error: freshAuthError } = await supabase.auth.getUser();
+    if (freshAuthError) {
+      return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+    }
+    const currentUser = freshAuth?.user;
+    const currentEmail = currentUser?.email_confirmed_at
+      ? (currentUser.email || "").trim().toLowerCase() : "";
+    if (!currentUser || currentUser.id !== user.id || !currentEmail || currentEmail !== email) {
+      return privateJson({ error: "Sesión o destinatario no autorizado." }, { status: 403 });
+    }
+    const { data: activeRoles, error: activeRoleError } = await supabase
+      .from("user_roles")
+      .select("role, school_id")
+      .eq("user_id", user.id);
+    if (activeRoleError || !Array.isArray(activeRoles)) {
+      return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    }
+    if (!activeRoles.some(role => role.role === "school_admin" &&
+        role.school_id === schoolRole.school_id)) {
+      return privateJson({ error: "Permiso revocado." }, { status: 403 });
+    }
+    const { data: freshSchool, error: freshSchoolError } = await admin
+      .from("schools")
+      .select("id, is_active")
+      .eq("id", schoolRole.school_id)
+      .maybeSingle();
+    if (freshSchoolError) {
+      return privateJson({ error: "No se pudo comprobar el centro." }, { status: 503 });
+    }
+    if (!freshSchool || freshSchool.id !== schoolRole.school_id ||
+        freshSchool.is_active !== true) {
+      return privateJson({ error: "Centro no disponible." }, { status: 403 });
+    }
+
     const emailResult = await sendMonthlySchoolImpactEmail({
       to: email,
       report,
