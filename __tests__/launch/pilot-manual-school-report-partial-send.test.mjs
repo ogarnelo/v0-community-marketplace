@@ -24,8 +24,8 @@ function fixture(opts={}){
     }
     throw Error("unexpected "+table);
    },
-   insert:async()=>{events.push("DELIVERY");return {error:opts.deliveryFailure?{message:"PRIVATE_DELIVERY_SQL"}:null};},
-   upsert:async()=>{events.push("SUBSCRIPTION_WRITE");return {error:opts.writeFailure?{message:"PRIVATE_WRITE_SQL"}:null};}
+   insert:async()=>{events.push("DELIVERY");if(opts.deliveryThrows)throw Error("PRIVATE_THROW_SQL");return {error:opts.deliveryFailure?{message:"PRIVATE_DELIVERY_SQL"}:null};},
+   upsert:async()=>{events.push("SUBSCRIPTION_WRITE");if(opts.writeThrows)throw Error("PRIVATE_THROW_SQL");return {error:opts.writeFailure?{message:"PRIVATE_WRITE_SQL"}:null};}
   };return q;
  };
  const deps={
@@ -83,4 +83,19 @@ test("accepted email with failed delivery audit requires reconciliation but upda
  assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
  assert.equal(r.cache,"private, no-store");
  assert.doesNotMatch(JSON.stringify(f.errors),/PRIVATE_DELIVERY_SQL|verified@example.invalid|synthetic-provider-id/);
+});
+
+test("unexpected delivery persistence exception after provider acceptance requires reconciliation",async()=>{
+ const f=fixture({deliveryThrows:true}),r=await f.send();
+ assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliación/);
+ assert.deepEqual(f.events,["EMAIL","DELIVERY"]);
+ assert.equal(r.cache,"private, no-store");
+ assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_THROW_SQL|verified@example.invalid|synthetic-provider-id/);
+});
+test("unexpected subscription write exception after provider acceptance requires reconciliation",async()=>{
+ const f=fixture({writeThrows:true}),r=await f.send();
+ assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliación/);
+ assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.equal(r.cache,"private, no-store");
+ assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_THROW_SQL|verified@example.invalid|synthetic-provider-id/);
 });
