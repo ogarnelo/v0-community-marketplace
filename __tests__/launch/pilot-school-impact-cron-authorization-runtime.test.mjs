@@ -175,7 +175,7 @@ test("verified admin of active school sends one synthetic report",async()=>{
 
 test("cron subscription read error redacts provider messages",async()=>{
  const h=fixture({subscriptionError:true}),result=await h.run();
- assert.equal(result.status,500);
+ assert.equal(result.status,503);
  assert.equal(h.events.includes("EMAIL"),false);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_SUBSCRIPTION_SQL|school@example/);
 });
@@ -328,4 +328,19 @@ test("recipient identity mismatch is skipped without privileged report or email"
  assert.equal(result.body.skipped,1);
  assert.equal(result.body.failed,0);
  assert.equal(h.events.includes("EMAIL"),false);
+});
+
+test("a failed recipient makes cron HTTP unhealthy, not a false 200",async()=>{
+ const h=fixture({schoolError:true}),res=await h.run();
+ assert.equal(res.status,503);assert.equal(res.body.ok,false);
+ assert.equal(res.body.failed,1);assert.equal(h.events.includes("EMAIL"),false);
+});
+test("a provider-accepted but unrecorded report returns HTTP 503 for monitoring",async()=>{
+ const h=fixture({deliveryError:true}),res=await h.run();
+ assert.equal(res.status,503);assert.equal(res.body.unrecorded,1);
+ assert.equal(h.events.filter(e=>e==="EMAIL").length,1);
+});
+test("successful scheduled report remains HTTP 200 and ok true",async()=>{
+ const h=fixture(),res=await h.run();
+ assert.equal(res.status,200);assert.equal(res.body.ok,true);
 });
