@@ -123,21 +123,31 @@ export async function POST(request: Request) {
       return privateJson({ error: "El colegio ya no está activo." }, { status: 403 });
     }
 
-    const { error } = await admin
+    // Never UPSERT an incomplete row here: on conflict PostgreSQL may write
+    // the omitted last_sent_month default (NULL), allowing a duplicate report.
+    // UPDATE changes configuration fields only, preserving the delivery marker.
+    const { data: updated, error: updateError } = await admin
       .from("school_impact_report_subscriptions")
-      .upsert(
-        {
-          school_id: schoolRole.school_id,
-          user_id: user.id,
-          email,
-          enabled,
-          day_of_month: dayOfMonth,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "school_id,user_id" }
-      );
+      .update({ email, enabled, day_of_month: dayOfMonth,
+        updated_at: new Date().toISOString() })
+      .eq("school_id", schoolRole.school_id)
+      .eq("user_id", user.id)
+      .select("id").maybeSingle();
+    if (updateError) return privateJson({ error: "No se pudo guardar la configuración." }, { status: 503 });
 
-    if (error) throw error;
+    if (!updated?.id) {
+      // Only a missing row may be inserted. A concurrent creator wins the
+      // existing UNIQUE key; do not overwrite its monthly delivery marker.
+      const { error: insertError } = await admin
+        .from("school_impact_report_subscriptions")
+        .insert({ school_id: schoolRole.school_id, user_id: user.id,
+          email, enabled, day_of_month: dayOfMonth,
+          updated_at: new Date().toISOString() });
+      if (insertError?.code === "23505")
+        return privateJson({ error: "La configuración cambió. Vuelve a consultarla." }, { status: 409 });
+      if (insertError)
+        return privateJson({ error: "No se pudo guardar la configuración." }, { status: 503 });
+    }
 
     return privateJson({
       ok: true,
