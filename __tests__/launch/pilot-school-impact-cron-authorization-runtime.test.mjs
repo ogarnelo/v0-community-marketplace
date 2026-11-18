@@ -121,14 +121,14 @@ function fixture(options = {}) {
       assert.ok(name in mocks,"Unexpected dependency "+name);
       return mocks[name];
     },
-    process:{env:{CRON_SECRET:"synthetic-secret"}},
+    process:{env:{CRON_SECRET:options.noCronSecret?undefined:"synthetic-secret"}},
     Intl,Date,Response,Request,Promise,console:{error:(...args)=>logs.push(args)},
   },{filename:"school-impact-cron.js",timeout:1800});
   return {events,logs,run:async()=>{
     const response=await output.GET(new Request("https://wetudy.invalid/api/cron/school-impact-reports",{
       headers:{authorization:"Bearer synthetic-secret"},
     }));
-    return {status:response.status,body:await response.json()};
+    return {status:response.status,body:await response.json(),cache:response.headers.get("Cache-Control")};
   }};
 }
 
@@ -328,4 +328,12 @@ test("recipient identity mismatch is skipped without privileged report or email"
  assert.equal(result.body.skipped,1);
  assert.equal(result.body.failed,0);
  assert.equal(h.events.includes("EMAIL"),false);
+});
+
+test("missing CRON_SECRET is unhealthy, private and has no privileged side effects",async()=>{
+ const h=fixture({noCronSecret:true}),r=await h.run();
+ assert.equal(r.status,503);assert.equal(r.body.ok,false);
+ assert.equal(r.cache,"private, no-store");
+ assert.equal(h.events.length,0);
+ assert.doesNotMatch(JSON.stringify(r.body),/SECRET|Bearer|synthetic/);
 });
