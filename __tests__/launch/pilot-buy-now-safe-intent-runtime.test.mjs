@@ -8,7 +8,7 @@ const ID="11111111-1111-4111-8111-111111111111", SELLER="22222222-2222-4222-8222
 const pricing={itemAmount:10,totalBuyerAmount:13,buyerFeeAmount:1,shippingAmount:2,
  sellerNetAmount:9,shipmentTier:"small"};
 const saved={id:ID,amount:13,currency:"EUR",status:"requires_payment_method",provider:"stripe",
- offer_id:ID,listing_id:ID,buyer_id:ID,seller_id:SELLER,school_id:null,
+ offer_id:ID,listing_id:ID,conversation_id:ID,buyer_id:ID,seller_id:SELLER,school_id:null,
  buyer_fee_amount:1,shipping_amount:2,seller_net_amount:9,shipment_tier:"small",
  metadata:{source:"buy_now",delivery_method:"shipping",item_amount:10}};
 function moduleUnderTest(){
@@ -28,7 +28,7 @@ function run(params={}){
    maybeSingle:async()=>({data:params.previous??null,
      error:params.readError?{message:"PRIVATE_READ"}:null}),
    insert:(row)=>{events.push("INSERT:"+table);events.push("STATUS:"+row.status);return q;},
-   single:async()=>({data:params.conflict||params.insertError?null:{...saved},
+   single:async()=>({data:params.conflict||params.insertError?null:params.created??{...saved},
     error:params.conflict?{code:"23505",message:"PRIVATE_UNIQUE"}:
       params.insertError?{message:"PRIVATE_INSERT"}:null}),
    upsert:()=>{events.push("UPSERT:"+table);throw Error("MUST_NOT_UPSERT");},
@@ -55,6 +55,8 @@ for(const [reason,record] of [
  ["another buyer",{...saved,buyer_id:SELLER}],
  ["different seller",{...saved,seller_id:ID}],
  ["different listing",{...saved,listing_id:SELLER}],
+ ["different conversation",{...saved,conversation_id:SELLER}],
+ ["missing payment id",{...saved,id:null}],
  ["different total",{...saved,amount:14}],
  ["different item",{...saved,metadata:{...saved.metadata,item_amount:12}}],
  ["different shipping",{...saved,shipping_amount:5}],
@@ -98,3 +100,17 @@ test("existing concurrent chat winner is recovered, and side effects errors are 
  "if (eventError","if (messageError)","if (touchError","if (notifyError)"])
   assert.ok(s.includes(part),part);
 });
+
+for(const [scenario,row] of [
+ ["inserted amount was modified by trigger",{...saved,amount:0}],
+ ["inserted conversation is different",{...saved,conversation_id:SELLER}],
+ ["inserted provider is different",{...saved,provider:"other"}],
+ ["inserted payment id is missing",{...saved,id:null}],
+ ["inserted payment has succeeded status",{...saved,status:"succeeded"}],
+]){
+ test(scenario+" => 503 reconciliation, never checkout success",async()=>{
+  const x=run({created:row});
+  await assert.rejects(x.perform(),e=>e.status===503 && /conciliaci/.test(e.publicMessage));
+  assert.deepEqual(x.events,["INSERT:payment_intents","STATUS:requires_payment_method"]);
+ });
+}
