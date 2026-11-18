@@ -21,8 +21,11 @@ export type DueSchoolImpactSubscription = {
 export async function loadDueSchoolImpactSubscriptions(
   admin: SupabaseClient, day: number,
 ):Promise<DueSchoolImpactSubscription[]> {
-  if (!Number.isInteger(day) || day < 1 || day > 28)
+  if (!Number.isInteger(day) || day < 1 || day > 31)
     throw new Error("SCHOOL_REPORT_INVALID_CRON_DAY");
+  // Subscriptions are scheduled only for days 1–28. On 29–31 there are
+  // legitimately none: avoid a false cron failure or privileged SQL reads.
+  if (day > 28) return [];
 
   const maxRows=5000, pageSize=250;
   async function exactCount():Promise<number> {
