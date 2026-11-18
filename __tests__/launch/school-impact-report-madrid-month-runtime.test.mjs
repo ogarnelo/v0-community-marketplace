@@ -22,7 +22,7 @@ test("Madrid November 1 after midnight still October UTC selects October report"
  assert.equal(p.key,"2026-10");
  assert.equal(p.start.toISOString(),"2026-10-01T00:00:00.000Z");
  assert.equal(p.end.toISOString(),"2026-11-01T00:00:00.000Z");
- assert.match(p.label,/Octubre 2026/i);
+ assert.match(p.label,/Octubre(?: de)? 2026/i);
 });
 test("Madrid August 1 at UTC July 31 selects July report",()=>{
  const p=out.previousCalendarMonth(new Date("2026-07-31T22:30:00Z"));
