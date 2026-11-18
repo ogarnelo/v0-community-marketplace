@@ -51,7 +51,7 @@ function fixture(options={}){
   };
   if(table==="school_impact_report_subscriptions")return {
    select(){return this},eq(){return this},
-   update:(fields)=>{events.push("MARKER_ONLY_UPDATE");markerUpdating=true;
+   update(fields){events.push("MARKER_ONLY_UPDATE");markerUpdating=true;
     assert.equal(Object.hasOwn(fields,"enabled"),false);
     assert.equal(Object.hasOwn(fields,"day_of_month"),false);
     assert.equal(Object.hasOwn(fields,"email"),false);
