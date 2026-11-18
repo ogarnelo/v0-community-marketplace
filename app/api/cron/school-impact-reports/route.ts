@@ -163,6 +163,24 @@ export async function GET(request: Request) {
         continue;
       }
 
+      // A manual email may have reached the provider and its delivery audit
+      // committed even if its subscription marker failed. Checking the marker
+      // alone would resend that same private monthly PDF from the cron.
+      const { data: priorDelivery, error: deliveryLookupError } = await admin
+        .from("school_impact_report_deliveries")
+        .select("id")
+        .eq("school_id", subscription.school_id)
+        .eq("user_id", subscription.user_id)
+        .eq("period_key", period.key)
+        .limit(1)
+        .maybeSingle();
+      if (deliveryLookupError)
+        throw new Error("school_impact_delivery_audit_unavailable");
+      if (priorDelivery?.id) {
+        skipped += 1;
+        continue;
+      }
+
       const emailResult = await sendMonthlySchoolImpactEmail({
         to: subscription.email,
         report,
