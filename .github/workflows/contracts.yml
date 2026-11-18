@@ -154,3 +154,6 @@ jobs:
 
       - name: Madrid monthly school report period boundary runtime
         run: node --test __tests__/launch/school-impact-report-madrid-month-runtime.test.mjs
+
+      - name: Buy-now delivery input must reject free shipping before reservation
+        run: node --test __tests__/launch/p0-buy-now-delivery-input-runtime.test.mjs
