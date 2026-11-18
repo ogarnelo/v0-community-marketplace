@@ -140,6 +140,29 @@ export async function GET(request: Request) {
         continue;
       }
 
+      // A subscription can be disabled, redirected or marked delivered by a
+      // manual send while the cron spends time generating this private PDF.
+      // Re-read the same subscription immediately before the provider call.
+      // This is NOT an atomic send claim across concurrent cron processes.
+      const { data: currentSubscription, error: subscriptionRecheckError } = await admin
+        .from("school_impact_report_subscriptions")
+        .select("id, enabled, user_id, school_id, email, day_of_month, last_sent_month")
+        .eq("id", subscription.id)
+        .maybeSingle();
+      if (subscriptionRecheckError)
+        throw new Error("school_impact_subscription_recheck_unavailable");
+      if (!currentSubscription || currentSubscription.id !== subscription.id ||
+          currentSubscription.enabled !== true ||
+          currentSubscription.user_id !== subscription.user_id ||
+          currentSubscription.school_id !== subscription.school_id ||
+          currentSubscription.email?.trim().toLowerCase() !== subscription.email.trim().toLowerCase() ||
+          currentSubscription.day_of_month !== day ||
+          currentSubscription.last_sent_month !== subscription.last_sent_month ||
+          currentSubscription.last_sent_month === period.key) {
+        skipped += 1;
+        continue;
+      }
+
       const emailResult = await sendMonthlySchoolImpactEmail({
         to: subscription.email,
         report,

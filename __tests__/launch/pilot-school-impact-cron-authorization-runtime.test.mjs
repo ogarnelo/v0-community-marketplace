@@ -16,7 +16,9 @@ function fixture(options = {}) {
   let accountReads = 0, roleReads = 0, schoolReads = 0;
   const subscription = {
     id: SUB, school_id: SCHOOL, user_id: USER,
-    email: "school@example.invalid", day_of_month: 17, last_sent_month: null,
+    email: "school@example.invalid",
+    day_of_month: Number(new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",day:"numeric"}).format(new Date())),
+    last_sent_month: null,
   };
   const admin = {
     auth: { admin: { getUserById: async () => {
@@ -33,8 +35,9 @@ function fixture(options = {}) {
     } } },
     from(table) {
       events.push("FROM:"+table);
+      let selectedColumns = "";
       const q = {
-        select: () => q, eq: () => q,
+        select: (columns) => {selectedColumns=String(columns);return q;}, eq: () => q,
         is: (column,value) => { if (column==="last_sent_month") events.push("MARKER_IS_NULL:"+String(value));return q; },
         returns: async () => ({data:[subscription],error:options.subscriptionError?{message:"PRIVATE_SUBSCRIPTION_SQL"}:null}),
         maybeSingle: async () => {
@@ -46,7 +49,23 @@ function fixture(options = {}) {
               error:options.roleRecheckError && roleReads > 1
                 ? {message:"PRIVATE_ROLE"} : null};
           }
-          if (table === "school_impact_report_subscriptions") return {data:options.markerMissing?null:{id:SUB},error:options.markerError?{message:"PRIVATE_MARKER_SQL"}:null};
+          if (table === "school_impact_report_subscriptions") {
+            if (selectedColumns.includes("enabled")) {
+              return {
+                data:options.subscriptionRemovedDuringReport?null:{
+                  ...subscription,
+                  enabled:!options.subscriptionDisabledDuringReport,
+                  email:options.subscriptionEmailChangedDuringReport
+                    ?"other@example.invalid":subscription.email,
+                  last_sent_month:options.subscriptionMarkedSentDuringReport
+                    ?"2026-10":subscription.last_sent_month,
+                },
+                error:options.subscriptionRecheckError?{message:"PRIVATE_RECHECK_SQL"}:null,
+              };
+            }
+            return {data:options.markerMissing?null:{id:SUB},
+              error:options.markerError?{message:"PRIVATE_MARKER_SQL"}:null};
+          }
           if (table === "schools") {
             schoolReads++;
             return {
@@ -237,4 +256,32 @@ test("cron recheck outages never send private PDF and do not leak diagnostics",a
   assert.equal(h.events.includes("EMAIL"),false);
   assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ACCOUNT|PRIVATE_ROLE|PRIVATE_SCHOOL_SQL/);
  }
+});
+
+test("postflight disabled, removed, already-sent or redirected subscription blocks email",async()=>{
+ for(const cfg of [{subscriptionDisabledDuringReport:true},
+  {subscriptionRemovedDuringReport:true},
+  {subscriptionMarkedSentDuringReport:true},
+  {subscriptionEmailChangedDuringReport:true}]){
+  const h=fixture(cfg),out=await h.run();
+  assert.equal(out.body.sent,0);
+  assert.equal(out.body.skipped,1);
+  assert.equal(h.events.includes("EMAIL"),false);
+  assert.equal(h.events.includes("UPDATE"),false);
+ }
+});
+test("subscription postflight SQL outage fails closed before provider delivery",async()=>{
+ const h=fixture({subscriptionRecheckError:true}),out=await h.run();
+ assert.equal(out.body.sent,0);
+ assert.equal(out.body.failed,1);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_RECHECK_SQL|school@example.invalid/);
+});
+test("a valid subscription recheck runs after PDF and before email provider",async()=>{
+ const h=fixture(),out=await h.run();
+ assert.equal(out.body.sent,1);
+ const from=h.events.map((item,i)=>item==="FROM:school_impact_report_subscriptions"?i:-1).filter(i=>i>=0);
+ assert.ok(from.length>=3);
+ assert.ok(from[1]>h.events.indexOf("PDF"));
+ assert.ok(from[1]<h.events.indexOf("EMAIL"));
 });
