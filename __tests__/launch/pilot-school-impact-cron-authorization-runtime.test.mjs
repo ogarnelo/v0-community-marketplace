@@ -85,7 +85,7 @@ function fixture(options = {}) {
         },
         insert: () => { events.push("DELIVERY"); return q; },
         update: () => { events.push("UPDATE"); return q; },
-        then: (resolve, reject) => Promise.resolve({error:options.deliveryError && table==="school_impact_report_deliveries"?{message:"PRIVATE_DELIVERY_SQL"}:null}).then(resolve,reject),
+        then: (resolve, reject) => (options.deliveryThrows && table==="school_impact_report_deliveries" ? Promise.reject(Error("PRIVATE_THROW_SQL")) : Promise.resolve({error:options.deliveryError && table==="school_impact_report_deliveries"?{message:"PRIVATE_DELIVERY_SQL"}:null})).then(resolve,reject),
       };
       return q;
     },
@@ -303,4 +303,12 @@ test("cron fails closed if delivery audit is unavailable, without emailing or le
  assert.equal(r.body.failed,1);assert.equal(r.body.sent,0);
  assert.equal(h.events.includes("EMAIL"),false);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_AUDIT_SQL|school@example.invalid/);
+});
+
+test("provider accepted but audit INSERT throws: reconciliation counted and no personal diagnostics",async()=>{
+ const h=fixture({deliveryThrows:true}),r=await h.run();
+ assert.equal(r.body.sent,0);assert.equal(r.body.failed,1);
+ assert.equal(r.body.unrecorded,1);assert.equal(r.body.ok,false);
+ assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_THROW_SQL|school@example.invalid|33333333-3333/);
 });
