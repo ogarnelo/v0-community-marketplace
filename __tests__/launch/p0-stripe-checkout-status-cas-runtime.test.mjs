@@ -191,3 +191,124 @@ test("same verified Stripe session can be reused without writes",async()=>{
  assert.equal(h.events.includes("STRIPE_CREATE"),false);
  assert.equal(h.events.includes("UPDATE:payment_intents"),false);
 });
+
+
+const provenPayment={
+ id:PAYMENT,status:"requires_payment_method",offer_id:OFFER,listing_id:LISTING,
+ buyer_id:BUYER,seller_id:SELLER,provider:"stripe",currency:"EUR",
+ amount:15,buyer_fee_amount:1.45,shipping_amount:2.99,
+ metadata:{source:"stripe_checkout",total_buyer_amount:19.44,
+   stripe_checkout_session_id:"cs_verified"}
+};
+const provenSession={id:"cs_verified",payment_status:"paid",status:"complete",
+ currency:"eur",amount_total:1944,
+ metadata:{offer_id:OFFER,buyer_id:BUYER,seller_id:SELLER,listing_id:LISTING}};
+function confirmationFixture(opts={}){
+ const events=[],out={};
+ const mods={
+  "@/lib/stripe":{stripe:{checkout:{sessions:{
+   retrieve:async()=>{events.push("STRIPE_RETRIEVE");return opts.session??provenSession;}
+  }}}},
+  "@/lib/supabase/server":{createClient:async()=>{
+   events.push("CLIENT");
+   return {auth:{getUser:async()=>({data:{user:{id:BUYER}},
+    error:opts.authError?{name:"ProviderDown"}:null})}};
+  }},
+  "@/lib/supabase/admin":{createAdminClient:()=>{
+   events.push("ADMIN");
+   return {from:table=>{
+    events.push("FROM:"+table);
+    let updated=false;
+    const q={
+     select:()=>q,
+     eq:(field,value)=>{events.push("EQ:"+table+":"+field+":"+value);return q;},
+     in:(field,values)=>{events.push("IN:"+table+":"+field+":"+JSON.stringify(values));return q;},
+     update:()=>{updated=true;events.push("UPDATE:"+table);return q;},
+     maybeSingle:async()=>{
+      if(!updated)return {data:opts.payment??provenPayment,
+        error:opts.readError?{message:"PRIVATE_DB"}:null};
+      const id=table==="payment_intents"?PAYMENT:
+         table==="listing_offers"?OFFER:LISTING;
+      const failed=opts.updateFail===table;
+      return {data:failed?null:{id},error:null};
+     }
+    };
+    return q;
+   }};
+  }},
+  "@/lib/payments/pricing":{},
+  "@/lib/payments/offer-amount":{},
+  "@/lib/commerce/private-access":{canUserUseCommerce:async()=>true,
+   isPublicCommerceEnabled:()=>false,assertStripeTestMode:()=>{}},
+ };
+ const src=readFileSync("app/actions/stripe.ts","utf8");
+ const compiled=ts.transpileModule(src,{fileName:"stripe.ts",reportDiagnostics:true,
+  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,
+   esModuleInterop:true}});
+ assert.equal(compiled.diagnostics?.filter(x=>x.category===ts.DiagnosticCategory.Error).length??0,0);
+ vm.runInNewContext(compiled.outputText,{exports:out,require:n=>{
+  assert.ok(n in mods,"Unexpected module "+n);return mods[n];
+ },Date,Math,Number,Promise,Error},{timeout:2000});
+ return {events,run:(params={offerId:OFFER})=>out.confirmPaymentComplete(params)};
+}
+test("verified Stripe paid proof updates three guarded rows and reports success",async()=>{
+ const h=confirmationFixture(),res=await h.run();
+ assert.equal(res.success,true);
+ assert.deepEqual(h.events.filter(x=>x.startsWith("UPDATE:")),
+  ["UPDATE:payment_intents","UPDATE:listing_offers","UPDATE:listings"]);
+ assert.ok(h.events.includes("EQ:payment_intents:status:requires_payment_method"));
+ assert.ok(h.events.includes('IN:listings:status:["reserved","sold"]'));
+});
+test("malformed offer UUID blocks Auth, Stripe and privileged SQL",async()=>{
+ const h=confirmationFixture();
+ await assert.rejects(h.run({offerId:"not-a-uuid"}),/inválida/);
+ assert.deepEqual(h.events,[]);
+});
+test("Auth provider outage with residual user fails before service_role",async()=>{
+ const h=confirmationFixture({authError:true});
+ await assert.rejects(h.run(),/sesión/);
+ assert.equal(h.events.includes("ADMIN"),false);
+});
+for(const [name,changes] of [
+ ["missing recorded total",{metadata:{...provenPayment.metadata,total_buyer_amount:null}}],
+ ["total does not match stored line items",{metadata:{...provenPayment.metadata,total_buyer_amount:15}}],
+ ["invalid payment source",{metadata:{...provenPayment.metadata,source:"buy_now"}}],
+ ["foreign payment provider",{provider:"other"}],
+ ["different buyer on payment row",{buyer_id:SELLER}],
+ ["missing seller",{seller_id:null}],
+ ["canceled payment state",{status:"canceled"}],
+ ["negative shipping",{shipping_amount:-1}],
+ ["missing shipping",{shipping_amount:null}],
+ ["different currency",{currency:"USD"}]
+]){
+ test(name+" cannot trigger Stripe or mark the payment paid",async()=>{
+  const h=confirmationFixture({payment:{...provenPayment,...changes}});
+  await assert.rejects(h.run(),/conciliación/);
+  assert.equal(h.events.includes("STRIPE_RETRIEVE"),false);
+  assert.equal(h.events.some(x=>x.startsWith("UPDATE:")),false);
+ });
+}
+for(const [name,changes] of [
+ ["foreign session buyer",{metadata:{...provenSession.metadata,buyer_id:SELLER}}],
+ ["foreign session seller",{metadata:{...provenSession.metadata,seller_id:BUYER}}],
+ ["foreign session listing",{metadata:{...provenSession.metadata,listing_id:SELLER}}],
+ ["wrong Stripe total",{amount_total:1444}],
+ ["wrong Stripe currency",{currency:"usd"}],
+ ["session still open",{status:"open"}],
+ ["session unpaid",{payment_status:"unpaid"}],
+ ["unexpected session ID",{id:"cs_other"}]
+]){
+ test(name+" prevents every DB mutation",async()=>{
+  const h=confirmationFixture({session:{...provenSession,...changes}});
+  await assert.rejects(h.run(),/Stripe/);
+  assert.equal(h.events.includes("STRIPE_RETRIEVE"),true);
+  assert.equal(h.events.some(x=>x.startsWith("UPDATE:")),false);
+ });
+}
+for(const table of ["payment_intents","listing_offers","listings"]){
+ test(table+" concurrent missing update requires reconciliation",async()=>{
+  const h=confirmationFixture({updateFail:table});
+  await assert.rejects(h.run(),/conciliación/);
+  assert.equal(h.events.includes("UPDATE:"+table),true);
+ });
+}

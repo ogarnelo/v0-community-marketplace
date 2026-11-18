@@ -358,101 +358,115 @@ export async function startCheckoutSession(params: {
 export async function confirmPaymentComplete(params: {
   offerId: string
 }) {
-  const { offerId } = params
+  const offerId = params?.offerId
+  if (typeof offerId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offerId)) {
+    throw new Error('Oferta de pago inválida.')
+  }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError) throw new Error('No se pudo comprobar la sesión.')
+  const user = authData?.user
+  if (!user) throw new Error('Debes iniciar sesión.')
 
-  if (!user) {
-    throw new Error('Debes iniciar sesión.')
-  }
-
-  if (!(await canUserUseCommerce(user))) {
+  if (!(await canUserUseCommerce(user)))
     throw new Error('El checkout privado no está habilitado para esta cuenta.')
-  }
   if (!isPublicCommerceEnabled()) assertStripeTestMode()
 
   const adminSupabase = createAdminClient()
-
   const { data: paymentIntent, error: paymentLookupError } = await adminSupabase
     .from('payment_intents')
-    .select('id, status, listing_id, metadata')
+    .select('id, status, offer_id, listing_id, buyer_id, seller_id, currency, provider, amount, buyer_fee_amount, shipping_amount, metadata')
     .eq('offer_id', offerId)
     .eq('buyer_id', user.id)
     .maybeSingle()
 
-  if (paymentLookupError || !paymentIntent) {
-    throw new Error(paymentLookupError?.message || 'No se encontró el intent de pago.')
-  }
+  if (paymentLookupError) throw new Error('No se pudo comprobar el registro del pago.')
+  if (!paymentIntent) throw new Error('No se encontró el intento de pago.')
 
-  const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
-  if (!sessionId || typeof sessionId !== 'string') {
-    throw new Error('No se encontró una sesión de Stripe asociada al pago.')
+  // Never accept the provider's "paid" flag without an independently
+  // consistent persisted invoice, identity and current payment state.
+  // Numeric DB columns may arrive as numbers or decimal strings, but
+  // NULL is never an acceptable zero. Require every monetary field.
+  const moneyFields = [paymentIntent.amount, paymentIntent.buyer_fee_amount, paymentIntent.shipping_amount]
+  const allMoneyPresent = moneyFields.every(value =>
+    value !== null && value !== undefined && value !== '')
+  const amount = Number(paymentIntent.amount)
+  const buyerFee = Number(paymentIntent.buyer_fee_amount)
+  const shipping = Number(paymentIntent.shipping_amount)
+  const recordedTotal = paymentIntent.metadata?.total_buyer_amount
+  const total = typeof recordedTotal === 'number' ? recordedTotal : NaN
+  const cents = (value: number) => Math.round(value * 100)
+  if (paymentIntent.offer_id !== offerId ||
+      paymentIntent.buyer_id !== user.id ||
+      typeof paymentIntent.listing_id !== 'string' || !paymentIntent.listing_id ||
+      typeof paymentIntent.seller_id !== 'string' || !paymentIntent.seller_id ||
+      paymentIntent.provider !== 'stripe' || paymentIntent.currency !== 'EUR' ||
+      paymentIntent.metadata?.source !== 'stripe_checkout' ||
+      !allMoneyPresent ||
+      !['requires_payment_method','processing','succeeded'].includes(paymentIntent.status) ||
+      ![amount,buyerFee,shipping,total].every(Number.isFinite) ||
+      amount <= 0 || buyerFee < 0 || shipping < 0 || total <= 0 ||
+      !Number.isSafeInteger(cents(total)) ||
+      cents(amount) + cents(buyerFee) + cents(shipping) !== cents(total)) {
+    throw new Error('El pago registrado tiene datos incompatibles y requiere conciliación.')
   }
+  const sessionId = paymentIntent.metadata?.stripe_checkout_session_id
+  if (typeof sessionId !== 'string' || !sessionId)
+    throw new Error('No se encontró la sesión Stripe del pago.')
 
   let session
   try {
     session = await stripe.checkout.sessions.retrieve(sessionId)
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'No se pudo verificar el pago con Stripe.'
-    throw new Error(`No se pudo verificar el pago con Stripe: ${message}`)
+  } catch {
+    throw new Error('No se pudo verificar el pago con Stripe.')
+  }
+  if (session.id !== sessionId || session.payment_status !== 'paid' ||
+      session.status !== 'complete' || session.currency !== 'eur' ||
+      session.metadata?.offer_id !== offerId ||
+      session.metadata?.buyer_id !== user.id ||
+      session.metadata?.seller_id !== paymentIntent.seller_id ||
+      session.metadata?.listing_id !== paymentIntent.listing_id ||
+      session.amount_total !== cents(total)) {
+    throw new Error('La confirmación Stripe no coincide con la operación.')
   }
 
-  if (session.payment_status !== 'paid') {
-    throw new Error('El pago aún no se ha completado en Stripe.')
-  }
-
-  if (session.metadata?.offer_id !== offerId || session.metadata?.buyer_id !== user.id) {
-    throw new Error('La sesión de Stripe no corresponde a esta operación.')
-  }
-
-  const expectedTotal = Number(paymentIntent.metadata?.total_buyer_amount)
-  if (
-    Number.isFinite(expectedTotal) &&
-    expectedTotal > 0 &&
-    session.amount_total !== Math.round(expectedTotal * 100)
-  ) {
-    throw new Error('El importe confirmado por Stripe no coincide con la operación.')
-  }
-
+  // A webhook might have changed the row during Stripe retrieval. Constrain
+  // all changes to the originally observed state and verify affected rows.
+  // This still is not a cross-table transaction: any partial write requires
+  // manual reconciliation and must not be returned as a completed checkout.
   const now = new Date().toISOString()
-
-  const { error: paymentUpdateError } = await adminSupabase
+  const { data: paymentUpdated, error: paymentUpdateError } = await adminSupabase
     .from('payment_intents')
-    .update({
-      status: 'succeeded',
-      updated_at: now,
-    })
+    .update({ status: 'succeeded', updated_at: now })
     .eq('id', paymentIntent.id)
     .eq('buyer_id', user.id)
+    .eq('status', paymentIntent.status)
+    .select('id').maybeSingle()
+  if (paymentUpdateError || paymentUpdated?.id !== paymentIntent.id)
+    throw new Error('Pago Stripe aceptado, registro pendiente de conciliación.')
 
-  if (paymentUpdateError) {
-    throw new Error(paymentUpdateError.message || 'No se pudo actualizar el estado del pago.')
-  }
-
-  const { error: offerUpdateError } = await adminSupabase
+  const { data: offerUpdated, error: offerUpdateError } = await adminSupabase
     .from('listing_offers')
-    .update({
-      status: 'accepted',
-      responded_at: now,
-    })
+    .update({ status: 'accepted', responded_at: now })
     .eq('id', offerId)
     .eq('buyer_id', user.id)
+    .eq('seller_id', paymentIntent.seller_id)
+    .eq('status', 'accepted')
+    .select('id').maybeSingle()
+  if (offerUpdateError || offerUpdated?.id !== offerId)
+    throw new Error('Pago Stripe aceptado, oferta pendiente de conciliación.')
 
-  if (offerUpdateError) {
-    throw new Error(offerUpdateError.message || 'No se pudo actualizar la oferta.')
-  }
-
-  if (paymentIntent.listing_id) {
-    const { error: listingUpdateError } = await adminSupabase
-      .from('listings')
-      .update({ status: 'sold' })
-      .eq('id', paymentIntent.listing_id)
-
-    if (listingUpdateError) {
-      throw new Error(listingUpdateError.message || 'No se pudo actualizar el anuncio.')
-    }
-  }
+  const { data: listingUpdated, error: listingUpdateError } = await adminSupabase
+    .from('listings')
+    .update({ status: 'sold' })
+    .eq('id', paymentIntent.listing_id)
+    .eq('seller_id', paymentIntent.seller_id)
+    .in('status', ['reserved','sold'])
+    .select('id').maybeSingle()
+  if (listingUpdateError || listingUpdated?.id !== paymentIntent.listing_id)
+    throw new Error('Pago Stripe aceptado, anuncio pendiente de conciliación.')
 
   return { success: true }
 }
