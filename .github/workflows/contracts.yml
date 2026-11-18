@@ -151,3 +151,6 @@ jobs:
 
       - name: School report provider skipped must not mark a fake delivery
         run: node --test __tests__/launch/school-impact-mail-skipped-runtime.test.mjs
+
+      - name: Madrid monthly school report period boundary runtime
+        run: node --test __tests__/launch/school-impact-report-madrid-month-runtime.test.mjs
