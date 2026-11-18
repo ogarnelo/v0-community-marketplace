@@ -39,6 +39,7 @@ DECLARE
 BEGIN
   IF p_listing_id IS NULL OR p_buyer_id IS NULL OR p_seller_id IS NULL OR
      p_buyer_id = p_seller_id OR
+     p_delivery_method IS NULL OR p_shipment_tier IS NULL OR
      p_delivery_method NOT IN ('shipping', 'in_person') OR
      p_shipment_tier NOT IN ('none','small','medium','large') OR
      (p_delivery_method = 'in_person' AND p_shipment_tier <> 'none') OR
@@ -62,7 +63,10 @@ BEGIN
   SELECT l.id,l.seller_id,l.school_id,l.price,l.status,l.listing_type
     INTO v_listing FROM public.listings l
    WHERE l.id = p_listing_id FOR UPDATE;
-  IF NOT FOUND OR v_listing.status IS DISTINCT FROM 'available' OR
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'P0_BUY_NOW_LISTING_CHANGED' USING ERRCODE='P0001';
+  END IF;
+  IF v_listing.status IS DISTINCT FROM 'available' OR
      v_listing.listing_type IS DISTINCT FROM 'sale' OR
      v_listing.seller_id IS DISTINCT FROM p_seller_id OR
      v_listing.price IS DISTINCT FROM p_expected_price
@@ -81,10 +85,14 @@ BEGIN
     RAISE EXCEPTION 'P0_BUY_NOW_EXISTING_OFFER' USING ERRCODE='P0001';
   END IF;
 
-  SELECT count(*),min(c.id) INTO v_existing_conversations,v_conversation
+  SELECT count(*) INTO v_existing_conversations
     FROM public.conversations c
    WHERE c.listing_id=p_listing_id AND c.buyer_id=p_buyer_id
      AND c.seller_id=p_seller_id;
+  SELECT c.id INTO v_conversation
+    FROM public.conversations c
+   WHERE c.listing_id=p_listing_id AND c.buyer_id=p_buyer_id
+     AND c.seller_id=p_seller_id ORDER BY c.id LIMIT 1;
   IF v_existing_conversations>1 THEN
     RAISE EXCEPTION 'P0_BUY_NOW_AMBIGUOUS_CONVERSATION' USING ERRCODE='P0001';
   END IF;
