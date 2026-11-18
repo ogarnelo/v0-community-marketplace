@@ -15,7 +15,8 @@ test("school impact cron uses Madrid calendar day, not UTC day", () => {
 });
 
 test("school subscription rejects coerced day strings and fractions", () => {
-  assert.match(subscription, /const dayOfMonth = body\.dayOfMonth/);\n  assert.doesNotMatch(subscription, /dayOfMonth === undefined \? 1/);
+  assert.match(subscription, /const dayOfMonth = body\.dayOfMonth/);
+  assert.doesNotMatch(subscription, /dayOfMonth === undefined \? 1/);
   assert.match(subscription, /typeof body\.enabled !== "boolean"/);
   assert.match(subscription, /Number\.isInteger\(dayOfMonth\)/);
   assert.doesNotMatch(subscription, /Number\(body\?\.dayOfMonth/);
