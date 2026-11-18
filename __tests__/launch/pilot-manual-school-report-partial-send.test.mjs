@@ -7,14 +7,21 @@ const ts=createRequire(import.meta.url)("typescript");
 const USER="11111111-1111-4111-8111-111111111111", SCHOOL="22222222-2222-4222-8222-222222222222";
 function fixture(opts={}){
  const events=[],errors=[], exports={};
+ let subscriptionReads=0;
  const from=(table)=>{
   const q={
-   select:()=>q,eq:()=>q,
+   select:()=>q,eq:()=>q,limit:()=>q,
    maybeSingle:async()=>{
     if(table==="schools")return {data:{id:SCHOOL,is_active:true},error:null};
-    if(table==="school_impact_report_subscriptions")
-      return {data:{enabled:false,day_of_month:1},
-        error:opts.readFailure?{message:"PRIVATE_READ_SQL"}:null};
+    if(table==="school_impact_report_deliveries")
+      return {data:null,error:null};
+    if(table==="school_impact_report_subscriptions"){
+      subscriptionReads++;
+      // First two reads are BEFORE provider. A failing third read checks
+      // reconciliation after accepted delivery, as this test originally did.
+      return {data:{enabled:false,day_of_month:1,last_sent_month:null},
+        error:opts.readFailure&&subscriptionReads===3?{message:"PRIVATE_READ_SQL"}:null};
+    }
     throw Error("unexpected "+table);
    },
    insert:async()=>{events.push("DELIVERY");return {error:opts.deliveryFailure?{message:"PRIVATE_DELIVERY_SQL"}:null};},

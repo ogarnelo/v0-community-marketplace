@@ -22,6 +22,39 @@ function isEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+/**
+ * Fail closed before every manual email attempt. Both the subscription marker
+ * and its append-only delivery audit must agree that the month has not been
+ * sent. An audit may exist even if updating last_sent_month failed.
+ *
+ * This is NOT an exclusive DB claim: two simultaneous manual requests can
+ * still pass both reads. A reviewed transaction/claim is needed for that.
+ */
+async function manualMonthDeliveryState(
+  admin: ReturnType<typeof createAdminClient>,
+  schoolId: string,
+  userId: string,
+  periodKey: string,
+): Promise<"unsent" | "sent" | "unavailable"> {
+  const [subscription, delivery] = await Promise.all([
+    admin.from("school_impact_report_subscriptions")
+      .select("last_sent_month")
+      .eq("school_id", schoolId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+    admin.from("school_impact_report_deliveries")
+      .select("id")
+      .eq("school_id", schoolId)
+      .eq("user_id", userId)
+      .eq("period_key", periodKey)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (subscription.error || delivery.error) return "unavailable";
+  return subscription.data?.last_sent_month === periodKey || Boolean(delivery.data?.id)
+    ? "sent" : "unsent";
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -95,6 +128,14 @@ export async function POST(request: Request) {
     }
 
     const period = previousCalendarMonth();
+    const initialDeliveryState = await manualMonthDeliveryState(
+      admin, schoolRole.school_id, user.id, period.key
+    );
+    if (initialDeliveryState === "unavailable")
+      return privateJson({ error: "No se pudo comprobar el historial del informe." }, { status: 503 });
+    if (initialDeliveryState === "sent")
+      return privateJson({ error: "Este periodo ya tiene un informe enviado. Revisa el historial." }, { status: 409 });
+
     const report = await loadSchoolImpactReport({
       schoolId: schoolRole.school_id,
       start: period.start,
@@ -146,6 +187,16 @@ export async function POST(request: Request) {
         freshSchool.is_active !== true) {
       return privateJson({ error: "Centro no disponible." }, { status: 403 });
     }
+
+    // The report can take time to generate. A second check catches manual
+    // delivery or the cron marker committed after the original lookup.
+    const freshDeliveryState = await manualMonthDeliveryState(
+      admin, schoolRole.school_id, user.id, period.key
+    );
+    if (freshDeliveryState === "unavailable")
+      return privateJson({ error: "No se pudo volver a comprobar el historial." }, { status: 503 });
+    if (freshDeliveryState === "sent")
+      return privateJson({ error: "El informe ya se ha enviado para este periodo." }, { status: 409 });
 
     const emailResult = await sendMonthlySchoolImpactEmail({
       to: email,

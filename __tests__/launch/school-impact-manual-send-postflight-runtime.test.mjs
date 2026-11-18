@@ -8,7 +8,7 @@ const SCHOOL="11111111-1111-4111-8111-111111111111";
 const USER="22222222-2222-4222-8222-222222222222";
 const OTHER="33333333-3333-4333-8333-333333333333";
 function fixture(options={}){
- const events=[];let authReads=0,roleReads=0,schoolReads=0;
+ const events=[];let authReads=0,roleReads=0,schoolReads=0,subscriptionReads=0,deliveryReads=0;
  const userBase={id:USER,email:"school@example.invalid",
   email_confirmed_at:"2026-11-01T00:00:00Z"};
  const supabase={
@@ -39,11 +39,26 @@ function fixture(options={}){
      error:options.schoolOutage&&schoolReads>1?new Error("DB_FAIL"):null};
    }};
   }
-  if(table==="school_impact_report_deliveries")return {insert:async()=>{
-   events.push("DELIVERY");return {error:null};
-  }};
+  if(table==="school_impact_report_deliveries")return {
+   select(){return this},eq(){return this},limit(){return this},
+   maybeSingle:async()=>{
+    deliveryReads++;events.push("DELIVERY_LOOKUP"+deliveryReads);
+    return {data:options.priorDelivery ||
+      options.deliveryDuringLoad&&deliveryReads===2?{id:"audit-1"}:null,
+      error:options.deliveryReadOutage&&deliveryReads===2?new Error("PRIVATE_AUDIT"):null};
+   },
+   insert:async()=>{events.push("DELIVERY");return {error:null}}
+  };
   if(table==="school_impact_report_subscriptions")return {
-   select(){return this},eq(){return this},maybeSingle:async()=>({data:null,error:null}),
+   select(){return this},eq(){return this},
+   maybeSingle:async()=>{
+    subscriptionReads++;events.push("SUBSCRIPTION_LOOKUP"+subscriptionReads);
+    return {data:options.sentMarker ||
+      options.markerDuringLoad&&subscriptionReads===2
+      ? {last_sent_month:"2026-10"}:null,
+      error:options.subscriptionReadOutage&&subscriptionReads===2
+        ? new Error("PRIVATE_MARKER"):null};
+   },
    upsert:async()=>{events.push("SUBSCRIPTION");return {error:null}}
   };
   throw Error("unknown table "+table);
@@ -103,4 +118,42 @@ test("postflight auth, role and school read outages fail closed without sending"
   const h=fixture(opt),res=await h.run();
   assert.equal(res.status,503);assert.equal(h.events.includes("EMAIL"),false);
  }
+});
+
+test("existing manual audit denies duplicate monthly report before any PDF or email",async()=>{
+ const h=fixture({priorDelivery:true}),res=await h.run();
+ assert.equal(res.status,409);
+ assert.equal(res.cache,"private, no-store");
+ assert.equal(h.events.includes("REPORT"),false);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("last_sent_month marker denies duplicate even when delivery audit is missing",async()=>{
+ const h=fixture({sentMarker:true}),res=await h.run();
+ assert.equal(res.status,409);
+ assert.equal(h.events.includes("REPORT"),false);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("monthly delivery arriving during report preparation stops the provider call",async()=>{
+ for(const opt of [{deliveryDuringLoad:true},{markerDuringLoad:true}]){
+  const h=fixture(opt),res=await h.run();
+  assert.equal(res.status,409);
+  assert.ok(h.events.includes("PDF"));
+  assert.equal(h.events.includes("EMAIL"),false);
+  assert.equal(h.events.includes("DELIVERY"),false);
+ }
+});
+test("missing authoritative second audit or month marker fails closed",async()=>{
+ for(const opt of [{deliveryReadOutage:true},{subscriptionReadOutage:true}]){
+  const h=fixture(opt),res=await h.run();
+  assert.equal(res.status,503);
+  assert.equal(h.events.includes("EMAIL"),false);
+ }
+});
+test("legitimate manual monthly send rechecks BOTH independent markers before provider",async()=>{
+ const h=fixture(),res=await h.run();
+ assert.equal(res.status,200);
+ assert.equal(h.events.filter(x=>x==="DELIVERY_LOOKUP1").length,1);
+ assert.equal(h.events.filter(x=>x==="DELIVERY_LOOKUP2").length,1);
+ assert.ok(h.events.indexOf("DELIVERY_LOOKUP2")>h.events.indexOf("PDF"));
+ assert.ok(h.events.indexOf("EMAIL")>h.events.indexOf("DELIVERY_LOOKUP2"));
 });
