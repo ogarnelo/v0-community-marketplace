@@ -1,0 +1,7 @@
+# WETUDY P0 — Dos compradores concurrentes y restricciones reales (18/11/2026)
+
+La fuente pública `pg_indexes` de Supabase Education Marketplace (consultada con SELECT-only) confirmó tres índices únicos que condicionan la ruta: `conversations_listing_buyer_seller_idx`, `payment_intents_offer_unique_idx` (parcial, cuando `offer_id IS NOT NULL`) y `listing_offers_active_negotiation_idx` (parcial, pending/countered). Se reproducen en `scripts/p0_pg17_atomic_candidates_fixture.sql` **solo dentro de PostgreSQL 17 desechable**.
+
+El nuevo `scripts/p0_pg17_concurrent_buy_now_smoke.sh` ejecuta dos compradores con identidades sintéticas distintas contra **el mismo anuncio**. La primera transacción mantiene su bloqueo durante 3 segundos, la segunda intenta competir mientras la primera sigue en curso y, tras la confirmación del ganador, debe fallar con el código de oferta modificada. El ensayo exige exactamente una conversación, oferta, evento, mensaje e intento de pago local; ningún registro del comprador perdedor.
+
+La tarea se incorpora a `.github/workflows/p0-atomic-review-only-pg17.yml`, que no carga credenciales Supabase. No modifica `supabase/migrations`, no activa Stripe y no prueba aún triggers/RLS completos del entorno real. Los dos SQL candidatos de PR681/PR682 siguen REVIEW ONLY y sin invocación desde las rutas productivas. La instalación y el GO del piloto exigen autorización expresa y sus demás puertas.
