@@ -56,8 +56,12 @@ export async function GET(request: Request) {
       // Revalidate legacy subscriptions at send time: a saved arbitrary email
       // must never bypass the restriction introduced on the API routes.
       const { data: account, error: accountError } = await admin.auth.admin.getUserById(subscription.user_id);
-      if (accountError || !account?.user?.email_confirmed_at ||
-          !account.user.email ||
+      // A provider outage is not a recipient revocation. Mark the run as
+      // failed so monitoring can request reconciliation instead of reporting
+      // an apparently successful no-op.
+      if (accountError) throw new Error("school_impact_account_lookup_unavailable");
+      if (!account?.user?.email_confirmed_at || !account.user.email ||
+          account.user.id !== subscription.user_id ||
           account.user.email.trim().toLowerCase() !== subscription.email.trim().toLowerCase()) {
         skipped += 1;
         continue;
