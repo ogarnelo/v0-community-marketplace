@@ -129,8 +129,9 @@ BEGIN
       v_event,v_offer,p_expected_price)
   );
 
-  DELETE FROM public.hidden_conversations
-   WHERE conversation_id=v_conversation AND user_id IN (p_buyer_id,p_seller_id);
+  DELETE FROM public.hidden_conversations h
+   WHERE h.conversation_id=v_conversation
+     AND h.user_id IN (p_buyer_id,p_seller_id);
   UPDATE public.conversations SET updated_at=now() WHERE id=v_conversation;
 
   -- This is a LOCAL payment-intent record, not a provider charge.
