@@ -26,8 +26,10 @@ export async function prepareBuyNowPaymentIntent(params: {
     a !== null && a !== undefined && Number.isFinite(Number(a)) &&
     Math.round(Number(a)*100) === Math.round(b*100);
   const compatible = (i: any) =>
-    typeof i?.id === "string" && i.id.length > 0 &&\n    i.status === "requires_payment_method" && i.provider === "stripe" &&
-    i.offer_id === offerId && i.listing_id === listing.id &&\n    (i.conversation_id || null) === (conversationId || null) &&
+    typeof i?.id === "string" && i.id.length > 0 &&
+    i.status === "requires_payment_method" && i.provider === "stripe" &&
+    i.offer_id === offerId && i.listing_id === listing.id &&
+    (i.conversation_id || null) === (conversationId || null) &&
     i.buyer_id === userId && i.seller_id === listing.seller_id &&
     (i.school_id || null) === (listing.school_id || null) &&
     i.currency === "EUR" && i.shipment_tier === pricing.shipmentTier &&
