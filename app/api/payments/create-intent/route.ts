@@ -44,14 +44,26 @@ export async function POST(request: Request) {
     }
     if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
-    const body = await request.json();
-    const offerId = typeof body?.offerId === "string" ? body.offerId.trim() : "";
-    const deliveryMethod = isDeliveryMethod(body?.deliveryMethod) ? body.deliveryMethod : "shipping";
-    const shipmentTier = isShipmentTier(body?.shipmentTier)
-      ? body.shipmentTier
-      : deliveryMethod === "shipping"
-        ? "small"
-        : "none";
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return privateJson({ error: "Solicitud de pago inválida." }, { status: 400 });
+    }
+    const offerId = typeof body.offerId === "string" ? body.offerId.trim() : "";
+    // An explicit invalid delivery selection must never turn into a
+    // different quote. Shipping with "none" used to charge zero postage.
+    if (body.deliveryMethod !== undefined && !isDeliveryMethod(body.deliveryMethod)) {
+      return privateJson({ error: "Método de entrega inválido." }, { status: 400 });
+    }
+    if (body.shipmentTier !== undefined && !isShipmentTier(body.shipmentTier)) {
+      return privateJson({ error: "Tamaño de envío inválido." }, { status: 400 });
+    }
+    const deliveryMethod: DeliveryMethod = body.deliveryMethod ?? "shipping";
+    if (deliveryMethod === "shipping" && body.shipmentTier === "none") {
+      return privateJson({ error: "El envío requiere un tamaño con portes." }, { status: 400 });
+    }
+    const shipmentTier: ShipmentTier = deliveryMethod === "shipping"
+      ? body.shipmentTier ?? "small"
+      : "none";
 
     if (!offerId) {
       return privateJson({ error: "Falta la oferta." }, { status: 400 });
