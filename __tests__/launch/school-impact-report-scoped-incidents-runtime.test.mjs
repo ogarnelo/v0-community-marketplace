@@ -11,8 +11,11 @@ const uuid=n=>String(n).padStart(8,"0")+"-1111-4111-8111-111111111111";
 const schoolId=uuid(1),otherSchool=uuid(2);
 function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCount=false,
  membersCount=2400,adminsCount=20,missingMembersCount=false,missingAdminsCount=false,
- deleteFirstListingAfterPage=false,reverseSecondPage=false}={}){
+ deleteFirstListingAfterPage=false,reverseSecondPage=false,
+ inactiveSchool=false,deactivateSchoolAfterFirstRead=false,
+ schoolReadErrorAfterFirst=false,schoolIdChangedAfterFirst=false}={}){
  const records=[];
+ let schoolReads=0;
  let listingPages=0;
  const listings=Array.from({length:listingCount},(_,i)=>({
   id:uuid(100+i),title:"Libro",category:"libros",isbn:null,
@@ -39,7 +42,16 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
   };
   function result(){
    records.push({table,filters:{...filters}});
-   if(table==="schools")return {data:{id:schoolId,name:"Colegio",is_active:true,city:null,region:null},error:null};
+   if(table==="schools"){
+     schoolReads++;
+     if(schoolReadErrorAfterFirst && schoolReads>1)
+       return {data:null,error:new Error("SCHOOL_REVALIDATION_UNAVAILABLE")};
+     return {data:{
+       id:schoolIdChangedAfterFirst && schoolReads>1?otherSchool:schoolId,
+       name:"Colegio",is_active:!(inactiveSchool || deactivateSchoolAfterFirst && schoolReads>1),
+       city:null,region:null,
+     },error:null};
+   }
    if(table==="listings"){
      let page=listings.filter(x=>!filters["id-gt"] || x.id>filters["id-gt"]);
      if(filters.limit!==undefined)page=page.slice(0,filters.limit);
@@ -155,4 +167,32 @@ test("keyset does not skip next page when an earlier listing is deleted during p
 test("out-of-order keyset page fails closed before publishing incomplete school KPIs",async()=>{
  const h=harness({listingCount:600,reverseSecondPage:true});
  await assert.rejects(h.load(),/SCHOOL_REPORT_PAGINATION_INCONSISTENT/);
+});
+
+test("inactive school is denied before any privileged listing or member queries",async()=>{
+ const h=harness({inactiveSchool:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_INACTIVE/);
+ assert.equal(h.records.filter(q=>q.table!=="schools").length,0);
+ assert.equal(h.records.filter(q=>q.table==="schools").length,1);
+});
+test("deactivation during pagination blocks the finished school report",async()=>{
+ const h=harness({listingCount:601,deactivateSchoolAfterFirstRead:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_INACTIVE/);
+ assert.equal(h.records.filter(q=>q.table==="schools").length,2);
+ assert.ok(h.records.some(q=>q.table==="listings"));
+});
+test("changed school identity and recheck errors must never produce a report",async()=>{
+ const switched=harness({schoolIdChangedAfterFirst:true});
+ await assert.rejects(switched.load(),/SCHOOL_REPORT_INACTIVE/);
+ const outage=harness({schoolReadErrorAfterFirst:true});
+ await assert.rejects(outage.load(),/SCHOOL_REVALIDATION_UNAVAILABLE/);
+});
+test("active school report checks school identity twice, before and after data loading",async()=>{
+ const h=harness(),report=await h.load();
+ assert.equal(report.school.id,schoolId);
+ const reads=h.records.filter(q=>q.table==="schools");
+ assert.equal(reads.length,2);
+ assert.equal(h.records[0].table,"schools");
+ assert.equal(h.records.at(-1).table,"schools");
+ assert.ok(reads.every(q=>q.filters.id===schoolId));
 });
