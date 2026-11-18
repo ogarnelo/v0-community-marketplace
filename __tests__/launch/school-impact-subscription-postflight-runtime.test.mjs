@@ -25,7 +25,10 @@ function fixture(opts={}){
       return {select(){return this},eq(){
         roles++;calls.push("ROLE"+roles);
         return Promise.resolve({data:opts.revokedRole&&roles===2
-          ? []:[{role:"school_admin",school_id:SCHOOL}],
+          ? []:[{role:"school_admin",school_id:SCHOOL},
+             ...((opts.ambiguousInitial&&roles===1 ||
+                   opts.ambiguousPostflight&&roles===2)
+                ? [{role:"school_admin",school_id:OTHER}] : [])],
           error:opts.roleOutage&&roles===2?new Error("PRIVATE_ROLE"):null});
       }};
     }
@@ -96,4 +99,16 @@ test("postflight auth, role and school outages fail closed with no upsert",async
   const h=fixture(opt),res=await h.run();
   assert.equal(res.status,503);assert.ok(!h.calls.includes("UPDATE"));
  }
+});
+
+test("two admin schools at initial scope lookup deny subscription mutation",async()=>{
+ const h=fixture({ambiguousInitial:true}),res=await h.run();
+ assert.equal(res.status,403);
+ assert.equal(h.calls.includes("UPDATE"),false);
+ assert.equal(h.calls.includes("SCHOOL1"),false);
+});
+test("new second school assignment between checks denies subscription write",async()=>{
+ const h=fixture({ambiguousPostflight:true}),res=await h.run();
+ assert.equal(res.status,403);
+ assert.equal(h.calls.includes("UPDATE"),false);
 });

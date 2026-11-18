@@ -25,7 +25,10 @@ function fixture(options={}){
    return {select(){return this},eq(){
     roleReads++;events.push("ROLE"+roleReads);
     return Promise.resolve({data:options.revokedRole&&roleReads>1?[]:
-      [{role:"school_admin",school_id:SCHOOL}],
+      [{role:"school_admin",school_id:SCHOOL},
+       ...((options.ambiguousInitial&&roleReads===1 ||
+             options.ambiguousPostflight&&roleReads>1)
+          ? [{role:"school_admin",school_id:OTHER}] : [])],
       error:options.roleOutage&&roleReads>1?new Error("DB_FAIL"):null});
    }};
   }
@@ -168,4 +171,17 @@ test("manual marker update does not overwrite a concurrent subscription preferen
  assert.equal(res.status,200);
  assert.equal(h.events.includes("MARKER_ONLY_UPDATE"),true);
  assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
+});
+
+test("two school-admin assignments at initial lookup deny private PDF",async()=>{
+ const h=fixture({ambiguousInitial:true}),res=await h.run();
+ assert.equal(res.status,403);
+ assert.equal(h.events.includes("REPORT"),false);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("second school-admin assignment appearing during PDF blocks external delivery",async()=>{
+ const h=fixture({ambiguousPostflight:true}),res=await h.run();
+ assert.equal(res.status,403);
+ assert.equal(h.events.includes("PDF"),true);
+ assert.equal(h.events.includes("EMAIL"),false);
 });
