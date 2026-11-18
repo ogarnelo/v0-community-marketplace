@@ -229,6 +229,21 @@ export async function loadSchoolImpactReport(params: {
   const agreements = agreementsResult
     .filter((agreement) => Boolean(agreement.listing_id && listingById.has(agreement.listing_id)));
 
+  // Confirmed reuse is per listing, not per matching payment/offer record.
+  // The database does not currently enforce a unique confirmed agreement per
+  // listing, so reject an ambiguous duplicate instead of double counting.
+  const confirmedListings = new Set<string>();
+  for (const agreement of agreements) {
+    if (agreement.agreement_type !== "sale" && agreement.agreement_type !== "donation")
+      throw new Error("SCHOOL_REPORT_AGREEMENT_TYPE_INVALID");
+    if (confirmedListings.has(agreement.listing_id!))
+      throw new Error("SCHOOL_REPORT_DUPLICATE_CONFIRMED_LISTING");
+    confirmedListings.add(agreement.listing_id!);
+    if (agreement.amount !== null &&
+        (!Number.isFinite(agreement.amount) || agreement.amount < 0))
+      throw new Error("SCHOOL_REPORT_AGREEMENT_AMOUNT_INVALID");
+  }
+
   const reusedItems = agreements.length;
   const donatedItems = agreements.filter(
     (agreement) => agreement.agreement_type === "donation"
@@ -241,6 +256,8 @@ export async function loadSchoolImpactReport(params: {
         : sum,
     0
   );
+  if (!Number.isFinite(circularValue) || circularValue < 0)
+    throw new Error("SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE");
   const reusedBooks = agreements.filter((agreement) =>
     agreement.listing_id ? isSchoolBook(listingById.get(agreement.listing_id)) : false
   ).length;
