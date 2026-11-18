@@ -117,7 +117,7 @@ export function dashboardRange(range: "90d" | "365d" | "total", now = new Date()
  * reject duplicate IDs, and fail closed on excessive volume or query errors.
  */
 async function readAllSchoolImpactRows<T extends { id: string }>(
-  loadPage: (first: number, last: number) => PromiseLike<{
+  loadPage: (afterId: string | null, limit: number) => PromiseLike<{
     data: T[] | null;
     error: unknown;
   }>,
@@ -125,17 +125,22 @@ async function readAllSchoolImpactRows<T extends { id: string }>(
   const pageSize = 250;
   const maxRows = 10000;
   const result: T[] = [];
-  const seen = new Set<string>();
-  for (let first = 0; first <= maxRows; first += pageSize) {
-    const { data, error } = await loadPage(first, first + pageSize - 1);
+  let afterId: string | null = null;
+  // Seek by stable PK, never offset: a deletion before an offset page must not
+  // cause the next school listing or agreement to be skipped.
+  for (let page = 0; page <= maxRows / pageSize; page += 1) {
+    const { data, error } = await loadPage(afterId, pageSize);
     if (error) throw error;
     if (!Array.isArray(data)) throw new Error("SCHOOL_REPORT_PAGE_UNAVAILABLE");
+    if (data.length > pageSize)
+      throw new Error("SCHOOL_REPORT_PAGINATION_INCONSISTENT");
     if (result.length + data.length > maxRows)
       throw new Error("SCHOOL_REPORT_ROW_LIMIT_EXCEEDED");
     for (const row of data) {
-      if (!row?.id || seen.has(row.id))
+      if (typeof row?.id !== "string" || !row.id ||
+          (afterId !== null && row.id <= afterId))
         throw new Error("SCHOOL_REPORT_PAGINATION_INCONSISTENT");
-      seen.add(row.id);
+      afterId = row.id;
       result.push(row);
     }
     if (data.length < pageSize) return result;
@@ -165,16 +170,18 @@ export async function loadSchoolImpactReport(params: {
       .select("id, name, city, region, is_active")
       .eq("id", schoolId)
       .maybeSingle<SchoolRow>(),
-    readAllSchoolImpactRows<ListingRow>((first, last) =>
-      admin
+    readAllSchoolImpactRows<ListingRow>((afterId, limit) => {
+      let query = admin
         .from("listings")
         .select("id, title, category, isbn, status, created_at")
         .eq("school_id", schoolId)
-        .eq("is_demo", false)
+        .eq("is_demo", false);
+      if (afterId) query = query.gt("id", afterId);
+      return query
         .order("id", { ascending: true })
-        .range(first, last)
-        .returns<ListingRow[]>()
-    ),
+        .limit(limit)
+        .returns<ListingRow[]>();
+    }),
     // Exact database counts avoid downloading user IDs and the implicit
     // PostgREST row limit (typically 1,000) under-counting larger schools.
     admin
@@ -186,7 +193,7 @@ export async function loadSchoolImpactReport(params: {
       .select("user_id", { count: "exact", head: true })
       .eq("school_id", schoolId)
       .eq("role", "school_admin"),
-    readAllSchoolImpactRows<AgreementRow>((first, last) => {
+    readAllSchoolImpactRows<AgreementRow>((afterId, limit) => {
       let query = admin
         .from("agreements")
         .select("id, listing_id, agreement_type, status, amount, confirmed_at, created_at")
@@ -194,9 +201,10 @@ export async function loadSchoolImpactReport(params: {
         .eq("status", "confirmed")
         .lt("confirmed_at", end.toISOString());
       if (start) query = query.gte("confirmed_at", start.toISOString());
+      if (afterId) query = query.gt("id", afterId);
       return query
         .order("id", { ascending: true })
-        .range(first, last)
+        .limit(limit)
         .returns<AgreementRow[]>();
     }),
   ]);
@@ -262,17 +270,19 @@ export async function loadSchoolImpactReport(params: {
 
     const incidentRows = await readAllSchoolImpactRows<{
       id: string; listing_id: string | null;
-    }>((first, last) =>
-      admin
+    }>((afterId, limit) => {
+      let query = admin
         .from("reports")
         .select("id, listing_id")
         .eq("target_type", "listing")
         .in("status", ["open", "reviewing"])
-        .in("listing_id", ids)
+        .in("listing_id", ids);
+      if (afterId) query = query.gt("id", afterId);
+      return query
         .order("id", { ascending: true })
-        .range(first, last)
-        .returns<Array<{ id: string; listing_id: string | null }>>()
-    );
+        .limit(limit)
+        .returns<Array<{ id: string; listing_id: string | null }>>();
+    });
     for (const row of incidentRows || []) {
       if (row.listing_id && ids.includes(row.listing_id))
         openReportListingIds.add(row.listing_id);

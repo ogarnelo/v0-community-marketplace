@@ -10,8 +10,10 @@ const js=ts.transpileModule(file,{fileName:"school-impact-report.ts",
 const uuid=n=>String(n).padStart(8,"0")+"-1111-4111-8111-111111111111";
 const schoolId=uuid(1),otherSchool=uuid(2);
 function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCount=false,
- membersCount=2400,adminsCount=20,missingMembersCount=false,missingAdminsCount=false}={}){
+ membersCount=2400,adminsCount=20,missingMembersCount=false,missingAdminsCount=false,
+ deleteFirstListingAfterPage=false,reverseSecondPage=false}={}){
  const records=[];
+ let listingPages=0;
  const listings=Array.from({length:listingCount},(_,i)=>({
   id:uuid(100+i),title:"Libro",category:"libros",isbn:null,
   status:"available",created_at:"2026-01-01T00:00:00Z",
@@ -25,6 +27,8 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
    select(...args){filters.select=args;return q},
    order(column,opts){filters.order=[column,opts];return q},
    range(first,last){filters.range=[first,last];return q},
+   limit(size){filters.limit=size;return q},
+   gt(field,value){filters[field+"-gt"]=value;return q},
    eq(key,value){filters[key]=value;return q},
    in(key,value){filters[key]=value;return q},
    lt(key,value){filters[key+"-lt"]=value;return q},
@@ -36,8 +40,15 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
   function result(){
    records.push({table,filters:{...filters}});
    if(table==="schools")return {data:{id:schoolId,name:"Colegio",is_active:true,city:null,region:null},error:null};
-   if(table==="listings")return {data:filters.range
-     ? listings.slice(filters.range[0],filters.range[1]+1):listings,error:null};
+   if(table==="listings"){
+     let page=listings.filter(x=>!filters["id-gt"] || x.id>filters["id-gt"]);
+     if(filters.limit!==undefined)page=page.slice(0,filters.limit);
+     else if(filters.range)page=page.slice(filters.range[0],filters.range[1]+1);
+     if(reverseSecondPage && listingPages===1)page=[...page].reverse();
+     if(deleteFirstListingAfterPage && listingPages===0)listings.shift();
+     listingPages++;
+     return {data:page,error:null};
+   }
    if(table==="profiles")return {data:null,count:missingMembersCount?null:membersCount,error:null};
    if(table==="user_roles")return {data:null,count:missingAdminsCount?null:adminsCount,error:null};
    if(table==="agreements")return {data:[],error:null};
@@ -45,9 +56,11 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
    if(table==="reports"){
     if(incidentError)return {data:null,error:new Error("REPORTS_DB_FAILURE")};
     if(!Array.isArray(filters.listing_id))throw Error("CROSS_SCHOOL_REPORT_QUERY");
-    const matching=allReports.filter(x=>filters.listing_id.includes(x.listing_id));
-    return {data:filters.range
-      ? matching.slice(filters.range[0],filters.range[1]+1):matching,error:null};
+    const matching=allReports.filter(x=>filters.listing_id.includes(x.listing_id))
+      .filter(x=>!filters["id-gt"] || x.id>filters["id-gt"]);
+    return {data:filters.limit!==undefined
+      ? matching.slice(0,filters.limit)
+      : filters.range?matching.slice(filters.range[0],filters.range[1]+1):matching,error:null};
    }
    throw Error("unexpected "+table);
   }
@@ -119,8 +132,9 @@ test("more than 1000 school listings are loaded completely across ordered bounde
  assert.equal(report.activeListings,1101);
  const pages=h.records.filter(q=>q.table==="listings");
  assert.equal(pages.length,5);
- assert.deepEqual(Array.from(pages.map(q=>q.filters.range)),[
-  [0,249],[250,499],[500,749],[750,999],[1000,1249],
+ assert.deepEqual(Array.from(pages.map(q=>q.filters.limit)),[250,250,250,250,250]);
+ assert.deepEqual(Array.from(pages.map(q=>q.filters["id-gt"])),[
+  undefined,uuid(349),uuid(599),uuid(849),uuid(1099),
  ]);
  assert.ok(pages.every(q=>q.filters.order[0]==="id"));
  assert.equal(h.records.filter(q=>q.table==="reports").length,15);
@@ -128,4 +142,17 @@ test("more than 1000 school listings are loaded completely across ordered bounde
 test("pagination fails closed rather than silently showing first 1000 of >10000",async()=>{
  const h=harness({listingCount:10001});
  await assert.rejects(h.load(),/SCHOOL_REPORT_ROW_LIMIT_EXCEEDED/);
+});
+
+test("keyset does not skip next page when an earlier listing is deleted during pagination",async()=>{
+ const h=harness({listingCount:601,deleteFirstListingAfterPage:true});
+ const report=await h.load();
+ assert.equal(report.activeListings,601);
+ const pages=h.records.filter(q=>q.table==="listings");
+ assert.equal(pages.length,3);
+ assert.equal(pages[1].filters["id-gt"],uuid(349));
+});
+test("out-of-order keyset page fails closed before publishing incomplete school KPIs",async()=>{
+ const h=harness({listingCount:600,reverseSecondPage:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_PAGINATION_INCONSISTENT/);
 });
