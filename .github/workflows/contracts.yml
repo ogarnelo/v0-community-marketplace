@@ -145,3 +145,6 @@ jobs:
         run: node --test __tests__/launch/p0-pg17-two-buyers-concurrency-contract.test.mjs
       - name: Manual school report monthly deduplication using audit and marker
         run: node --test __tests__/launch/school-impact-manual-send-postflight-runtime.test.mjs
+
+      - name: Report subscription edits must preserve last delivered month
+        run: node --test __tests__/launch/pilot-report-subscription-marker-preservation.test.mjs
