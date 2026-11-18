@@ -157,3 +157,6 @@ jobs:
 
       - name: Buy-now delivery input must reject free shipping before reservation
         run: node --test __tests__/launch/p0-buy-now-delivery-input-runtime.test.mjs
+
+      - name: Payment service must not downgrade captured or processing intents
+        run: node --test __tests__/launch/p0-payment-draft-no-downgrade-runtime.test.mjs

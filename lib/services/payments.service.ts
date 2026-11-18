@@ -11,15 +11,17 @@ export function normalizeCheckoutSelection(input: {
   deliveryMethod?: unknown;
   shipmentTier?: unknown;
 }) {
-  const deliveryMethod: DeliveryMethod = isDeliveryMethod(input.deliveryMethod)
-    ? input.deliveryMethod
-    : "shipping";
-
-  const shipmentTier: ShipmentTier = isShipmentTier(input.shipmentTier)
-    ? input.shipmentTier
-    : deliveryMethod === "shipping"
-      ? "small"
-      : "none";
+  if (input.deliveryMethod !== undefined && !isDeliveryMethod(input.deliveryMethod))
+    throw new Error("Método de entrega inválido.");
+  if (input.shipmentTier !== undefined && !isShipmentTier(input.shipmentTier))
+    throw new Error("Tamaño de envío inválido.");
+  const deliveryMethod: DeliveryMethod = input.deliveryMethod === undefined
+    ? "shipping" : input.deliveryMethod as DeliveryMethod;
+  const shipmentTier: ShipmentTier = input.shipmentTier === undefined
+    ? (deliveryMethod === "shipping" ? "small" : "none")
+    : input.shipmentTier as ShipmentTier;
+  if (deliveryMethod === "shipping" && shipmentTier === "none")
+    throw new Error("El envío requiere un tamaño con portes.");
 
   if (deliveryMethod === "in_person") {
     return { deliveryMethod, shipmentTier: "none" as const };
@@ -72,8 +74,8 @@ export async function buildPaymentQuote(params: {
   shipmentTier?: unknown;
 }) {
   const { supabase, offerId, buyerId, deliveryMethod, shipmentTier } = params;
-  const acceptedOffer = await getAcceptedOfferForBuyer({ supabase, offerId, buyerId });
   const selection = normalizeCheckoutSelection({ deliveryMethod, shipmentTier });
+  const acceptedOffer = await getAcceptedOfferForBuyer({ supabase, offerId, buyerId });
 
   return {
     offer: acceptedOffer.offer,
@@ -116,10 +118,38 @@ export async function createPaymentIntentDraft(params: {
   const now = new Date().toISOString();
   const paymentStatus = "requires_payment_method";
 
-  const { data: paymentIntent, error } = await supabase
-    .from("payment_intents")
-    .upsert(
-      {
+  const columns = "id,status,amount,currency,provider,offer_id,listing_id,conversation_id,buyer_id,seller_id,buyer_fee_amount,shipping_amount,seller_net_amount,platform_fee_amount,shipment_tier,metadata";
+  const { data: previous, error: readError } = await supabase
+    .from("payment_intents").select(columns).eq("offer_id", offer.id).maybeSingle();
+  if (readError) throw new Error("No se pudo comprobar el pago existente.");
+
+  const centsEqual = (actual: unknown, expected: number) =>
+    actual !== null && actual !== undefined && Number.isFinite(Number(actual)) &&
+    Math.round(Number(actual) * 100) === Math.round(expected * 100);
+  const compatible = (item: any) =>
+    typeof item?.id === "string" && item.id.length > 0 &&
+    item.status === "requires_payment_method" && item.provider === "stripe" &&
+    item.offer_id === offer.id && item.listing_id === offer.listing_id &&
+    item.buyer_id === offer.buyer_id && item.seller_id === offer.seller_id &&
+    (item.conversation_id ?? null) === (conversation?.id ?? null) &&
+    item.currency === "EUR" && item.shipment_tier === quote.shipmentTier &&
+    item.metadata?.source === "offer_acceptance" &&
+    item.metadata?.delivery_method === quote.deliveryMethod &&
+    centsEqual(item.amount, quote.itemAmount) &&
+    centsEqual(item.buyer_fee_amount, quote.buyerFeeAmount) &&
+    centsEqual(item.shipping_amount, quote.shippingAmount) &&
+    centsEqual(item.seller_net_amount, quote.sellerNetAmount) &&
+    centsEqual(item.platform_fee_amount, quote.buyerFeeAmount);
+
+  let paymentIntent: any;
+  if (previous) {
+    if (!compatible(previous))
+      throw new Error("Ya existe un pago con otro estado o condiciones; requiere conciliación.");
+    paymentIntent = previous; // read-only retry, never downgrade an already paid row
+  } else {
+    const { data: created, error: insertError } = await supabase
+      .from("payment_intents")
+      .insert({
         listing_id: offer.listing_id,
         conversation_id: conversation?.id || null,
         offer_id: offer.id,
@@ -140,18 +170,15 @@ export async function createPaymentIntentDraft(params: {
           total_buyer_amount: quote.totalBuyerAmount,
         },
         updated_at: now,
-      },
-      { onConflict: "offer_id" }
-    )
-    .select("id, status, amount, currency, buyer_fee_amount, shipping_amount, seller_net_amount, platform_fee_amount, shipment_tier, metadata")
-    .single();
-
-  if (error || !paymentIntent) {
-    throw new Error(error?.message || "No se pudo preparar el pago.");
+      })
+      .select(columns).single();
+    if (insertError?.code === "23505")
+      throw new Error("Ya existe un pago concurrente; comprueba su estado antes de repetir.");
+    if (insertError || !created) throw new Error("No se pudo preparar el pago.");
+    if (!compatible(created))
+      throw new Error("El pago se creó, pero requiere conciliación antes de continuar.");
+    paymentIntent = created;
   }
 
-  return {
-    paymentIntent,
-    quote,
-  };
+  return { paymentIntent, quote };
 }
