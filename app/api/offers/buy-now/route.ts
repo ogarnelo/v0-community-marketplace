@@ -108,7 +108,10 @@ export async function POST(request: Request) {
     // availability compare-and-set. A losing request must leave no chat,
     // accepted offer, event or payment behind.
     try {
-      await reserveAvailableListing({ admin, listingId });
+      await reserveAvailableListing({
+        admin, listingId, expectedSellerId: listing.seller_id,
+        expectedPrice: itemAmount,
+      });
       listingReserved = true;
     } catch (error) {
       if (error instanceof BuyNowReservationError) {
