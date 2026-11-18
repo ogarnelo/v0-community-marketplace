@@ -37,10 +37,14 @@ function fixture(options = {}) {
       events.push("FROM:"+table);
       let selectedColumns = "";
       const q = {
-        select: (columns) => {selectedColumns=String(columns);return q;}, eq: () => q,
+        select: (columns) => {selectedColumns=String(columns);return q;}, eq: () => q, limit: () => q,
         is: (column,value) => { if (column==="last_sent_month") events.push("MARKER_IS_NULL:"+String(value));return q; },
         returns: async () => ({data:[subscription],error:options.subscriptionError?{message:"PRIVATE_SUBSCRIPTION_SQL"}:null}),
         maybeSingle: async () => {
+          if (table === "school_impact_report_deliveries") {
+            return {data:options.priorDelivery ? {id:"synthetic-prior-delivery"} : null,
+              error:options.deliveryLookupError ? {message:"PRIVATE_AUDIT_SQL"} : null};
+          }
           if (table === "user_roles") {
             roleReads++;
             return {data:options.revokedRole ||
@@ -284,4 +288,19 @@ test("a valid subscription recheck runs after PDF and before email provider",asy
  assert.ok(from.length>=3);
  assert.ok(from[1]>h.events.indexOf("PDF"));
  assert.ok(from[1]<h.events.indexOf("EMAIL"));
+});
+
+test("cron never resends a private PDF after manual delivery audit committed but marker missed",async()=>{
+ const h=fixture({priorDelivery:true}),r=await h.run();
+ assert.equal(r.body.sent,0);assert.equal(r.body.skipped,1);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.equal(h.events.includes("DELIVERY"),false);
+ assert.equal(h.events.includes("UPDATE"),false);
+ assert.ok(h.events.indexOf("FROM:school_impact_report_deliveries")>h.events.indexOf("PDF"));
+});
+test("cron fails closed if delivery audit is unavailable, without emailing or leaking SQL",async()=>{
+ const h=fixture({deliveryLookupError:true}),r=await h.run();
+ assert.equal(r.body.failed,1);assert.equal(r.body.sent,0);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_AUDIT_SQL|school@example.invalid/);
 });
