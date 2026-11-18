@@ -54,15 +54,17 @@ export async function POST(request: Request) {
       | null;
 
     // An invalid or incomplete request must not silently disable a user's
-    // scheduled report or reset its configured delivery day.
+    // scheduled report or reset its configured delivery day. The dashboard
+    // always submits a concrete day. Require it rather than falling back to
+    // day 1 on a partial request (even when only disabling a subscription).
     if (!body || typeof body.enabled !== "boolean" ||
         (body.email !== undefined && typeof body.email !== "string") ||
-        (body.dayOfMonth !== undefined && !Number.isInteger(body.dayOfMonth))) {
+        !Number.isInteger(body.dayOfMonth)) {
       return privateJson({ error: "Configuración de informe inválida." }, { status: 400 });
     }
     const enabled = body.enabled;
     const email = (body.email || user.email || "").trim().toLowerCase();
-    const dayOfMonth = body.dayOfMonth === undefined ? 1 : body.dayOfMonth;
+    const dayOfMonth = body.dayOfMonth;
 
     // Only the authenticated user's verified address may receive school reports.
     // A supplied address cannot redirect a report to an arbitrary third party.
