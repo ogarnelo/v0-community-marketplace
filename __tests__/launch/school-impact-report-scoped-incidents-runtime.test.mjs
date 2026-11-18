@@ -13,7 +13,8 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
  membersCount=2400,adminsCount=20,missingMembersCount=false,missingAdminsCount=false,
  deleteFirstListingAfterPage=false,reverseSecondPage=false,
  inactiveSchool=false,deactivateSchoolAfterFirstRead=false,
- schoolReadErrorAfterFirst=false,schoolIdChangedAfterFirst=false}={}){
+ schoolReadErrorAfterFirst=false,schoolIdChangedAfterFirst=false,
+ agreementRows=[]}={}){
  const records=[];
  let schoolReads=0;
  let listingPages=0;
@@ -63,7 +64,10 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
    }
    if(table==="profiles")return {data:null,count:missingMembersCount?null:membersCount,error:null};
    if(table==="user_roles")return {data:null,count:missingAdminsCount?null:adminsCount,error:null};
-   if(table==="agreements")return {data:[],error:null};
+   if(table==="agreements"){
+     const filtered=agreementRows.filter(x=>!filters["id-gt"] || x.id>filters["id-gt"]);
+     return {data:filters.limit!==undefined?filtered.slice(0,filters.limit):filtered,error:null};
+   }
    if(table==="listing_views")return {data:null,count:missingViewCount?null:viewCount,error:null};
    if(table==="reports"){
     if(incidentError)return {data:null,error:new Error("REPORTS_DB_FAILURE")};
@@ -195,4 +199,44 @@ test("active school report checks school identity twice, before and after data l
  assert.equal(h.records[0].table,"schools");
  assert.equal(h.records.at(-1).table,"schools");
  assert.ok(reads.every(q=>q.filters.id===schoolId));
+});
+
+const confirmedAgreement=(n, listing, type="sale", amount=20)=>({
+ id:uuid(n),listing_id:uuid(listing),agreement_type:type,status:"confirmed",
+ amount,confirmed_at:"2026-06-01T12:00:00Z",created_at:"2026-06-01T12:00:00Z",
+});
+test("two confirmed agreements for one listing fail closed instead of double counting reuse",async()=>{
+ const h=harness({agreementRows:[
+  confirmedAgreement(3001,100,"sale",25),
+  confirmedAgreement(3002,100,"donation",null),
+ ]});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_DUPLICATE_CONFIRMED_LISTING/);
+});
+test("distinct confirmed sale and donation reconcile item counts and exclude donated value",async()=>{
+ const h=harness({agreementRows:[
+  confirmedAgreement(3001,100,"sale",25),
+  confirmedAgreement(3002,101,"donation",null),
+ ]});
+ const report=await h.load();
+ assert.equal(report.reusedItems,2);
+ assert.equal(report.soldItems,1);
+ assert.equal(report.donatedItems,1);
+ assert.equal(report.circularValue,25);
+});
+test("unsupported agreement type and invalid amounts abort report",async()=>{
+ for(const row of [
+  confirmedAgreement(3001,100,"barter",10),
+  confirmedAgreement(3001,100,"sale",-10),
+  confirmedAgreement(3001,100,"sale",Infinity),
+ ]){
+  const h=harness({agreementRows:[row]});
+  await assert.rejects(h.load(),/SCHOOL_REPORT_AGREEMENT_(TYPE|AMOUNT)_INVALID/);
+ }
+});
+test("circular-value overflow aborts report before publishing Infinity",async()=>{
+ const h=harness({agreementRows:[
+  confirmedAgreement(3001,100,"sale",Number.MAX_VALUE),
+  confirmedAgreement(3002,101,"sale",Number.MAX_VALUE),
+ ]});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE/);
 });
