@@ -96,6 +96,31 @@ export async function GET(request: Request) {
       return privateJson({ error: "Centro no disponible." }, { status: 403 });
     }
 
+    // A school-admin role or login can be revoked during the expensive
+    // report load. Recheck the SAME authorization path before emitting PDF;
+    // a new or different grant must not retroactively authorize this read.
+    const { data: currentAuth, error: currentAuthError } = await supabase.auth.getUser();
+    if (currentAuthError) {
+      return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+    }
+    if (!currentAuth?.user || currentAuth.user.id !== user.id) {
+      return privateJson({ error: "Sesión no autorizada." }, { status: 403 });
+    }
+    const { data: currentRoles, error: currentRolesError } = await supabase
+      .from("user_roles")
+      .select("role, school_id")
+      .eq("user_id", user.id);
+    if (currentRolesError || !Array.isArray(currentRoles)) {
+      return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    }
+    const sameGrantStillActive = schoolAdminRole?.school_id
+      ? currentRoles.some(role => role.role === "school_admin" &&
+          role.school_id === schoolId)
+      : isSuperAdmin && currentRoles.some(role => role.role === "super_admin");
+    if (!sameGrantStillActive) {
+      return privateJson({ error: "Permiso revocado." }, { status: 403 });
+    }
+
     const pdf = renderSchoolImpactPdf(report);
     const filename = `wetudy-impacto-${safeFilename(report.school.name) || "centro"}-${report.periodKey}.pdf`;
 

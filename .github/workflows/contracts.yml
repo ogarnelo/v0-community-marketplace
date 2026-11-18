@@ -127,3 +127,5 @@ jobs:
         run: node --test __tests__/launch/federation-dashboard-local-preview-runtime.test.mjs
       - name: School impact reporting incidents read only own listings
         run: node --test __tests__/launch/school-impact-report-scoped-incidents-runtime.test.mjs
+      - name: School impact PDF must reauthorize after privileged reads
+        run: node --test __tests__/launch/school-impact-pdf-postflight-runtime.test.mjs
