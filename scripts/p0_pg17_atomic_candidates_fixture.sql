@@ -76,6 +76,17 @@ CREATE TABLE public.payment_intents(
  buyer_fee_amount numeric,shipping_amount numeric,
  seller_net_amount numeric,shipment_tier text,metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- Mirror the UNIQUE indexes observed in production through read-only
+-- pg_indexes. These constraints prevent duplicate conversation/payment rows
+-- and make the atomic test closer to the live checkout data model.
+CREATE UNIQUE INDEX conversations_listing_buyer_seller_idx
+ ON public.conversations(listing_id,buyer_id,seller_id);
+CREATE UNIQUE INDEX payment_intents_offer_unique_idx
+ ON public.payment_intents(offer_id) WHERE offer_id IS NOT NULL;
+CREATE UNIQUE INDEX listing_offers_active_negotiation_idx
+ ON public.listing_offers(listing_id,buyer_id,seller_id)
+ WHERE status IN ('pending','countered');
+
 CREATE TABLE public.school_impact_report_subscriptions(
  id uuid PRIMARY KEY,
  user_id uuid NOT NULL,
