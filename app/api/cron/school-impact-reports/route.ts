@@ -109,6 +109,47 @@ export async function GET(request: Request) {
       }
 
       const pdf = renderSchoolImpactPdf(report);
+
+      // This cron is privileged and can spend time reading paginated reports.
+      // A subscription must not outlive a revoked school-admin grant, a newly
+      // unverified email or a deactivated school. Revalidate ALL conditions
+      // immediately before the irreversible external provider call.
+      const { data: freshAccount, error: freshAccountError } =
+        await admin.auth.admin.getUserById(subscription.user_id);
+      if (freshAccountError) throw new Error("school_impact_recipient_recheck_unavailable");
+      const freshRecipient = freshAccount?.user;
+      if (!freshRecipient || freshRecipient.id !== subscription.user_id ||
+          !freshRecipient.email_confirmed_at || !freshRecipient.email ||
+          freshRecipient.email.trim().toLowerCase() !== subscription.email.trim().toLowerCase()) {
+        skipped += 1;
+        continue;
+      }
+
+      const { data: freshRole, error: freshRoleError } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .eq("user_id", subscription.user_id)
+        .eq("school_id", subscription.school_id)
+        .eq("role", "school_admin")
+        .maybeSingle();
+      if (freshRoleError) throw new Error("school_impact_role_recheck_unavailable");
+      if (!freshRole) {
+        skipped += 1;
+        continue;
+      }
+
+      const { data: freshSchool, error: freshSchoolError } = await admin
+        .from("schools")
+        .select("id, is_active")
+        .eq("id", subscription.school_id)
+        .maybeSingle();
+      if (freshSchoolError) throw new Error("school_impact_school_recheck_unavailable");
+      if (!freshSchool || freshSchool.id !== subscription.school_id ||
+          freshSchool.is_active !== true) {
+        skipped += 1;
+        continue;
+      }
+
       const emailResult = await sendMonthlySchoolImpactEmail({
         to: subscription.email,
         report,
