@@ -17,7 +17,7 @@ export async function prepareBuyNowPaymentIntent(params: {
   pricing: Pricing; deliveryMethod: string; now: string;
 }) {
   const {admin, listing, userId, offerId, conversationId, pricing, deliveryMethod, now} = params;
-  const columns = "id,amount,currency,status,provider,offer_id,listing_id,buyer_id,seller_id,school_id,buyer_fee_amount,shipping_amount,seller_net_amount,shipment_tier,metadata";
+  const columns = "id,amount,currency,status,provider,offer_id,listing_id,conversation_id,buyer_id,seller_id,school_id,buyer_fee_amount,shipping_amount,seller_net_amount,shipment_tier,metadata";
   const { data: previous, error: previousError } = await admin.from("payment_intents")
     .select(columns).eq("offer_id", offerId).maybeSingle();
   if (previousError) throw new BuyNowPaymentError(503, "No se pudo verificar el intento de pago.");
@@ -26,8 +26,8 @@ export async function prepareBuyNowPaymentIntent(params: {
     a !== null && a !== undefined && Number.isFinite(Number(a)) &&
     Math.round(Number(a)*100) === Math.round(b*100);
   const compatible = (i: any) =>
-    i?.status === "requires_payment_method" && i.provider === "stripe" &&
-    i.offer_id === offerId && i.listing_id === listing.id &&
+    typeof i?.id === "string" && i.id.length > 0 &&\n    i.status === "requires_payment_method" && i.provider === "stripe" &&
+    i.offer_id === offerId && i.listing_id === listing.id &&\n    (i.conversation_id || null) === (conversationId || null) &&
     i.buyer_id === userId && i.seller_id === listing.seller_id &&
     (i.school_id || null) === (listing.school_id || null) &&
     i.currency === "EUR" && i.shipment_tier === pricing.shipmentTier &&
@@ -60,6 +60,14 @@ export async function prepareBuyNowPaymentIntent(params: {
       throw new BuyNowPaymentError(409, "Otro intento de pago ya se ha preparado. Consulta su estado antes de reintentar.");
     }
     if(createError || !created) throw new BuyNowPaymentError(503, "No se pudo preparar el checkout.");
+    // PostgREST may return a persisted row altered by defaults/triggers. The
+    // returned intent is financial evidence; never tell checkout it is ready
+    // unless the stored amounts, actors, conversation and provider match the
+    // requested quote exactly. An unexpected row needs reconciliation, not
+    // another INSERT or a blind retry.
+    if (!compatible(created)) {
+      throw new BuyNowPaymentError(503, "El pago creado requiere conciliación antes de continuar.");
+    }
     result=created;
   }
   return { id: result.id, amount: result.amount, currency: result.currency, status: result.status };
