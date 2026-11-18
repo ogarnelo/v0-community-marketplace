@@ -56,6 +56,9 @@ async function manualMonthDeliveryState(
 }
 
 export async function POST(request: Request) {
+  // Once the provider has accepted the email, an exception cannot safely be
+  // presented as a failed send: the caller might retry a private PDF.
+  let providerAccepted = false;
   try {
     const supabase = await createClient();
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -203,6 +206,7 @@ export async function POST(request: Request) {
       report,
       pdf,
     });
+    providerAccepted = true;
 
     const providerMessageId =
       emailResult && typeof emailResult === "object" && "id" in emailResult && typeof emailResult.id === "string"
@@ -279,7 +283,17 @@ export async function POST(request: Request) {
       message: `Informe de ${period.label} enviado a ${email}.`,
     });
   } catch {
-    console.error("school_impact_manual_send_failed");
+    // The provider has already accepted an external side effect. Do not
+    // disclose provider/SQL details or signal a retry-safe failed delivery.
+    console.error(providerAccepted
+      ? "school_impact_manual_postaccept_reconciliation_required"
+      : "school_impact_manual_send_failed");
+    if (providerAccepted) {
+      return privateJson(
+        { error: "El informe se envió, pero su registro requiere conciliación. Revisa el historial antes de repetir." },
+        { status: 503 }
+      );
+    }
     return privateJson({ error: "No se pudo enviar el informe." }, { status: 500 });
   }
 }
