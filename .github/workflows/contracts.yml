@@ -137,3 +137,5 @@ jobs:
         run: node --test __tests__/launch/pilot-buy-now-reservation-cas.test.mjs
       - name: P0 atomic buy-now candidate remains review-only
         run: node --test __tests__/launch/p0-buy-now-atomic-candidate-contract.test.mjs
+      - name: P0 cron durable claim contract remains review-only
+        run: node --test __tests__/launch/p0-school-impact-cron-claim-contract.test.mjs
