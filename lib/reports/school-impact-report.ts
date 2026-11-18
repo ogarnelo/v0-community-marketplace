@@ -182,6 +182,34 @@ export async function loadSchoolImpactReport(params: {
   if (schoolResult.data.is_active !== true)
     throw new Error("SCHOOL_REPORT_INACTIVE");
 
+  // Best-effort concurrency fence: compare authoritative row counts before
+  // and after paginating. This detects insert/delete drift, but CANNOT replace
+  // a transaction-wide REPEATABLE READ snapshot (updates preserving counts
+  // are still possible). Fail instead of publishing a known-partial report.
+  async function readSourceCounts() {
+    const listingCountQuery = admin
+      .from("listings")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .eq("is_demo", false);
+    let agreementCountQuery = admin
+      .from("agreements")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .eq("status", "confirmed")
+      .lt("confirmed_at", end.toISOString());
+    if (start) agreementCountQuery = agreementCountQuery.gte("confirmed_at", start.toISOString());
+    const [l, a] = await Promise.all([listingCountQuery, agreementCountQuery]);
+    if (l.error) throw l.error;
+    if (a.error) throw a.error;
+    if (!Number.isSafeInteger(l.count) || l.count < 0 ||
+        !Number.isSafeInteger(a.count) || a.count < 0)
+      throw new Error("SCHOOL_REPORT_SOURCE_COUNT_UNAVAILABLE");
+    return { listings: l.count, agreements: a.count };
+  }
+
+  const initialCounts = await readSourceCounts();
+
   const [
     listingsResult,
     membersResult,
@@ -320,6 +348,13 @@ export async function loadSchoolImpactReport(params: {
         openReportListingIds.add(row.listing_id);
     }
   }
+
+  const finalCounts = await readSourceCounts();
+  if (initialCounts.listings !== finalCounts.listings ||
+      initialCounts.agreements !== finalCounts.agreements ||
+      listings.length !== finalCounts.listings ||
+      agreementsResult.length !== finalCounts.agreements)
+    throw new Error("SCHOOL_REPORT_CONCURRENT_SOURCE_CHANGE");
 
   // The school may have been deactivated while several paginated privileged
   // reads were running. Never publish a report after that revocation.
