@@ -13,16 +13,23 @@ function fixture(options = {}) {
   const events = [];
   const logs = [];
   const output = {};
+  let accountReads = 0, roleReads = 0, schoolReads = 0;
   const subscription = {
     id: SUB, school_id: SCHOOL, user_id: USER,
     email: "school@example.invalid", day_of_month: 17, last_sent_month: null,
   };
   const admin = {
     auth: { admin: { getUserById: async () => {
+      accountReads++;
       events.push("ACCOUNT");
-      return {data:{user:{id:USER,email:options.mismatchedEmail
+      return {data:{user:{id:USER,email:options.mismatchedEmail ||
+          options.emailChangedDuringReport && accountReads > 1
         ? "other@example.invalid":"school@example.invalid",
-        email_confirmed_at:options.unverified?null:"2026-11-01T00:00:00Z"}},error:null};
+        email_confirmed_at:options.unverified ||
+          options.unverifiedDuringReport && accountReads > 1
+          ? null:"2026-11-01T00:00:00Z"}},
+        error:options.accountRecheckError && accountReads > 1
+          ? new Error("PRIVATE_ACCOUNT") : null};
     } } },
     from(table) {
       events.push("FROM:"+table);
@@ -31,14 +38,26 @@ function fixture(options = {}) {
         is: (column,value) => { if (column==="last_sent_month") events.push("MARKER_IS_NULL:"+String(value));return q; },
         returns: async () => ({data:[subscription],error:options.subscriptionError?{message:"PRIVATE_SUBSCRIPTION_SQL"}:null}),
         maybeSingle: async () => {
-          if (table === "user_roles") return {
-            data:options.revokedRole?null:{user_id:USER},error:null,
-          };
+          if (table === "user_roles") {
+            roleReads++;
+            return {data:options.revokedRole ||
+                options.roleRevokedDuringReport && roleReads > 1
+                  ? null : {user_id:USER},
+              error:options.roleRecheckError && roleReads > 1
+                ? {message:"PRIVATE_ROLE"} : null};
+          }
           if (table === "school_impact_report_subscriptions") return {data:options.markerMissing?null:{id:SUB},error:options.markerError?{message:"PRIVATE_MARKER_SQL"}:null};
-          if (table === "schools") return {
-            data:options.missingSchool?null:{id:SCHOOL,is_active:!options.inactiveSchool},
-            error:options.schoolError?{message:"PRIVATE_SCHOOL_SQL"}:null,
-          };
+          if (table === "schools") {
+            schoolReads++;
+            return {
+              data:options.missingSchool?null:{id:SCHOOL,
+                is_active:!(options.inactiveSchool ||
+                  options.schoolDeactivatedDuringReport && schoolReads > 1)},
+              error:options.schoolError ||
+                  options.schoolRecheckError && schoolReads > 1
+                ? {message:"PRIVATE_SCHOOL_SQL"}:null,
+            };
+          }
           throw Error("Unexpected maybeSingle: "+table);
         },
         insert: () => { events.push("DELIVERY"); return q; },
@@ -170,4 +189,45 @@ test("sent-marker query error after provider acceptance requires manual reconcil
  assert.equal(result.body.failed,1);
  assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_MARKER_SQL|school@example.invalid/);
+});
+
+test("cron freshly checks account, role and school after the PDF but before email",async()=>{
+ const h=fixture(),result=await h.run();
+ assert.equal(result.body.sent,1);
+ assert.equal(h.events.filter(x=>x==="ACCOUNT").length,2);
+ assert.equal(h.events.filter(x=>x==="FROM:user_roles").length,2);
+ assert.equal(h.events.filter(x=>x==="FROM:schools").length,2);
+ const pdfAt=h.events.indexOf("PDF");
+ const emailAt=h.events.indexOf("EMAIL");
+ assert.ok(pdfAt>=0 && emailAt>pdfAt);
+ assert.ok(h.events.lastIndexOf("ACCOUNT")>pdfAt);
+ assert.ok(h.events.lastIndexOf("FROM:schools")<emailAt);
+});
+test("revoked role or deactivated school while report loads prevents cron email",async()=>{
+ for(const opts of [{roleRevokedDuringReport:true},{schoolDeactivatedDuringReport:true}]){
+  const h=fixture(opts),result=await h.run();
+  assert.equal(result.body.sent,0);
+  assert.equal(result.body.skipped,1);
+  assert.ok(h.events.includes("REPORT"));
+  assert.equal(h.events.includes("EMAIL"),false);
+  assert.equal(h.events.includes("UPDATE"),false);
+ }
+});
+test("recipient changes or becomes unverified during report generation prevents email",async()=>{
+ for(const opts of [{emailChangedDuringReport:true},{unverifiedDuringReport:true}]){
+  const h=fixture(opts),result=await h.run();
+  assert.equal(result.body.sent,0);
+  assert.equal(result.body.skipped,1);
+  assert.equal(h.events.includes("EMAIL"),false);
+ }
+});
+test("cron recheck outages never send private PDF and do not leak diagnostics",async()=>{
+ for(const opts of [{accountRecheckError:true},{roleRecheckError:true},
+   {schoolRecheckError:true}]){
+  const h=fixture(opts),result=await h.run();
+  assert.equal(result.body.failed,1);
+  assert.equal(result.body.sent,0);
+  assert.equal(h.events.includes("EMAIL"),false);
+  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ACCOUNT|PRIVATE_ROLE|PRIVATE_SCHOOL_SQL/);
+ }
 });
