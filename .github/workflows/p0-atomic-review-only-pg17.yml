@@ -1,0 +1,56 @@
+name: P0 atomic SQL candidates in isolated PostgreSQL 17
+
+on:
+  pull_request:
+    paths:
+      - "scripts/p0_*_candidate_review_only.sql"
+      - "scripts/p0_pg17_atomic_candidates_*.sql"
+      - ".github/workflows/p0-atomic-review-only-pg17.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/p0_*_candidate_review_only.sql"
+      - "scripts/p0_pg17_atomic_candidates_*.sql"
+      - ".github/workflows/p0-atomic-review-only-pg17.yml"
+
+jobs:
+  isolated-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: wetudy_synthetic_only
+          POSTGRES_DB: wetudy_p0_synthetic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_p0_synthetic"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install disposable PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Run candidates ONLY on isolated service container
+        env:
+          PGPASSWORD: wetudy_synthetic_only
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGDATABASE: wetudy_p0_synthetic
+        run: |
+          set -euo pipefail
+          # Fixed local target, no DATABASE_URL or production secret interpolation.
+          test "$PGHOST" = "127.0.0.1"
+          test "$PGDATABASE" = "wetudy_p0_synthetic"
+          for script in \
+            scripts/p0_pg17_atomic_candidates_fixture.sql \
+            scripts/p0_buy_now_atomic_candidate_review_only.sql \
+            scripts/p0_school_impact_cron_claim_candidate_review_only.sql \
+            scripts/p0_pg17_atomic_candidates_smoke.sql
+          do
+            psql -X -v ON_ERROR_STOP=1 -q -f "$script"
+          done
+          echo "PG17 synthetic checkout rollback and cron claim: PASS"
