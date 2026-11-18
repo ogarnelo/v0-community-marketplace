@@ -183,7 +183,9 @@ export async function POST(request: Request) {
           offered_price: itemAmount,
           current_amount: itemAmount,
           accepted_amount: itemAmount,
-          current_actor: "closed",
+          // PostgreSQL listing_offers_current_actor_check only permits
+          // buyer, seller or NULL. A terminal accepted offer has no actor.
+          current_actor: null,
           rounds_count: 1,
           status: "accepted",
           responded_at: now,
