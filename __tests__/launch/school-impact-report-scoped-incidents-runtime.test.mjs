@@ -14,8 +14,9 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
  deleteFirstListingAfterPage=false,reverseSecondPage=false,
  inactiveSchool=false,deactivateSchoolAfterFirstRead=false,
  schoolReadErrorAfterFirst=false,schoolIdChangedAfterFirst=false,
- agreementRows=[]}={}){
+ agreementRows=[],scopeOverrides={}}={}){
  const records=[];
+ let adminClients=0;
  let schoolReads=0;
  let listingPages=0;
  const listings=Array.from({length:listingCount},(_,i)=>({
@@ -85,14 +86,16 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
  const out={};
  vm.runInNewContext(js,{exports:out,require:name=>{
   if(name==="server-only")return {};
-  if(name==="@/lib/supabase/admin")return {createAdminClient:()=>({from:makeQuery})};
+  if(name==="@/lib/supabase/admin")return {createAdminClient:()=>{adminClients++;return {from:makeQuery}}};
   throw Error(name);
  },Date,Set,Map,Intl,Number,Error,TextEncoder,Array,Math},
  {filename:"school-impact-report.cjs",timeout:1500});
- return {records,listings,load:()=>out.loadSchoolImpactReport({
-  schoolId,start:new Date("2026-01-01T00:00:00Z"),
-  end:new Date("2026-12-01T00:00:00Z"),periodLabel:"Informe",periodKey:"365d",
- })};
+ return {records,listings,adminClientCount:()=>adminClients,
+  load:()=>out.loadSchoolImpactReport({
+    schoolId,start:new Date("2026-01-01T00:00:00Z"),
+    end:new Date("2026-12-01T00:00:00Z"),periodLabel:"Informe",periodKey:"365d",
+    ...scopeOverrides,
+  })};
 }
 test("open incident reads stay scoped to each school's listing IDs with bounded chunks",async()=>{
  const h=harness(),result=await h.load();
@@ -239,4 +242,27 @@ test("circular-value overflow aborts report before publishing Infinity",async()=
   confirmedAgreement(3002,101,"sale",Number.MAX_VALUE),
  ]});
  await assert.rejects(h.load(),/SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE/);
+});
+
+test("malformed school ID, temporal windows and labels deny before a privileged client is created",async()=>{
+ for(const scopeOverrides of [
+  {schoolId:"invalid"},
+  {end:new Date("invalid")},
+  {start:new Date("2026-12-01T00:00:00Z")},
+  {start:new Date("2026-12-02T00:00:00Z")},
+  {periodLabel:""},
+  {periodKey:"../arbitrary"},
+  {periodLabel:"x".repeat(129)},
+ ]){
+  const h=harness({scopeOverrides});
+  await assert.rejects(h.load(),/SCHOOL_REPORT_INVALID_SCOPE_OR_PERIOD/);
+  assert.equal(h.adminClientCount(),0);
+  assert.equal(h.records.length,0);
+ }
+});
+test("valid monthly school report scope is accepted by all callers",async()=>{
+ const h=harness({scopeOverrides:{periodKey:"2026-10",periodLabel:"Octubre de 2026"}});
+ const report=await h.load();
+ assert.equal(report.periodKey,"2026-10");
+ assert.equal(h.adminClientCount(),1);
 });
