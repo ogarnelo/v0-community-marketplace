@@ -69,6 +69,13 @@ function fixture(options = {}) {
   };
   const mocks = {
     "@/lib/supabase/admin":{createAdminClient:()=>admin},
+    "@/lib/reports/school-impact-cron-subscriptions":{
+      loadDueSchoolImpactSubscriptions:async()=> {
+        events.push("FROM:school_impact_report_subscriptions");
+        if(options.subscriptionError)throw Error("PRIVATE_SUBSCRIPTION_SQL");
+        return [subscription];
+      },
+    },
     "@/lib/reports/school-impact-report":{
       loadSchoolImpactReport:async()=>{events.push("REPORT");return {
         school:{is_active:!options.reportInactive},
