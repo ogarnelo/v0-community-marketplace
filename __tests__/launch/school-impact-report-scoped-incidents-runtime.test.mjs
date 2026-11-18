@@ -48,7 +48,7 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
        return {data:null,error:new Error("SCHOOL_REVALIDATION_UNAVAILABLE")};
      return {data:{
        id:schoolIdChangedAfterFirst && schoolReads>1?otherSchool:schoolId,
-       name:"Colegio",is_active:!(inactiveSchool || deactivateSchoolAfterFirst && schoolReads>1),
+       name:"Colegio",is_active:!(inactiveSchool || deactivateSchoolAfterFirstRead && schoolReads>1),
        city:null,region:null,
      },error:null};
    }
