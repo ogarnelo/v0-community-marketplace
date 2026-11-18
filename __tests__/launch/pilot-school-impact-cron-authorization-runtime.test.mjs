@@ -24,13 +24,13 @@ function fixture(options = {}) {
     auth: { admin: { getUserById: async () => {
       accountReads++;
       events.push("ACCOUNT");
-      return {data:{user:{id:USER,email:options.mismatchedEmail ||
+      return {data:{user:{id:options.wrongUserId?"33333333-3333-4333-8333-333333333333":USER,email:options.mismatchedEmail ||
           options.emailChangedDuringReport && accountReads > 1
         ? "other@example.invalid":"school@example.invalid",
         email_confirmed_at:options.unverified ||
           options.unverifiedDuringReport && accountReads > 1
           ? null:"2026-11-01T00:00:00Z"}},
-        error:options.accountRecheckError && accountReads > 1
+        error:options.accountOutage || options.accountRecheckError && accountReads > 1
           ? new Error("PRIVATE_ACCOUNT") : null};
     } } },
     from(table) {
@@ -311,4 +311,21 @@ test("provider accepted but audit INSERT throws: reconciliation counted and no p
  assert.equal(r.body.unrecorded,1);assert.equal(r.body.ok,false);
  assert.equal(h.events.filter(x=>x==="EMAIL").length,1);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_THROW_SQL|school@example.invalid|33333333-3333/);
+});
+
+test("Auth provider outage on initial recipient lookup is an incident, not a skipped report",async()=>{
+ const h=fixture({accountOutage:true}),result=await h.run();
+ assert.equal(result.body.ok,false);
+ assert.equal(result.body.failed,1);
+ assert.equal(result.body.skipped,0);
+ assert.equal(result.body.sent,0);
+ assert.equal(h.events.includes("REPORT"),false);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ACCOUNT|school@example.invalid/);
+});
+test("recipient identity mismatch is skipped without privileged report or email",async()=>{
+ const h=fixture({wrongUserId:true}),result=await h.run();
+ assert.equal(result.body.skipped,1);
+ assert.equal(result.body.failed,0);
+ assert.equal(h.events.includes("EMAIL"),false);
 });
