@@ -125,19 +125,31 @@ export async function startCheckoutSession(params: {
   const expectedTotalCents = Math.round(pricing.totalBuyerAmount * 100)
   const { data: existingPayment, error: existingPaymentError } = await adminSupabase
     .from('payment_intents')
-    .select('id, status, shipment_tier, metadata, buyer_id, seller_id, listing_id, provider')
+    .select('id, status, amount, currency, buyer_fee_amount, shipping_amount, seller_net_amount, conversation_id, shipment_tier, metadata, buyer_id, seller_id, listing_id, provider')
     .eq('offer_id', offerId)
     .maybeSingle()
 
   if (existingPaymentError) {
     throw new Error('No se pudo comprobar el checkout anterior.')
   }
+  const exactCents = (stored: unknown, quoted: number) =>
+    stored !== undefined && stored !== null &&
+    Number.isFinite(Number(stored)) &&
+    Math.round(Number(stored) * 100) === Math.round(quoted * 100)
   if (existingPayment && (
     existingPayment.status !== 'requires_payment_method' ||
     existingPayment.buyer_id !== user.id ||
     existingPayment.seller_id !== typedOffer.seller_id ||
     existingPayment.listing_id !== typedOffer.listing_id ||
-    existingPayment.provider !== 'stripe'
+    (existingPayment.conversation_id ?? null) !== (conversation?.id ?? null) ||
+    existingPayment.provider !== 'stripe' ||
+    existingPayment.currency !== 'EUR' ||
+    existingPayment.shipment_tier !== pricing.shipmentTier ||
+    existingPayment.metadata?.delivery_method !== pricing.deliveryMethod ||
+    !exactCents(existingPayment.amount, pricing.itemAmount) ||
+    !exactCents(existingPayment.buyer_fee_amount, pricing.buyerFeeAmount) ||
+    !exactCents(existingPayment.shipping_amount, pricing.shippingAmount) ||
+    !exactCents(existingPayment.seller_net_amount, pricing.sellerNetAmount)
   )) {
     // Never create a Stripe session or downgrade succeeded/processing payments,
     // even when the historical record has no checkout session metadata.
@@ -156,6 +168,17 @@ export async function startCheckoutSession(params: {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error desconocido'
       throw new Error(`No se pudo reconciliar la sesión Stripe previa: ${message}`)
+    }
+
+    // A saved session ID is not proof of ownership. Stripe is the authority
+    // for the invoice and parties, not the metadata in our payment table.
+    if (previousSession.metadata?.offer_id !== offerId ||
+        previousSession.metadata?.buyer_id !== user.id ||
+        previousSession.metadata?.seller_id !== typedOffer.seller_id ||
+        previousSession.metadata?.listing_id !== typedOffer.listing_id ||
+        previousSession.amount_total !== expectedTotalCents ||
+        previousSession.currency !== 'eur') {
+      throw new Error('La sesión Stripe previa no coincide con la operación y requiere conciliación.')
     }
 
     if (previousSession.payment_status === 'paid') {
@@ -243,6 +266,13 @@ export async function startCheckoutSession(params: {
   } catch (stripeError: unknown) {
     const errorMessage = stripeError instanceof Error ? stripeError.message : 'Error desconocido de Stripe'
     throw new Error(`Error al crear sesión de Stripe: ${errorMessage}`)
+  }
+
+  // Never persist a checkout or reserve its listing if Stripe's returned
+  // invoice differs from the quote, or if the embeddable secret is absent.
+  if (!session.id || !session.client_secret ||
+      session.amount_total !== expectedTotalCents || session.currency !== 'eur') {
+    throw new Error('La sesión Stripe creada no coincide con el importe y requiere conciliación.')
   }
 
   const now = new Date().toISOString()
