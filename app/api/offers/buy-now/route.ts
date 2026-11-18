@@ -46,14 +46,27 @@ export async function POST(request: Request) {
     }
     if (!isPublicCommerceEnabled()) assertStripeTestMode();
 
-    const body = await request.json();
-    const listingId = typeof body?.listingId === "string" ? body.listingId.trim() : "";
-    const deliveryMethod = isDeliveryMethod(body?.deliveryMethod) ? body.deliveryMethod : "in_person";
-    const shipmentTier = isShipmentTier(body?.shipmentTier)
-      ? body.shipmentTier
-      : deliveryMethod === "shipping"
-        ? "small"
-        : "none";
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return privateJson({ error: "Solicitud de compra inválida." }, { status: 400 });
+    }
+    const listingId = typeof body.listingId === "string" ? body.listingId.trim() : "";
+    // A malformed explicit delivery method must not silently downgrade to
+    // in-person checkout; likewise shipping tier "none" cannot mean free
+    // shipping. Reject these before the irreversible listing reservation.
+    if (body.deliveryMethod !== undefined && !isDeliveryMethod(body.deliveryMethod)) {
+      return privateJson({ error: "Método de entrega inválido." }, { status: 400 });
+    }
+    const deliveryMethod: DeliveryMethod = body.deliveryMethod ?? "in_person";
+    if (body.shipmentTier !== undefined && !isShipmentTier(body.shipmentTier)) {
+      return privateJson({ error: "Tipo de envío inválido." }, { status: 400 });
+    }
+    if (deliveryMethod === "shipping" && body.shipmentTier === "none") {
+      return privateJson({ error: "Debes seleccionar un tamaño de envío válido." }, { status: 400 });
+    }
+    const shipmentTier: ShipmentTier = deliveryMethod === "shipping"
+      ? body.shipmentTier ?? "small"
+      : "none";
 
     if (!listingId) {
       return privateJson({ error: "Falta el anuncio." }, { status: 400 });
