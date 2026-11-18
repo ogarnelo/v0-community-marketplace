@@ -295,3 +295,27 @@ test("unknown exact source count fails closed before reading school activity",as
  await assert.rejects(h.load(),/SCHOOL_REPORT_SOURCE_COUNT_UNAVAILABLE/);
  assert.equal(h.records.filter(q=>q.table==="listings" && q.filters.limit!==undefined).length,0);
 });
+
+test("sale amounts are summed as exact integer cents rather than binary floats",async()=>{
+ const h=harness({agreementRows:[
+  confirmedAgreement(3001,100,"sale",0.1),
+  confirmedAgreement(3002,101,"sale",0.2),
+ ]});
+ const report=await h.load();
+ assert.equal(report.circularValue,0.3);
+ assert.equal(report.reusedItems,2);
+});
+test("sales without amounts and subcent amounts cannot publish misleading monetary KPI",async()=>{
+ for(const amount of [null,0.001,2.345]){
+  const h=harness({agreementRows:[confirmedAgreement(3001,100,"sale",amount)]});
+  await assert.rejects(h.load(),/SCHOOL_REPORT_AGREEMENT_AMOUNT_INVALID/);
+ }
+});
+test("a sum exceeding safe integer cents aborts even if the euro sum is still finite",async()=>{
+ const value=Number.MAX_SAFE_INTEGER/100*0.7;
+ const h=harness({agreementRows:[
+  confirmedAgreement(3001,100,"sale",value),
+  confirmedAgreement(3002,101,"sale",value),
+ ]});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE/);
+});
