@@ -14,10 +14,12 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
  deleteFirstListingAfterPage=false,reverseSecondPage=false,
  inactiveSchool=false,deactivateSchoolAfterFirstRead=false,
  schoolReadErrorAfterFirst=false,schoolIdChangedAfterFirst=false,
- agreementRows=[],scopeOverrides={}}={}){
+ agreementRows=[],scopeOverrides={},listingsCountDrift=false,
+ agreementsCountDrift=false,missingSourceCount=false}={}){
  const records=[];
  let adminClients=0;
  let schoolReads=0;
+ let listingCountReads=0,agreementCountReads=0;
  let listingPages=0;
  const listings=Array.from({length:listingCount},(_,i)=>({
   id:uuid(100+i),title:"Libro",category:"libros",isbn:null,
@@ -55,6 +57,11 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
      },error:null};
    }
    if(table==="listings"){
+     if(filters.select?.[1]?.head){
+       listingCountReads++;
+       return {data:null,count:missingSourceCount?null:
+         listings.length+(listingsCountDrift && listingCountReads>1?1:0),error:null};
+     }
      let page=listings.filter(x=>!filters["id-gt"] || x.id>filters["id-gt"]);
      if(filters.limit!==undefined)page=page.slice(0,filters.limit);
      else if(filters.range)page=page.slice(filters.range[0],filters.range[1]+1);
@@ -66,6 +73,11 @@ function harness({listingCount=151,viewCount=2,incidentError=false,missingViewCo
    if(table==="profiles")return {data:null,count:missingMembersCount?null:membersCount,error:null};
    if(table==="user_roles")return {data:null,count:missingAdminsCount?null:adminsCount,error:null};
    if(table==="agreements"){
+     if(filters.select?.[1]?.head){
+       agreementCountReads++;
+       return {data:null,count:missingSourceCount?null:
+         agreementRows.length+(agreementsCountDrift && agreementCountReads>1?1:0),error:null};
+     }
      const filtered=agreementRows.filter(x=>!filters["id-gt"] || x.id>filters["id-gt"]);
      return {data:filters.limit!==undefined?filtered.slice(0,filters.limit):filtered,error:null};
    }
@@ -149,7 +161,7 @@ test("null authoritative admin count fails instead of showing zero",async()=>{
 test("more than 1000 school listings are loaded completely across ordered bounded pages",async()=>{
  const h=harness({listingCount:1101}),report=await h.load();
  assert.equal(report.activeListings,1101);
- const pages=h.records.filter(q=>q.table==="listings");
+ const pages=h.records.filter(q=>q.table==="listings" && q.filters.limit!==undefined);
  assert.equal(pages.length,5);
  assert.deepEqual(Array.from(pages.map(q=>q.filters.limit)),[250,250,250,250,250]);
  assert.deepEqual(Array.from(pages.map(q=>q.filters["id-gt"])),[
@@ -165,9 +177,8 @@ test("pagination fails closed rather than silently showing first 1000 of >10000"
 
 test("keyset does not skip next page when an earlier listing is deleted during pagination",async()=>{
  const h=harness({listingCount:601,deleteFirstListingAfterPage:true});
- const report=await h.load();
- assert.equal(report.activeListings,601);
- const pages=h.records.filter(q=>q.table==="listings");
+ await assert.rejects(h.load(),/SCHOOL_REPORT_CONCURRENT_SOURCE_CHANGE/);
+ const pages=h.records.filter(q=>q.table==="listings" && q.filters.limit!==undefined);
  assert.equal(pages.length,3);
  assert.equal(pages[1].filters["id-gt"],uuid(349));
 });
@@ -265,4 +276,22 @@ test("valid monthly school report scope is accepted by all callers",async()=>{
  const report=await h.load();
  assert.equal(report.periodKey,"2026-10");
  assert.equal(h.adminClientCount(),1);
+});
+
+test("changing listing count during pagination aborts instead of returning misleading KPIs",async()=>{
+ const h=harness({listingsCountDrift:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_CONCURRENT_SOURCE_CHANGE/);
+ const counters=h.records.filter(q=>q.table==="listings" && q.filters.select?.[1]?.head);
+ assert.equal(counters.length,2);
+});
+test("changing confirmed-agreement count during pagination aborts even with unchanged listings",async()=>{
+ const h=harness({agreementsCountDrift:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_CONCURRENT_SOURCE_CHANGE/);
+ const counters=h.records.filter(q=>q.table==="agreements" && q.filters.select?.[1]?.head);
+ assert.equal(counters.length,2);
+});
+test("unknown exact source count fails closed before reading school activity",async()=>{
+ const h=harness({missingSourceCount:true});
+ await assert.rejects(h.load(),/SCHOOL_REPORT_SOURCE_COUNT_UNAVAILABLE/);
+ assert.equal(h.records.filter(q=>q.table==="listings" && q.filters.limit!==undefined).length,0);
 });
