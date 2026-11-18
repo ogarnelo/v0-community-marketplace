@@ -71,8 +71,16 @@ function isSchoolBook(listing: ListingRow | undefined) {
 }
 
 export function previousCalendarMonth(now = new Date()) {
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
+  // The cron's due date is interpreted in Europe/Madrid. Derive the month
+  // from that SAME civil calendar; at 00:30 Madrid on the first day, UTC may
+  // still be on the previous month's last day (in winter AND summer).
+  // Keep existing UTC metric boundaries here: changing the report aggregation
+  // window itself needs a separately reviewed data/methodology migration.
+  const madridParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit",
+  }).formatToParts(now);
+  const year = Number(madridParts.find(p => p.type === "year")?.value);
+  const month = Number(madridParts.find(p => p.type === "month")?.value) - 1;
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 1, 0, 0, 0));
   const label = new Intl.DateTimeFormat("es-ES", {
