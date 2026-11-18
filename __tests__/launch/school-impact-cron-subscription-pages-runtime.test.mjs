@@ -75,5 +75,14 @@ test("invalid due-day never creates privileged queries",async()=>{
  const h=harness();
  await assert.rejects(exported.loadDueSchoolImpactSubscriptions({
   from:()=>{throw Error("NO_QUERY_ALLOWED")}
- },31),/SCHOOL_REPORT_INVALID_CRON_DAY/);
+ },32),/SCHOOL_REPORT_INVALID_CRON_DAY/);
+});
+
+test("days 29-31 skip all scheduled subscriptions without database access",async()=>{
+ for(const day of [29,30,31]){
+  const rows=await exported.loadDueSchoolImpactSubscriptions({
+    from:()=>{throw Error("UNEXPECTED_DB_READ")}
+  },day);
+  assert.equal(rows.length,0);
+ }
 });
