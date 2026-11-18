@@ -16,7 +16,7 @@ export async function sendMonthlySchoolImpactEmail(params: {
   const { report } = params;
   const dashboardUrl = `${getEmailBaseUrl()}/admin/school`;
 
-  return sendBrandedEmail({
+  const delivery = await sendBrandedEmail({
     to: params.to,
     subject: `Informe mensual de impacto · ${report.school.name} · ${report.periodLabel}`,
     idempotencyKey: `school-impact-${report.school.id}-${report.periodKey}-${params.to.toLowerCase()}`,
@@ -63,4 +63,13 @@ export async function sendMonthlySchoolImpactEmail(params: {
       `,
     }),
   });
+  // The lower-level mail helper returns { skipped: true } when mail
+  // credentials/from-address are missing. This is NOT provider acceptance.
+  // Treating it as sent would persist a false audit and last_sent_month,
+  // preventing a real report from ever being delivered.
+  if (delivery && typeof delivery === "object" &&
+      "skipped" in delivery && delivery.skipped === true) {
+    throw new Error("school_impact_mail_provider_not_configured");
+  }
+  return delivery;
 }
