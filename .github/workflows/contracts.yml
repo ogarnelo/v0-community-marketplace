@@ -157,3 +157,6 @@ jobs:
 
       - name: Buy-now delivery input must reject free shipping before reservation
         run: node --test __tests__/launch/p0-buy-now-delivery-input-runtime.test.mjs
+
+      - name: Stripe checkout payment status CAS and strict shipping guard
+        run: node --test __tests__/launch/p0-stripe-checkout-status-cas-runtime.test.mjs
