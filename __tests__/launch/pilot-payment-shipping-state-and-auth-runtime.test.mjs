@@ -161,3 +161,22 @@ test("Sendcloud | proveedor ya creó etiqueta, fallo de escritura NO fuerza fall
  assert.ok(src.indexOf("return privateJson(")<src.indexOf("const adminSupabase = createAdminClient()"));
  assert.doesNotMatch(src,/message: error\?\.message/);
 });
+
+for(const [name,selection] of [
+ ["explicit free shipping",{offerId:ID,deliveryMethod:"shipping",shipmentTier:"none"}],
+ ["invalid delivery method",{offerId:ID,deliveryMethod:"unknown"}],
+ ["unknown shipping tier",{offerId:ID,deliveryMethod:"shipping",shipmentTier:"free"}],
+ ["numeric delivery method",{offerId:ID,deliveryMethod:123}],
+ ["array payload",[]],
+ ["null payload",null],
+]){
+ test("payment_intents | "+name+" rejected before service-role access",async()=>{
+  const h=runtime("payments","app/api/payments/create-intent/route.ts");
+  const r=await h.post(selection);
+  assert.equal(r.status,400,name);
+  assert.equal(r.cache,"private, no-store");
+  assert.equal(h.call.includes("ADMIN"),false);
+  assert.equal(h.call.some(x=>x.startsWith("INSERT:")),false);
+  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_SQL|NEVER_UPSERT/);
+ });
+}
