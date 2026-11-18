@@ -158,18 +158,23 @@ export async function loadSchoolImpactReport(params: {
   const admin = createAdminClient();
   const { schoolId, start, end } = params;
 
+  // Fail closed BEFORE privileged reads for inactive/deleted schools.
+  const schoolResult = await admin
+    .from("schools")
+    .select("id, name, city, region, is_active")
+    .eq("id", schoolId)
+    .maybeSingle<SchoolRow>();
+  if (schoolResult.error) throw schoolResult.error;
+  if (!schoolResult.data) throw new Error("Centro no encontrado.");
+  if (schoolResult.data.is_active !== true)
+    throw new Error("SCHOOL_REPORT_INACTIVE");
+
   const [
-    schoolResult,
     listingsResult,
     membersResult,
     adminsResult,
     agreementsResult,
   ] = await Promise.all([
-    admin
-      .from("schools")
-      .select("id, name, city, region, is_active")
-      .eq("id", schoolId)
-      .maybeSingle<SchoolRow>(),
     readAllSchoolImpactRows<ListingRow>((afterId, limit) => {
       let query = admin
         .from("listings")
@@ -208,9 +213,6 @@ export async function loadSchoolImpactReport(params: {
         .returns<AgreementRow[]>();
     }),
   ]);
-
-  if (schoolResult.error) throw schoolResult.error;
-  if (!schoolResult.data) throw new Error("Centro no encontrado.");
 
   if (membersResult.error) throw membersResult.error;
   if (adminsResult.error) throw adminsResult.error;
@@ -288,6 +290,18 @@ export async function loadSchoolImpactReport(params: {
         openReportListingIds.add(row.listing_id);
     }
   }
+
+  // The school may have been deactivated while several paginated privileged
+  // reads were running. Never publish a report after that revocation.
+  const freshSchool = await admin
+    .from("schools")
+    .select("id, is_active")
+    .eq("id", schoolId)
+    .maybeSingle<Pick<SchoolRow, "id" | "is_active">>();
+  if (freshSchool.error) throw freshSchool.error;
+  if (!freshSchool.data || freshSchool.data.id !== schoolId ||
+      freshSchool.data.is_active !== true)
+    throw new Error("SCHOOL_REPORT_INACTIVE");
 
   return {
     school: schoolResult.data,
