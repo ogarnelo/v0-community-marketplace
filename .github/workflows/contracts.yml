@@ -148,3 +148,6 @@ jobs:
 
       - name: Report subscription edits must preserve last delivered month
         run: node --test __tests__/launch/pilot-report-subscription-marker-preservation.test.mjs
+
+      - name: School report provider skipped must not mark a fake delivery
+        run: node --test __tests__/launch/school-impact-mail-skipped-runtime.test.mjs
