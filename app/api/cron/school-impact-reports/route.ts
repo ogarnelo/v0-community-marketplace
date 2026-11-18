@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     subscriptions = await loadDueSchoolImpactSubscriptions(admin, day);
   } catch {
     console.error("school_impact_cron_subscriptions_read_failed");
-    return Response.json({ ok: false }, { status: 500 });
+    return Response.json({ ok: false }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
 
   let sent = 0;
@@ -266,5 +266,10 @@ export async function GET(request: Request) {
     skipped,
     failed,
     unrecorded,
+  }, {
+    // A completed HTTP request is not a healthy cron execution if any
+    // recipient or post-provider audit requires reconciliation.
+    status: failed > 0 || unrecorded > 0 ? 503 : 200,
+    headers: { "Cache-Control": "private, no-store" },
   });
 }
