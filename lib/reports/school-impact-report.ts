@@ -155,8 +155,21 @@ export async function loadSchoolImpactReport(params: {
   periodLabel: string;
   periodKey: string;
 }): Promise<SchoolImpactReport> {
-  const admin = createAdminClient();
+  // All consumers (school-admin PDF, scheduled reports and future federative
+  // readers) share this privileged loader. Reject malformed scope and dates
+  // BEFORE creating a service client or issuing any query.
   const { schoolId, start, end } = params;
+  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof schoolId !== "string" || !uuid.test(schoolId) ||
+      !(end instanceof Date) || !Number.isFinite(end.getTime()) ||
+      (start !== null && (!(start instanceof Date) ||
+        !Number.isFinite(start.getTime()) || start.getTime() >= end.getTime())) ||
+      typeof params.periodLabel !== "string" || !params.periodLabel.trim() ||
+      params.periodLabel.length > 128 ||
+      typeof params.periodKey !== "string" || !/^[a-z0-9_-]{1,40}$/i.test(params.periodKey))
+    throw new Error("SCHOOL_REPORT_INVALID_SCOPE_OR_PERIOD");
+
+  const admin = createAdminClient();
 
   // Fail closed BEFORE privileged reads for inactive/deleted schools.
   const schoolResult = await admin
