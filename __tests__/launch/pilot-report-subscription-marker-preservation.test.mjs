@@ -58,3 +58,14 @@ test("malformed email type cannot cause an unexpected server exception",async()=
  const r=await run("existing",{enabled:true,email:123,dayOfMonth:12});
  assert.equal(r.status,400);assert.equal(r.writes.length,0);
 });
+
+test("omitting scheduled day never resets an existing preference to day one",async()=>{
+ const r=await run("existing",{enabled:true});
+ assert.equal(r.status,400);
+ assert.equal(r.writes.length,0);
+});
+test("even disabling requires explicit day and cannot reset stored schedule",async()=>{
+ const r=await run("existing",{enabled:false});
+ assert.equal(r.status,400);
+ assert.equal(r.writes.length,0);
+});
