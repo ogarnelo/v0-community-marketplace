@@ -5,15 +5,7 @@ import {
   renderSchoolImpactPdf,
 } from "@/lib/reports/school-impact-report";
 import { sendMonthlySchoolImpactEmail } from "@/lib/emails/school-impact-report-email";
-
-type SubscriptionRow = {
-  id: string;
-  school_id: string;
-  user_id: string;
-  email: string;
-  day_of_month: number;
-  last_sent_month: string | null;
-};
+import { loadDueSchoolImpactSubscriptions } from "@/lib/reports/school-impact-cron-subscriptions";
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
@@ -36,14 +28,12 @@ export async function GET(request: Request) {
   const period = previousCalendarMonth(now);
   const admin = createAdminClient();
 
-  const { data: subscriptions, error } = await admin
-    .from("school_impact_report_subscriptions")
-    .select("id, school_id, user_id, email, day_of_month, last_sent_month")
-    .eq("enabled", true)
-    .eq("day_of_month", day)
-    .returns<SubscriptionRow[]>();
-
-  if (error) {
+  // Fail before any email on truncated or inconsistent due subscriptions.
+  // PostgREST's default row cap previously allowed a partial daily batch.
+  let subscriptions;
+  try {
+    subscriptions = await loadDueSchoolImpactSubscriptions(admin, day);
+  } catch {
     console.error("school_impact_cron_subscriptions_read_failed");
     return Response.json({ ok: false }, { status: 500 });
   }
