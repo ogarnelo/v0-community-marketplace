@@ -231,40 +231,22 @@ export async function POST(request: Request) {
       console.error("school_impact_manual_delivery_record_failed");
     }
 
-    const { data: existingSubscription, error: subscriptionReadError } = await admin
+    // Only advance the monthly marker. Reading configuration then UPSERTing
+    // that stale snapshot would overwrite a concurrent enabled/day change.
+    const { data: updatedSubscription, error: subscriptionWriteError } = await admin
       .from("school_impact_report_subscriptions")
-      .select("enabled, day_of_month")
+      .update({ last_sent_month: period.key, updated_at: new Date().toISOString() })
       .eq("school_id", schoolRole.school_id)
       .eq("user_id", user.id)
-      .maybeSingle<{ enabled: boolean; day_of_month: number }>();
+      .select("id")
+      .maybeSingle();
 
-    if (subscriptionReadError) {
-      // The provider already accepted the email. Do not misreport this as a
-      // failed send: a retry could deliver the same private PDF twice.
+    if (subscriptionWriteError || !updatedSubscription?.id) {
+      // The provider already accepted this PDF. Missing/failed marker is an
+      // uncertain delivery state: do not INSERT a replacement subscription
+      // or silently rewrite a user's concurrent configuration change.
       return privateJson(
         { error: "El informe se envió, pero no se pudo conciliar la suscripción. Revisa el historial antes de repetir." },
-        { status: 503 }
-      );
-    }
-
-    const { error: subscriptionWriteError } = await admin
-      .from("school_impact_report_subscriptions")
-      .upsert(
-        {
-          school_id: schoolRole.school_id,
-          user_id: user.id,
-          email,
-          enabled: existingSubscription?.enabled ?? false,
-          day_of_month: existingSubscription?.day_of_month ?? 1,
-          last_sent_month: period.key,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "school_id,user_id" }
-      );
-
-    if (subscriptionWriteError) {
-      return privateJson(
-        { error: "El informe se envió, pero no se pudo actualizar la suscripción. Revisa el historial antes de repetir." },
         { status: 503 }
       );
     }
