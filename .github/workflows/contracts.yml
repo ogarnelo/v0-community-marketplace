@@ -141,3 +141,5 @@ jobs:
         run: node --test __tests__/launch/p0-school-impact-cron-claim-contract.test.mjs
       - name: School impact subscription write requires fresh school authorization
         run: node --test __tests__/launch/school-impact-subscription-postflight-runtime.test.mjs
+      - name: Two-buyer isolated PG17 concurrency harness integrity
+        run: node --test __tests__/launch/p0-pg17-two-buyers-concurrency-contract.test.mjs

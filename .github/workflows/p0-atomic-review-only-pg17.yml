@@ -6,6 +6,7 @@ on:
       - "scripts/p0_*_candidate_review_only.sql"
       - "scripts/p0_pg17_atomic_candidates_*.sql"
       - "scripts/p0_pg17_concurrent_claim_smoke.sh"
+      - "scripts/p0_pg17_concurrent_buy_now_smoke.sh"
       - ".github/workflows/p0-atomic-review-only-pg17.yml"
   push:
     branches: [main]
@@ -56,3 +57,4 @@ jobs:
           done
           echo "PG17 synthetic checkout rollback and cron claim: PASS"
           bash scripts/p0_pg17_concurrent_claim_smoke.sh
+          bash scripts/p0_pg17_concurrent_buy_now_smoke.sh
