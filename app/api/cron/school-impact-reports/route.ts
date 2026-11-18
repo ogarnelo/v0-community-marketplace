@@ -49,6 +49,9 @@ export async function GET(request: Request) {
       continue;
     }
 
+    let providerAccepted = false;
+    let auditRecorded = false;
+    let auditFailedCounted = false;
     try {
       // Revalidate legacy subscriptions at send time: a saved arbitrary email
       // must never bypass the restriction introduced on the API routes.
@@ -187,6 +190,8 @@ export async function GET(request: Request) {
         pdf,
       });
 
+      providerAccepted = true;
+
       const providerMessageId =
         emailResult && typeof emailResult === "object" && "id" in emailResult && typeof emailResult.id === "string"
           ? emailResult.id
@@ -208,8 +213,11 @@ export async function GET(request: Request) {
         // The provider has accepted the report. Preserve last_sent_month to
         // avoid a duplicate next run, but surface that its audit row is missing.
         unrecorded += 1;
+        auditFailedCounted = true;
         console.error("school_impact_cron_delivery_record_failed");
       }
+
+      if (!deliveryError) auditRecorded = true;
 
       let markerUpdate = admin
         .from("school_impact_report_subscriptions")
@@ -232,6 +240,11 @@ export async function GET(request: Request) {
       }
       sent += 1;
     } catch {
+      // If provider accepted the email but the audit could not be verified,
+      // preserve that uncertainty explicitly. Never claim a retry-safe send.
+      if (providerAccepted && !auditRecorded && !auditFailedCounted) {
+        unrecorded += 1;
+      }
       // Subscription IDs and provider/SQL exception messages may contain private
       // details. Report aggregate failure only, never echo individual records.
       failed += 1;
