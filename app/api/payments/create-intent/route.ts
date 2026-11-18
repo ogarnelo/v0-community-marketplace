@@ -71,12 +71,13 @@ export async function POST(request: Request) {
 
     const adminSupabase = createAdminClient();
 
-    const { data: offer } = await adminSupabase
+    const { data: offer, error: offerError } = await adminSupabase
       .from("listing_offers")
       .select("id, listing_id, buyer_id, seller_id, offered_price, current_amount, accepted_amount, counter_price, status")
       .eq("id", offerId)
       .maybeSingle();
 
+    if (offerError) return privateJson({ error: "No se pudo comprobar la oferta." }, { status: 503 });
     if (!offer) {
       return privateJson({ error: "Oferta no encontrada." }, { status: 404 });
     }
@@ -101,27 +102,30 @@ export async function POST(request: Request) {
       shipmentTier,
     });
 
-    const { data: listing } = await adminSupabase
+    const { data: listing, error: listingError } = await adminSupabase
       .from("listings")
       .select("id, status")
       .eq("id", offer.listing_id)
       .maybeSingle();
 
+    if (listingError) return privateJson({ error: "No se pudo comprobar el anuncio." }, { status: 503 });
     if (!listing) {
       return privateJson({ error: "El anuncio ya no está disponible." }, { status: 404 });
     }
 
-    if (!["available", "reserved", "sold"].includes(String(listing.status))) {
+    if (!["available", "reserved"].includes(String(listing.status))) {
       return privateJson({ error: "El anuncio no permite preparar el pago." }, { status: 400 });
     }
 
-    const { data: conversation } = await adminSupabase
+    const { data: conversation, error: conversationError } = await adminSupabase
       .from("conversations")
       .select("id")
       .eq("listing_id", offer.listing_id)
       .eq("buyer_id", offer.buyer_id)
       .eq("seller_id", offer.seller_id)
       .maybeSingle();
+
+    if (conversationError) return privateJson({ error: "No se pudo comprobar el chat." }, { status: 503 });
 
     const now = new Date().toISOString();
 
@@ -134,9 +138,10 @@ export async function POST(request: Request) {
       return privateJson({ error: "No se pudo verificar el intento de pago." }, { status: 503 });
     }
     const sameCents = (a: unknown,b: number) =>
-      Number.isFinite(Number(a)) && Math.round(Number(a)*100) === Math.round(b*100);
+      a !== null && a !== undefined && Number.isFinite(Number(a)) && Math.round(Number(a)*100) === Math.round(b*100);
     const compatible = (intent: any) =>
-      intent?.status === "requires_payment_method" &&
+      typeof intent?.id === "string" && intent.id.length > 0 &&
+      intent.status === "requires_payment_method" &&
       intent.offer_id === offer.id && intent.listing_id === offer.listing_id &&
       intent.buyer_id === offer.buyer_id && intent.seller_id === offer.seller_id &&
       intent.currency === "EUR" && intent.shipment_tier === pricing.shipmentTier &&
@@ -186,15 +191,29 @@ export async function POST(request: Request) {
       if (insertError || !inserted) {
         return privateJson({ error: "No se pudo preparar el pago." }, { status: 503 });
       }
+      // INSERT success alone does not prove the stored payment kept its
+      // original amounts and ownership. After this write, fail as requiring
+      // reconciliation, never signal that a retry is safe.
+      if (!compatible(inserted)) {
+        return privateJson({ error: "El pago creado requiere conciliación." }, { status: 503 });
+      }
       paymentIntent = inserted;
     }
 
     if (listing.status === "available") {
-      await adminSupabase
+      // The intent has already been stored. An unconfirmed CAS means the
+      // listing may have been reserved by a different buyer; do not report
+      // success while financial and listing states disagree.
+      const { data: reserved, error: reserveError } = await adminSupabase
         .from("listings")
         .update({ status: "reserved" })
         .eq("id", listing.id)
-        .eq("status", "available");
+        .eq("status", "available")
+        .select("id")
+        .maybeSingle();
+      if (reserveError || reserved?.id !== listing.id) {
+        return privateJson({ error: "El pago se creó, pero la reserva requiere conciliación." }, { status: 503 });
+      }
     }
 
     return privateJson({
