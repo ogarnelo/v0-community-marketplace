@@ -33,12 +33,16 @@ function runtime(op,path,opts={}){
  }}};
  const admin={from:(name)=>{
   call.push("FROM:"+name);
+  let updating=false;
   const q={select:()=>q,eq:()=>q,limit:()=>q,
    maybeSingle:async()=>{
     if(name==="payment_intents")return {data:opts.previous||null,error:opts.readError?{message:"PRIVATE_SQL"}:null};
-    if(name==="listing_offers")return {data:offer,error:null};
-    if(name==="listings")return {data:{id:ID,status:"available"},error:null};
-    if(name==="conversations")return {data:{id:ID},error:null};
+    if(name==="listing_offers")return {data:offer,error:opts.offerReadError?{message:"PRIVATE_OFFER"}:null};
+    if(name==="listings")return {data:updating
+      ?opts.reserveMissing?null:{id:ID}
+      :{id:ID,status:opts.listingStatus||"available"},
+      error:updating&&opts.reserveError||opts.listingReadError?{message:"PRIVATE_LISTING"}:null};
+    if(name==="conversations")return {data:{id:ID},error:opts.conversationReadError?{message:"PRIVATE_CONVERSATION"}:null};
     if(name==="shipments")return {data:opts.shipment||null,error:opts.shipError?{message:"PRIVATE_SQL"}:null};
     return {data:null,error:null};
    },
@@ -46,13 +50,13 @@ function runtime(op,path,opts={}){
     call.push("INSERT:"+name);
     if(name==="payment_intents"){
       call.push("PAYMENT_ROW:"+row.status);
-      return {select:()=>({single:async()=>({data:opts.uniqueConflict?null:payrow,
+      return {select:()=>({single:async()=>({data:opts.uniqueConflict?null:opts.created??payrow,
         error:opts.uniqueConflict?{code:"23505"}:null})})};
     }
     return Promise.resolve({error:null});
    },
    upsert:()=>{call.push("UPSERT:"+name);throw Error("NEVER_UPSERT_PAYMENT");},
-   update:()=>{call.push("UPDATE:"+name);return q;},
+   update:()=>{updating=true;call.push("UPDATE:"+name);return q;},
    then:(resolve,reject)=>Promise.resolve({error:null}).then(resolve,reject)
   };
   return q;
@@ -178,5 +182,35 @@ for(const [name,selection] of [
   assert.equal(h.call.includes("ADMIN"),false);
   assert.equal(h.call.some(x=>x.startsWith("INSERT:")),false);
   assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_SQL|NEVER_UPSERT/);
+ });
+}
+
+for(const [reason,opts] of [
+ ["offer provider read error",{offerReadError:true}],
+ ["listing provider read error",{listingReadError:true}],
+ ["conversation provider read error",{conversationReadError:true}]
+]){
+ test("payment_intents | "+reason+" is HTTP 503 and no INSERT",async()=>{
+  const h=runtime("payments",endpoints[0][1],opts),r=await h.post(endpoints[0][2]);
+  assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
+  assert.equal(h.call.includes("INSERT:payment_intents"),false);
+  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_/);
+ });
+}
+test("payment_intents | sold listing cannot be prepared again",async()=>{
+ const h=runtime("payments",endpoints[0][1],{listingStatus:"sold"});
+ const r=await h.post(endpoints[0][2]);
+ assert.equal(r.status,400);assert.equal(h.call.includes("INSERT:payment_intents"),false);
+});
+for(const [reason,opts] of [
+ ["inserted payment row mismatches quote",{created:{...payrow,amount:1}}],
+ ["listing reservation CAS loses",{reserveMissing:true}],
+ ["listing reservation database outage",{reserveError:true}]
+]){
+ test("payment_intents | "+reason+" returns 503 after financial write",async()=>{
+  const h=runtime("payments",endpoints[0][1],opts),r=await h.post(endpoints[0][2]);
+  assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
+  assert.equal(h.call.includes("INSERT:payment_intents"),true);
+  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_/);
  });
 }
