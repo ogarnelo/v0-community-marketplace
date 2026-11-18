@@ -163,3 +163,6 @@ jobs:
 
       - name: Stripe checkout payment status CAS and strict shipping guard
         run: node --test __tests__/launch/p0-stripe-checkout-status-cas-runtime.test.mjs
+
+      - name: Accepted-offer payment read and reservation write confirmation
+        run: node --test __tests__/launch/pilot-payment-shipping-state-and-auth-runtime.test.mjs
