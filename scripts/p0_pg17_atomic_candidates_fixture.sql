@@ -8,6 +8,10 @@ BEGIN
 END
 $roles$;
 
+-- Only within the disposable PostgreSQL service: model Supabase's existing
+-- service_role BYPASSRLS attribute. Client roles retain no bypass.
+ALTER ROLE service_role BYPASSRLS;
+
 CREATE TABLE public.profiles(id uuid PRIMARY KEY);
 CREATE TABLE public.schools(
  id uuid PRIMARY KEY,
