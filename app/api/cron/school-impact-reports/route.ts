@@ -11,7 +11,12 @@ export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    return new Response(null, { status: 204 });
+    // Misconfigured scheduled jobs must not appear healthy (HTTP 204).
+    // Fail without disclosing configuration or starting privileged work.
+    return Response.json({ ok: false }, {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
 
   if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
