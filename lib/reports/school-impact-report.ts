@@ -290,15 +290,26 @@ export async function loadSchoolImpactReport(params: {
     (agreement) => agreement.agreement_type === "donation"
   ).length;
   const soldItems = reusedItems - donatedItems;
-  const circularValue = agreements.reduce(
-    (sum, agreement) =>
-      agreement.agreement_type !== "donation" && typeof agreement.amount === "number"
-        ? sum + agreement.amount
-        : sum,
-    0
-  );
-  if (!Number.isFinite(circularValue) || circularValue < 0)
-    throw new Error("SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE");
+  // Monetary KPI must be accumulated as integer euro cents. Floating point
+  // arithmetic (0.1 + 0.2) otherwise leaks artificial decimals into reports,
+  // and numeric/PostgREST coercion must not silently turn missing sales into 0.
+  let circularCents = 0;
+  for (const agreement of agreements) {
+    if (agreement.agreement_type === "donation") continue;
+    const amount = agreement.amount;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0)
+      throw new Error("SCHOOL_REPORT_AGREEMENT_AMOUNT_INVALID");
+    const rawCents = amount * 100;
+    const cents = Math.round(rawCents);
+    if (!Number.isSafeInteger(cents))
+      throw new Error("SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE");
+    if (Math.abs(rawCents - cents) > 1e-6)
+      throw new Error("SCHOOL_REPORT_AGREEMENT_AMOUNT_INVALID");
+    circularCents += cents;
+    if (!Number.isSafeInteger(circularCents))
+      throw new Error("SCHOOL_REPORT_CIRCULAR_VALUE_UNSAFE");
+  }
+  const circularValue = circularCents / 100;
   const reusedBooks = agreements.filter((agreement) =>
     agreement.listing_id ? isSchoolBook(listingById.get(agreement.listing_id)) : false
   ).length;
