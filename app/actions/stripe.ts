@@ -387,6 +387,11 @@ export async function confirmPaymentComplete(params: {
 
   // Never accept the provider's "paid" flag without an independently
   // consistent persisted invoice, identity and current payment state.
+  // Numeric DB columns may arrive as numbers or decimal strings, but
+  // NULL is never an acceptable zero. Require every monetary field.
+  const moneyFields = [paymentIntent.amount, paymentIntent.buyer_fee_amount, paymentIntent.shipping_amount]
+  const allMoneyPresent = moneyFields.every(value =>
+    value !== null && value !== undefined && value !== '')
   const amount = Number(paymentIntent.amount)
   const buyerFee = Number(paymentIntent.buyer_fee_amount)
   const shipping = Number(paymentIntent.shipping_amount)
@@ -399,6 +404,7 @@ export async function confirmPaymentComplete(params: {
       typeof paymentIntent.seller_id !== 'string' || !paymentIntent.seller_id ||
       paymentIntent.provider !== 'stripe' || paymentIntent.currency !== 'EUR' ||
       paymentIntent.metadata?.source !== 'stripe_checkout' ||
+      !allMoneyPresent ||
       !['requires_payment_method','processing','succeeded'].includes(paymentIntent.status) ||
       ![amount,buyerFee,shipping,total].every(Number.isFinite) ||
       amount <= 0 || buyerFee < 0 || shipping < 0 || total <= 0 ||
