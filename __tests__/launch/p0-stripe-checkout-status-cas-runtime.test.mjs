@@ -11,16 +11,19 @@ const OFFER="44444444-4444-4444-8444-444444444444";
 const PAYMENT="55555555-5555-4555-8555-555555555555";
 const price={itemAmount:15,deliveryMethod:"shipping",shipmentTier:"small",
  buyerFeeAmount:1.45,shippingAmount:2.99,sellerNetAmount:15,totalBuyerAmount:19.44};
+const CHAT="77777777-7777-4777-8777-777777777777";
 const existing={id:PAYMENT,status:"requires_payment_method",shipment_tier:"small",
- buyer_id:BUYER,seller_id:SELLER,listing_id:LISTING,provider:"stripe",metadata:{}};
+ buyer_id:BUYER,seller_id:SELLER,listing_id:LISTING,provider:"stripe",
+ conversation_id:CHAT,amount:15,currency:"EUR",buyer_fee_amount:1.45,
+ shipping_amount:2.99,seller_net_amount:15,metadata:{delivery_method:"shipping"}};
 function fixture(opts={}){
  const events=[],out={};
  const stripe={checkout:{sessions:{
   create:async()=>{
    events.push("STRIPE_CREATE");
-   return {id:"cs_synthetic",client_secret:"secret_synthetic"};
+   return opts.createdSession??{id:"cs_synthetic",client_secret:"secret_synthetic",amount_total:1944,currency:"eur"};
   },
-  retrieve:async()=>{events.push("STRIPE_RETRIEVE");throw Error("MUST_NOT_RETRIEVE")},
+  retrieve:async()=>{events.push("STRIPE_RETRIEVE");if(opts.previousSession)return opts.previousSession;throw Error("MUST_NOT_RETRIEVE")},
   expire:async()=>{events.push("STRIPE_EXPIRE");throw Error("MUST_NOT_EXPIRE")}
  }}};
  const admin={from(table){
@@ -33,7 +36,7 @@ function fixture(opts={}){
     if(table==="listing_offers")return {data:{id:OFFER,listing_id:LISTING,
       buyer_id:BUYER,seller_id:SELLER,status:"accepted",accepted_amount:15,
       listings:{id:LISTING,title:"Synthetic",description:"none",status:"available"}},error:null};
-    if(table==="conversations")return {data:{id:"77777777-7777-4777-8777-777777777777"},error:null};
+    if(table==="conversations")return {data:{id:CHAT},error:null};
     if(table==="payment_intents"){
       if(operation==="update")return {data:opts.updateMissing?null:{id:PAYMENT},
         error:opts.updateError?{message:"PRIVATE_WRITE"}:null};
@@ -133,4 +136,58 @@ test("post-provider payment INSERT conflict requires reconciliation",async()=>{
  await assert.rejects(h.start(),/conciliación/);
  assert.equal(h.events.includes("STRIPE_CREATE"),true);
  assert.equal(h.events.includes("UPSERT"),false);
+});
+
+for(const [reason,record] of [
+ ["wrong item price",{...existing,amount:12}],
+ ["wrong protection fee",{...existing,buyer_fee_amount:0}],
+ ["wrong delivery fee",{...existing,shipping_amount:0}],
+ ["wrong seller net",{...existing,seller_net_amount:12}],
+ ["wrong currency",{...existing,currency:"USD"}],
+ ["wrong shipment tier",{...existing,shipment_tier:"large"}],
+ ["wrong delivery method",{...existing,metadata:{delivery_method:"in_person"}}],
+ ["wrong conversation",{...existing,conversation_id:SELLER}],
+ ["missing price",{...existing,amount:null}],
+]){
+ test(reason+" prevents new Stripe session and payment rewrite",async()=>{
+  const h=fixture({existing:record});
+  await assert.rejects(h.start(),/conciliación/);
+  assert.equal(h.events.includes("STRIPE_CREATE"),false);
+  assert.equal(h.events.includes("UPDATE:payment_intents"),false);
+ });
+}
+for(const [reason,created] of [
+ ["different Stripe amount",{id:"cs_test",client_secret:"secret_test",amount_total:1,currency:"eur"}],
+ ["wrong currency",{id:"cs_test",client_secret:"secret_test",amount_total:1944,currency:"usd"}],
+ ["missing Stripe secret",{id:"cs_test",amount_total:1944,currency:"eur"}],
+]){
+ test(reason+" cannot persist payment or reserve listing",async()=>{
+  const h=fixture({createdSession:created});
+  await assert.rejects(h.start(),/conciliación/);
+  assert.equal(h.events.includes("STRIPE_CREATE"),true);
+  assert.equal(h.events.includes("INSERT:payment_intents"),false);
+  assert.equal(h.events.includes("UPDATE:listings"),false);
+ });
+}
+test("foreign preexisting Stripe session cannot be reused or expired",async()=>{
+ const h=fixture({existing:{...existing,metadata:{
+  delivery_method:"shipping",stripe_checkout_session_id:"cs_foreign"
+ }},previousSession:{id:"cs_foreign",amount_total:1944,currency:"eur",
+  payment_status:"unpaid",status:"open",client_secret:"secret_foreign",
+  metadata:{offer_id:OFFER,buyer_id:SELLER,seller_id:SELLER,listing_id:LISTING}}});
+ await assert.rejects(h.start(),/conciliación/);
+ assert.equal(h.events.includes("STRIPE_RETRIEVE"),true);
+ assert.equal(h.events.includes("STRIPE_CREATE"),false);
+ assert.equal(h.events.includes("STRIPE_EXPIRE"),false);
+});
+test("same verified Stripe session can be reused without writes",async()=>{
+ const h=fixture({existing:{...existing,metadata:{
+  delivery_method:"shipping",stripe_checkout_session_id:"cs_ours"
+ }},previousSession:{id:"cs_ours",amount_total:1944,currency:"eur",
+  payment_status:"unpaid",status:"open",client_secret:"secret_ours",
+  metadata:{offer_id:OFFER,buyer_id:BUYER,seller_id:SELLER,listing_id:LISTING}}});
+ const r=await h.start();
+ assert.equal(r.sessionId,"cs_ours");
+ assert.equal(h.events.includes("STRIPE_CREATE"),false);
+ assert.equal(h.events.includes("UPDATE:payment_intents"),false);
 });
