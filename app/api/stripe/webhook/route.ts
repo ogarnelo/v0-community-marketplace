@@ -144,6 +144,22 @@ async function processCheckoutSessionEvent(
   }
 
   const nextStatus = getNextPaymentStatus(eventType, session);
+  // Stripe events are delivered at least once and out of order. Never
+  // regress a terminal paid state or reopen a failed session, even when an
+  // older "completed / unpaid" event arrives after the final transition.
+  if (paymentIntent.status === "succeeded" && nextStatus !== "succeeded") {
+    return { ignored: true, reason: "payment_already_succeeded" as const };
+  }
+  if (paymentIntent.status === "failed" && nextStatus === "processing") {
+    return { ignored: true, reason: "payment_already_failed" as const };
+  }
+  if (paymentIntent.status === "failed" && nextStatus === "succeeded") {
+    throw new Error("Stripe checkout final statuses conflict and require reconciliation.");
+  }
+  if (!["requires_payment_method", "processing", "failed", "succeeded"].includes(paymentIntent.status)) {
+    throw new Error("Stripe checkout cannot change a terminal payment state.");
+  }
+
   const now = new Date().toISOString();
   let paymentUpdate = admin
     .from("payment_intents")
@@ -152,26 +168,33 @@ async function processCheckoutSessionEvent(
       provider_payment_intent_id: getProviderPaymentIntentId(session),
       updated_at: now,
     })
-    .eq("id", paymentIntent.id);
+    .eq("id", paymentIntent.id)
+    .eq("status", paymentIntent.status);
 
   if (nextStatus !== "succeeded") {
     paymentUpdate = paymentUpdate.neq("status", "succeeded");
   }
 
-  const { error: paymentUpdateError } = await paymentUpdate;
-  if (paymentUpdateError) {
-    throw paymentUpdateError;
+  const { data: updatedPayment, error: paymentUpdateError } = await paymentUpdate
+    .select("id").maybeSingle();
+  // If a competing webhook/checkout changed the state after our initial
+  // SELECT, the update touches no row. Do not proceed to sell the listing or
+  // create a shipment while the payment outcome is uncertain.
+  if (paymentUpdateError || updatedPayment?.id !== paymentIntent.id) {
+    throw new Error("Stripe checkout state changed concurrently; reconciliation required.");
   }
 
   if (nextStatus === "succeeded" && paymentIntent.listing_id) {
-    const { error: listingUpdateError } = await admin
+    const { data: soldListing, error: listingUpdateError } = await admin
       .from("listings")
       .update({ status: "sold" })
       .eq("id", paymentIntent.listing_id)
-      .in("status", ["available", "reserved"]);
+      .eq("seller_id", paymentIntent.seller_id)
+      .in("status", ["available", "reserved", "sold"])
+      .select("id").maybeSingle();
 
-    if (listingUpdateError) {
-      throw listingUpdateError;
+    if (listingUpdateError || soldListing?.id !== paymentIntent.listing_id) {
+      throw new Error("Stripe payment accepted but listing sale is unconfirmed.");
     }
   }
 
