@@ -106,6 +106,7 @@ async function buildRealPage(){
           "lucide-react":"icon",
           "@/lib/supabase/server":"session",
           "@/lib/supabase/admin":"admin",
+          "@/lib/marketplace/unique-school-admin-context":"schoolrole",
           "@/components/navbar":"navbar",
           "@/components/footer":"footer",
           "@/components/admin/school-admin-dashboard":"dashboard",
@@ -122,6 +123,7 @@ async function buildRealPage(){
             case "icon": contents='import React from "react"; export const Shield=()=>React.createElement("span",null,"Escudo QA");';break;
             case "session": contents="export async function createClient(){return globalThis.__qaAmPaSession();}";break;
             case "admin": contents="export function createAdminClient(){return globalThis.__qaAmPaAdmin();}";break;
+            case "schoolrole": contents=fs.readFileSync(path.join(root,"lib/marketplace/unique-school-admin-context.ts"),"utf8");break;
             case "navbar": contents='import React from "react"; export const Navbar=()=>React.createElement("nav",null,"WETUDY QA");';break;
             case "footer": contents='import React from "react"; export const Footer=()=>React.createElement("footer",null,"QA");';break;
             case "dashboard": contents='import React from "react"; export default function SchoolAdminDashboard(p){return React.createElement("section",{"data-testid":"school-dashboard"},React.createElement("h2",null,p.school?.name),React.createElement("ul",null,...p.listings.map(l=>React.createElement("li",{key:l.id},l.title))),React.createElement("p",null,"CÓDIGOS: "+p.accessCodes.map(c=>c.code).join(",")),React.createElement("p",null,"INCIDENCIAS: "+p.reports.map(r=>r.reason).join(",")),React.createElement("p",null,"MIEMBROS: "+p.memberCount));}';break;
