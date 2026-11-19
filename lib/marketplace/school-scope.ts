@@ -48,3 +48,36 @@ export function makeMarketplaceSchoolFilter(scope: SchoolScope): string | null {
   ].filter(Boolean);
   return clauses.length ? clauses.join(",") : null;
 }
+
+
+/**
+ * Union of currently authenticated family student contexts, never school IDs
+ * provided by request search parameters. Hard cap avoids unbounded privileged
+ * directory lookups and accidental broad queries on malformed records.
+ */
+export async function resolveMarketplaceMultiSchoolScope(
+  contexts: Array<{ schoolId: string | null; directorySchoolCode: string | null }>
+): Promise<SchoolScope> {
+  if (contexts.length > 100) throw new Error("MULTISCHOOL_SCOPE_TOO_LARGE");
+  const uniqueContexts = new Map<string, { schoolId: string; directorySchoolCode: string }>();
+  for (const context of contexts) {
+    const schoolId = context.schoolId?.trim() || "";
+    const directorySchoolCode = context.directorySchoolCode?.trim() || "";
+    // Contradictory or malformed context must fail closed; no silent fallback.
+    if ((schoolId && directorySchoolCode) ||
+        (schoolId && !UUID.test(schoolId)) ||
+        (directorySchoolCode && !OFFICIAL_CODE.test(directorySchoolCode))) {
+      throw new Error("MULTISCHOOL_CONTEXT_INVALID");
+    }
+    if (schoolId || directorySchoolCode) {
+      uniqueContexts.set(`${schoolId}:${directorySchoolCode}`, { schoolId, directorySchoolCode });
+    }
+  }
+  const scopes = await Promise.all(Array.from(uniqueContexts.values()).map(
+    (ctx) => resolveMarketplaceSchoolScope(ctx.schoolId, ctx.directorySchoolCode)
+  ));
+  return {
+    schoolIds: Array.from(new Set(scopes.flatMap((scope) => scope.schoolIds))),
+    directoryCodes: Array.from(new Set(scopes.flatMap((scope) => scope.directoryCodes))),
+  };
+}
