@@ -33,6 +33,8 @@ jobs:
         run: node --test __tests__/launch/pilot-alert-matcher-auth-and-cache-runtime.test.mjs
       - name: Seller published matching must not notify or email while global alert switch OFF
         run: node --test __tests__/launch/p0-alert-seller-global-off-runtime.test.mjs
+      - name: Signed alert worker pause must keep prior failed attempts and correct lease
+        run: node --test __tests__/launch/p0-alert-paused-lease-runtime.test.mjs
       - name: Message send and conversation summary fail closed on Auth outage
         run: node --test __tests__/launch/pilot-message-auth-error-before-admin-runtime.test.mjs
       - name: Distance feed authorization before privileged client creation
@@ -237,3 +239,28 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Manual/cron concurrency, provider ACK and service-only ACL
         run: bash scripts/qa/p0-school-impact-shared-claim-pg17.sh
+
+  alert-pause-pg17:
+    name: Isolated PG17 alert pause fencing
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Pause retains failure history and respects lease ownership and ACL
+        run: bash scripts/qa/p0-alert-pause-pg17.sh
