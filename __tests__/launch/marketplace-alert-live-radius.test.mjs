@@ -64,8 +64,8 @@ test("worker rechecks BOTH channels after active-search join and before sending"
   assert.match(matcher,/const verifyWorkerRecipients = async \(page: any\[\]\)/);
   assert.equal((matcher.match(/await verifyWorkerRecipients\(/g)||[]).length,2);
   assert.match(matcher,/const legacyDeliveryProjection =/);
-  assert.equal((matcher.match(/\\.select\\(deliveryProjection\\)/g)||[]).length,2);
-  assert.match(matcher,/\\.eq\\("saved_searches\\.notifications_enabled", true\\)/);
+  assert.equal((matcher.match(/\.select\(deliveryProjection\)/g)||[]).length,2);
+  assert.match(matcher,/\.eq\("saved_searches\.notifications_enabled", true\)/);
   assert.equal((matcher.match(/\.is\("invalidated_at", null\)/g)||[]).length,5);
   assert.match(matcher,/\.in\("id", ids\)/);
   assert.match(matcher,/invalidation_reason: stale\.reason/);
