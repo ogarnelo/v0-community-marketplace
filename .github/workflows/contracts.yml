@@ -210,3 +210,28 @@ jobs:
 
       - name: School QR sharing is authorized only by one active school_admin
         run: node --test __tests__/launch/p0-share-qr-global-school-scope-runtime.test.mjs
+
+  shared-school-report-pg17:
+    name: Isolated PG17 school report shared-claim race
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Manual/cron concurrency, provider ACK and service-only ACL
+        run: bash scripts/qa/p0-school-impact-shared-claim-pg17.sh
