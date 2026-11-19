@@ -146,7 +146,8 @@ test("signed matcher returns paused 202 before privileged DB under global stop",
 });
 
 test("missing signing secret is unhealthy and cannot access DB or email provider",async()=>{
- for(const cronSecret of [undefined,null,""]){
+ // Undefined applies the fixture default; null models an absent env variable.
+ for(const cronSecret of [null,""]){
   const w=runWorker({cronSecret});
   const res=await w.response;
   assert.equal(res.status,503);
