@@ -169,3 +169,6 @@ jobs:
 
       - name: Stripe webhook invoice identity and registered session attestation
         run: node --test __tests__/launch/p0-stripe-webhook-attestation-runtime.test.mjs
+
+      - name: Shipping label requires payment/actor/price equality before Sendcloud
+        run: node --test __tests__/launch/p0-shipment-label-payment-identity-runtime.test.mjs
