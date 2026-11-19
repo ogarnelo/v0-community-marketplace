@@ -73,11 +73,56 @@ export async function resolveMarketplaceMultiSchoolScope(
       uniqueContexts.set(`${schoolId}:${directorySchoolCode}`, { schoolId, directorySchoolCode });
     }
   }
-  const scopes = await Promise.all(Array.from(uniqueContexts.values()).map(
-    (ctx) => resolveMarketplaceSchoolScope(ctx.schoolId, ctx.directorySchoolCode)
-  ));
-  return {
-    schoolIds: Array.from(new Set(scopes.flatMap((scope) => scope.schoolIds))),
-    directoryCodes: Array.from(new Set(scopes.flatMap((scope) => scope.directoryCodes))),
-  };
+  const directSchoolIds = new Set<string>();
+  const directCodes = new Set<string>();
+  for (const ctx of uniqueContexts.values()) {
+    if (ctx.schoolId) directSchoolIds.add(ctx.schoolId.toLowerCase());
+    if (ctx.directorySchoolCode) directCodes.add(ctx.directorySchoolCode);
+  }
+  if (directSchoolIds.size === 0 && directCodes.size === 0) {
+    return { schoolIds: [], directoryCodes: [] };
+  }
+
+  // Only TWO bounded directory queries regardless of the number of children.
+  // Never silently accept the first Supabase max-row page as a full result.
+  const admin = createAdminClient();
+  const directCodeArray = [...directCodes];
+  const schoolIdArray = [...directSchoolIds];
+  const [linkedForCodes, codesForSchools] = await Promise.all([
+    directCodeArray.length
+      ? admin.from("school_directory")
+        .select("official_code,linked_school_id")
+        .in("official_code", directCodeArray)
+        .limit(1000)
+      : Promise.resolve({ data: [], error: null }),
+    schoolIdArray.length
+      ? admin.from("school_directory")
+        .select("official_code,linked_school_id")
+        .in("linked_school_id", schoolIdArray)
+        .limit(1000)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (linkedForCodes.error || codesForSchools.error) {
+    throw new Error("MULTISCHOOL_DIRECTORY_LOOKUP_FAILED");
+  }
+  if ((linkedForCodes.data?.length || 0) >= 1000 ||
+      (codesForSchools.data?.length || 0) >= 1000) {
+    throw new Error("MULTISCHOOL_DIRECTORY_RESULT_LIMIT");
+  }
+  const schoolIds = new Set(schoolIdArray);
+  const directoryCodes = new Set(directCodeArray);
+  for (const row of linkedForCodes.data || []) {
+    if (directCodes.has(row.official_code) &&
+        typeof row.linked_school_id === "string" && UUID.test(row.linked_school_id)) {
+      schoolIds.add(row.linked_school_id.toLowerCase());
+    }
+  }
+  for (const row of codesForSchools.data || []) {
+    if (typeof row.linked_school_id === "string" &&
+        directSchoolIds.has(row.linked_school_id.toLowerCase()) &&
+        typeof row.official_code === "string" && OFFICIAL_CODE.test(row.official_code)) {
+      directoryCodes.add(row.official_code);
+    }
+  }
+  return { schoolIds: [...schoolIds], directoryCodes: [...directoryCodes] };
 }
