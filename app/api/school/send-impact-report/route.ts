@@ -58,14 +58,14 @@ async function manualMonthDeliveryState(
 /** School reports have exactly one school scope; refuse ambiguous grants. */
 function uniqueSchoolAdminRole(roles: unknown): { school_id: string } | null {
   if (!Array.isArray(roles)) return null;
-  const schools = new Set<string>();
-  for (const role of roles) {
-    if (role?.role !== "school_admin") continue;
-    if (typeof role.school_id !== "string" || !role.school_id) return null;
-    schools.add(role.school_id);
-    if (schools.size > 1) return null;
+  // Exactly one grant, not one distinct school: duplicate grants still
+  // represent an ambiguous role inventory and must never authorize a PDF.
+  const admins = roles.filter(role => role?.role === "school_admin");
+  if (admins.length !== 1 || typeof admins[0]?.school_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(admins[0].school_id)) {
+    return null;
   }
-  return schools.size === 1 ? { school_id: [...schools][0] } : null;
+  return { school_id: admins[0].school_id };
 }
 
 export async function POST(request: Request) {
