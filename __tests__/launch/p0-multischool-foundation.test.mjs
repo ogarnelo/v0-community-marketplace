@@ -38,11 +38,11 @@ test("multi-school resolver is scoped by user and deduplicates memberships",()=>
 });
 test("database review-only guard protects reassignment and owners",()=>{
  const sql=readFileSync("docs/pilot/sql/p0_multischool_listing_school_guard_review_only_20261119.sql","utf8");
- assert.match(sql,/NEW\\.directory_school_code IS NOT DISTINCT FROM OLD\\.directory_school_code/);
+ assert.match(sql,/NEW\.directory_school_code IS NOT DISTINCT FROM OLD\.directory_school_code/);
  assert.match(sql,/BEFORE INSERT OR UPDATE OF school_id, directory_school_code/);
- assert.match(sql,/d\\.official_code = NEW\\.directory_school_code/);
- assert.match(sql,/a\\.directory_school_code = NEW\\.directory_school_code/);
- assert.match(sql,/s\\.is_active = true/);
+ assert.match(sql,/d\.official_code = NEW\.directory_school_code/);
+ assert.match(sql,/a\.directory_school_code = NEW\.directory_school_code/);
+ assert.match(sql,/s\.is_active = true/);
  assert.match(sql,/CREATE TRIGGER validate_listing_school_context/);
  assert.match(sql,/NEW\.seller_id IS DISTINCT FROM actor/);
  assert.match(sql,/NEW\.school_id IS NOT DISTINCT FROM OLD\.school_id/);
