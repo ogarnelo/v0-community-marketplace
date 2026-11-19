@@ -36,6 +36,10 @@ function fixture({failAt=0,noUrlAt=0,cleanupFails=false}={}){
    return {path,publicUrl:urls===noUrlAt?null:"https://fixture.invalid/"+path,
      size:123,contentType:"image/webp"};
  };
+ const cleanupSanitizedPhotoUploads=async paths=>{
+   ops.push(["remove",...paths]);
+   if(cleanupFails)throw Error("PRIVATE_CLEANUP_DIAGNOSTIC");
+ };
  const initialListing={id:lid};
  const currentUserId=uid;
  const newPhotos=[{file:{name:"a.jpg"}},{file:{name:"b.jpg"}}];
@@ -46,7 +50,7 @@ function fixture({failAt=0,noUrlAt=0,cleanupFails=false}={}){
  const exp={};
  vm.runInNewContext(compiled.outputText,{exports:exp,createClient,initialListing,
   currentUserId,newPhotos,visibleExistingPhotos,STORAGE_BUCKET:"listing-photos",
-  sanitizeFileName:x=>x,uploadSanitizedPhoto,Date,console:{error:(...args)=>logs.push(args)}},
+  sanitizeFileName:x=>x,uploadSanitizedPhoto,cleanupSanitizedPhotoUploads,Date,console:{error:(...args)=>logs.push(args)}},
   {filename:"helper.tsx",timeout:1500});
  return {run:exp.uploadNewPhotos,ops,logs};
 }
