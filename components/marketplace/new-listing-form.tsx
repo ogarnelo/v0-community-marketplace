@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
+import { uploadSanitizedPhoto, cleanupSanitizedPhotoUploads } from "@/lib/marketplace/upload-sanitized-photo";
 import { dispatchPublishedListingAlerts } from "@/lib/marketplace/publish-alert-dispatch.mjs";
 import { confirmOwnedListingInsert } from "@/lib/marketplace/confirm-owned-listing-insert.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
@@ -792,8 +792,7 @@ export default function NewListingForm({
       // upload must not leave newly uploaded Storage objects orphaned.
       if (newlyUploadedPaths.length > 0) {
         try {
-          const { error: cleanupError } = await supabase.storage.from(STORAGE_BUCKET).remove(newlyUploadedPaths);
-          if (cleanupError) console.error("new_listing_upload_cleanup_failed");
+          await cleanupSanitizedPhotoUploads(newlyUploadedPaths);
         } catch {
           console.error("new_listing_upload_cleanup_failed");
         }
