@@ -168,7 +168,7 @@ test("both discovery and live delivery re-authorize; notifications stay independ
   assert.match(worker,/WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED === "true"/);
   assert.match(worker,/WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true"/);
   assert.match(worker,/legacySearchProjection \+ ", community_scope_mode"/);
-  assert.match(worker,/loadCurrentFamilyAlertScopes\\(admin,\\s*dynamicUsers\\.slice\\(start, start \\+ 150\\)\\)/);
+  assert.match(worker,/loadCurrentFamilyAlertScopes\(admin,\s*dynamicUsers\.slice\(start, start \+ 150\)\)/);
   assert.match(worker,/loadCurrentFamilyAlertScopes\(admin, deliveryUsers\)/);
   assert.equal((worker.match(/await verifyWorkerRecipients\(/g)||[]).length,2);
   assert.match(worker,/WETUDY_SAVED_SEARCH_ALERTS_ENABLED !== "true"/);
