@@ -172,3 +172,6 @@ jobs:
 
       - name: Shipping label requires payment/actor/price equality before Sendcloud
         run: node --test __tests__/launch/p0-shipment-label-payment-identity-runtime.test.mjs
+
+      - name: Delivery must preserve payment buyer-seller-listing identity
+        run: node --test __tests__/launch/p0-shipment-delivery-payment-identity-runtime.test.mjs
