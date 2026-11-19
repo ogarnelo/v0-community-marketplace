@@ -43,6 +43,8 @@ jobs:
         run: node --test __tests__/launch/p0-photo-edit-error-stage-contract.test.mjs
       - name: Canonical UUID edit route accepts real listings and rejects malformed IDs
         run: node --test __tests__/launch/p0-photo-edit-canonical-uuid-route.test.mjs
+      - name: Multi-school foundations isolate active students and unauthorized school assignments
+        run: node --experimental-strip-types --test __tests__/launch/p0-multischool-foundation.test.mjs
       - name: Signed alert worker pause must keep prior failed attempts and correct lease
         run: node --test __tests__/launch/p0-alert-paused-lease-runtime.test.mjs
       - name: Message send and conversation summary fail closed on Auth outage
