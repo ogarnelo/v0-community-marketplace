@@ -24,7 +24,8 @@ test("mark-as-read routes use only read_at and scope by authenticated recipient"
 test("school invitation issuance and role mutation require administrator role", () => {
   const qr = read("app/api/school/share-qr/route.ts");
   const toggle = read("app/api/admin/toggle-school-active/route.ts");
-  assert.match(qr, /role === "school_admin" && role\.school_id/);
+  assert.match(qr, /\.eq\("role", "school_admin"\)\s*\.limit\(2\)/);
+  assert.match(qr, /resolveUniqueSchoolAdminSchoolId\(roles\)/);
   assert.match(toggle, /\.eq\("role", "super_admin"\)/);
   assert.match(toggle, /!roles\?\.length/);
 });
