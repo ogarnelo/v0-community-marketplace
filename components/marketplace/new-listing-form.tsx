@@ -238,7 +238,11 @@ export default function NewListingForm({
   const initialContextKey = initialDirectorySchoolCode
     ? `directory:${initialDirectorySchoolCode}`
     : initialSchoolId ? `operational:${initialSchoolId}` : "no-school";
-  const [selectedContextKey, setSelectedContextKey] = useState(initialContextKey);
+  const [selectedContextKey, setSelectedContextKey] = useState(() =>
+    multischoolSelectorEnabled && initialContextKey !== "no-school" &&
+      !availableSchoolContexts.some((school) => school.key === initialContextKey)
+      ? "no-school" : initialContextKey
+  );
   const selectedContext = multischoolSelectorEnabled
     ? availableSchoolContexts.find((school) => school.key === selectedContextKey) || null
     : null;
@@ -351,6 +355,7 @@ export default function NewListingForm({
       model,
       season,
       isDonation,
+      schoolContextKey: multischoolSelectorEnabled ? selectedContextKey : "",
     }),
     [
       title,
@@ -372,11 +377,14 @@ export default function NewListingForm({
       model,
       season,
       isDonation,
+      multischoolSelectorEnabled,
+      selectedContextKey,
     ]
   );
   const hasDraftContent =
     photos.length > 0 ||
     Object.entries(draftPayload).some(([key, value]) =>
+      key === "schoolContextKey" ? false :
       key === "isDonation" ? value === true : typeof value === "string" && value.trim().length > 0
     );
   const currentDraftSignature = useMemo(
@@ -662,6 +670,14 @@ export default function NewListingForm({
     }
 
     const { payload, photos: draftPhotos } = pendingDraft;
+    const savedSchoolKey = typeof payload.schoolContextKey === "string" ? payload.schoolContextKey : "";
+    // A restored draft is not an authorization grant. Recheck its choice
+    // against currently authorized active student contexts from the server.
+    const safeSchoolKey = multischoolSelectorEnabled && savedSchoolKey
+      ? savedSchoolKey === "no-school" || availableSchoolContexts.some((school) => school.key === savedSchoolKey)
+        ? savedSchoolKey : "no-school"
+      : selectedContextKey;
+    if (multischoolSelectorEnabled) setSelectedContextKey(safeSchoolKey);
     suppressCategoryResetRef.current = Boolean(payload.selectedCategory);
     setTitle(payload.title);
     setDescription(payload.description);
@@ -689,8 +705,12 @@ export default function NewListingForm({
         storagePath: photo.path,
       }))
     );
-    setSavedDraftSignature(draftSignature(payload, draftPhotos));
-    setDraftMessage("Borrador recuperado. Puedes continuar donde lo dejaste.");
+    setSavedDraftSignature(draftSignature({ ...payload,
+      schoolContextKey: multischoolSelectorEnabled ? safeSchoolKey : ""
+    }, draftPhotos));
+    setDraftMessage(savedSchoolKey && safeSchoolKey === "no-school" && savedSchoolKey !== "no-school"
+      ? "Borrador recuperado. Tu colegio anterior ya no está autorizado; selecciona otro o material general."
+      : "Borrador recuperado. Puedes continuar donde lo dejaste.");
     setPendingDraft(null);
     setRestoreDialogOpen(false);
   };
