@@ -45,7 +45,7 @@ CREATE TABLE public.school_impact_report_subscriptions (
  day_of_month int,last_sent_month text
 );
 CREATE TABLE public.school_impact_report_deliveries (
- id uuid PRIMARY KEY,school_id uuid,email text,period_key text,period_label text,
+ id uuid PRIMARY KEY,school_id uuid,user_id uuid,email text,period_key text,period_label text,
  source text,sent_at timestamptz
 );
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
