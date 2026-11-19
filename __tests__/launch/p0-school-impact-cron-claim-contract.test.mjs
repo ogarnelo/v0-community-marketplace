@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const sql=readFileSync("scripts/p0_school_impact_cron_claim_candidate_review_only.sql","utf8");
-test("cron claim candidate cannot run accidentally or grant client access",()=>{
+test("cron integrates only private claimed delivery behind explicit opt-in",()=>{
  assert.match(sql,/REVIEW ONLY, NEVER AUTODEPLOY/);
  assert.match(sql,/BEGIN;[\s\S]*COMMIT;/);
  assert.match(sql,/SECURITY INVOKER/g);
@@ -15,7 +15,8 @@ test("cron claim candidate cannot run accidentally or grant client access",()=>{
  assert.match(cron,/acknowledgeDurableSchoolReportClaim/);
  assert.match(cron,/WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED/);
  assert.ok(cron.indexOf("acquireDurableSchoolReportClaim({")<cron.indexOf("sendMonthlySchoolImpactEmail({"));
- assert.ok(cron.indexOf("acknowledgeDurableSchoolReportClaim({")<cron.indexOf('from("school_impact_report_deliveries")\\n        .insert')) || cron.includes("acknowledgeDurableSchoolReportClaim"));
+ assert.ok(cron.indexOf("acknowledgeDurableSchoolReportClaim({")<cron.indexOf("const { error: deliveryError }"));
+ assert.ok(cron.indexOf("WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED")<cron.indexOf("const admin = createAdminClient()"));
 });
 test("durable unique subscription/period claim has no expiry or automatic retry",()=>{
  assert.match(sql,/UNIQUE\(subscription_id,period_key\)/);
