@@ -42,12 +42,17 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 <<'SQL'
           CREATE ROLE authenticated NOLOGIN;
+          CREATE SCHEMA wetudy_internal;
+          CREATE FUNCTION wetudy_internal.saved_search_preference_stamp_v1()
+            RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = ''
+            AS $fn$ BEGIN NEW.updated_at := now(); RETURN NEW; END $fn$;
           CREATE TABLE public.saved_searches (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id uuid NOT NULL,
             only_my_community boolean NOT NULL DEFAULT false,
             school_id uuid,
-            directory_school_code text
+            directory_school_code text,
+            updated_at timestamptz NOT NULL DEFAULT now()
           );
           ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
           CREATE POLICY saved_searches_insert_own
@@ -79,6 +84,11 @@ jobs:
             IF NOT EXISTS (SELECT 1 FROM pg_policies
                 WHERE tablename='saved_searches' AND policyname='saved_searches_insert_own')
               THEN RAISE EXCEPTION 'Owner RLS policy lost'; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                WHERE tgrelid='public.saved_searches'::regclass
+                  AND tgname='saved_search_family_scope_stamp_before_update_v1'
+                  AND NOT tgisinternal AND tgenabled='O')
+              THEN RAISE EXCEPTION 'Scope preference revision trigger missing'; END IF;
             BEGIN
               INSERT INTO public.saved_searches(user_id,only_my_community,community_scope_mode)
                 VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false,'active_family');
@@ -105,5 +115,15 @@ jobs:
             EXCEPTION WHEN check_violation THEN NULL; END;
             IF (SELECT count(*) FROM public.saved_searches) <> 3
               THEN RAISE EXCEPTION 'Invalid inserts modified historical data'; END IF;
+            -- A changed school mode must invalidate previously queued matches:
+            -- the existing worker compares saved_searches.updated_at to listing.created_at.
+            PERFORM pg_sleep(0.015);
+            UPDATE public.saved_searches SET community_scope_mode='single'
+              WHERE user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+            IF NOT EXISTS (
+              SELECT 1 FROM public.saved_searches
+               WHERE user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+                 AND updated_at >= now()
+            ) THEN RAISE EXCEPTION 'Mode switch did not stamp saved search'; END IF;
           END $test$;
           SQL
