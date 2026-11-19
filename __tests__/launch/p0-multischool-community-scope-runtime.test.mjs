@@ -81,3 +81,25 @@ test("server-rendered school counts share the exact authenticated union",()=>{
  assert.match(client,/currentUserDirectorySchoolCode \|\| initialHasMultiSchoolContext/);
  assert.match(page,/select\("id", \{ count: "exact", head: true \}\)/);
 });
+
+test("70 current national schools need one directory read, not 70 sequential reads",async()=>{
+ const many = Array.from({length:70},(_,i)=>({
+   schoolId:null,directorySchoolCode:String(28000010+i),
+ }));
+ const before=observed.length;
+ const scope=await resolveMarketplaceMultiSchoolScope(many);
+ assert.equal(observed.length-before,1,"Batch must issue a single directory code lookup");
+ assert.equal(scope.directoryCodes.length,70);
+ assert.equal(scope.schoolIds.length,0);
+ assert.ok(makeMarketplaceSchoolFilter(scope).length < 2000);
+});
+test("100 active operational schools use a bounded single batch",async()=>{
+ const many=Array.from({length:100},(_,i)=>({
+   schoolId:"aa"+String(i).padStart(6,"0")+"-1111-4111-8111-111111111111",
+   directorySchoolCode:null
+ }));
+ const before=observed.length;
+ const scope=await resolveMarketplaceMultiSchoolScope(many);
+ assert.equal(observed.length-before,1);
+ assert.equal(scope.schoolIds.length,100);
+});
