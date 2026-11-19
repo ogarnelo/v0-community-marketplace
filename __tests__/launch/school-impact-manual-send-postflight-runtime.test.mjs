@@ -28,7 +28,10 @@ function fixture(options={}){
       [{role:"school_admin",school_id:SCHOOL},
        ...((options.ambiguousInitial&&roleReads===1 ||
              options.ambiguousPostflight&&roleReads>1)
-          ? [{role:"school_admin",school_id:OTHER}] : [])],
+          ? [{role:"school_admin",school_id:OTHER}] : []),
+       ...((options.duplicateInitial&&roleReads===1 ||
+             options.duplicatePostflight&&roleReads>1)
+          ? [{role:"school_admin",school_id:SCHOOL}] : [])],
       error:options.roleOutage&&roleReads>1?new Error("DB_FAIL"):null});
    }};
   }
@@ -184,4 +187,12 @@ test("second school-admin assignment appearing during PDF blocks external delive
  assert.equal(res.status,403);
  assert.equal(h.events.includes("PDF"),true);
  assert.equal(h.events.includes("EMAIL"),false);
+});
+
+test("duplicate same-school admin grants prevent provider delivery",async()=>{
+ for(const key of ["duplicateInitial","duplicatePostflight"]){
+  const h=fixture({[key]:true}),res=await h.run();
+  assert.equal(res.status,403);
+  assert.equal(h.events.includes("EMAIL"),false);
+ }
 });
