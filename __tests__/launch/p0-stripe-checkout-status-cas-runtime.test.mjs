@@ -35,8 +35,10 @@ function fixture(opts={}){
    maybeSingle:async()=>{
     if(table==="listing_offers")return {data:{id:OFFER,listing_id:LISTING,
       buyer_id:BUYER,seller_id:SELLER,status:"accepted",accepted_amount:15,
-      listings:{id:LISTING,title:"Synthetic",description:"none",status:"available"}},error:null};
-    if(table==="conversations")return {data:{id:CHAT},error:null};
+      listings:opts.missingListing?null:
+        {id:opts.wrongListingId?SELLER:LISTING,title:"Synthetic",description:"none",status:"available"}},error:null};
+    if(table==="conversations")return {data:{id:CHAT},
+      error:opts.conversationError?{message:"PRIVATE_SQL_CONVERSATION"}:null};
     if(table==="payment_intents"){
       if(operation==="update")return {data:opts.updateMissing?null:{id:PAYMENT},
         error:opts.updateError?{message:"PRIVATE_WRITE"}:null};
@@ -56,7 +58,8 @@ function fixture(opts={}){
  const mocks={
   "@/lib/stripe":{stripe},
   "@/lib/supabase/server":{createClient:async()=>{events.push("CLIENT");
-   return {auth:{getUser:async()=>({data:{user:{id:BUYER}},error:null})}};
+   return {auth:{getUser:async()=>({data:{user:{id:BUYER}},
+    error:opts.authError?{message:"PRIVATE_AUTH_DOWN"}:null})}};
   }},
   "@/lib/supabase/admin":{createAdminClient:()=>{events.push("ADMIN");return admin}},
   "@/lib/payments/pricing":{buildMarketplacePricing:()=>price,
@@ -310,5 +313,21 @@ for(const table of ["payment_intents","listing_offers","listings"]){
   const h=confirmationFixture({updateFail:table});
   await assert.rejects(h.run(),/conciliación/);
   assert.equal(h.events.includes("UPDATE:"+table),true);
+ });
+}
+
+for(const [label,options] of [
+ ["Auth provider outage with stale user",{authError:true}],
+ ["missing joined listing",{missingListing:true}],
+ ["mismatched joined listing",{wrongListingId:true}],
+ ["conversation lookup provider outage",{conversationError:true}]
+]){
+ test(label+" blocks Stripe session and financial mutations",async()=>{
+  const h=fixture(options);
+  await assert.rejects(h.start());
+  assert.equal(h.events.includes("STRIPE_CREATE"),false);
+  assert.equal(h.events.includes("INSERT:payment_intents"),false);
+  assert.equal(h.events.includes("UPDATE:payment_intents"),false);
+  if(options.authError)assert.equal(h.events.includes("ADMIN"),false);
  });
 }

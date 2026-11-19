@@ -42,7 +42,11 @@ export async function startCheckoutSession(params: {
   }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  // An Auth provider failure can include a stale user object: no privileged
+  // checkout read or Stripe call may proceed on that unauthenticated evidence.
+  if (authError) throw new Error('No se pudo comprobar la sesión.')
+  const user = authData?.user
 
   if (!user) {
     throw new Error('Debes iniciar sesión para continuar.')
@@ -91,7 +95,12 @@ export async function startCheckoutSession(params: {
     throw new Error(`La oferta aún no ha sido aceptada. Estado actual: ${typedOffer.status}`)
   }
 
-  const listingStatus = typedOffer.listings?.status ?? 'available'
+  // A dangling offer->listing join is not proof of an available item.
+  // A missing listing must never open a Stripe checkout.
+  if (!typedOffer.listings?.id || typedOffer.listings.id !== typedOffer.listing_id) {
+    throw new Error('El anuncio vinculado no está disponible.')
+  }
+  const listingStatus = typedOffer.listings.status
   if (!['available', 'reserved'].includes(String(listingStatus))) {
     throw new Error('Este anuncio ya no permite iniciar el pago.')
   }
@@ -107,13 +116,15 @@ export async function startCheckoutSession(params: {
     shipmentTier,
   })
 
-  const { data: conversation } = await adminSupabase
+  const { data: conversation, error: conversationError } = await adminSupabase
     .from('conversations')
     .select('id')
     .eq('listing_id', typedOffer.listing_id)
     .eq('buyer_id', typedOffer.buyer_id)
     .eq('seller_id', typedOffer.seller_id)
     .maybeSingle()
+  if (conversationError)
+    throw new Error('No se pudo comprobar la conversación para este pago.')
 
   const checkoutIdempotencyKey = [
     "wetudy-checkout-v1",
