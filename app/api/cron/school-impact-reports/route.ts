@@ -24,9 +24,9 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Sending reports is explicitly disabled until the durable claim (#682) is
-  // integrated and its ambiguous-provider outcomes are reconciled. A valid
-  // CRON_SECRET alone is never permission to send private PDFs.
+  // This integration remains OFF until the shared manual+cron claim SQL is
+  // explicitly approved/applied and provider reconciliation is validated.
+  // A valid CRON_SECRET alone never permits private PDF delivery.
   if (process.env.WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED !== "true") {
     return Response.json({ ok: false }, {
       status: 503,
