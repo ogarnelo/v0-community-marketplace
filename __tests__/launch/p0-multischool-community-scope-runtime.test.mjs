@@ -14,10 +14,15 @@ const admin={from(table){
   assert.equal(table,"school_directory");
   let by=null,value=null;
   const q={select(){return q},eq(k,v){by=k;value=v;return q},
-    limit(){return Promise.resolve({data:by==="linked_school_id"&&value===A?
-      [{official_code:"28000001"}]:[],error:null})},
-    async maybeSingle(){return {data:by==="official_code"&&value==="28000002"?
-      {linked_school_id:B}:null,error:null}}};
+    in(k,v){by=k;value=v;return q},
+    limit(){
+      if (by==="official_code") return Promise.resolve({data:
+        value.includes("28000002")?[{official_code:"28000002",linked_school_id:B}]:[],error:null});
+      if (by==="linked_school_id") return Promise.resolve({data:
+        value.includes(A)?[{official_code:"28000001",linked_school_id:A}]:[],error:null});
+      throw Error("Unexpected directory lookup");
+    },
+    async maybeSingle(){return {data:null,error:null}}};
   observed.push(q);return q;
 }};
 const exports={};
