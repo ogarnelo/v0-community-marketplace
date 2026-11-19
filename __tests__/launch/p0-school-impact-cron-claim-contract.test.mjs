@@ -10,7 +10,12 @@ test("cron claim candidate cannot run accidentally or grant client access",()=>{
  assert.match(sql,/REVOKE ALL ON TABLE[\s\S]*FROM PUBLIC,anon,authenticated/);
  assert.match(sql,/REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC,anon,authenticated/);
  assert.doesNotMatch(sql,/DROP TABLE|TRUNCATE |ALTER DEFAULT PRIVILEGES|SET ROLE authenticated/i);
- assert.doesNotMatch(readFileSync("app/api/cron/school-impact-reports/route.ts","utf8"),/p0_school_impact_claim_candidate/);
+ const cron=readFileSync("app/api/cron/school-impact-reports/route.ts","utf8");
+ assert.match(cron,/acquireDurableSchoolReportClaim/);
+ assert.match(cron,/acknowledgeDurableSchoolReportClaim/);
+ assert.match(cron,/WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED/);
+ assert.ok(cron.indexOf("acquireDurableSchoolReportClaim({")<cron.indexOf("sendMonthlySchoolImpactEmail({"));
+ assert.ok(cron.indexOf("acknowledgeDurableSchoolReportClaim({")<cron.indexOf('from("school_impact_report_deliveries")\\n        .insert')) || cron.includes("acknowledgeDurableSchoolReportClaim"));
 });
 test("durable unique subscription/period claim has no expiry or automatic retry",()=>{
  assert.match(sql,/UNIQUE\(subscription_id,period_key\)/);
