@@ -199,3 +199,6 @@ jobs:
 
       - name: New listing school context denies ambiguous school_admin and Auth outages
         run: node --test __tests__/launch/p0-new-listing-global-admin-school-runtime.test.mjs
+
+      - name: School admin dashboard denies ambiguous school scope before privileged client
+        run: node --test __tests__/launch/p0-school-admin-dashboard-global-scope-runtime.test.mjs

@@ -38,9 +38,9 @@ test("QR return path survives login and optional student onboarding", () => {
 });
 
 test("family-selected school never determines school admin or superadmin access", () => {
-  assert.match(admin, /\.from\("user_roles"\)\.select\("role, school_id"\)/);
-  assert.match(admin, /role\.role === "school_admin" && Boolean\(role\.school_id\)/);
-  assert.match(admin, /effectiveSchoolId = schoolAdminRole\?\.school_id \|\| null/);
+  assert.match(admin, /\.from\("user_roles"\)\.select\("school_id"\)\.eq\("user_id", user\.id\)/);
+  assert.match(admin, /\.eq\("role", "school_admin"\)\.limit\(2\)/);
+  assert.match(admin, /effectiveSchoolId = resolveUniqueSchoolAdminSchoolId\(signedSchoolAdminRoles\)/);
   assert.match(admin, /if \(!effectiveSchoolId\)/);
   assert.match(admin, /redirect\("\/"\)/);
   assert.match(superAdmin, /\.from\("user_roles"\)/);

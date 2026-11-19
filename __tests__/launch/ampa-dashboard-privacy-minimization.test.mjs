@@ -23,7 +23,9 @@ test("AMPA only fetches names for authorized school administrators", () => {
   assert.doesNotMatch(page, /\.limit\(20000\)/);
   assert.match(page, /\.select\("id, full_name"\)\s*\.in\("id", schoolAdminIds\)/);
   assert.match(page, /\.eq\("school_id", effectiveSchoolId\)/);
-  assert.match(page, /role === "school_admin" && Boolean\(role\.school_id\)/);
+  assert.match(page, /\.eq\("role", "school_admin"\)\.limit\(2\)/);
+  assert.match(page, /resolveUniqueSchoolAdminSchoolId\(signedSchoolAdminRoles\)/);
+  assert.doesNotMatch(page, /\.find\(\s*\(role\) => role\.role === "school_admin"/);
   assert.doesNotMatch(page, /select\("id, full_name, school_id, user_type, grade_level"\)/);
 });
 

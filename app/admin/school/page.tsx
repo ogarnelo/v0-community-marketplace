@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SchoolAdminDashboard from "@/components/admin/school-admin-dashboard";
 import { DonationRequestsPanel, type DonationRequestAdminItem } from "@/components/admin/donation-requests-panel";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 
 
 type SchoolRow = {
@@ -112,36 +113,46 @@ type DonationRequestRow = {
 
 export default async function SchoolAdminPage() {
   const supabase = await createClient();
-  const adminSupabase = createAdminClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth?next=/admin/school");
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  // A stale user bundled with an Auth error is never sufficient to authorize
+  // service-role access to reporting, school codes or family requests.
+  if (authError) {
+    if (authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found") {
+      redirect("/auth?next=/admin/school");
+    }
+    throw new Error("SCHOOL_DASHBOARD_AUTH_UNAVAILABLE");
   }
+  const user = authData?.user;
+  if (!user) redirect("/auth?next=/admin/school");
 
-  const [{ data: profile }, { data: roles, error: rolesError }] = await Promise.all([
+  // Dedicated, bounded role checks: LIMIT 1/find on an unbounded role set
+  // silently chose one school and ignored contradictory administrator grants.
+  const [
+    { data: profile, error: profileError },
+    { data: signedSchoolAdminRoles, error: rolesError },
+    { data: superAdminRoles, error: superAdminError },
+  ] = await Promise.all([
     supabase.from("profiles").select("full_name, school_id").eq("id", user.id).maybeSingle(),
-    supabase.from("user_roles").select("role, school_id").eq("user_id", user.id).returns<RoleRow[]>(),
+    supabase.from("user_roles").select("school_id").eq("user_id", user.id)
+      .eq("role", "school_admin").limit(2),
+    supabase.from("user_roles").select("role").eq("user_id", user.id)
+      .eq("role", "super_admin").limit(1),
   ]);
-
-  if (rolesError) throw new Error("No se han podido comprobar los permisos del centro.");
-
-  const isSuperAdmin = (roles || []).some((role) => role.role === "super_admin");
-  const schoolAdminRole = (roles || []).find(
-    (role) => role.role === "school_admin" && Boolean(role.school_id)
-  );
-  const effectiveSchoolId = schoolAdminRole?.school_id || null;
+  if (profileError || rolesError || superAdminError ||
+      !Array.isArray(superAdminRoles)) {
+    throw new Error("No se han podido comprobar los permisos del centro.");
+  }
+  const isSuperAdmin = superAdminRoles.length === 1;
+  const effectiveSchoolId = resolveUniqueSchoolAdminSchoolId(signedSchoolAdminRoles);
 
   if (!effectiveSchoolId) {
-    if (isSuperAdmin) {
-      redirect("/admin/super");
-    }
-
+    if (isSuperAdmin) redirect("/admin/super");
     redirect("/");
   }
+
+  // Privileged client creation must follow Auth + exact single-school scope.
+  const adminSupabase = createAdminClient();
 
   const [
     { data: school, error: schoolLookupError },

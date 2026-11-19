@@ -6,7 +6,8 @@ const sql=readFileSync("scripts/pilot-school-member-count-candidate.sql","utf8")
 const migratedSql=readFileSync("supabase/migrations/20261108211948_school_member_count_aggregate_20261108.sql","utf8");
 
 test("AMPA membership loads one school-restricted aggregate, not all family profiles",()=>{
-  assert.match(source,/const effectiveSchoolId = schoolAdminRole\?\.school_id \|\| null/);
+  assert.match(source,/const effectiveSchoolId = resolveUniqueSchoolAdminSchoolId\(signedSchoolAdminRoles\)/);
+  assert.match(source,/\.eq\("role", "school_admin"\)\.limit\(2\)/);
   assert.match(source,/if \(!effectiveSchoolId\) \{/);
   assert.ok(source.indexOf("if (!effectiveSchoolId)")<source.indexOf('.rpc("server_school_member_count"'));
   assert.match(source,/\.rpc\("server_school_member_count", \{ p_school_id: effectiveSchoolId \}\)/);
