@@ -22,7 +22,9 @@ test("Stripe webhook is idempotent and never downgrades succeeded payments", () 
   assert.match(webhook, /provider_event_id: event\.id/);
   assert.match(webhook, /eventInsertError\.code !== "23505"/);
   assert.match(webhook, /paymentUpdate = paymentUpdate\.neq\("status", "succeeded"\)/);
-  assert.match(webhook, /\.in\("status", \["available", "reserved"\]\)/);
+  assert.match(webhook, /\.in\("status", \["available", "reserved", "sold"\]\)/);
+  assert.match(webhook, /updatedPayment/);
+  assert.match(webhook, /paymentIntent\.status/);
   assert.match(migration, /create unique index if not exists payment_events_provider_event_id_unique_idx/);
   assert.match(migration, /where provider_event_id is not null/);
 });

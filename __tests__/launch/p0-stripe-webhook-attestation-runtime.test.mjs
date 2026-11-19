@@ -15,7 +15,7 @@ const payment={id:"55555555-5555-4555-8555-555555555555",offer_id:OFFER,
  status:"requires_payment_method",amount:15,buyer_fee_amount:1.45,shipping_amount:2.99,
  shipment_tier:"small",metadata:{source:"stripe_checkout",
  total_buyer_amount:19.44,stripe_checkout_session_id:"cs_registered"}};
-function fixture({sessionChanges={},paymentChanges={},type="checkout.session.completed"}={}){
+function fixture({sessionChanges={},paymentChanges={},type="checkout.session.completed",paymentCasLost=false,listingCasLost=false}={}){
  const events=[],out={};
  const fullSession={...session,...sessionChanges,
   metadata:{...session.metadata,...sessionChanges.metadata}};
@@ -35,10 +35,21 @@ function fixture({sessionChanges={},paymentChanges={},type="checkout.session.com
     events.push("ADMIN");
     return {from:table=>{
      events.push("FROM:"+table);
-     const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({
-      data:table==="payment_intents"?row:null,error:null
-     }),update:()=>{events.push("UPDATE:"+table);return q;},
-     neq:()=>q,in:()=>q,insert:async()=>{events.push("INSERT:"+table);return {error:null}}};
+     let updating=false;
+     const q={select:()=>q,
+      eq:(key,value)=>{events.push("EQ:"+table+":"+key+":"+value);return q;},
+      maybeSingle:async()=>({
+       data:!updating?(table==="payment_intents"?row:null):
+        (table==="payment_intents" && paymentCasLost ||
+         table==="listings" && listingCasLost)?null:
+        table==="payment_intents"?{id:row.id}:
+        table==="listings"?{id:LISTING}:null,
+       error:null
+      }),
+      update:()=>{updating=true;events.push("UPDATE:"+table);return q;},
+      neq:()=>q,in:()=>q,
+      insert:async()=>{events.push("INSERT:"+table);return {error:null}}
+     };
      return q;
     }};
    }},
@@ -96,4 +107,48 @@ test("async_payment_succeeded without paid state never mutates DB",async()=>{
   type:"checkout.session.async_payment_succeeded"}),res=await h.post();
  assert.equal(res.status,500);
  assert.equal(h.events.some(x=>x.startsWith("UPDATE:")||x.startsWith("INSERT:")),false);
+});
+
+test("processing event cannot downgrade an already succeeded payment",async()=>{
+ const h=fixture({paymentChanges:{status:"succeeded"},
+  sessionChanges:{payment_status:"unpaid"}}),r=await h.post();
+ assert.equal(r.status,200);
+ assert.equal(h.events.some(x=>x.startsWith("UPDATE:")||x.startsWith("INSERT:")),false);
+});
+test("late unpaid completed event cannot reopen a failed payment",async()=>{
+ const h=fixture({paymentChanges:{status:"failed"},
+  sessionChanges:{payment_status:"unpaid"}}),r=await h.post();
+ assert.equal(r.status,200);
+ assert.equal(h.events.some(x=>x.startsWith("UPDATE:")||x.startsWith("INSERT:")),false);
+});
+test("conflicting failed followed by paid event needs reconciliation",async()=>{
+ const h=fixture({paymentChanges:{status:"failed"}}),r=await h.post();
+ assert.equal(r.status,500);
+ assert.equal(h.events.some(x=>x.startsWith("UPDATE:")||x.startsWith("INSERT:")),false);
+});
+test("canceled payment cannot be re-opened by delayed paid checkout event",async()=>{
+ const h=fixture({paymentChanges:{status:"canceled"}}),r=await h.post();
+ assert.equal(r.status,500);
+ assert.equal(h.events.some(x=>x.startsWith("UPDATE:")||x.startsWith("INSERT:")),false);
+});
+test("concurrent payment status CAS loss never sells listing or audits success",async()=>{
+ const h=fixture({paymentCasLost:true}),r=await h.post();
+ assert.equal(r.status,500);
+ assert.ok(h.events.includes("UPDATE:payment_intents"));
+ assert.ok(h.events.includes("EQ:payment_intents:status:requires_payment_method"));
+ assert.equal(h.events.includes("UPDATE:listings"),false);
+ assert.equal(h.events.some(x=>x.startsWith("INSERT:")),false);
+});
+test("concurrent listing CAS loss blocks shipment and event audit success",async()=>{
+ const h=fixture({listingCasLost:true}),r=await h.post();
+ assert.equal(r.status,500);
+ assert.ok(h.events.includes("UPDATE:listings"));
+ assert.equal(h.events.some(x=>x.startsWith("INSERT:")),false);
+});
+test("valid success includes seller-scoped listing write and confirms row",async()=>{
+ const h=fixture(),r=await h.post();
+ assert.equal(r.status,200);
+ assert.ok(h.events.includes("EQ:listings:seller_id:"+SELLER));
+ assert.ok(h.events.includes("UPDATE:listings"));
+ assert.ok(h.events.includes("INSERT:payment_events"));
 });
