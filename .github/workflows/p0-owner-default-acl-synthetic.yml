@@ -1,0 +1,45 @@
+name: P0 supabase_admin owner-only default ACL synthetic PostgreSQL 17
+
+on:
+  pull_request:
+    paths:
+      - "scripts/p0_supabase_admin_owner_only_default_acl_handoff.sql"
+      - "scripts/p0_pg17_supabase_admin_acl_synthetic.sql"
+      - ".github/workflows/p0-owner-default-acl-synthetic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acl-synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic_only_never_production
+          POSTGRES_DB: wetudy_acl_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_acl_disposable"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Run strict 16-ACL owner transaction in disposable PG17
+        env:
+          PGPASSWORD: synthetic_only_never_production
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGDATABASE: wetudy_acl_disposable
+          PGUSER: postgres
+        run: |
+          set -euo pipefail
+          test "$PGDATABASE" = "wetudy_acl_disposable"
+          test "$PGHOST" = "127.0.0.1"
+          psql -X -v ON_ERROR_STOP=1 -f scripts/p0_pg17_supabase_admin_acl_synthetic.sql
