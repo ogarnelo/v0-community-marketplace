@@ -27,6 +27,9 @@ CREATE TABLE public.school_impact_report_deliveries(
 GRANT USAGE ON SCHEMA public TO service_role,anon,authenticated;
 GRANT SELECT ON public.schools,public.user_roles,public.school_impact_report_subscriptions,
   public.school_impact_report_deliveries TO service_role;
+-- SELECT ... FOR UPDATE requires UPDATE privilege on the locked table.
+-- Production service_role UPDATE permission was verified READ ONLY.
+GRANT UPDATE ON public.school_impact_report_subscriptions TO service_role;
 INSERT INTO public.schools(id,is_active) VALUES
  ('11111111-1111-4111-8111-111111111111',true),
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
