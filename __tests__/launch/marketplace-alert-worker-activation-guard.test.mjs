@@ -8,7 +8,7 @@ const source=readFileSync("app/api/cron/marketplace-alert-outbox/route.ts","utf8
 const matcher=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
 const vercel=JSON.parse(readFileSync("vercel.json","utf8"));
 
-function runWorker({workerFlag="true",intentFlag="true",
+function runWorker({globalFlag="true",workerFlag="true",intentFlag="true",
   intentsReady=true,intentFunctionsReady=true,reviewReady=true,reconciliationReady=true,auth="Bearer synthetic-qa-cron"}={}){
   let dbCreated=0, claimed=0, fetchCalls=0;
   const db={
@@ -48,6 +48,7 @@ function runWorker({workerFlag="true",intentFlag="true",
     },
     process:{env:{
       CRON_SECRET:"synthetic-qa-cron",
+      WETUDY_SAVED_SEARCH_ALERTS_ENABLED:globalFlag,
       WETUDY_ALERT_OUTBOX_ENABLED:workerFlag,
       WETUDY_ALERT_INTENT_DELIVERY_ENABLED:intentFlag,
     }},
@@ -126,4 +127,20 @@ test("missing manual reconciliation RPC stops before claiming any work",async()=
   assert.equal(res.status,503);
   assert.equal((await res.json()).error,"reconciliation_schema_not_ready");
   assert.deepEqual(w.calls(),{dbCreated:1,claimed:0,fetchCalls:0});
+});
+
+test("outbox global switch denies both flags enabled before any privileged work",async()=>{
+ for(const globalFlag of [undefined,"false","TRUE","1","yes",""," true "]){
+  const w=runWorker({globalFlag});
+  assert.equal((await w.response).status,204);
+  assert.deepEqual(w.calls(),{dbCreated:0,claimed:0,fetchCalls:0});
+ }
+});
+test("signed matcher returns paused 202 before privileged DB under global stop",()=>{
+ const lines=matcher.split("\n");
+ const paused=lines.findIndex(s=>s.includes('if (isOutboxWorker && process.env.WETUDY_SAVED_SEARCH_ALERTS_ENABLED'));
+ const client=lines.findIndex(s=>s.includes('const admin = createAdminClient()'));
+ const auth=lines.findIndex(s=>s.includes('const auth = isOutboxWorker ? null : await supabase.auth.getUser()'));
+ assert.ok(paused>0 && paused<client && paused<auth);
+ assert.match(matcher,/paused:true,reason:"alerts_disabled"/);
 });
