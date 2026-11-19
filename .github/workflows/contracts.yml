@@ -178,3 +178,6 @@ jobs:
 
       - name: Dispatch only after succeeded payment with same buyer seller and listing
         run: node --test __tests__/launch/p0-shipment-dispatch-payment-identity-runtime.test.mjs
+
+      - name: Applied P0 production SQL records must remain dormant and secure
+        run: node --test __tests__/launch/p0-applied-migration-audit-contract.test.mjs
