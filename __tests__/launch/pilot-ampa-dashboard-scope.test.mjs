@@ -7,9 +7,9 @@ const page = readFileSync("app/admin/school/page.tsx", "utf8");
 test("AMPA dashboard resolves active school from session role, not user input", () => {
   assert.match(page, /supabase\.auth\.getUser\(\)/);
   assert.match(page, /\.from\("user_roles"\)[\s\S]*?\.eq\("user_id", user\.id\)/);
-  assert.match(page, /const effectiveSchoolId = resolveUniqueSchoolAdminSchoolId\(schoolAdminRoles\)/);
+  assert.match(page, /const effectiveSchoolId = resolveUniqueSchoolAdminSchoolId\(signedSchoolAdminRoles\)/);
   assert.match(page, /\.eq\("role", "school_admin"\)\.limit\(2\)/);
-  assert.ok(page.indexOf("const adminSupabase = createAdminClient()") > page.indexOf("resolveUniqueSchoolAdminSchoolId(schoolAdminRoles)"));
+  assert.ok(page.indexOf("const adminSupabase = createAdminClient()") > page.indexOf("resolveUniqueSchoolAdminSchoolId(signedSchoolAdminRoles)"));
   assert.match(page, /if \(!effectiveSchoolId\)[\s\S]*?redirect\("\/"\)/);
 });
 
