@@ -50,6 +50,10 @@ function harness({guest=false,profileSchool=SA,student=null,schoolAdmin=null,fai
       throw Error("Unexpected maybeSingle "+table);
     };
     if(name==="then")return(res,rej)=>{
+      if(table==="user_roles"){
+        const data=schoolAdmin?(Array.isArray(schoolAdmin)?schoolAdmin:[schoolAdmin]):[];
+        return Promise.resolve({data,error:fail===table?{message:"PRIVATE_SQL"}:null}).then(res,rej);
+      }
       const ids=filters.listing_id||filters.id||[];
       let data=[];
       if(table==="listing_photos")data=[{id:"photo-a",listing_id:A,url:"https://fixture.invalid/a.jpg",sort_order:0}].filter(x=>ids.includes(x.listing_id));
@@ -69,6 +73,7 @@ function harness({guest=false,profileSchool=SA,student=null,schoolAdmin=null,fai
   "@/lib/supabase/server":{createClient:async()=>supabase},
   "@/lib/supabase/admin":{createAdminClient:()=>{calls.push("ADMIN_CREATED");return admin}},
   "@/lib/marketplace/feed-filters":realFilters,
+  "@/lib/marketplace/unique-school-admin-context":loadTs("lib/marketplace/unique-school-admin-context.ts"),
   "@/lib/marketplace/school-scope":{
     resolveMarketplaceSchoolScope:async(schoolId,directoryCode)=>{
       calls.push("RESOLVE:"+schoolId+":"+directoryCode);
@@ -152,4 +157,22 @@ test("failed seller photo enrichment aborts without partial listing data",async(
 
 test("database school identity rules are represented by valid synthetic rows",()=>{
  assert.equal(listings.every(x=>x.school_id===null || x.directory_school_code===null),true);
+});
+
+test("two school_admin schools fail closed before privileged marketplace reads",async()=>{
+ const h=harness({schoolAdmin:[{school_id:SA},{school_id:SB}]}),r=await h.request();
+ assert.equal(r.status,503);
+ assert.equal(r.cache,"private, no-store");
+ assert.equal(h.calls.includes("ADMIN_CREATED"),false);
+ assert.equal("listings" in r.body,false);
+});
+test("duplicate school_admin grants cannot choose arbitrary first school",async()=>{
+ const h=harness({schoolAdmin:[{school_id:SA},{school_id:SA}]}),r=await h.request();
+ assert.equal(r.status,503);
+ assert.equal(h.calls.some(x=>x==="LISTINGS_PAGE"),false);
+});
+test("malformed school_admin school identity denies listings and other-school data",async()=>{
+ const h=harness({schoolAdmin:{school_id:"malformed"}}),r=await h.request();
+ assert.equal(r.status,503);
+ assert.equal(h.calls.includes("ADMIN_CREATED"),false);
 });

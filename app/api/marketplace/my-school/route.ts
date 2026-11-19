@@ -8,6 +8,7 @@ import {
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 import {
   makeMarketplaceSchoolFilter,
   resolveMarketplaceSchoolScope,
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
 
   const [{ data: profile, error: profileError },
          { data: student, error: studentError },
-         { data: schoolAdmin, error: roleError }] = await Promise.all([
+         { data: schoolAdminRoles, error: roleError }] = await Promise.all([
     supabase.from("profiles").select("school_id,postal_code").eq("id", user.id).maybeSingle(),
     supabase.from("account_students")
       .select("school_id,directory_school_code,is_primary,sort_order,created_at")
@@ -67,15 +68,18 @@ export async function GET(request: Request) {
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true }).limit(1).maybeSingle(),
     supabase.from("user_roles").select("school_id").eq("user_id", user.id)
-      .eq("role", "school_admin").not("school_id", "is", null)
-      .limit(1).maybeSingle(),
+      .eq("role", "school_admin").limit(2),
   ]);
   if (profileError || studentError || roleError) {
     return NextResponse.json({ error: "No se pudo determinar tu colegio." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
-  const directoryCode = schoolAdmin?.school_id
+  // Every school-specific path must reject contradictory admin grants:
+  // selecting a random LIMIT 1 can expose another school's listings.
+  // Family accounts with no school_admin still use their selected student.
+  const managedSchoolId = resolveUniqueSchoolAdminSchoolId(schoolAdminRoles);
+  const directoryCode = managedSchoolId
     ? "" : student?.directory_school_code?.trim() || "";
-  const schoolId = schoolAdmin?.school_id ||
+  const schoolId = managedSchoolId ||
     (student ? student.school_id || "" : profile?.school_id || "");
   try {
     const schoolScope = await resolveMarketplaceSchoolScope(schoolId, directoryCode);
