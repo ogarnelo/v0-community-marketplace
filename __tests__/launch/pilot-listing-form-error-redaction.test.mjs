@@ -10,7 +10,9 @@ test("new listing never reflects privileged provider exceptions in UI",()=>{
  assert.doesNotMatch(newListing,/console\.error\([^)]*,\s*(error|draftCleanupError)/);
 });
 test("edit listing keeps a generic actionable error",()=>{
- assert.match(edit,/setSubmitError\("No se pudo actualizar el anuncio\./);
+ assert.match(edit,/setSubmitError\(safeMessages\[savePhase\]\)/);
+ assert.match(edit,/listing: "No se pudieron guardar los datos del anuncio\./);
+ assert.match(edit,/upload: "No se pudo subir la nueva fotografía\./);
  assert.doesNotMatch(edit,/error\?\.message|error\?\.details/);
 });
 test("draft controls do not surface arbitrary server failure text",()=>{
