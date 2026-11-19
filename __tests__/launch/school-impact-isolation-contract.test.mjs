@@ -35,7 +35,8 @@ test("school admin sees only their own report delivery history", () => {
 
 test("school dashboard fails closed when role lookup fails or centre is absent", () => {
   const source = read("app/admin/school/page.tsx");
-  assert.match(source, /if \(rolesError\) throw/);
+  assert.match(source, /if \(profileError \|\| rolesError \|\| superAdminError \|\|/);
+  assert.match(source, /resolveUniqueSchoolAdminSchoolId\(signedSchoolAdminRoles\)/);
   assert.match(source, /if \(schoolLookupError\) throw/);
   assert.match(source, /if \(!school \|\| school\.is_active !== true\)/);
 });
