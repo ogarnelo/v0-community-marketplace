@@ -1,0 +1,109 @@
+name: Multischool alert scope schema PG17 isolation
+
+on:
+  pull_request:
+    paths:
+      - "docs/pilot/sql/p0_multischool_alert_dynamic_scope_review_only_20261119.sql"
+      - ".github/workflows/p0-multischool-alert-scope-pg17.yml"
+      - "lib/marketplace/active-family-alert-scopes.ts"
+      - "lib/marketplace/saved-search-matching.ts"
+      - "lib/marketplace/alert-live-school.mjs"
+      - "app/api/marketplace/saved-searches/route.ts"
+      - "app/api/marketplace/listings/match-saved-searches/route.ts"
+      - "__tests__/launch/p0-multischool-alert-union-runtime.test.mjs"
+  workflow_dispatch:
+
+jobs:
+  postgres-alert-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wetudy_multi_alert_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_multi_alert_test"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: wetudy_multi_alert_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create minimal RLS-protected legacy saved searches
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE TABLE public.saved_searches (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id uuid NOT NULL,
+            only_my_community boolean NOT NULL DEFAULT false,
+            school_id uuid,
+            directory_school_code text
+          );
+          ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
+          CREATE POLICY saved_searches_insert_own
+            ON public.saved_searches FOR INSERT TO authenticated
+            WITH CHECK (user_id = current_setting('request.user_id',true)::uuid);
+          INSERT INTO public.saved_searches(user_id,only_my_community,school_id)
+            VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true,
+                    '11111111-1111-4111-8111-111111111111');
+          INSERT INTO public.saved_searches(user_id,only_my_community)
+            VALUES ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',false);
+          SQL
+      - name: Apply review-only schema to isolated PostgreSQL 17
+        run: psql -v ON_ERROR_STOP=1 -f docs/pilot/sql/p0_multischool_alert_dynamic_scope_review_only_20261119.sql
+      - name: Assert one dynamic search, no invalid combinations and intact legacy RLS
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO public.saved_searches(user_id,only_my_community,community_scope_mode)
+            VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',true,'active_family');
+          DO $test$
+          BEGIN
+            IF (SELECT count(*) FROM public.saved_searches) <> 3
+              THEN RAISE EXCEPTION 'Legacy saved searches changed'; END IF;
+            IF (SELECT count(*) FROM public.saved_searches
+                WHERE community_scope_mode='single') <> 2
+              THEN RAISE EXCEPTION 'Legacy default not preserved'; END IF;
+            IF NOT (SELECT relrowsecurity FROM pg_class
+                WHERE oid='public.saved_searches'::regclass)
+              THEN RAISE EXCEPTION 'RLS lost'; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_policies
+                WHERE tablename='saved_searches' AND policyname='saved_searches_insert_own')
+              THEN RAISE EXCEPTION 'Owner RLS policy lost'; END IF;
+            BEGIN
+              INSERT INTO public.saved_searches(user_id,only_my_community,community_scope_mode)
+                VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false,'active_family');
+              RAISE EXCEPTION 'Global alert accepted as dynamic school scope';
+            EXCEPTION WHEN check_violation THEN NULL; END;
+            BEGIN
+              INSERT INTO public.saved_searches(user_id,only_my_community,
+                school_id,community_scope_mode)
+                VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true,
+                  '11111111-1111-4111-8111-111111111111','active_family');
+              RAISE EXCEPTION 'Dynamic and fixed school mixed';
+            EXCEPTION WHEN check_violation THEN NULL; END;
+            BEGIN
+              INSERT INTO public.saved_searches(user_id,only_my_community,
+                directory_school_code,community_scope_mode)
+                VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true,
+                  '28000001','active_family');
+              RAISE EXCEPTION 'Dynamic and fixed national directory mixed';
+            EXCEPTION WHEN check_violation THEN NULL; END;
+            BEGIN
+              INSERT INTO public.saved_searches(user_id,only_my_community,community_scope_mode)
+                VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true,'untrusted');
+              RAISE EXCEPTION 'Unknown scope mode accepted';
+            EXCEPTION WHEN check_violation THEN NULL; END;
+            IF (SELECT count(*) FROM public.saved_searches) <> 3
+              THEN RAISE EXCEPTION 'Invalid inserts modified historical data'; END IF;
+          END $test$;
+          SQL
