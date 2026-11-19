@@ -17,12 +17,19 @@ globalThis.__qaQrSession=()=>({
  auth:{getUser:async()=>({data:{user:values.loggedIn?{id:ACTOR}:null}})},
  from(table){
   assert.equal(table,"user_roles");
-  return {select:()=>({eq:(column,value)=>{
-    assert.equal(column,"user_id");
-    assert.equal(value,ACTOR);
-    return Promise.resolve({data:values.hasRole?[{role:"school_admin",school_id:SCHOOL}]:[],
-      error:null});
-  }})};
+  const filters={};
+  const q={
+    select:()=>q,
+    eq:(column,value)=>{filters[column]=value;return q;},
+    limit:n=>{assert.equal(n,2);return q;},
+    then:(resolve,reject)=>{
+      assert.equal(filters.user_id,ACTOR);
+      assert.equal(filters.role,"school_admin");
+      return Promise.resolve({data:values.hasRole?[{school_id:SCHOOL}]:[],
+        error:null}).then(resolve,reject);
+    },
+  };
+  return q;
  }
 });
 globalThis.__qaQrAdmin=()=>({

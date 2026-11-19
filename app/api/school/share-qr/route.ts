@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { appendGrowthUtm } from "@/lib/growth/attribution";
 import { getAuthPublicOrigin } from "@/lib/auth/public-origin";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 
 export async function GET(request: Request) {
   try {
@@ -27,17 +28,27 @@ export async function GET(request: Request) {
 
     const { data: roles, error: roleError } = await supabase
       .from("user_roles")
-      .select("role, school_id")
-      .eq("user_id", user.id);
+      .select("school_id")
+      .eq("user_id", user.id)
+      .eq("role", "school_admin")
+      .limit(2);
 
-    if (roleError) return new NextResponse("No se pudo comprobar tu permiso.", { status: 503, headers: { "Cache-Control": "private, no-store" } });
-
-    const schoolRole = (roles || []).find(
-      (role) => role.role === "school_admin" && role.school_id
-    );
-
-    if (!schoolRole?.school_id) {
-      return new NextResponse("No autorizado.", { status: 403, headers: { "Cache-Control": "private, no-store" } });
+    if (roleError || !Array.isArray(roles)) {
+      return new NextResponse("No se pudo comprobar tu permiso.",
+        {status:503,headers:{"Cache-Control":"private, no-store"}});
+    }
+    // A QR link must not expose or enrol a centre chosen by the first of
+    // two contradictory or duplicated administrator grants.
+    let schoolId: string | null;
+    try {
+      schoolId = resolveUniqueSchoolAdminSchoolId(roles);
+    } catch {
+      return new NextResponse("Permisos de centro ambiguos.",
+        {status:403,headers:{"Cache-Control":"private, no-store"}});
+    }
+    if (!schoolId) {
+      return new NextResponse("No autorizado.",
+        {status:403,headers:{"Cache-Control":"private, no-store"}});
     }
 
     // Do not generate new share codes/QR links for deactivated or missing
@@ -47,11 +58,11 @@ export async function GET(request: Request) {
     const { data: school, error: schoolError } = await admin
       .from("schools")
       .select("id, is_active")
-      .eq("id", schoolRole.school_id)
+      .eq("id", schoolId)
       .maybeSingle();
 
     if (schoolError) throw schoolError;
-    if (!school || school.is_active === false) {
+    if (!school || school.is_active !== true) {
       return new NextResponse("Centro no disponible.", {
         status: 403,
         headers: { "Cache-Control": "private, no-store" },
@@ -61,7 +72,7 @@ export async function GET(request: Request) {
     // Always encode the trusted public domain, never the request Host.
     const origin = getAuthPublicOrigin();
     const baseShareUrl = new URL("/onboarding/join-school", origin);
-    baseShareUrl.searchParams.set("school", schoolRole.school_id);
+    baseShareUrl.searchParams.set("school", schoolId);
     const shareUrl = new URL(
       appendGrowthUtm(
         baseShareUrl.toString(),

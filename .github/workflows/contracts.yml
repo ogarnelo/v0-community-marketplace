@@ -205,3 +205,6 @@ jobs:
 
       - name: School dashboard private scoped SQL errors must fail closed
         run: node --test __tests__/launch/p0-school-admin-dashboard-scoped-error-fences.test.mjs
+
+      - name: School QR sharing is authorized only by one active school_admin
+        run: node --test __tests__/launch/p0-share-qr-global-school-scope-runtime.test.mjs
