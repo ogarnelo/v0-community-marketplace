@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     const adminSupabase = createAdminClient();
     const { data: shipment, error: shipmentError } = await adminSupabase
       .from("shipments")
-      .select("id, seller_id, status, payload")
+      .select("id, seller_id, buyer_id, listing_id, payment_intent_id, status, payload")
       .eq("id", shipmentId)
       .maybeSingle();
 
@@ -81,6 +81,29 @@ export async function POST(request: Request) {
       );
     }
 
+    // Label readiness is not proof that the order is still paid.
+    // Reject missing or cross-actor payments before updating status/tracking.
+    if (!shipment.payment_intent_id || !shipment.listing_id ||
+        !shipment.buyer_id || !shipment.seller_id) {
+      return privateJson({ error: "El envío no tiene un pago verificable." }, { status: 409 });
+    }
+    const { data: payment, error: paymentError } = await adminSupabase
+      .from("payment_intents")
+      .select("id, status, buyer_id, seller_id, listing_id, metadata")
+      .eq("id", shipment.payment_intent_id)
+      .maybeSingle();
+    if (paymentError) {
+      return privateJson({ error: "No se pudo verificar el pago del envío." }, { status: 503 });
+    }
+    if (!payment || payment.id !== shipment.payment_intent_id ||
+        payment.status !== "succeeded" ||
+        payment.buyer_id !== shipment.buyer_id ||
+        payment.seller_id !== shipment.seller_id ||
+        payment.listing_id !== shipment.listing_id ||
+        payment.metadata?.delivery_method !== "shipping") {
+      return privateJson({ error: "Este envío no tiene un pago confirmado compatible." }, { status: 409 });
+    }
+
     const now = new Date().toISOString();
     const { data: updatedShipment, error: updateError } = await adminSupabase
       .from("shipments")
@@ -95,6 +118,8 @@ export async function POST(request: Request) {
         updated_at: now,
       })
       .eq("id", shipmentId)
+      .eq("seller_id", user.id)
+      .eq("payment_intent_id", payment.id)
       .eq("status", "label_ready")
       .select("id")
       .maybeSingle();
