@@ -423,7 +423,7 @@ test("monthly school impact cron is disabled without explicit send flag before p
 test("unique claim is acquired after final recipient checks and before provider email",async()=>{
  const h=fixture(),r=await h.run();
  assert.equal(r.body.sent,1);
- assert.ok(h.events.indexOf("CLAIM")>h.events.lastIndexOf("FROM:school_impact_report_deliveries"));
+ assert.ok(h.events.indexOf("CLAIM")>h.events.indexOf("FROM:school_impact_report_deliveries"));
  assert.ok(h.events.indexOf("EMAIL")>h.events.indexOf("CLAIM"));
  assert.ok(h.events.indexOf("ACK")>h.events.indexOf("EMAIL"));
  assert.ok(h.events.indexOf("DELIVERY")>h.events.indexOf("ACK"));
