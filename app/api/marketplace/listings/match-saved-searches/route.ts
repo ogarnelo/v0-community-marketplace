@@ -216,9 +216,14 @@ export async function POST(request: Request) {
           search.only_my_community && search.community_scope_mode === "active_family"
         ).map((search) => search.user_id))]
       : [];
-    const currentFamilyScopes = dynamicUsers.length
-      ? await loadCurrentFamilyAlertScopes(admin, dynamicUsers)
-      : new Map();
+    const currentFamilyScopes = new Map<string, {
+      schoolIds: string[]; directoryCodes: string[]
+    }>();
+    for (let start = 0; start < dynamicUsers.length; start += 150) {
+      const page = await loadCurrentFamilyAlertScopes(admin,
+        dynamicUsers.slice(start, start + 150));
+      for (const [userId, scope] of page) currentFamilyScopes.set(userId, scope);
+    }
 
     // Resolve directory↔operational school links once per publishing event.
     // Database references are authoritative: no school code arrives from the
