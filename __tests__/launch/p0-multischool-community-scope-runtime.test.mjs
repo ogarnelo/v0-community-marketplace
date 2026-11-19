@@ -14,10 +14,15 @@ const admin={from(table){
   assert.equal(table,"school_directory");
   let by=null,value=null;
   const q={select(){return q},eq(k,v){by=k;value=v;return q},
-    limit(){return Promise.resolve({data:by==="linked_school_id"&&value===A?
-      [{official_code:"28000001"}]:[],error:null})},
-    async maybeSingle(){return {data:by==="official_code"&&value==="28000002"?
-      {linked_school_id:B}:null,error:null}}};
+    in(k,v){by=k;value=v;return q},
+    limit(){
+      if (by==="official_code") return Promise.resolve({data:
+        value.includes("28000002")?[{official_code:"28000002",linked_school_id:B}]:[],error:null});
+      if (by==="linked_school_id") return Promise.resolve({data:
+        value.includes(A)?[{official_code:"28000001",linked_school_id:A}]:[],error:null});
+      throw Error("Unexpected directory lookup");
+    },
+    async maybeSingle(){return {data:null,error:null}}};
   observed.push(q);return q;
 }};
 const exports={};
@@ -75,4 +80,26 @@ test("server-rendered school counts share the exact authenticated union",()=>{
  assert.match(client,/initialHasMultiSchoolContext = false/);
  assert.match(client,/currentUserDirectorySchoolCode \|\| initialHasMultiSchoolContext/);
  assert.match(page,/select\("id", \{ count: "exact", head: true \}\)/);
+});
+
+test("70 current national schools need one directory read, not 70 sequential reads",async()=>{
+ const many = Array.from({length:70},(_,i)=>({
+   schoolId:null,directorySchoolCode:String(28000010+i),
+ }));
+ const before=observed.length;
+ const scope=await resolveMarketplaceMultiSchoolScope(many);
+ assert.equal(observed.length-before,1,"Batch must issue a single directory code lookup");
+ assert.equal(scope.directoryCodes.length,70);
+ assert.equal(scope.schoolIds.length,0);
+ assert.ok(makeMarketplaceSchoolFilter(scope).length < 2000);
+});
+test("100 active operational schools use a bounded single batch",async()=>{
+ const many=Array.from({length:100},(_,i)=>({
+   schoolId:"aa"+String(i).padStart(6,"0")+"-1111-4111-8111-111111111111",
+   directorySchoolCode:null
+ }));
+ const before=observed.length;
+ const scope=await resolveMarketplaceMultiSchoolScope(many);
+ assert.equal(observed.length-before,1);
+ assert.equal(scope.schoolIds.length,100);
 });
