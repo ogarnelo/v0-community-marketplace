@@ -175,3 +175,6 @@ jobs:
 
       - name: Delivery must preserve payment buyer-seller-listing identity
         run: node --test __tests__/launch/p0-shipment-delivery-payment-identity-runtime.test.mjs
+
+      - name: Dispatch only after succeeded payment with same buyer seller and listing
+        run: node --test __tests__/launch/p0-shipment-dispatch-payment-identity-runtime.test.mjs
