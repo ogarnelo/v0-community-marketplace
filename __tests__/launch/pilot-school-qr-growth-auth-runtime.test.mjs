@@ -8,7 +8,7 @@ const USER_ID="11111111-1111-4111-8111-111111111111";
 
 function load(path,opts={}){
  const called=[],exports={},user={id:USER_ID,email:"qa@example.invalid"};
- const query={select:()=>query,eq:()=>query,
+ const query={select:()=>query,eq:()=>query,limit:()=>query,
   then:(resolve,reject)=>Promise.resolve({
    data:opts.roleNone?[]:[{role:"school_admin",school_id:USER_ID}],
    error:opts.roleError?{message:"PRIVATE_ROLE_ERROR"}:null
@@ -56,6 +56,13 @@ function load(path,opts={}){
    called.push("CONVERSION:"+v.userId);return true;
   }}
  };
+ const sharedRoleSource=readFileSync("lib/marketplace/unique-school-admin-context.ts","utf8");
+ const roleHelpers={};
+ const sharedRoleCode=ts.transpileModule(sharedRoleSource,{compilerOptions:{
+  module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022
+ }}).outputText;
+ vm.runInNewContext(sharedRoleCode,{exports:roleHelpers,Error},{timeout:1200});
+ mocks["@/lib/marketplace/unique-school-admin-context"]=roleHelpers;
  const src=readFileSync(path,"utf8");
  const compiled=ts.transpileModule(src,{fileName:path,reportDiagnostics:true,
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}});
