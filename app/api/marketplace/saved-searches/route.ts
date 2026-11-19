@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { extractIsbnFromText, normalizeIsbn } from "@/lib/books/isbn";
 import { hasKnownPostalCode } from "@/lib/marketplace/postal-distance";
 import { hasMeaningfulSearchTerms } from "@/lib/marketplace/saved-search-matching";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
+import { resolveSingleCommunityAlertContext } from "@/lib/marketplace/multischool-alert-context";
 
 function cleanText(value: unknown, maxLength = 160) {
   if (typeof value !== "string") return null;
@@ -110,13 +112,64 @@ export async function POST(request: Request) {
 
     // Match the exact school context shown on /marketplace:
     // a selected directory school takes precedence over stale profile.school_id.
-    const directorySchoolCode = schoolAdminRole?.school_id
+    let directorySchoolCode = schoolAdminRole?.school_id
       ? null : primaryStudentContext?.directory_school_code?.trim() || null;
-    const schoolId =
+    let schoolId =
       schoolAdminRole?.school_id?.trim() ||
       (primaryStudentContext
         ? primaryStudentContext.school_id?.trim() || null
         : profile?.school_id?.trim() || null);
+
+
+    // The community feed can show a union of several current family schools,
+    // but legacy saved_searches persists only ONE. Never save a misleading
+    // first-school alert in multi-school mode; clients must not infer broad
+    // notifications from a boolean "onlyMyCommunity".
+    if (body.onlyMyCommunity &&
+        process.env.WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true") {
+      const [rolesResult, studentsResult] = await Promise.all([
+        supabase.from("user_roles").select("school_id")
+          .eq("user_id", user.id).eq("role", "school_admin").limit(2),
+        supabase.from("account_students")
+          .select("school_id,directory_school_code")
+          .eq("owner_user_id", user.id).eq("active", true).limit(101),
+      ]);
+      if (rolesResult.error || studentsResult.error) {
+        return NextResponse.json({ ok: false, error: "school_context_unavailable" },
+          { status: 503, headers: { "Cache-Control": "private, no-store" } });
+      }
+      let managedId: string | null;
+      try {
+        managedId = resolveUniqueSchoolAdminSchoolId(rolesResult.data);
+      } catch {
+        return NextResponse.json({ ok: false, error: "school_context_unavailable" },
+          { status: 503, headers: { "Cache-Control": "private, no-store" } });
+      }
+      if (managedId) {
+        schoolId = managedId;
+        directorySchoolCode = null;
+      } else {
+        try {
+          const active = studentsResult.data || [];
+          const single = resolveSingleCommunityAlertContext(
+            active, active.length ? null : {
+              school_id: profile?.school_id || null,
+              directory_school_code: null,
+            }
+          );
+          if (single.ambiguous) {
+            return NextResponse.json({
+              ok: false, error: "multi_school_saved_search_not_supported",
+            }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+          }
+          schoolId = single.schoolId;
+          directorySchoolCode = single.directoryCode;
+        } catch {
+          return NextResponse.json({ ok: false, error: "school_context_unavailable" },
+            { status: 503, headers: { "Cache-Control": "private, no-store" } });
+        }
+      }
+    }
 
     if (body.onlyMyCommunity && !directorySchoolCode && !schoolId) {
       return NextResponse.json({ ok: false, error: "school_context_required" }, { status: 409 });
