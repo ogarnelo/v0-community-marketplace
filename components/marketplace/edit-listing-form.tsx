@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
+import { uploadSanitizedPhoto, cleanupSanitizedPhotoUploads } from "@/lib/marketplace/upload-sanitized-photo";
 import { missingListingPhotoMetadata } from "@/lib/marketplace/missing-listing-photos.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
 import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
@@ -377,9 +377,7 @@ export default function EditListingForm({
       // inserted their photo rows; never delete pre-existing listing photos.
       if (freshlyUploadedPaths.length > 0) {
         try {
-          const { error: cleanupError } = await supabase.storage.from(STORAGE_BUCKET)
-            .remove(freshlyUploadedPaths);
-          if (cleanupError) console.error("edit_listing_upload_cleanup_failed");
+          await cleanupSanitizedPhotoUploads(freshlyUploadedPaths);
         } catch {
           console.error("edit_listing_upload_cleanup_failed");
         }
