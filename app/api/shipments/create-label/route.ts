@@ -138,6 +138,27 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
+  // A paid intent found through a shipment ID is not authorization to
+  // create a parcel: its parties, listing, method and charged postage must
+  // match the exact shipment before contacting the external provider.
+  const shipmentTier = shipment.shipment_tier || payment.shipment_tier;
+  if (payment.id !== shipment.payment_intent_id ||
+      !shipment.listing_id || !shipment.buyer_id ||
+      payment.listing_id !== shipment.listing_id ||
+      payment.buyer_id !== shipment.buyer_id ||
+      payment.seller_id !== shipment.seller_id ||
+      payment.metadata?.delivery_method !== "shipping" ||
+      !["small", "medium", "large"].includes(shipmentTier) ||
+      shipment.shipment_tier !== payment.shipment_tier ||
+      !Number.isFinite(Number(payment.shipping_amount)) ||
+      Number(payment.shipping_amount) <= 0 ||
+      !Number.isFinite(Number(payment.amount)) ||
+      Number(payment.amount) <= 0) {
+    return privateJson(
+      { error: "Los datos del envío y del pago no coinciden; requieren conciliación." },
+      { status: 409 }
+    );
+  }
 
   if (!hasCompleteShippingAddress(buyerProfile)) {
     return privateJson(
@@ -151,7 +172,7 @@ export async function POST(request: Request) {
       shipmentId: shipment.id,
       orderNumber: `wetudy-${payment.id}`,
       itemAmount: Number(payment.amount || 0),
-      shipmentTier: shipment.shipment_tier || payment.shipment_tier || "small",
+      shipmentTier,
       recipient: {
         name: pickFullName(buyerProfile, payment?.metadata?.buyer_email),
         company_name: buyerProfile?.business_name || null,
