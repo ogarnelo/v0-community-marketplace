@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
 import { dispatchPublishedListingAlerts } from "@/lib/marketplace/publish-alert-dispatch.mjs";
 import { confirmOwnedListingInsert } from "@/lib/marketplace/confirm-owned-listing-insert.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
@@ -589,16 +590,7 @@ export default function NewListingForm({
 
       if (!photo.file) continue;
 
-      const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeName = sanitizeFileName(photo.file.name);
-      const filePath = `${userId}/drafts/current/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      const publicUrl = publicUrlData?.publicUrl;
+      const { path: filePath, publicUrl } = await uploadSanitizedPhoto(photo.file, "draft");
       if (!publicUrl) throw new Error("No se pudo guardar una foto del borrador.");
 
       nextPreviewFiles.push({ file: null, previewUrl: publicUrl, storagePath: filePath });
@@ -787,15 +779,10 @@ export default function NewListingForm({
 
         if (!photo.file) continue;
 
-        const fileExt = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const safeName = sanitizeFileName(photo.file.name);
-        const filePath = `${userId}/${listingId}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, photo.file, { cacheControl: "3600", upsert: false });
-        if (uploadError) throw uploadError;
+        // The listing is not committed yet. Stage a sanitized photo in the
+        // owner's draft folder; never upload raw pixels to Storage.
+        const { path: filePath, publicUrl } = await uploadSanitizedPhoto(photo.file, "draft");
         newlyUploadedPaths.push(filePath);
-
-        const { data: publicUrlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-        const publicUrl = publicUrlData?.publicUrl;
         if (!publicUrl) throw new Error("No se pudo obtener la URL pública de una imagen.");
         uploadedPhotoRows.push({ listing_id: listingId, url: publicUrl, sort_order: index });
       }
