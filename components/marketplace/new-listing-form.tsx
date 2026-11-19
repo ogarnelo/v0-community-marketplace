@@ -45,8 +45,8 @@ import {
 
 const STORAGE_BUCKET = "listing-photos";
 const MAX_FILES = 8;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const UNIFORM_ITEMS = ["Polo o camiseta", "Pantalón", "Falda o pichi", "Chándal", "Sudadera o jersey", "Abrigo", "Calzado", "Ropa deportiva", "Lote completo", "Otros"];
 const UNIFORM_SEASONS = ["Todo el año", "Verano", "Invierno", "Deporte", "No aplica"];
@@ -552,11 +552,11 @@ export default function NewListingForm({
     const accepted: PreviewFile[] = [];
     for (const file of incomingFiles.slice(0, availableSlots)) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        setPhotoError("Solo se permiten imágenes JPG, PNG, WEBP o GIF.");
+        setPhotoError("Solo se permiten imágenes JPG, PNG o WEBP.");
         continue;
       }
       if (file.size > MAX_FILE_SIZE) {
-        setPhotoError("Cada imagen debe pesar menos de 10 MB.");
+        setPhotoError("La imagen original debe pesar menos de 20 MB.");
         continue;
       }
       accepted.push({ file, previewUrl: URL.createObjectURL(file), storagePath: undefined });
@@ -991,13 +991,13 @@ export default function NewListingForm({
         ) : null}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif" multiple className="hidden" onChange={handleFilesSelected} />
+          <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp" multiple className="hidden" onChange={handleFilesSelected} />
 
           <SectionCard icon={<ImagePlus className="h-5 w-5" />} title="Fotos" description="Sube hasta 8 fotos. La primera será la principal y es obligatoria.">
             <button type="button" onClick={handlePickPhoto} className="flex min-h-36 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background p-5 text-center transition hover:bg-muted/40 sm:min-h-44">
               <ImagePlus className="mb-2 h-9 w-9 text-muted-foreground" />
               <span className="text-sm font-semibold text-foreground">Añadir fotos del material</span>
-              <span className="mt-1 text-xs leading-relaxed text-muted-foreground">JPG, PNG, WEBP o GIF. Máximo 10 MB por imagen.</span>
+              <span className="mt-1 text-xs leading-relaxed text-muted-foreground">JPG, PNG o WEBP. Hasta 20 MB de origen; optimización automática segura.</span>
             </button>
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
               {Array.from({ length: MAX_FILES }).map((_, index) => {
