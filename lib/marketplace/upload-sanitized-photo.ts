@@ -1,3 +1,5 @@
+import { prepareListingImage } from "@/lib/marketplace/photo-sanitizer";
+
 type SanitizedImageDestination = "draft" | "listing" | "chat";
 
 export type SanitizedUploadResult = {
@@ -15,7 +17,9 @@ export async function uploadSanitizedPhoto(
   resourceId?: string
 ): Promise<SanitizedUploadResult> {
   const payload = new FormData();
-  payload.set("file", file);
+  // The browser prepares a bounded transfer; the server independently decodes
+  // and re-encodes untrusted bytes before any Storage write.
+  payload.set("file", await prepareListingImage(file));
   payload.set("destination", destination);
   if (resourceId) payload.set("resourceId", resourceId);
   const response = await fetch("/api/uploads/sanitized-photo", {
