@@ -10,24 +10,26 @@ const client=readFileSync("components/marketplace/marketplace-client.tsx","utf8"
 const out={};
 runInNewContext(ts.transpileModule(helper,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,{exports:out});
 const {resolveSingleCommunityAlertContext:resolve}=out;
+// Values produced in vm have another realm prototype; compare serialized data.
+const plain=(...args)=>JSON.parse(JSON.stringify(resolve(...args)));
 const A="11111111-1111-4111-8111-111111111111",B="22222222-2222-4222-8222-222222222222";
 const school=(id)=>({school_id:id,directory_school_code:null});
 const dir=(code)=>({school_id:null,directory_school_code:code});
 test("one active student persists precise school identity without using a stale profile",()=>{
- assert.deepEqual(resolve([school(A)],school(B)),{schoolId:A,directoryCode:null,ambiguous:false});
- assert.deepEqual(resolve([dir("28000001")],school(B)),{schoolId:null,directoryCode:"28000001",ambiguous:false});
+ assert.deepEqual(plain([school(A)],school(B)),{schoolId:A,directoryCode:null,ambiguous:false});
+ assert.deepEqual(plain([dir("28000001")],school(B)),{schoolId:null,directoryCode:"28000001",ambiguous:false});
 });
 test("multiple distinct schools never silently collapse into first-school alerts",()=>{
  for(const students of [[school(A),school(B)],[school(A),dir("28000001")],
    [dir("28000001"),dir("28000002")]]) {
-   assert.deepEqual(resolve(students,school(A)),{schoolId:null,directoryCode:null,ambiguous:true});
+   assert.deepEqual(plain(students,school(A)),{schoolId:null,directoryCode:null,ambiguous:true});
  }
- assert.deepEqual(resolve([school(A),school(A)],school(B)),{schoolId:A,directoryCode:null,ambiguous:false});
+ assert.deepEqual(plain([school(A),school(A)],school(B)),{schoolId:A,directoryCode:null,ambiguous:false});
 });
 test("active student with no school cannot restore an old profile school",()=>{
- assert.deepEqual(resolve([{school_id:null,directory_school_code:null}],school(A)),
+ assert.deepEqual(plain([{school_id:null,directory_school_code:null}],school(A)),
   {schoolId:null,directoryCode:null,ambiguous:false});
- assert.deepEqual(resolve([],school(A)),{schoolId:A,directoryCode:null,ambiguous:false});
+ assert.deepEqual(plain([],school(A)),{schoolId:A,directoryCode:null,ambiguous:false});
 });
 test("malformed, conflicting or unbounded school data fail closed",()=>{
  for(const contexts of [[school("../../../x")],[{school_id:A,directory_school_code:"28000001"}],
