@@ -23,9 +23,10 @@ test("AMPA reports are queried only for the authorized school's listing IDs", ()
 
 test("QR is role-gated; no public endpoint reveals school access codes", () => {
   assert.match(qr, /if \(!user\)/);
-  assert.match(qr, /role === "school_admin"/);
+  assert.match(qr, /\.eq\("role", "school_admin"\)\s*\.limit\(2\)/);
+  assert.match(qr, /resolveUniqueSchoolAdminSchoolId\(roles\)/);
   assert.match(qr, /getAuthPublicOrigin\(\)/);
-  assert.match(qr, /baseShareUrl\.searchParams\.set\("school", schoolRole\.school_id\)/);
+  assert.match(qr, /baseShareUrl\.searchParams\.set\("school", schoolId\)/);
   assert.match(schools, /\.eq\("is_active", true\)/);
   assert.match(schools, /\.eq\("is_test", false\)/);
   assert.match(schools, /\.select\("id, name, city"\)/);
