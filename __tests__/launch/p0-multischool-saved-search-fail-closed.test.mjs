@@ -46,7 +46,8 @@ test("saved-search route enforces authenticated multi-school scope and 409 befor
  assert.match(route,/status: 409, headers: \{ "Cache-Control": "private, no-store" \}/);
  assert.ok(route.indexOf("multi_school_saved_search_not_supported") < route.indexOf('.from("saved_searches")'));
  assert.doesNotMatch(route,/body\.schoolId|body\.directorySchoolCode/);
- assert.match(route,/if \(body\.onlyMyCommunity && !directorySchoolCode && !schoolId\)/);
+ assert.match(route,/if \(body\.onlyMyCommunity && !directorySchoolCode && !schoolId &&\s*familyScopeMode !== "active_family"\)/);
+ assert.match(route,/WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED !== "true"/);
 });
 test("client explains limited notifications instead of promising unimplemented multi-school alerts",()=>{
  assert.match(client,/payload\?\.error === "multi_school_saved_search_not_supported"/);
