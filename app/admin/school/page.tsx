@@ -156,14 +156,14 @@ export default async function SchoolAdminPage() {
 
   const [
     { data: school, error: schoolLookupError },
-    { data: listings },
+    { data: listings, error: listingsError },
     { data: memberCountData, error: memberCountError },
-    { data: accessCodes },
-    { data: schoolAdminRoles },
-    { data: donationRequests },
-    { data: agreements },
-    { data: impactSubscription },
-    { data: impactDeliveries },
+    { data: accessCodes, error: accessCodesError },
+    { data: schoolAdminRoles, error: schoolAdminRolesError },
+    { data: donationRequests, error: donationRequestsError },
+    { data: agreements, error: agreementsError },
+    { data: impactSubscription, error: impactSubscriptionError },
+    { data: impactDeliveries, error: impactDeliveriesError },
   ] = await Promise.all([
     adminSupabase
       .from("schools")
@@ -220,6 +220,13 @@ export default async function SchoolAdminPage() {
       .returns<ImpactDeliveryRow[]>(),
   ]);
 
+  // A failed scoped query is NOT an empty school. Never render a partial
+  // privileged dashboard as if permissions, moderation or orders were absent.
+  if (listingsError || accessCodesError || schoolAdminRolesError ||
+      donationRequestsError || agreementsError || impactSubscriptionError ||
+      impactDeliveriesError) {
+    throw new Error("SCHOOL_DASHBOARD_SCOPED_READ_UNAVAILABLE");
+  }
   const safeListings = (listings || []) as ListingRow[];
   const safeAccessCodes = (accessCodes || []) as SchoolAccessCodeRow[];
   const safeSchoolAdminRoles = (schoolAdminRoles || []) as SchoolAdminRoleRow[];
@@ -236,7 +243,7 @@ export default async function SchoolAdminPage() {
 
   // Reports may contain sensitive reasons. Never load all schools' reports
   // through the service-role client just to filter them in JavaScript.
-  const { data: reports } = listingIds.length > 0
+  const { data: reports, error: reportsError } = listingIds.length > 0
     ? await adminSupabase
       .from("reports")
       .select("id, target_type, listing_id, conversation_id, reason, status, created_at")
@@ -244,10 +251,11 @@ export default async function SchoolAdminPage() {
       .in("listing_id", listingIds)
       .order("created_at", { ascending: false })
       .returns<ReportRow[]>()
-    : { data: [] as ReportRow[] };
+    : { data: [] as ReportRow[], error: null };
+  if (reportsError) throw new Error("SCHOOL_DASHBOARD_REPORTS_UNAVAILABLE");
   const safeReports = reports || [];
 
-  const { data: listingViews } =
+  const { data: listingViews, error: listingViewsError } =
     listingIds.length > 0
       ? await adminSupabase
         .from("listing_views")
@@ -255,8 +263,9 @@ export default async function SchoolAdminPage() {
         .in("listing_id", listingIds)
         .order("viewed_at", { ascending: false })
         .returns<ListingViewRow[]>()
-      : { data: [] as ListingViewRow[] };
+      : { data: [] as ListingViewRow[], error: null };
 
+  if (listingViewsError) throw new Error("SCHOOL_DASHBOARD_VIEWS_UNAVAILABLE");
   const safeListingViews = (listingViews || []) as ListingViewRow[];
   const safeListingReports = safeReports.filter((report) =>
     safeListings.some((listing) => listing.id === report.listing_id)
@@ -274,12 +283,13 @@ export default async function SchoolAdminPage() {
     throw new Error("La cifra de miembros del centro no es válida.");
   }
   const schoolAdminIds = safeSchoolAdminRoles.map((role) => role.user_id);
-  const { data: schoolAdmins } = schoolAdminIds.length
+  const { data: schoolAdmins, error: schoolAdminsError } = schoolAdminIds.length
     ? await adminSupabase.from("profiles")
       .select("id, full_name")
       .in("id", schoolAdminIds)
       .returns<SchoolAdminNameRow[]>()
-    : { data: [] as SchoolAdminNameRow[] };
+    : { data: [] as SchoolAdminNameRow[], error: null };
+  if (schoolAdminsError) throw new Error("SCHOOL_DASHBOARD_ADMIN_NAMES_UNAVAILABLE");
 
   const requesterIds = Array.from(
     new Set(
@@ -290,11 +300,12 @@ export default async function SchoolAdminPage() {
   const requesterNameMap = new Map<string, string>();
 
   if (requesterIds.length > 0) {
-    const { data: requesterProfiles } = await adminSupabase
+    const { data: requesterProfiles, error: requesterProfilesError } = await adminSupabase
       .from("profiles")
       .select("id, full_name")
       .in("id", requesterIds);
 
+    if (requesterProfilesError) throw new Error("SCHOOL_DASHBOARD_REQUESTER_NAMES_UNAVAILABLE");
     for (const profileRow of (requesterProfiles || []) as Array<{ id: string; full_name: string | null }>) {
       requesterNameMap.set(profileRow.id, profileRow.full_name || "Usuario");
     }
