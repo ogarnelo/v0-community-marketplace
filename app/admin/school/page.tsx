@@ -130,7 +130,7 @@ export default async function SchoolAdminPage() {
   // silently chose one school and ignored contradictory administrator grants.
   const [
     { data: profile, error: profileError },
-    { data: schoolAdminRoles, error: rolesError },
+    { data: signedSchoolAdminRoles, error: rolesError },
     { data: superAdminRoles, error: superAdminError },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, school_id").eq("id", user.id).maybeSingle(),
@@ -144,7 +144,7 @@ export default async function SchoolAdminPage() {
     throw new Error("No se han podido comprobar los permisos del centro.");
   }
   const isSuperAdmin = superAdminRoles.length === 1;
-  const effectiveSchoolId = resolveUniqueSchoolAdminSchoolId(schoolAdminRoles);
+  const effectiveSchoolId = resolveUniqueSchoolAdminSchoolId(signedSchoolAdminRoles);
 
   if (!effectiveSchoolId) {
     if (isSuperAdmin) redirect("/admin/super");
