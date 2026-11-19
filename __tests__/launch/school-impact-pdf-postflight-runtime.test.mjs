@@ -21,8 +21,11 @@ function setup(options={}){
    return {
     select(){return this},
     eq(){roleReads++;events.push("ROLE"+roleReads);
-     return Promise.resolve({data:options.rolesOutage && roleReads>1?null:
-      options.revokedDuringLoad && roleReads>1?[]:[role],
+     const roleRows = options.rolesOutage && roleReads>1 ? null :
+      options.revokedDuringLoad && roleReads>1 ? [] :
+      options.secondSchoolFromStart || options.secondSchoolDuringLoad && roleReads>1
+        ? [role,{role:"school_admin",school_id:OTHER}] : [role];
+     return Promise.resolve({data:roleRows,
       error:options.rolesOutage && roleReads>1?new Error("PRIVATE_ROLES"):null});
     }
    };
@@ -40,6 +43,15 @@ function setup(options={}){
    Response.json(obj,{status:config.status??200,headers:config.headers})}},
   "@/lib/supabase/server":{createClient:async()=>supabase},
   "@/lib/supabase/admin":{createAdminClient:()=>admin},
+  "@/lib/marketplace/unique-school-admin-context":(function(){
+    const value=readFileSync("lib/marketplace/unique-school-admin-context.ts","utf8");
+    const output={};
+    const js=ts.transpileModule(value,{compilerOptions:{
+      module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,
+    }}).outputText;
+    vm.runInNewContext(js,{exports:output,Error,Array},{timeout:1200});
+    return output;
+  })(),
   "@/lib/reports/school-impact-report":{
    dashboardRange:()=>({start:null,end:new Date("2026-11-18T10:00:00Z"),label:"Histórico",key:"historico"}),
    loadSchoolImpactReport:async()=>{
@@ -86,4 +98,19 @@ test("postflight authorization outage fails closed without releasing PDF",async(
   const h=setup(opts),x=await h.run();
   assert.equal(x.status,503);assert.equal(h.events.includes("PDF"),false);
  }
+});
+
+test("two synthetic school-admin grants deny PDF before privileged school read",async()=>{
+ const h=setup({secondSchoolFromStart:true}),r=await h.run();
+ assert.equal(r.status,403);
+ assert.equal(r.cache,"private, no-store");
+ assert.equal(h.events.includes("SCHOOL"),false);
+ assert.equal(h.events.includes("REPORT"),false);
+ assert.equal(h.events.includes("PDF"),false);
+});
+test("second school-admin granted during PDF render blocks final response",async()=>{
+ const h=setup({secondSchoolDuringLoad:true}),r=await h.run();
+ assert.equal(r.status,403);
+ assert.equal(h.events.includes("REPORT"),true);
+ assert.equal(h.events.includes("PDF"),false);
 });

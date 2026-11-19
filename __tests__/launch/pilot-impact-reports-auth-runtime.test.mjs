@@ -38,6 +38,15 @@ function run(path,method,opts={}){
     calls.push("CREATE_CLIENT");
     if(opts.throwClient)throw Error("PRIVATE_CLIENT_EXCEPTION");return supabase;
   }},
+  "@/lib/marketplace/unique-school-admin-context":(function(){
+    const src=readFileSync("lib/marketplace/unique-school-admin-context.ts","utf8");
+    const compiled=ts.transpileModule(src,{compilerOptions:{
+      target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,
+    }}).outputText;
+    const exp={};
+    vm.runInNewContext(compiled,{exports:exp,Array,Error},{timeout:1200});
+    return exp;
+  })(),
   "@/lib/supabase/admin":{createAdminClient:()=>{
     calls.push("PRIVILEGED");
     if(path==="app/api/school/impact-report/route.ts" && !opts.inactiveSchool)
