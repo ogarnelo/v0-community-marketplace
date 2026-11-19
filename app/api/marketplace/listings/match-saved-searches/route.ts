@@ -36,6 +36,14 @@ export async function POST(request: Request) {
       Boolean(cronSecret) &&
       request.headers.get("authorization") === `Bearer ${cronSecret}` &&
       request.headers.get("x-wetudy-alert-outbox") === "1";
+    // A signed worker may have claimed its lease before the global switch
+    // was turned off. Return an explicit incomplete/paused outcome BEFORE
+    // touching recipients or mail. The worker requeues the existing lease
+    // without consuming an email-failure attempt.
+    if (isOutboxWorker && process.env.WETUDY_SAVED_SEARCH_ALERTS_ENABLED !== "true") {
+      return privateJson({ok:true,complete:false,paused:true,reason:"alerts_disabled"},
+        {status:202});
+    }
     // The signed worker has separate authorization. Interactive callers
     // must never trust user data returned alongside an Auth provider failure.
     const auth = isOutboxWorker ? null : await supabase.auth.getUser();

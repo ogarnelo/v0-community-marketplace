@@ -7,7 +7,7 @@ const ts=createRequire(import.meta.url)("typescript");
 const source=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
 const uid="11111111-1111-4111-8111-111111111111";
 const listing="22222222-2222-4222-8222-222222222222";
-function handler({user=true,authError=false,missingSession=false,authThrows=false,signed=false,workerHeader=true,listingId=listing}={}){
+function handler({user=true,authError=false,missingSession=false,authThrows=false,signed=false,workerHeader=true,listingId=listing,globalFlag="true"}={}){
  const actions=[];
  const fakeClient={auth:{getUser:async()=>{
   actions.push("AUTH_GET_USER");
@@ -32,7 +32,7 @@ function handler({user=true,authError=false,missingSession=false,authThrows=fals
  vm.runInNewContext(compiled.outputText,{
   exports,require:id=>modules[id]??{},Date,Promise,Request,Response,
   process:{env:{CRON_SECRET:"synthetic-cron",WETUDY_ALERT_OUTBOX_ENABLED:"true",
-   WETUDY_ALERT_INTENT_DELIVERY_ENABLED:"true"}},
+   WETUDY_ALERT_INTENT_DELIVERY_ENABLED:"true",WETUDY_SAVED_SEARCH_ALERTS_ENABLED:globalFlag}},
   console:{error:()=>{}}
  },{filename:"matcher.ts",timeout:1500});
  return {actions,run:async()=>{
@@ -88,5 +88,21 @@ test("matcher emits private no-store for its complete response family",()=>{
 test("missing-session Auth error is a private 401 before any privileged alert lookup",async()=>{
  const f=handler({missingSession:true}),r=await f.run();
  assert.equal(r.status,401);assert.equal(r.cache,"private, no-store");
+ assert.deepEqual(f.actions,["AUTH_GET_USER"]);
+});
+
+test("globally paused signed worker makes no Auth, service role or delivery request",async()=>{
+ for(const globalFlag of ["false",null,"TRUE"]){
+  const f=handler({user:false,signed:true,globalFlag}),r=await f.run();
+  assert.equal(r.status,202);
+  assert.equal(r.cache,"private, no-store");
+  assert.equal(r.body.complete,false);
+  assert.equal(r.body.paused,true);
+  assert.deepEqual(f.actions,[]);
+ }
+});
+test("global switch never grants unsigned guest privileged access",async()=>{
+ const f=handler({user:false,signed:false,globalFlag:"false"}),r=await f.run();
+ assert.equal(r.status,401);
  assert.deepEqual(f.actions,["AUTH_GET_USER"]);
 });
