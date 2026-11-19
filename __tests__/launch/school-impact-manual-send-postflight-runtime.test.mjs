@@ -92,6 +92,7 @@ function fixture(options={}){
   target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  vm.runInNewContext(js,{exports:mod,require:name=>{assert.ok(name in mocks,name);return mocks[name]},
   Date,Response,Request,Uint8Array,console:{error:()=>{}},
+  process:{env:{WETUDY_SCHOOL_IMPACT_MANUAL_EMAIL_ENABLED:options.disabledManual?"false":"true"}},
  },{timeout:1500});
  return {events,run:async()=>{
   const res=await mod.POST(new Request("https://wetudy.invalid/api/school/send-impact-report",{
@@ -195,4 +196,11 @@ test("duplicate same-school admin grants prevent provider delivery",async()=>{
   assert.equal(res.status,403);
   assert.equal(h.events.includes("EMAIL"),false);
  }
+});
+
+
+test("manual report opt-in is required even for a valid school admin",async()=>{
+ const h=fixture({disabledManual:true}),r=await h.run();
+ assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
+ assert.deepEqual(h.events,[]);
 });

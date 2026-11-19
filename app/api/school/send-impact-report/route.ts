@@ -69,6 +69,12 @@ function uniqueSchoolAdminRole(roles: unknown): { school_id: string } | null {
 }
 
 export async function POST(request: Request) {
+  // The manual route has no shared atomic claim with the scheduled worker yet.
+  // CRON_SECRET and a healthy email provider do NOT authorize manual delivery.
+  // Keep this legacy path inert until shared deduplication is implemented.
+  if (process.env.WETUDY_SCHOOL_IMPACT_MANUAL_EMAIL_ENABLED !== "true") {
+    return privateJson({ error: "El envío manual de informes no está habilitado." }, { status: 503 });
+  }
   // Once the provider has accepted the email, an exception cannot safely be
   // presented as a failed send: the caller might retry a private PDF.
   let providerAccepted = false;

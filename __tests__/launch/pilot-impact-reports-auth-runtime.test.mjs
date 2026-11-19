@@ -78,6 +78,7 @@ function run(path,method,opts={}){
  assert.equal((compiled.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
  vm.runInNewContext(compiled.outputText,{
   exports:exp,require:name=>modules[name]??{},Request,Response,Date,URL,Promise,
+  process:{env:{WETUDY_SCHOOL_IMPACT_MANUAL_EMAIL_ENABLED:"true"}},
   console:{error:(...args)=>errors.push(args)}
  },{filename:path,timeout:1500});
  return {calls,errors,call:async()=>{

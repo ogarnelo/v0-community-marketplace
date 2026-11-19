@@ -53,7 +53,8 @@ function fixture(opts={}){
  const js=ts.transpileModule(src,{fileName:"manual.ts",compilerOptions:{module:ts.ModuleKind.CommonJS,
   target:ts.ScriptTarget.ES2022,esModuleInterop:true}});
  vm.runInNewContext(js.outputText,{exports,require:name=>{assert.ok(name in deps,name);return deps[name]},
-  console:{error:(...args)=>errors.push(args)},Response,Request,Date,Promise},
+  console:{error:(...args)=>errors.push(args)},Response,Request,Date,Promise,
+  process:{env:{WETUDY_SCHOOL_IMPACT_MANUAL_EMAIL_ENABLED:opts.disabledManual?"false":"true"}}},
   {filename:"manual-report.js",timeout:2000});
  return {events,errors,send:async()=>{
   const r=await exports.POST(new Request("https://wetudy.invalid/api/school/send-impact-report",{
@@ -100,4 +101,12 @@ test("unexpected subscription write exception after provider acceptance requires
  assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
  assert.equal(r.cache,"private, no-store");
  assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_THROW_SQL|verified@example.invalid|synthetic-provider-id/);
+});
+
+
+test("manual monthly report remains disabled by default before any privileged work",async()=>{
+ const f=fixture({disabledManual:true}),r=await f.send();
+ assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
+ assert.deepEqual(f.events,[]);
+ assert.doesNotMatch(JSON.stringify(r.body),/school@example|PRIVATE_THROW_SQL/);
 });
