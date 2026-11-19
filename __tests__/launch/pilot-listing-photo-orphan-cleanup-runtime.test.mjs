@@ -89,3 +89,32 @@ test("listing route only garbage collects after confirmed parent delete and no p
  assert.match(route,/delete_not_confirmed/);
  assert.doesNotMatch(route,/from\("listing_photos"\)\.delete\(/);
 });
+
+test("real new listing upload Date.now()-index-sanitizedName.webp is eligible for safe GC",async()=>{
+ const path=owner+"/"+listing+"/1732018500000-0-mochila-escolar.webp";
+ const h=fixture();
+ await h.cleanup([host+path]);
+ assert.deepEqual(h.calls.filter(x=>x.type==="remove").map(x=>Array.from(x.paths)),[[path]]);
+});
+test("real current listing upload remains protected when DB reference exists",async()=>{
+ const path=owner+"/"+listing+"/1732018500000-1-libro-texto.jpg";
+ for(const table of ["listings","listing_photos","listing_drafts"]){
+  const h=fixture({references:[table]});
+  await h.cleanup([host+path]);
+  assert.equal(h.calls.some(x=>x.type==="remove"),false);
+ }
+});
+for(const filename of ["1732018500000-9-too-many.jpg","1732018500000-0-../../private.jpg",
+ "1732018500000-0-evil.svg","1732018500000-0-.hidden.jpg",
+ "1732018500000-0-evil..jpg","1732018500000-0-hola%2Fworld.jpg"]){
+ test("suspicious generated-looking filename cannot be removed: "+filename,async()=>{
+  const h=fixture();
+  await h.cleanup([host+owner+"/"+listing+"/"+filename]);
+  assert.equal(h.calls.some(x=>x.type==="remove"),false);
+ });
+}
+test("canonical path check rejects URL aliases and encoded file representations",async()=>{
+ const h=fixture();
+ await h.cleanup([host+owner+"/"+listing+"/1732018500000-0-file%2Ejpg"]);
+ assert.equal(h.calls.some(x=>x.type==="remove"),false);
+});
