@@ -92,7 +92,7 @@ async function processCheckoutSessionEvent(
   const admin = createAdminClient();
   const { data: paymentIntent, error: paymentLookupError } = await admin
     .from("payment_intents")
-    .select("id, listing_id, conversation_id, buyer_id, seller_id, offer_id, status, shipping_amount, shipment_tier, metadata")
+    .select("id, listing_id, conversation_id, buyer_id, seller_id, offer_id, status, provider, currency, amount, buyer_fee_amount, shipping_amount, shipment_tier, metadata")
     .eq("offer_id", offerId)
     .eq("buyer_id", buyerId)
     .maybeSingle();
@@ -105,29 +105,42 @@ async function processCheckoutSessionEvent(
     return { ignored: true, reason: "payment_intent_not_found" as const };
   }
 
-  const registeredSessionId =
-    typeof paymentIntent.metadata?.stripe_checkout_session_id === "string"
-      ? paymentIntent.metadata.stripe_checkout_session_id
-      : null;
-
-  if (registeredSessionId && registeredSessionId !== session.id) {
+  // Only the Stripe Checkout session created and registered for this
+  // payment is authorized to mutate it. Legacy/incomplete records require
+  // manual reconciliation, not an inferred ownership or a missing-amount bypass.
+  const registeredSessionId = paymentIntent.metadata?.stripe_checkout_session_id;
+  const expectedTotal = paymentIntent.metadata?.total_buyer_amount;
+  const itemAmount = paymentIntent.amount;
+  const fee = paymentIntent.buyer_fee_amount;
+  const shipping = paymentIntent.shipping_amount;
+  const cents = (value: number) => Math.round(value * 100);
+  if (typeof registeredSessionId !== "string" || !registeredSessionId ||
+      registeredSessionId !== session.id) {
     throw new Error("Stripe checkout session does not match the registered session.");
   }
-
-  if (
-    session.metadata?.listing_id &&
-    session.metadata.listing_id !== paymentIntent.listing_id
-  ) {
-    throw new Error("Stripe checkout listing does not match the payment intent.");
+  if (paymentIntent.provider !== "stripe" || paymentIntent.currency !== "EUR" ||
+      paymentIntent.metadata?.source !== "stripe_checkout" ||
+      paymentIntent.offer_id !== offerId || paymentIntent.buyer_id !== buyerId ||
+      !paymentIntent.listing_id || !paymentIntent.seller_id ||
+      session.metadata?.seller_id !== paymentIntent.seller_id ||
+      session.metadata?.listing_id !== paymentIntent.listing_id ||
+      session.metadata?.offer_id !== paymentIntent.offer_id ||
+      session.metadata?.buyer_id !== paymentIntent.buyer_id ||
+      session.currency !== "eur") {
+    throw new Error("Stripe checkout identity or currency does not match the payment intent.");
   }
-
-  const expectedTotal = Number(paymentIntent.metadata?.total_buyer_amount);
-  if (
-    Number.isFinite(expectedTotal) &&
-    expectedTotal > 0 &&
-    session.amount_total !== Math.round(expectedTotal * 100)
-  ) {
+  if (typeof expectedTotal !== "number" ||
+      [itemAmount, fee, shipping].some(v => v === null || v === undefined || v === "") ||
+      ![Number(itemAmount),Number(fee),Number(shipping),expectedTotal].every(Number.isFinite) ||
+      Number(itemAmount) <= 0 || Number(fee) < 0 || Number(shipping) < 0 ||
+      expectedTotal <= 0 || !Number.isSafeInteger(cents(expectedTotal)) ||
+      cents(Number(itemAmount)) + cents(Number(fee)) + cents(Number(shipping)) !== cents(expectedTotal) ||
+      session.amount_total !== cents(expectedTotal)) {
     throw new Error("Stripe checkout total does not match the payment intent.");
+  }
+  if (eventType === "checkout.session.async_payment_succeeded" &&
+      session.payment_status !== "paid") {
+    throw new Error("Stripe asynchronous success event has no paid confirmation.");
   }
 
   const nextStatus = getNextPaymentStatus(eventType, session);
