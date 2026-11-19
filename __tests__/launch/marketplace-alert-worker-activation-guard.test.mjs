@@ -130,7 +130,7 @@ test("missing manual reconciliation RPC stops before claiming any work",async()=
 });
 
 test("outbox global switch denies both flags enabled before any privileged work",async()=>{
- for(const globalFlag of [undefined,"false","TRUE","1","yes",""," true "]){
+ for(const globalFlag of [null,"false","TRUE","1","yes",""," true "]){
   const w=runWorker({globalFlag});
   assert.equal((await w.response).status,204);
   assert.deepEqual(w.calls(),{dbCreated:0,claimed:0,fetchCalls:0});
