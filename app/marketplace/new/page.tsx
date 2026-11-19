@@ -6,6 +6,7 @@ import NewListingForm from "@/components/marketplace/new-listing-form";
 import type { ProfileRow, SchoolRow } from "@/lib/types/marketplace";
 import { Button } from "@/components/ui/button";
 import { normalizeIsbn } from "@/lib/books/isbn";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,17 @@ export default async function NewListingPage({
 }) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth?next=/marketplace/new");
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  // Never use a possibly stale user returned together with an Auth outage.
+  if (authError) {
+    if (authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found") {
+      redirect("/auth?next=/marketplace/new");
+    }
+    throw new Error("LISTING_NEW_AUTH_UNAVAILABLE");
   }
+  const user = authData?.user;
+  if (!user) redirect("/auth?next=/marketplace/new");
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -46,29 +51,20 @@ export default async function NewListingPage({
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profileError) {
-    console.error("Error cargando school_id del perfil:", profileError);
-  }
+  if (profileError) throw new Error("LISTING_NEW_PROFILE_UNAVAILABLE");
 
   const typedProfile = (profile as ProfileRow | null) ?? null;
 
-  const { data: schoolAdminRole, error: schoolAdminRoleError } = await supabase
+  const { data: schoolAdminRoles, error: schoolAdminRoleError } = await supabase
     .from("user_roles")
     .select("school_id")
     .eq("user_id", user.id)
     .eq("role", "school_admin")
-    .not("school_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (schoolAdminRoleError) {
-    console.error("Error cargando el centro administrado:", schoolAdminRoleError);
-  }
-
-  const managedSchoolId =
-    typeof schoolAdminRole?.school_id === "string" && schoolAdminRole.school_id.trim()
-      ? schoolAdminRole.school_id
-      : null;
+    .limit(2);
+  // A role read outage or multiple school_admin grants must not fall back
+  // silently to an unrelated student/profile school during publication.
+  if (schoolAdminRoleError) throw new Error("LISTING_NEW_ADMIN_ROLE_UNAVAILABLE");
+  const managedSchoolId = resolveUniqueSchoolAdminSchoolId(schoolAdminRoles);
 
   const { data: primaryStudentContext, error: studentContextError } = await supabase
     .from("account_students")
@@ -81,9 +77,7 @@ export default async function NewListingPage({
     .limit(1)
     .maybeSingle();
 
-  if (studentContextError) {
-    console.error("Error cargando el contexto educativo principal:", studentContextError);
-  }
+  if (studentContextError) throw new Error("LISTING_NEW_STUDENT_CONTEXT_UNAVAILABLE");
 
   const requestedParams = await searchParams;
   const opportunityKey =
@@ -181,7 +175,7 @@ export default async function NewListingPage({
       .select("official_code,name,municipality")
       .eq("official_code", directorySchoolCode)
       .maybeSingle();
-    if (directoryError) console.error("Error cargando centro del directorio para el anuncio", directoryError);
+    if (directoryError) throw new Error("LISTING_NEW_DIRECTORY_CONTEXT_UNAVAILABLE");
     selectedDirectorySchool = directorySchool || null;
   }
 
@@ -193,9 +187,7 @@ export default async function NewListingPage({
       .eq("is_active", true)
       .maybeSingle();
 
-    if (schoolError) {
-      console.error("Error cargando school real:", schoolError);
-    }
+    if (schoolError) throw new Error("LISTING_NEW_SCHOOL_CONTEXT_UNAVAILABLE");
 
     selectedSchool = (school as SchoolRow | null) ?? null;
   }

@@ -196,3 +196,6 @@ jobs:
 
       - name: Unreferenced listing photo cleanup never deletes foreign or referenced objects
         run: node --test __tests__/launch/pilot-listing-photo-orphan-cleanup-runtime.test.mjs
+
+      - name: New listing school context denies ambiguous school_admin and Auth outages
+        run: node --test __tests__/launch/p0-new-listing-global-admin-school-runtime.test.mjs
