@@ -74,6 +74,10 @@ type NewListingFormProps = {
   initialDirectorySchoolCode: string;
   initialSchoolName: string;
   initialSchoolCity: string;
+  availableSchoolContexts: Array<{
+    key: string; label: string; schoolId: string | null; directorySchoolCode: string | null
+  }>;
+  multischoolSelectorEnabled: boolean;
   initialPrefill?: DemandListingPrefill | null;
   activationOpportunityKey?: string | null;
   isSchoolAdmin?: boolean;
@@ -216,6 +220,8 @@ export default function NewListingForm({
   initialDirectorySchoolCode,
   initialSchoolName,
   initialSchoolCity,
+  availableSchoolContexts,
+  multischoolSelectorEnabled,
   initialPrefill = null,
   activationOpportunityKey = null,
   isSchoolAdmin = false,
@@ -228,6 +234,20 @@ export default function NewListingForm({
   // operation synchronously and preserve the same ID across uncertain retries.
   const submissionInFlightRef = useRef(false);
   const pendingListingIdRef = useRef<string | null>(null);
+
+  const initialContextKey = initialDirectorySchoolCode
+    ? `directory:${initialDirectorySchoolCode}`
+    : initialSchoolId ? `operational:${initialSchoolId}` : "no-school";
+  const [selectedContextKey, setSelectedContextKey] = useState(initialContextKey);
+  const selectedContext = multischoolSelectorEnabled
+    ? availableSchoolContexts.find((school) => school.key === selectedContextKey) || null
+    : null;
+  // The server provides only active verified choices; arbitrary keys never
+  // become a school_id or directory code in the listing payload.
+  const effectiveSchoolId = multischoolSelectorEnabled
+    ? selectedContext?.schoolId || null : initialSchoolId || null;
+  const effectiveDirectoryCode = multischoolSelectorEnabled
+    ? selectedContext?.directorySchoolCode || null : initialDirectorySchoolCode || null;
 
   const [loading, setLoading] = useState(false);
   const [isDonation, setIsDonation] = useState(false);
@@ -823,8 +843,15 @@ export default function NewListingForm({
 
       // Server-selected student context is authoritative: never pull a stale
       // profiles.school_id after a family chooses a national directory centre.
-      const effectiveSchoolId = initialSchoolId || null;
-      const directorySchoolCode = initialDirectorySchoolCode || null;
+      if (isSchoolAdmin && (effectiveSchoolId !== (initialSchoolId || null) ||
+          effectiveDirectoryCode !== (initialDirectorySchoolCode || null))) {
+        throw new Error("LISTING_SCHOOL_ADMIN_CONTEXT_CHANGED");
+      }
+      if (multischoolSelectorEnabled && selectedContextKey !== "no-school" &&
+          !availableSchoolContexts.some((school) => school.key === selectedContextKey)) {
+        throw new Error("LISTING_SCHOOL_CONTEXT_NOT_AUTHORIZED");
+      }
+      const directorySchoolCode = effectiveDirectoryCode;
       const listingId = pendingListingIdRef.current || crypto.randomUUID();
       pendingListingIdRef.current = listingId;
       const uploadedPhotoRows = await uploadListingPhotos(listingId, currentUserId, photos);
@@ -1175,7 +1202,24 @@ export default function NewListingForm({
 
           <div className="rounded-2xl border bg-background p-4 text-sm leading-relaxed text-muted-foreground">
             <div className="mb-1 flex items-center gap-2 font-medium text-foreground"><School className="h-4 w-4 text-primary" />Centro asociado</div>
-            <p>{schoolLabel}</p>
+            {multischoolSelectorEnabled && !isSchoolAdmin ? (
+              <div className="mt-2 space-y-2">
+                <Label htmlFor="listing-school-context">Colegio de este anuncio</Label>
+                <Select value={selectedContextKey} onValueChange={setSelectedContextKey}>
+                  <SelectTrigger id="listing-school-context" className="min-h-11">
+                    <SelectValue placeholder="Selecciona un colegio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-school">Material general (sin colegio)</SelectItem>
+                    {availableSchoolContexts.map((school) => (
+                      <SelectItem key={school.key} value={school.key}>{school.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs">Puedes elegir cualquiera de tus centros vigentes.
+                  No es necesario seleccionar un estudiante.</p>
+              </div>
+            ) : <p>{schoolLabel}</p>}
             {isSchoolAdmin ? (
               <p className="mt-2 text-xs">
                 Como AMPA o centro, el anuncio queda vinculado a este centro. Puedes indicar un curso concreto o dejar “Varios cursos”; podrás comprar y contactar con usuarios de cualquier centro.
