@@ -10,6 +10,7 @@ function privateJson(body: unknown, options: { status?: number; headers?: Record
 }
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { acquireSharedSchoolReportClaim, acknowledgeSharedSchoolReportClaim } from "@/lib/reports/p0-school-impact-shared-claim-rpc";
 import { createClient } from "@/lib/supabase/server";
 import { sendMonthlySchoolImpactEmail } from "@/lib/emails/school-impact-report-email";
 import {
@@ -35,7 +36,7 @@ async function manualMonthDeliveryState(
   schoolId: string,
   userId: string,
   periodKey: string,
-): Promise<"unsent" | "sent" | "unavailable"> {
+): Promise<{ state: "unsent" | "sent" | "unavailable"; subscriptionPresent: boolean }> {
   const [subscription, delivery] = await Promise.all([
     admin.from("school_impact_report_subscriptions")
       .select("last_sent_month")
@@ -50,9 +51,13 @@ async function manualMonthDeliveryState(
       .limit(1)
       .maybeSingle(),
   ]);
-  if (subscription.error || delivery.error) return "unavailable";
-  return subscription.data?.last_sent_month === periodKey || Boolean(delivery.data?.id)
-    ? "sent" : "unsent";
+  if (subscription.error || delivery.error)
+    return { state: "unavailable", subscriptionPresent: false };
+  return {
+    state: subscription.data?.last_sent_month === periodKey || Boolean(delivery.data?.id)
+      ? "sent" : "unsent",
+    subscriptionPresent: Boolean(subscription.data),
+  };
 }
 
 /** School reports have exactly one school scope; refuse ambiguous grants. */
@@ -69,15 +74,16 @@ function uniqueSchoolAdminRole(roles: unknown): { school_id: string } | null {
 }
 
 export async function POST(request: Request) {
-  // The manual route has no shared atomic claim with the scheduled worker yet.
-  // CRON_SECRET and a healthy email provider do NOT authorize manual delivery.
-  // Keep this legacy path inert until shared deduplication is implemented.
+  // Shared-claim code exists, but the new SQL is review-only and not applied.
+  // Keep manual delivery inert until the DB migration, concurrent tests and
+  // provider reconciliation are approved. No email provider access by default.
   if (process.env.WETUDY_SCHOOL_IMPACT_MANUAL_EMAIL_ENABLED !== "true") {
     return privateJson({ error: "El envío manual de informes no está habilitado." }, { status: 503 });
   }
   // Once the provider has accepted the email, an exception cannot safely be
   // presented as a failed send: the caller might retry a private PDF.
   let providerAccepted = false;
+  let providerAttempted = false;
   try {
     const supabase = await createClient();
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -151,9 +157,9 @@ export async function POST(request: Request) {
     const initialDeliveryState = await manualMonthDeliveryState(
       admin, schoolRole.school_id, user.id, period.key
     );
-    if (initialDeliveryState === "unavailable")
+    if (initialDeliveryState.state === "unavailable")
       return privateJson({ error: "No se pudo comprobar el historial del informe." }, { status: 503 });
-    if (initialDeliveryState === "sent")
+    if (initialDeliveryState.state === "sent")
       return privateJson({ error: "Este periodo ya tiene un informe enviado. Revisa el historial." }, { status: 409 });
 
     const report = await loadSchoolImpactReport({
@@ -212,11 +218,24 @@ export async function POST(request: Request) {
     const freshDeliveryState = await manualMonthDeliveryState(
       admin, schoolRole.school_id, user.id, period.key
     );
-    if (freshDeliveryState === "unavailable")
+    if (freshDeliveryState.state === "unavailable")
       return privateJson({ error: "No se pudo volver a comprobar el historial." }, { status: 503 });
-    if (freshDeliveryState === "sent")
+    if (freshDeliveryState.state === "sent")
       return privateJson({ error: "El informe ya se ha enviado para este periodo." }, { status: 409 });
 
+    // Both manual and scheduled sends now contend for the SAME durable key
+    // (school, recipient, month). A null/unknown claim MUST NOT email.
+    // Manual reports work even if no monthly subscription was configured.
+    const claimId = await acquireSharedSchoolReportClaim({
+      admin, source: "manual", schoolId: schoolRole.school_id,
+      userId: user.id, periodKey: period.key, email,
+    });
+    if (!claimId) return privateJson(
+      { error: "Este periodo ya está reclamado o requiere conciliación." },
+      { status: 409 }
+    );
+
+    providerAttempted = true;
     const emailResult = await sendMonthlySchoolImpactEmail({
       to: email,
       report,
@@ -228,6 +247,12 @@ export async function POST(request: Request) {
       emailResult && typeof emailResult === "object" && "id" in emailResult && typeof emailResult.id === "string"
         ? emailResult.id
         : null;
+
+    // Persist the accepted provider identity BEFORE secondary audit/marker
+    // writes. On any ambiguous ACK, keep the claim held for reconciliation.
+    await acknowledgeSharedSchoolReportClaim({
+      admin, claimId, providerMessageId: providerMessageId ?? "",
+    });
 
     const { error: deliveryError } = await admin
       .from("school_impact_report_deliveries")
@@ -247,24 +272,26 @@ export async function POST(request: Request) {
       console.error("school_impact_manual_delivery_record_failed");
     }
 
-    // Only advance the monthly marker. Reading configuration then UPSERTing
-    // that stale snapshot would overwrite a concurrent enabled/day change.
-    const { data: updatedSubscription, error: subscriptionWriteError } = await admin
-      .from("school_impact_report_subscriptions")
-      .update({ last_sent_month: period.key, updated_at: new Date().toISOString() })
-      .eq("school_id", schoolRole.school_id)
-      .eq("user_id", user.id)
-      .select("id")
-      .maybeSingle();
+    // A manual report does not require a recurring subscription. If no
+    // subscription existed at the final preflight, the shared claim and
+    // delivery audit are the durable evidence; never create a subscription
+    // merely because the administrator requested a one-off PDF by email.
+    if (freshDeliveryState.subscriptionPresent) {
+      // Only advance the monthly marker: preserve concurrent preferences.
+      const { data: updatedSubscription, error: subscriptionWriteError } = await admin
+        .from("school_impact_report_subscriptions")
+        .update({ last_sent_month: period.key, updated_at: new Date().toISOString() })
+        .eq("school_id", schoolRole.school_id)
+        .eq("user_id", user.id)
+        .select("id")
+        .maybeSingle();
 
-    if (subscriptionWriteError || !updatedSubscription?.id) {
-      // The provider already accepted this PDF. Missing/failed marker is an
-      // uncertain delivery state: do not INSERT a replacement subscription
-      // or silently rewrite a user's concurrent configuration change.
-      return privateJson(
-        { error: "El informe se envió, pero no se pudo conciliar la suscripción. Revisa el historial antes de repetir." },
-        { status: 503 }
-      );
+      if (subscriptionWriteError || !updatedSubscription?.id) {
+        return privateJson(
+          { error: "El informe se envió, pero no se pudo conciliar la suscripción. Revisa el historial antes de repetir." },
+          { status: 503 }
+        );
+      }
     }
 
     if (deliveryError) {
@@ -285,10 +312,18 @@ export async function POST(request: Request) {
     // disclose provider/SQL details or signal a retry-safe failed delivery.
     console.error(providerAccepted
       ? "school_impact_manual_postaccept_reconciliation_required"
-      : "school_impact_manual_send_failed");
+      : providerAttempted
+        ? "school_impact_manual_provider_outcome_unknown"
+        : "school_impact_manual_send_failed");
     if (providerAccepted) {
       return privateJson(
         { error: "El informe se envió, pero su registro requiere conciliación. Revisa el historial antes de repetir." },
+        { status: 503 }
+      );
+    }
+    if (providerAttempted) {
+      return privateJson(
+        { error: "El resultado del envío no está confirmado. Revisa el historial antes de repetir." },
         { status: 503 }
       );
     }

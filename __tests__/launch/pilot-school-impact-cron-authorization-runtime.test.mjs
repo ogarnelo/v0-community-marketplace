@@ -109,13 +109,13 @@ function fixture(options = {}) {
   };
   const mocks = {
     "@/lib/supabase/admin":{createAdminClient:()=>admin},
-    "@/lib/reports/p0-school-impact-claim-rpc": {
-      acquireDurableSchoolReportClaim:async()=>{
+    "@/lib/reports/p0-school-impact-shared-claim-rpc": {
+      acquireSharedSchoolReportClaim:async()=>{
         events.push("CLAIM");
         if(options.claimThrows)throw Error("PRIVATE_CLAIM");
         return options.claimDenied?null:"55555555-5555-4555-8555-555555555555";
       },
-      acknowledgeDurableSchoolReportClaim:async()=>{
+      acknowledgeSharedSchoolReportClaim:async()=>{
         events.push("ACK");
         if(options.ackThrows)throw Error("PRIVATE_ACK");
       },
@@ -136,7 +136,7 @@ function fixture(options = {}) {
       renderSchoolImpactPdf:()=>{events.push("PDF");return new Uint8Array();},
     },
     "@/lib/emails/school-impact-report-email":{
-      sendMonthlySchoolImpactEmail:async()=>{events.push("EMAIL");return {id:"mock-email-id"};},
+      sendMonthlySchoolImpactEmail:async()=>{events.push("EMAIL");if(options.providerThrows)throw Error("PRIVATE_PROVIDER");return {id:"mock-email-id"};},
     },
   };
   const source=readFileSync("app/api/cron/school-impact-reports/route.ts","utf8");
@@ -448,4 +448,16 @@ test("provider accepted but acknowledgement uncertain never reports delivery suc
  assert.equal(h.events.includes("DELIVERY"),false);
  assert.equal(h.events.includes("UPDATE"),false);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ACK/);
+});
+
+test("ambiguous cron provider exception is an unretryable reconciliation incident",async()=>{
+ const h=fixture({providerThrows:true}),r=await h.run();
+ assert.equal(r.status,503);
+ assert.equal(r.body.failed,1);
+ assert.equal(r.body.unrecorded,1);
+ assert.deepEqual(h.events.filter(x=>x==="EMAIL"),["EMAIL"]);
+ assert.equal(h.events.includes("CLAIM"),true);
+ assert.equal(h.events.includes("ACK"),false);
+ assert.equal(h.events.includes("DELIVERY"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs)+JSON.stringify(r.body),/PRIVATE_PROVIDER/);
 });

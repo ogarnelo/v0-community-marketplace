@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { acquireDurableSchoolReportClaim, acknowledgeDurableSchoolReportClaim } from "@/lib/reports/p0-school-impact-claim-rpc";
+import { acquireSharedSchoolReportClaim, acknowledgeSharedSchoolReportClaim } from "@/lib/reports/p0-school-impact-shared-claim-rpc";
 import {
   loadSchoolImpactReport,
   previousCalendarMonth,
@@ -24,9 +24,9 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Sending reports is explicitly disabled until the durable claim (#682) is
-  // integrated and its ambiguous-provider outcomes are reconciled. A valid
-  // CRON_SECRET alone is never permission to send private PDFs.
+  // This integration remains OFF until the shared manual+cron claim SQL is
+  // explicitly approved/applied and provider reconciliation is validated.
+  // A valid CRON_SECRET alone never permits private PDF delivery.
   if (process.env.WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED !== "true") {
     return Response.json({ ok: false }, {
       status: 503,
@@ -66,6 +66,7 @@ export async function GET(request: Request) {
     }
 
     let providerAccepted = false;
+    let providerAttempted = false;
     let auditRecorded = false;
     let auditFailedCounted = false;
     try {
@@ -173,7 +174,7 @@ export async function GET(request: Request) {
       // A subscription can be disabled, redirected or marked delivered by a
       // manual send while the cron spends time generating this private PDF.
       // Re-read the same subscription immediately before the provider call.
-      // This is NOT an atomic send claim across concurrent cron processes.
+      // The final send is protected below by the shared school-user-month claim.
       const { data: currentSubscription, error: subscriptionRecheckError } = await admin
         .from("school_impact_report_subscriptions")
         .select("id, enabled, user_id, school_id, email, day_of_month, last_sent_month")
@@ -214,16 +215,18 @@ export async function GET(request: Request) {
       // An irreversible monthly send is permitted only after winning the
       // database-unique subscription/period claim. A null/ambiguous result
       // must NEVER trigger provider delivery or an automatic retry.
-      const claimId = await acquireDurableSchoolReportClaim({
-        admin, subscriptionId: subscription.id, userId: subscription.user_id,
-        schoolId: subscription.school_id, periodKey: period.key, day,
-        email: subscription.email, expectedLastSent: subscription.last_sent_month,
+      const claimId = await acquireSharedSchoolReportClaim({
+        admin, source: "cron", subscriptionId: subscription.id,
+        userId: subscription.user_id, schoolId: subscription.school_id,
+        periodKey: period.key, day, email: subscription.email,
+        expectedLastSent: subscription.last_sent_month,
       });
       if (!claimId) {
         skipped += 1;
         continue;
       }
 
+      providerAttempted = true;
       const emailResult = await sendMonthlySchoolImpactEmail({
         to: subscription.email,
         report,
@@ -239,7 +242,7 @@ export async function GET(request: Request) {
 
       // Acceptance is durable before writing the secondary audit/marker.
       // Missing/ambiguous provider IDs leave the claim held for reconciliation.
-      await acknowledgeDurableSchoolReportClaim({
+      await acknowledgeSharedSchoolReportClaim({
         admin, claimId, providerMessageId: providerMessageId ?? "",
       });
 
@@ -288,7 +291,11 @@ export async function GET(request: Request) {
     } catch {
       // If provider accepted the email but the audit could not be verified,
       // preserve that uncertainty explicitly. Never claim a retry-safe send.
-      if (providerAccepted && !auditRecorded && !auditFailedCounted) {
+      if (providerAttempted && !providerAccepted) {
+        // A provider may have accepted the email before a timeout/exception.
+        // Keep the exclusive claim and report this as ambiguous, not retry-safe.
+        unrecorded += 1;
+      } else if (providerAccepted && !auditRecorded && !auditFailedCounted) {
         unrecorded += 1;
       }
       // Subscription IDs and provider/SQL exception messages may contain private

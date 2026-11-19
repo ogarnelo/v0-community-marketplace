@@ -41,8 +41,16 @@ function fixture(opts={}){
   from:()=>({select:()=>({eq:async()=>({data:[{role:"school_admin",school_id:SCHOOL}],error:null})})})
  })},
  "@/lib/supabase/admin":{createAdminClient:()=>({from})},
+ "@/lib/reports/p0-school-impact-shared-claim-rpc":{
+  acquireSharedSchoolReportClaim:async()=>{events.push("CLAIM");
+    if(opts.claimDenied)return null;
+    if(opts.claimThrows)throw Error("PRIVATE_CLAIM");
+    return "44444444-4444-4444-8444-444444444444";},
+  acknowledgeSharedSchoolReportClaim:async()=>{events.push("ACK");
+    if(opts.ackThrows)throw Error("PRIVATE_ACK");},
+ },
  "@/lib/emails/school-impact-report-email":{sendMonthlySchoolImpactEmail:async()=>{
-  events.push("EMAIL");return {id:"synthetic-provider-id"};}},
+  events.push("EMAIL");if(opts.providerThrows)throw Error("PRIVATE_PROVIDER");return {id:"synthetic-provider-id"};}},
  "@/lib/reports/school-impact-report":{
   loadSchoolImpactReport:async()=>({school:{is_active:true}}),
   previousCalendarMonth:()=>({start:"2026-10-01",end:"2026-10-31",label:"octubre",key:"2026-10"}),
@@ -66,24 +74,24 @@ function fixture(opts={}){
 test("successful provider acceptance followed by missing marker update requires reconciliation",async()=>{
  const f=fixture({markerMissing:true}),r=await f.send();
  assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliar/);
- assert.equal(r.cache,"private, no-store");assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.equal(r.cache,"private, no-store");assert.deepEqual(f.events,["CLAIM","EMAIL","ACK","DELIVERY","SUBSCRIPTION_WRITE"]);
 });
 test("subscription write failure does not report that the email was not sent",async()=>{
  const f=fixture({writeFailure:true}),r=await f.send();
  assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliar/);
- assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.deepEqual(f.events,["CLAIM","EMAIL","ACK","DELIVERY","SUBSCRIPTION_WRITE"]);
  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_WRITE_SQL/);
 });
 test("successful send returns success only after subscription persistence",async()=>{
  const f=fixture(),r=await f.send();
  assert.equal(r.status,200);assert.equal(r.body.ok,true);
- assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.deepEqual(f.events,["CLAIM","EMAIL","ACK","DELIVERY","SUBSCRIPTION_WRITE"]);
 });
 test("accepted email with failed delivery audit requires reconciliation but updates marker",async()=>{
  const f=fixture({deliveryFailure:true}),r=await f.send();
  assert.equal(r.status,503);
  assert.match(r.body.error,/se envió.*registrar su entrega/);
- assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.deepEqual(f.events,["CLAIM","EMAIL","ACK","DELIVERY","SUBSCRIPTION_WRITE"]);
  assert.equal(r.cache,"private, no-store");
  assert.doesNotMatch(JSON.stringify(f.errors),/PRIVATE_DELIVERY_SQL|verified@example.invalid|synthetic-provider-id/);
 });
@@ -91,14 +99,14 @@ test("accepted email with failed delivery audit requires reconciliation but upda
 test("unexpected delivery persistence exception after provider acceptance requires reconciliation",async()=>{
  const f=fixture({deliveryThrows:true}),r=await f.send();
  assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliación/);
- assert.deepEqual(f.events,["EMAIL","DELIVERY"]);
+ assert.deepEqual(f.events,["CLAIM","EMAIL","ACK","DELIVERY"]);
  assert.equal(r.cache,"private, no-store");
  assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_THROW_SQL|verified@example.invalid|synthetic-provider-id/);
 });
 test("unexpected subscription write exception after provider acceptance requires reconciliation",async()=>{
  const f=fixture({writeThrows:true}),r=await f.send();
  assert.equal(r.status,503);assert.match(r.body.error,/se envió.*conciliación/);
- assert.deepEqual(f.events,["EMAIL","DELIVERY","SUBSCRIPTION_WRITE"]);
+ assert.deepEqual(f.events,["CLAIM","EMAIL","ACK","DELIVERY","SUBSCRIPTION_WRITE"]);
  assert.equal(r.cache,"private, no-store");
  assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_THROW_SQL|verified@example.invalid|synthetic-provider-id/);
 });
@@ -109,4 +117,30 @@ test("manual monthly report remains disabled by default before any privileged wo
  assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
  assert.deepEqual(f.events,[]);
  assert.doesNotMatch(JSON.stringify(r.body),/school@example|PRIVATE_THROW_SQL/);
+});
+
+test("manual send requires the same durable claim before contacting email provider",async()=>{
+ const f=fixture({claimDenied:true}),r=await f.send();
+ assert.equal(r.status,409);
+ assert.deepEqual(f.events,["CLAIM"]);
+});
+test("uncertain manual claim never calls provider",async()=>{
+ const f=fixture({claimThrows:true}),r=await f.send();
+ assert.equal(r.status,500);
+ assert.deepEqual(f.events,["CLAIM"]);
+ assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_CLAIM/);
+});
+test("manual provider acknowledgement outage cannot appear successful",async()=>{
+ const f=fixture({ackThrows:true}),r=await f.send();
+ assert.equal(r.status,503);
+ assert.deepEqual(f.events,["CLAIM","EMAIL","ACK"]);
+ assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_ACK/);
+});
+
+test("ambiguous manual provider exception stays held and requires reconciliation",async()=>{
+ const f=fixture({providerThrows:true}),r=await f.send();
+ assert.equal(r.status,503);
+ assert.match(r.body.error,/resultado.*no está confirmado/i);
+ assert.deepEqual(f.events,["CLAIM","EMAIL"]);
+ assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_PROVIDER/);
 });

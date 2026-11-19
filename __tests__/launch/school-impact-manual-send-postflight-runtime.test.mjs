@@ -67,7 +67,8 @@ function fixture(options={}){
     subscriptionReads++;events.push("SUBSCRIPTION_LOOKUP"+subscriptionReads);
     return {data:options.sentMarker ||
       options.markerDuringLoad&&subscriptionReads===2
-      ? {last_sent_month:"2026-10"}:null,
+      ? {id:"subscription-id",last_sent_month:"2026-10"}:
+        options.noSubscription?null:{id:"subscription-id",last_sent_month:null},
       error:options.subscriptionReadOutage&&subscriptionReads===2
         ? new Error("PRIVATE_MARKER"):null};
    }
@@ -77,6 +78,12 @@ function fixture(options={}){
  const mocks={
   "next/server":{NextResponse:{json:(x,opts={})=>Response.json(x,{status:opts.status??200,headers:opts.headers})}},
   "@/lib/supabase/admin":{createAdminClient:()=>admin},
+  "@/lib/reports/p0-school-impact-shared-claim-rpc":{
+    acquireSharedSchoolReportClaim:async()=>{events.push("CLAIM");
+      if(options.claimDenied)return null;
+      return "44444444-4444-4444-8444-444444444444";},
+    acknowledgeSharedSchoolReportClaim:async()=>{events.push("ACK");},
+  },
   "@/lib/supabase/server":{createClient:async()=>supabase},
   "@/lib/emails/school-impact-report-email":{sendMonthlySchoolImpactEmail:async()=>{events.push("EMAIL");return {id:"mock-message-id"}}},
   "@/lib/reports/school-impact-report":{
@@ -203,4 +210,19 @@ test("manual report opt-in is required even for a valid school admin",async()=>{
  const h=fixture({disabledManual:true}),r=await h.run();
  assert.equal(r.status,503);assert.equal(r.cache,"private, no-store");
  assert.deepEqual(h.events,[]);
+});
+
+test("manual report without recurring subscription succeeds with shared claim and audit",async()=>{
+ const h=fixture({noSubscription:true}),res=await h.run();
+ assert.equal(res.status,200);
+ assert.equal(h.events.filter(e=>e==="EMAIL").length,1);
+ assert.ok(h.events.includes("CLAIM"));
+ assert.ok(h.events.includes("ACK"));
+ assert.equal(h.events.includes("MARKER_ONLY_UPDATE"),false);
+});
+test("a conflicting shared claim suppresses the manual email",async()=>{
+ const h=fixture({claimDenied:true}),res=await h.run();
+ assert.equal(res.status,409);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.equal(h.events.includes("ACK"),false);
 });
