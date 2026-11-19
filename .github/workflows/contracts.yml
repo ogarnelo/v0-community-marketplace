@@ -31,6 +31,8 @@ jobs:
         run: node --test __tests__/launch/pilot-edit-singleflight-submit-recovery.test.mjs
       - name: Saved search matcher must separate seller Auth from signed worker and never cache
         run: node --test __tests__/launch/pilot-alert-matcher-auth-and-cache-runtime.test.mjs
+      - name: Seller published matching must not notify or email while global alert switch OFF
+        run: node --test __tests__/launch/p0-alert-seller-global-off-runtime.test.mjs
       - name: Message send and conversation summary fail closed on Auth outage
         run: node --test __tests__/launch/pilot-message-auth-error-before-admin-runtime.test.mjs
       - name: Distance feed authorization before privileged client creation
