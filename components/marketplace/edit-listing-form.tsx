@@ -456,6 +456,7 @@ export default function EditListingForm({
     setSaving(true);
     setSubmitError("");
     setPhotoError("");
+    let savePhase: "listing" | "upload" | "photo_rows" | "remove" | "order" | "sync" = "listing";
 
     try {
       const validationError = validateForm();
@@ -505,13 +506,16 @@ export default function EditListingForm({
 
       // Never remove existing photos until all replacement files are uploaded
       // and their new listing_photos records have been persisted.
+      savePhase = "upload";
       const uploadedRows = await uploadNewPhotos();
       if (uploadedRows.length > 0) {
+        savePhase = "photo_rows";
         const { error } = await supabase.from("listing_photos").insert(uploadedRows);
         if (error) throw error;
       }
 
       if (removedPhotoIds.length > 0) {
+        savePhase = "remove";
         const { error } = await supabase.from("listing_photos")
           .delete()
           .eq("listing_id", initialListing.id)
@@ -519,6 +523,7 @@ export default function EditListingForm({
         if (error) throw error;
       }
 
+      savePhase = "order";
       for (const [index, photo] of visibleExistingPhotos.entries()) {
         const { error } = await supabase
           .from("listing_photos")
@@ -528,6 +533,7 @@ export default function EditListingForm({
         if (error) throw error;
       }
 
+      savePhase = "sync";
       const photoUrls = [
         ...visibleExistingPhotos.map((photo) => photo.url),
         ...uploadedRows.map((photo) => photo.url),
@@ -544,8 +550,17 @@ export default function EditListingForm({
       router.push(`/marketplace/listing/${initialListing.id}`);
       router.refresh();
     } catch {
-      // PostgREST error details can contain sensitive internal schema information.
-      setSubmitError("No se pudo actualizar el anuncio. Inténtalo de nuevo.");
+      // Only publish fixed, non-sensitive error categories. Do not include
+      // SQL errors, object paths, provider messages or account identifiers.
+      const safeMessages = {
+        listing: "No se pudieron guardar los datos del anuncio. Comprueba tu sesión e inténtalo de nuevo.",
+        upload: "No se pudo subir la nueva fotografía. Comprueba el formato y vuelve a intentarlo.",
+        photo_rows: "Se subió la fotografía, pero no se pudo asociar al anuncio. No repitas la operación hasta revisar las fotos.",
+        remove: "No se pudo actualizar la lista de fotografías. Comprueba las fotos actuales antes de repetir.",
+        order: "No se pudo guardar el orden de las fotografías. Comprueba las fotos actuales antes de repetir.",
+        sync: "No se pudo sincronizar la fotografía con el anuncio. Comprueba las fotos actuales antes de repetir.",
+      } as const;
+      setSubmitError(safeMessages[savePhase]);
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
