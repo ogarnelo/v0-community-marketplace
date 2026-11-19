@@ -184,3 +184,6 @@ jobs:
 
       - name: Dormant atomic checkout and monthly email claim adapters runtime safety
         run: node --test __tests__/launch/p0-dormant-rpc-adapters-runtime.test.mjs
+
+      - name: Supabase-admin default ACL owner handoff without elevation
+        run: node --test __tests__/launch/p0-owner-default-acl-handoff-contract.test.mjs
