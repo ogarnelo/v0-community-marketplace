@@ -13,8 +13,9 @@ test("AMPA QR encodes only trusted Wetudy public domain with correct school role
   assert.match(qrRoute, /getAuthPublicOrigin\(\)/);
   assert.doesNotMatch(qrRoute, /new URL\(request\.url\)\.origin/);
   assert.match(originHelper, /https:\/\/www\.wetudy\.com/);
-  assert.match(qrRoute, /schoolRole\?\.school_id/);
-  assert.match(qrRoute, /baseShareUrl\.searchParams\.set\("school", schoolRole\.school_id\)/);
+  assert.match(qrRoute, /resolveUniqueSchoolAdminSchoolId\(roles\)/);
+  assert.match(qrRoute, /\.eq\("role", "school_admin"\)\s*\.limit\(2\)/);
+  assert.match(qrRoute, /baseShareUrl\.searchParams\.set\("school", schoolId\)/);
 });
 
 test("two-centre fixture implements same school-code access policy as production", () => {
