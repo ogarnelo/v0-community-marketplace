@@ -53,6 +53,8 @@ jobs:
         run: node --test __tests__/launch/p0-multischool-community-scope-runtime.test.mjs
       - name: Saved-search alerts cannot collapse multiple active schools into one subscription
         run: node --test __tests__/launch/p0-multischool-saved-search-fail-closed.test.mjs
+      - name: Dynamic family alert scope rechecks live ownership at discovery and delivery
+        run: node --test __tests__/launch/p0-multischool-alert-union-runtime.test.mjs
       - name: Signed alert worker pause must keep prior failed attempts and correct lease
         run: node --test __tests__/launch/p0-alert-paused-lease-runtime.test.mjs
       - name: Message send and conversation summary fail closed on Auth outage
