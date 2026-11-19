@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 
 // Roll back ONLY sanitized uploads belonging to the authenticated caller,
 // never an existing listing or draft reference. No generic Storage delete API.
-const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(drafts\/current|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[89ab][0-9a-f]{12})\.(jpg|webp)$/i;
+const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(drafts\/current|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.(jpg|webp)$/i;
 
 export async function DELETE(request: Request) {
   const privateHeaders = { "Cache-Control": "private, no-store" };
