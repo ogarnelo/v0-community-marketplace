@@ -23,6 +23,8 @@ test("cron rechecks verified recipient and current school role for legacy subscr
   assert.match(source, /subscription\.email\.trim\(\)\.toLowerCase\(\)/);
   assert.match(source, /\.eq\("school_id", subscription\.school_id\)/);
   assert.match(source, /\.eq\("role", "school_admin"\)/);
+  assert.match(source, /currentRoles\.length !== 1/);
+  assert.match(source, /freshRoles\.length !== 1/);
 });
 
 test("school report recipient field is non-editable", () => {

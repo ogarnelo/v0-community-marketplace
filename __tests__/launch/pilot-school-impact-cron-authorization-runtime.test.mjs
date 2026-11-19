@@ -85,7 +85,24 @@ function fixture(options = {}) {
         },
         insert: () => { events.push("DELIVERY"); return q; },
         update: () => { events.push("UPDATE"); return q; },
-        then: (resolve, reject) => (options.deliveryThrows && table==="school_impact_report_deliveries" ? Promise.reject(Error("PRIVATE_THROW_SQL")) : Promise.resolve({error:options.deliveryError && table==="school_impact_report_deliveries"?{message:"PRIVATE_DELIVERY_SQL"}:null})).then(resolve,reject),
+        then: (resolve, reject) => {
+          if (table === "user_roles") {
+            roleReads++;
+            const isRevoked = options.revokedRole ||
+              (options.roleRevokedDuringReport && roleReads > 1);
+            const roles = isRevoked ? [] :
+              options.multiSchoolAdmin || options.multiSchoolGrantedDuringReport && roleReads > 1
+                ? [{school_id:SCHOOL},{school_id:"44444444-4444-4444-8444-444444444444"}]
+                : [{school_id:options.wrongRoleSchool?"44444444-4444-4444-8444-444444444444":SCHOOL}];
+            return Promise.resolve({data:roles,
+              error:options.roleRecheckError && roleReads>1?{message:"PRIVATE_ROLE"}:
+                options.roleLookupError?{message:"PRIVATE_ROLE"}:null}).then(resolve,reject);
+          }
+          return (options.deliveryThrows && table==="school_impact_report_deliveries"
+            ? Promise.reject(Error("PRIVATE_THROW_SQL"))
+            : Promise.resolve({error:options.deliveryError && table==="school_impact_report_deliveries"
+              ? {message:"PRIVATE_DELIVERY_SQL"}:null})).then(resolve,reject);
+        },
       };
       return q;
     },
@@ -351,4 +368,32 @@ test("missing CRON_SECRET is unhealthy, private and has no privileged side effec
  assert.equal(r.cache,"private, no-store");
  assert.equal(h.events.length,0);
  assert.doesNotMatch(JSON.stringify(r.body),/SECRET|Bearer|synthetic/);
+});
+
+test("recipient with two school_admin schools cannot receive first school's PDF",async()=>{
+ const h=fixture({multiSchoolAdmin:true}),res=await h.run();
+ assert.equal(res.body.sent,0);
+ assert.equal(res.body.skipped,1);
+ assert.equal(h.events.includes("REPORT"),false);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("new second school_admin grant during render blocks private scheduled email",async()=>{
+ const h=fixture({multiSchoolGrantedDuringReport:true}),res=await h.run();
+ assert.equal(res.body.sent,0);
+ assert.equal(res.body.skipped,1);
+ assert.equal(h.events.includes("PDF"),true);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("school_admin role belonging to another school cannot authorize report",async()=>{
+ const h=fixture({wrongRoleSchool:true}),res=await h.run();
+ assert.equal(res.body.sent,0);
+ assert.equal(res.body.skipped,1);
+ assert.equal(h.events.includes("REPORT"),false);
+});
+test("global user_roles read failure does not send or expose role details",async()=>{
+ const h=fixture({roleLookupError:true}),res=await h.run();
+ assert.equal(res.status,503);
+ assert.equal(res.body.failed,1);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ROLE/);
 });

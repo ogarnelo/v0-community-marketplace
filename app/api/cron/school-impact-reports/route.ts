@@ -71,15 +71,19 @@ export async function GET(request: Request) {
         skipped += 1;
         continue;
       }
-      const { data: currentRole, error: currentRoleError } = await admin
+      // A multi-school school_admin must not receive a private single-school
+      // report. Resolve all school_admin schools, not just the subscription's
+      // school, and fail closed on ambiguous, duplicated or truncated results.
+      const { data: currentRoles, error: currentRoleError } = await admin
         .from("user_roles")
-        .select("user_id")
+        .select("school_id")
         .eq("user_id", subscription.user_id)
-        .eq("school_id", subscription.school_id)
         .eq("role", "school_admin")
-        .maybeSingle();
-      if (currentRoleError) throw currentRoleError;
-      if (!currentRole) {
+        .limit(2);
+      if (currentRoleError || !Array.isArray(currentRoles))
+        throw new Error("school_impact_global_role_lookup_unavailable");
+      if (currentRoles.length !== 1 ||
+          currentRoles[0]?.school_id !== subscription.school_id) {
         skipped += 1;
         continue;
       }
@@ -127,15 +131,18 @@ export async function GET(request: Request) {
         continue;
       }
 
-      const { data: freshRole, error: freshRoleError } = await admin
+      const { data: freshRoles, error: freshRoleError } = await admin
         .from("user_roles")
-        .select("user_id")
+        .select("school_id")
         .eq("user_id", subscription.user_id)
-        .eq("school_id", subscription.school_id)
         .eq("role", "school_admin")
-        .maybeSingle();
-      if (freshRoleError) throw new Error("school_impact_role_recheck_unavailable");
-      if (!freshRole) {
+        .limit(2);
+      if (freshRoleError || !Array.isArray(freshRoles))
+        throw new Error("school_impact_role_recheck_unavailable");
+      // A second school_admin may have been granted while the PDF rendered.
+      // The final authorization must still be a unique identical school.
+      if (freshRoles.length !== 1 ||
+          freshRoles[0]?.school_id !== subscription.school_id) {
         skipped += 1;
         continue;
       }
