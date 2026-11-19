@@ -13,7 +13,11 @@ const MATCH_ENDPOINT =
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return new Response(null, { status: 204 });
+  // A missing signing secret is a configuration incident, not a healthy
+  // no-op. Never claim or contact the matcher, and never expose the secret.
+  if (!cronSecret) return Response.json({ ok: false, error: "worker_auth_unavailable" }, {
+    status: 503, headers: { "Cache-Control": "private, no-store" },
+  });
   if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
