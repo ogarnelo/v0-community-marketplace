@@ -166,3 +166,6 @@ jobs:
 
       - name: Accepted-offer payment read and reservation write confirmation
         run: node --test __tests__/launch/pilot-payment-shipping-state-and-auth-runtime.test.mjs
+
+      - name: Stripe webhook invoice identity and registered session attestation
+        run: node --test __tests__/launch/p0-stripe-webhook-attestation-runtime.test.mjs
