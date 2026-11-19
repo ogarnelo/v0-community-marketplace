@@ -312,6 +312,17 @@ export async function POST(request: Request) {
 
     }
 
+    // The seller-triggered path still computes matches and need attribution,
+    // but the global pilot switch MUST block both notifications and emails.
+    // Do not mark either channel delivered while disabled: persisted matches
+    // remain available for a later explicitly approved rollout.
+    if (!isOutboxWorker && process.env.WETUDY_SAVED_SEARCH_ALERTS_ENABLED !== "true") {
+      return privateJson({
+        ok: true, complete: true, alertsDisabled: true,
+        matched: matches.length, notified: 0, emailed: 0, supplyGenerated,
+      });
+    }
+
     // A change to profiles.postal_code doesn't update a saved search's
     // revision. Recheck live distance before EACH outbox delivery channel,
     // using only the 12-recipient page. Never log or expose any full CP.
