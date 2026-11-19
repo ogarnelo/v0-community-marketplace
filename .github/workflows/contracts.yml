@@ -190,3 +190,6 @@ jobs:
 
       - name: Supabase-admin default ACL owner handoff without elevation
         run: node --test __tests__/launch/p0-owner-default-acl-handoff-contract.test.mjs
+
+      - name: Wetudy Easy AI simulation is only preview and never publishes or calls providers
+        run: node --test __tests__/launch/wetudy-easy-preview-only-synthetic-runtime.test.mjs
