@@ -35,7 +35,10 @@ test("publishing prioritizes selected student directory code over a stale profil
 test("new listing saves the authoritative directory school rather than refetching legacy profile", () => {
   assert.match(newForm, /directory_school_code: directorySchoolCode/);
   assert.match(newForm, /school_id: effectiveSchoolId/);
-  assert.match(newForm, /const effectiveSchoolId = initialSchoolId \|\| null/);
+  assert.match(newForm, /const effectiveSchoolId = multischoolSelectorEnabled/);
+  assert.match(newForm, /: initialSchoolId \|\| null/);
+  assert.match(newForm, /const effectiveDirectoryCode = multischoolSelectorEnabled/);
+  assert.match(newForm, /: initialDirectorySchoolCode \|\| null/);
   assert.doesNotMatch(newForm, /currentProfile\?\.school_id/);
   assert.match(newForm, /Centro asociado/);
   assert.match(newForm, /<p>\{schoolLabel\}<\/p>/);
