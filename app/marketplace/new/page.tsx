@@ -192,6 +192,67 @@ export default async function NewListingPage({
     selectedSchool = (school as SchoolRow | null) ?? null;
   }
 
+
+  // Behind an OFF-by-default switch until both the listing school trigger and
+  // directory-school guard have passed isolated QA and authorized production DDL.
+  // Never accept a school list from the browser: derive choices from the user's
+  // own active student contexts and verify operational schools remain active.
+  const multischoolSelectorEnabled =
+    process.env.WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true" &&
+    !managedSchoolId && typedProfile?.user_type !== "business";
+  const availableSchoolContexts: Array<{
+    key: string; label: string; schoolId: string | null; directorySchoolCode: string | null
+  }> = [];
+
+  if (multischoolSelectorEnabled) {
+    const { data: students, error: studentsError } = await supabase
+      .from("account_students")
+      .select("school_id,directory_school_code")
+      .eq("owner_user_id", user.id)
+      .eq("active", true)
+      .limit(100);
+    if (studentsError) throw new Error("LISTING_NEW_MULTI_STUDENT_SCOPE_UNAVAILABLE");
+
+    const schoolIds = Array.from(new Set((students || [])
+      .filter((student) => !student.directory_school_code)
+      .map((student) => student.school_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)));
+    const directoryCodes = Array.from(new Set((students || [])
+      .map((student) => student.directory_school_code)
+      .filter((code): code is string => typeof code === "string" && /^[0-9]{8}$/.test(code))));
+
+    if (schoolIds.length) {
+      const { data: eligibleSchools, error: schoolsError } = await supabase
+        .from("schools").select("id,name,city")
+        .in("id", schoolIds).eq("is_active", true);
+      if (schoolsError) throw new Error("LISTING_NEW_MULTI_SCHOOLS_UNAVAILABLE");
+      for (const school of eligibleSchools || []) {
+        availableSchoolContexts.push({
+          key: `operational:${school.id}`,
+          label: school.city ? `${school.name}, ${school.city}` : school.name,
+          schoolId: school.id,
+          directorySchoolCode: null,
+        });
+      }
+    }
+    if (directoryCodes.length) {
+      const { data: eligibleDirectory, error: directoryError } = await createAdminClient()
+        .from("school_directory")
+        .select("official_code,name,municipality,is_listed")
+        .in("official_code", directoryCodes)
+        .eq("is_listed", true);
+      if (directoryError) throw new Error("LISTING_NEW_MULTI_DIRECTORY_UNAVAILABLE");
+      for (const school of eligibleDirectory || []) {
+        availableSchoolContexts.push({
+          key: `directory:${school.official_code}`,
+          label: school.municipality ? `${school.name}, ${school.municipality}` : school.name,
+          schoolId: null,
+          directorySchoolCode: school.official_code,
+        });
+      }
+    }
+  }
+
   return (
     <NewListingForm
       currentUserId={user.id}
@@ -199,6 +260,8 @@ export default async function NewListingPage({
       initialDirectorySchoolCode={selectedDirectorySchool?.official_code || ""}
       initialSchoolName={selectedSchool?.name || selectedDirectorySchool?.name || "Centro no asignado"}
       initialSchoolCity={selectedSchool?.city || selectedDirectorySchool?.municipality || ""}
+      availableSchoolContexts={availableSchoolContexts}
+      multischoolSelectorEnabled={multischoolSelectorEnabled}
       initialPrefill={initialPrefill}
       activationOpportunityKey={activationOpportunityKey}
       isSchoolAdmin={Boolean(managedSchoolId)}
