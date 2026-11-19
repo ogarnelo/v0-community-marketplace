@@ -184,3 +184,6 @@ jobs:
 
       - name: Dormant atomic checkout and monthly email claim adapters runtime safety
         run: node --test __tests__/launch/p0-dormant-rpc-adapters-runtime.test.mjs
+
+      - name: Family without a school is directed to support rather than AMPA institutional registration
+        run: node --test __tests__/launch/missing-school-family-help.test.mjs
