@@ -19,8 +19,11 @@ test("isolated workflow executes smoke after five migrations in temporary postgr
   assert.match(workflow,/127\.0\.0\.1/);
   assert.match(workflow,/wetudy_ci/);
   assert.match(workflow,/pilot-marketplace-alert-full-schema-smoke\.sql/);
-  const run=workflow.lastIndexOf("psql -X -v ON_ERROR_STOP=1");
-  assert.ok(workflow.slice(run).includes("pilot-marketplace-alert-full-schema-smoke.sql"));
+  const fenced=workflow.lastIndexOf("pilot-marketplace-alert-expired-lease-fencing.sql");
+  const smoke=workflow.lastIndexOf("pilot-marketplace-alert-full-schema-smoke.sql");
+  const pause=workflow.lastIndexOf("p0_alert_pause_outbox_review_only_20261119.sql");
+  assert.ok(fenced>=0 && smoke>fenced && pause>smoke,
+    "Full schema smoke must follow safety migrations, and pause compatibility runs last");
 });
 test("smoke never sends mail, mutates state or reveals recipients",()=>{
   const executable=sql.replace(/^--.*$/gm,"");
