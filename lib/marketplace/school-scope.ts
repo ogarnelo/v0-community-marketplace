@@ -124,5 +124,6 @@ export async function resolveMarketplaceMultiSchoolScope(
       directoryCodes.add(row.official_code);
     }
   }
-  return { schoolIds: [...schoolIds], directoryCodes: [...directoryCodes] };
+  // Stable filter ordering prevents needless pagination/cache churn.
+  return { schoolIds: [...schoolIds].sort(), directoryCodes: [...directoryCodes].sort() };
 }
