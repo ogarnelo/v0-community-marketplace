@@ -202,3 +202,6 @@ jobs:
 
       - name: School admin dashboard denies ambiguous school scope before privileged client
         run: node --test __tests__/launch/p0-school-admin-dashboard-global-scope-runtime.test.mjs
+
+      - name: School QR sharing is authorized only by one active school_admin
+        run: node --test __tests__/launch/p0-share-qr-global-school-scope-runtime.test.mjs
