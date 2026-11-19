@@ -28,7 +28,10 @@ function fixture(opts={}){
           ? []:[{role:"school_admin",school_id:SCHOOL},
              ...((opts.ambiguousInitial&&roles===1 ||
                    opts.ambiguousPostflight&&roles===2)
-                ? [{role:"school_admin",school_id:OTHER}] : [])],
+                ? [{role:"school_admin",school_id:OTHER}] : []),
+             ...((opts.duplicateInitial&&roles===1 ||
+                   opts.duplicatePostflight&&roles===2)
+                ? [{role:"school_admin",school_id:SCHOOL}] : [])],
           error:opts.roleOutage&&roles===2?new Error("PRIVATE_ROLE"):null});
       }};
     }
@@ -111,4 +114,12 @@ test("new second school assignment between checks denies subscription write",asy
  const h=fixture({ambiguousPostflight:true}),res=await h.run();
  assert.equal(res.status,403);
  assert.equal(h.calls.includes("UPDATE"),false);
+});
+
+test("duplicate same-school admin grants deny subscription before write",async()=>{
+ for(const key of ["duplicateInitial","duplicatePostflight"]){
+  const h=fixture({[key]:true}),res=await h.run();
+  assert.equal(res.status,403);
+  assert.equal(h.calls.includes("UPDATE"),false);
+ }
 });
