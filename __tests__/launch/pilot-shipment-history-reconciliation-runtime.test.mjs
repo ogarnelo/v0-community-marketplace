@@ -16,24 +16,25 @@ function setup(kind,opts={}){
     if(name==="shipments"){
      if(opts.shipmentReadError)return {data:null,error:{message:"PRIVATE_SHIP_SQL"}};
      return {data:{id:ID,seller_id:ID,buyer_id:ID,status:kind==="dispatch"?"label_ready":"in_transit",
-         payment_intent_id:PAYMENT,payload:{}},error:null};
+         payment_intent_id:PAYMENT,listing_id:ID,payload:{}},error:null};
     }
-    if(name==="payment_intents")return {data:{id:PAYMENT,status:"succeeded",metadata:{}},
+    if(name==="payment_intents")return {data:{id:PAYMENT,status:"succeeded",buyer_id:ID,seller_id:ID,listing_id:ID,metadata:{delivery_method:"shipping"}},
       error:opts.paymentReadError?{message:"PRIVATE_PAY_SQL"}:null};
     return {data:null,error:null};
    },
    update:(_row)=>{
     calls.push("UPDATE:"+name);
-    return {
-     eq:()=>({
-      eq:()=>({select:()=>({maybeSingle:async()=>({
-       data:opts.updateMissing&&name==="shipments"?null:
-         opts.paymentUpdateMissing&&name==="payment_intents"?null:{id:name==="shipments"?ID:PAYMENT},
-       error:opts.updateError&&name==="shipments"?{message:"PRIVATE_UPDATE"}:
-         opts.paymentUpdateError&&name==="payment_intents"?{message:"PRIVATE_PAYMENT_UPDATE"}:null
-      })})})
+    const updateQuery={
+     eq:()=>updateQuery,
+     select:()=>updateQuery,
+     maybeSingle:async()=>({
+      data:opts.updateMissing&&name==="shipments"?null:
+        opts.paymentUpdateMissing&&name==="payment_intents"?null:{id:name==="shipments"?ID:PAYMENT},
+      error:opts.updateError&&name==="shipments"?{message:"PRIVATE_UPDATE"}:
+        opts.paymentUpdateError&&name==="payment_intents"?{message:"PRIVATE_PAYMENT_UPDATE"}:null
      })
     };
+    return updateQuery;
    },
    insert:async()=>{calls.push("INSERT:"+name);return {error:opts.eventError?{message:"PRIVATE_EVENT_SQL"}:null};}
   };return q;
