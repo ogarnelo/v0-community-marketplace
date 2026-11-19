@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "app/admin/school/page.tsx"
+      - "lib/marketplace/unique-school-admin-context.ts"
       - "lib/supabase/server.ts"
       - "lib/supabase/client.ts"
       - "lib/supabase/admin.ts"
