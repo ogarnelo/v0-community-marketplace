@@ -11,6 +11,7 @@ function privateJson(body: unknown, options: { status?: number; headers?: Record
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 import {
   dashboardRange,
   loadSchoolImpactReport,
@@ -56,14 +57,23 @@ export async function GET(request: Request) {
     const rawRange = url.searchParams.get("range");
     const range = rawRange === "90d" || rawRange === "total" ? rawRange : "365d";
 
-    const schoolAdminRole = (roles || []).find(
-      (role) => role.role === "school_admin" && role.school_id
-    );
-    const isSuperAdmin = (roles || []).some((role) => role.role === "super_admin");
+    if (!Array.isArray(roles)) {
+      return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    }
+    let uniqueAdminSchool: string | null = null;
+    try {
+      uniqueAdminSchool = resolveUniqueSchoolAdminSchoolId(
+        roles.filter(role => role.role === "school_admin")
+      );
+    } catch {
+      // No privileged report may be picked from contradictory school grants.
+      return privateJson({ error: "Permisos escolares ambiguos." }, { status: 403 });
+    }
+    const isSuperAdmin = roles.some(role => role.role === "super_admin");
 
     const requestedSchoolId = url.searchParams.get("school_id")?.trim() || null;
     const schoolId =
-      schoolAdminRole?.school_id || (isSuperAdmin ? requestedSchoolId : null);
+      uniqueAdminSchool || (isSuperAdmin ? requestedSchoolId : null);
 
     if (!schoolId) {
       return privateJson({ error: "No tienes un centro administrable." }, { status: 403 });
@@ -113,9 +123,16 @@ export async function GET(request: Request) {
     if (currentRolesError || !Array.isArray(currentRoles)) {
       return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
     }
-    const sameGrantStillActive = schoolAdminRole?.school_id
-      ? currentRoles.some(role => role.role === "school_admin" &&
-          role.school_id === schoolId)
+    let freshUniqueSchool: string | null = null;
+    try {
+      freshUniqueSchool = resolveUniqueSchoolAdminSchoolId(
+        currentRoles.filter(role => role.role === "school_admin")
+      );
+    } catch {
+      return privateJson({ error: "Permisos escolares ambiguos." }, { status: 403 });
+    }
+    const sameGrantStillActive = uniqueAdminSchool
+      ? freshUniqueSchool === schoolId
       : isSuperAdmin && currentRoles.some(role => role.role === "super_admin");
     if (!sameGrantStillActive) {
       return privateJson({ error: "Permiso revocado." }, { status: 403 });
