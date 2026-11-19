@@ -152,6 +152,8 @@ test("new schema is review-only, additive, preserves legacy and rejects mixed mo
   assert.match(sql,/REVIEW ONLY/);
   assert.match(sql,/ADD COLUMN IF NOT EXISTS community_scope_mode text NOT NULL DEFAULT 'single'/);
   assert.match(sql,/community_scope_mode = 'active_family'/);
+  assert.match(sql,/CREATE TRIGGER saved_search_family_scope_stamp_before_update_v1/);
+  assert.match(sql,/wetudy_internal\.saved_search_preference_stamp_v1\(\)/);
   assert.match(sql,/school_id IS NULL/);
   assert.match(sql,/directory_school_code IS NULL/);
   assert.doesNotMatch(sql,/(?:^|\\n)\\s*(?:DROP TABLE|TRUNCATE|DELETE FROM|UPDATE public\\.saved_searches|INSERT INTO public\\.saved_searches|GRANT|REVOKE)\\b/im);
