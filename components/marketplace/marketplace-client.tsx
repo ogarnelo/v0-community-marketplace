@@ -55,7 +55,7 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null; initialGeneralHasMore?: boolean; initialIsAuthenticated?: boolean; initialHasKnownPostalCode?: boolean };
+type MarketplaceClientProps = { initialListings: MarketplaceListing[]; initialSchoolId: string; initialDirectorySchoolCode?: string; initialPostalCode?: string; initialCommunityListingCount?: number | null; initialGeneralHasMore?: boolean; initialIsAuthenticated?: boolean; initialHasKnownPostalCode?: boolean; initialHasMultiSchoolContext?: boolean };
 type SaveSearchStatus = "idle" | "saving" | "saved" | "auth" | "error" | "details" | "postcode" | "school";
 type PublishedDateFilter = "all" | "today" | "7d" | "30d";
 
@@ -68,7 +68,7 @@ function isAfterDate(value: string | null, filter: PublishedDateFilter) {
   return createdAt >= start.getTime();
 }
 
-export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null, initialGeneralHasMore = false, initialIsAuthenticated = false, initialHasKnownPostalCode = false }: MarketplaceClientProps) {
+export function MarketplaceClient({ initialListings, initialSchoolId, initialDirectorySchoolCode = "", initialPostalCode = "", initialCommunityListingCount = null, initialGeneralHasMore = false, initialIsAuthenticated = false, initialHasKnownPostalCode = false, initialHasMultiSchoolContext = false }: MarketplaceClientProps) {
   const [dbListings, setDbListings] = useState<MarketplaceListing[]>(initialListings);
   const [generalHasMore, setGeneralHasMore] = useState(initialGeneralHasMore);
   const [generalLoading, setGeneralLoading] = useState(false);
@@ -510,12 +510,12 @@ export function MarketplaceClient({ initialListings, initialSchoolId, initialDir
     setSaveSearchStatus("idle");
   }, [searchQuery, isbnQuery, category, gradeLevel, listingType, condition, onlyMyCommunity, priceRange, distanceKm, publishedDateFilter]);
 
-  const hasSchoolContext = Boolean(currentUserSchoolId || currentUserDirectorySchoolCode);
+  const hasSchoolContext = Boolean(currentUserSchoolId || currentUserDirectorySchoolCode || initialHasMultiSchoolContext);
   const communityCountLabel = schoolCount === null
     ? "Anuncios de tu colegio"
     : schoolCount === 1
       ? "1 anuncio de tu colegio"
-      : `${schoolCount} anuncios de tu colegio`;
+      : `${schoolCount} anuncios de ${initialHasMultiSchoolContext ? "tus colegios" : "tu colegio"}`;
   // Ten is a discovery milestone, NEVER an automatic filter-on threshold.
   const highlightSchoolShortcut = (schoolCount ?? 0) >= 10;
   const subtleSchoolShortcut = (schoolCount ?? 0) >= 5 && !highlightSchoolShortcut;
