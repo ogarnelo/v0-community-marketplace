@@ -112,6 +112,7 @@ export async function POST(request: Request) {
 
     // Match the exact school context shown on /marketplace:
     // a selected directory school takes precedence over stale profile.school_id.
+    let familyScopeMode: "single" | "active_family" = "single";
     let directorySchoolCode = schoolAdminRole?.school_id
       ? null : primaryStudentContext?.directory_school_code?.trim() || null;
     let schoolId =
@@ -158,12 +159,20 @@ export async function POST(request: Request) {
             }
           );
           if (single.ambiguous) {
-            return NextResponse.json({
-              ok: false, error: "multi_school_saved_search_not_supported",
-            }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+            // A separate flag prevents an upgrade before the reviewed
+            // community_scope_mode column exists and delivery has been tested.
+            if (process.env.WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED !== "true") {
+              return NextResponse.json({
+                ok: false, error: "multi_school_saved_search_not_supported",
+              }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+            }
+            familyScopeMode = "active_family";
+            schoolId = null;
+            directorySchoolCode = null;
+          } else {
+            schoolId = single.schoolId;
+            directorySchoolCode = single.directoryCode;
           }
-          schoolId = single.schoolId;
-          directorySchoolCode = single.directoryCode;
         } catch {
           return NextResponse.json({ ok: false, error: "school_context_unavailable" },
             { status: 503, headers: { "Cache-Control": "private, no-store" } });
@@ -171,7 +180,8 @@ export async function POST(request: Request) {
       }
     }
 
-    if (body.onlyMyCommunity && !directorySchoolCode && !schoolId) {
+    if (body.onlyMyCommunity && !directorySchoolCode && !schoolId &&
+        familyScopeMode !== "active_family") {
       return NextResponse.json({ ok: false, error: "school_context_required" }, { status: 409 });
     }
 
@@ -190,6 +200,9 @@ export async function POST(request: Request) {
         only_my_community: Boolean(body.onlyMyCommunity),
         school_id: schoolId,
         directory_school_code: directorySchoolCode,
+        // Do not refer to the new DB column at all while its feature is OFF.
+        ...(familyScopeMode === "active_family"
+          ? { community_scope_mode: "active_family" as const } : {}),
         results_count: resultsCount,
         source_path: sourcePath,
         need_details: needDetails,
