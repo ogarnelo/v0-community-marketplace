@@ -39,6 +39,8 @@ jobs:
         run: node --test __tests__/launch/photo-upload-api-runtime.test.mjs
       - name: Photo server rollback denies shared references, forged paths and outages
         run: node --test __tests__/launch/p0-photo-server-cleanup-runtime.test.mjs
+      - name: Photo editing errors distinguish safe failure phase without provider data
+        run: node --test __tests__/launch/p0-photo-edit-error-stage-contract.test.mjs
       - name: Signed alert worker pause must keep prior failed attempts and correct lease
         run: node --test __tests__/launch/p0-alert-paused-lease-runtime.test.mjs
       - name: Message send and conversation summary fail closed on Auth outage
