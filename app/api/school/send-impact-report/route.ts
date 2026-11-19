@@ -83,6 +83,7 @@ export async function POST(request: Request) {
   // Once the provider has accepted the email, an exception cannot safely be
   // presented as a failed send: the caller might retry a private PDF.
   let providerAccepted = false;
+  let providerAttempted = false;
   try {
     const supabase = await createClient();
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -234,6 +235,7 @@ export async function POST(request: Request) {
       { status: 409 }
     );
 
+    providerAttempted = true;
     const emailResult = await sendMonthlySchoolImpactEmail({
       to: email,
       report,
@@ -310,10 +312,18 @@ export async function POST(request: Request) {
     // disclose provider/SQL details or signal a retry-safe failed delivery.
     console.error(providerAccepted
       ? "school_impact_manual_postaccept_reconciliation_required"
-      : "school_impact_manual_send_failed");
+      : providerAttempted
+        ? "school_impact_manual_provider_outcome_unknown"
+        : "school_impact_manual_send_failed");
     if (providerAccepted) {
       return privateJson(
         { error: "El informe se envió, pero su registro requiere conciliación. Revisa el historial antes de repetir." },
+        { status: 503 }
+      );
+    }
+    if (providerAttempted) {
+      return privateJson(
+        { error: "El resultado del envío no está confirmado. Revisa el historial antes de repetir." },
         { status: 503 }
       );
     }
