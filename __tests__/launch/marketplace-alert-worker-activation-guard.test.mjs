@@ -8,7 +8,7 @@ const source=readFileSync("app/api/cron/marketplace-alert-outbox/route.ts","utf8
 const matcher=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
 const vercel=JSON.parse(readFileSync("vercel.json","utf8"));
 
-function runWorker({globalFlag="true",workerFlag="true",intentFlag="true",
+function runWorker({globalFlag="true",workerFlag="true",intentFlag="true",cronSecret="synthetic-qa-cron",
   intentsReady=true,intentFunctionsReady=true,reviewReady=true,reconciliationReady=true,auth="Bearer synthetic-qa-cron"}={}){
   let dbCreated=0, claimed=0, fetchCalls=0;
   const db={
@@ -47,7 +47,7 @@ function runWorker({globalFlag="true",workerFlag="true",intentFlag="true",
       return {createAdminClient:()=>{dbCreated++;return db;}};
     },
     process:{env:{
-      CRON_SECRET:"synthetic-qa-cron",
+      CRON_SECRET:cronSecret,
       WETUDY_SAVED_SEARCH_ALERTS_ENABLED:globalFlag,
       WETUDY_ALERT_OUTBOX_ENABLED:workerFlag,
       WETUDY_ALERT_INTENT_DELIVERY_ENABLED:intentFlag,
@@ -143,4 +143,15 @@ test("signed matcher returns paused 202 before privileged DB under global stop",
  const auth=lines.findIndex(s=>s.includes('const auth = isOutboxWorker ? null : await supabase.auth.getUser()'));
  assert.ok(paused>0 && paused<client && paused<auth);
  assert.match(matcher,/paused:true,reason:"alerts_disabled"/);
+});
+
+test("missing signing secret is unhealthy and cannot access DB or email provider",async()=>{
+ for(const cronSecret of [undefined,null,""]){
+  const w=runWorker({cronSecret});
+  const res=await w.response;
+  assert.equal(res.status,503);
+  assert.equal(res.headers.get("cache-control"),"private, no-store");
+  assert.deepEqual(await res.json(),{ok:false,error:"worker_auth_unavailable"});
+  assert.deepEqual(w.calls(),{dbCreated:0,claimed:0,fetchCalls:0});
+ }
 });
