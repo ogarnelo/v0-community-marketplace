@@ -23,6 +23,16 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Sending reports is explicitly disabled until the durable claim (#682) is
+  // integrated and its ambiguous-provider outcomes are reconciled. A valid
+  // CRON_SECRET alone is never permission to send private PDFs.
+  if (process.env.WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED !== "true") {
+    return Response.json({ ok: false }, {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
   const now = new Date();
   // The subscription day is a calendar day in the pilot's local timezone.
   // UTC can already be the following day while Madrid is still on the prior date.
