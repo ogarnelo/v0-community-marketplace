@@ -14,10 +14,11 @@ function fixture({user=USER,referenced=false,dbError=false,owner=USER,authError=
  const removed=[],calls=[];
  const admin={
   from(table){
-   const q={select(){return q},eq(){return q},contains(){return q},limit(){return q},
+   let ownershipLookup=false;
+   const q={select(){return q},eq(field){if(table==="listings" && field==="id")ownershipLookup=true;return q},contains(){return q},limit(){return q},
      async maybeSingle(){
        calls.push(table);
-       if(table==="listings" && calls.length===1 && ![draft,other].includes(this.path))
+       if(table==="listings" && ownershipLookup)
          return {data:{seller_id:owner},error:null};
        return {data:referenced?{id:"reference"}:null,error:dbError?Error("PRIVATE"):null};
      }};
