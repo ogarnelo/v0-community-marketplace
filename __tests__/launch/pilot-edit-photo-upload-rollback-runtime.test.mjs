@@ -25,6 +25,21 @@ function fixture({failAt=0,noUrlAt=0,cleanupFails=false}={}){
  const createClient=()=>({storage:{from:bucket=>{
   assert.equal(bucket,"listing-photos");return storage;
  }}});
+ const uploadSanitizedPhoto=async (file,destination,resourceId)=>{
+   assert.equal(destination,"listing");
+   assert.equal(resourceId,lid);
+   uploads++;
+   const path=uid+"/"+lid+"/synthetic-"+uploads+".webp";
+   ops.push(["upload",path]);
+   if(uploads===failAt)throw Error("PRIVATE_PROVIDER_DIAGNOSTIC");
+   urls++;
+   return {path,publicUrl:urls===noUrlAt?null:"https://fixture.invalid/"+path,
+     size:123,contentType:"image/webp"};
+ };
+ const cleanupSanitizedPhotoUploads=async paths=>{
+   ops.push(["remove",...paths]);
+   if(cleanupFails)throw Error("PRIVATE_CLEANUP_DIAGNOSTIC");
+ };
  const initialListing={id:lid};
  const currentUserId=uid;
  const newPhotos=[{file:{name:"a.jpg"}},{file:{name:"b.jpg"}}];
@@ -35,7 +50,7 @@ function fixture({failAt=0,noUrlAt=0,cleanupFails=false}={}){
  const exp={};
  vm.runInNewContext(compiled.outputText,{exports:exp,createClient,initialListing,
   currentUserId,newPhotos,visibleExistingPhotos,STORAGE_BUCKET:"listing-photos",
-  sanitizeFileName:x=>x,Date,console:{error:(...args)=>logs.push(args)}},
+  sanitizeFileName:x=>x,uploadSanitizedPhoto,cleanupSanitizedPhotoUploads,Date,console:{error:(...args)=>logs.push(args)}},
   {filename:"helper.tsx",timeout:1500});
  return {run:exp.uploadNewPhotos,ops,logs};
 }
