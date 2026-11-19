@@ -99,4 +99,4 @@ jobs:
           # Install the EXACT review-only pause candidate into this disposable
           # fully migrated DB, never into Education Marketplace production.
           psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -f docs/pilot/sql/p0_alert_pause_outbox_review_only_20261119.sql
-          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -c "SELECT NOT has_function_privilege('anon','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE') AND NOT has_function_privilege('authenticated','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE') AND has_function_privilege('service_role','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE') AS service_only_pause;"
+          test "$(psql -X -v ON_ERROR_STOP=1 -At "$DATABASE_URL" -c "SELECT NOT has_function_privilege('anon','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE') AND NOT has_function_privilege('authenticated','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE') AND has_function_privilege('service_role','public.marketplace_alert_pause_outbox_v1(uuid,uuid)','EXECUTE') AS service_only_pause;")" = "t"
