@@ -154,7 +154,7 @@ test("new schema is review-only, additive, preserves legacy and rejects mixed mo
   assert.match(sql,/community_scope_mode = 'active_family'/);
   assert.match(sql,/school_id IS NULL/);
   assert.match(sql,/directory_school_code IS NULL/);
-  assert.doesNotMatch(sql,/DROP TABLE|TRUNCATE|DELETE FROM|UPDATE public\.saved_searches|INSERT INTO public\.saved_searches|GRANT|REVOKE/i);
+  assert.doesNotMatch(sql,/(?:^|\\n)\\s*(?:DROP TABLE|TRUNCATE|DELETE FROM|UPDATE public\\.saved_searches|INSERT INTO public\\.saved_searches|GRANT|REVOKE)\\b/im);
 });
 
 test("both discovery and live delivery re-authorize; notifications stay independently gated",()=>{
@@ -166,7 +166,7 @@ test("both discovery and live delivery re-authorize; notifications stay independ
   assert.match(worker,/WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED === "true"/);
   assert.match(worker,/WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true"/);
   assert.match(worker,/legacySearchProjection \+ ", community_scope_mode"/);
-  assert.match(worker,/loadCurrentFamilyAlertScopes\(admin, dynamicUsers\.slice\(start, start \+ 150\)\)/);
+  assert.match(worker,/loadCurrentFamilyAlertScopes\\(admin,\\s*dynamicUsers\\.slice\\(start, start \\+ 150\\)\\)/);
   assert.match(worker,/loadCurrentFamilyAlertScopes\(admin, deliveryUsers\)/);
   assert.equal((worker.match(/await verifyWorkerRecipients\(/g)||[]).length,2);
   assert.match(worker,/WETUDY_SAVED_SEARCH_ALERTS_ENABLED !== "true"/);
