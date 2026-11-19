@@ -29,3 +29,9 @@ test("no server-only error or receiver detail is serialized as a successful dash
   page.indexOf("const safeReports ="));
  assert.doesNotMatch(page,/throw new Error\(.*(?:Error|\.message).*\)/);
 });
+
+test("three-AMPA local fixture contains all columns needed for scoped report history",()=>{
+ const fixture=readFileSync("scripts/pilot-three-ampa-next-real-fixture.sql","utf8");
+ assert.match(fixture,/CREATE TABLE public\.school_impact_report_deliveries \([\s\S]*?school_id uuid,user_id uuid/);
+ assert.match(page,/\.from\("school_impact_report_deliveries"\)[\s\S]*?\.eq\("user_id", user\.id\)/);
+});
