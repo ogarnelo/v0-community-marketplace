@@ -92,7 +92,7 @@ function harness({guest=false,profileSchool=SA,student=null,schoolAdmin=null,fai
    compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}});
  assert.equal((compiled.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
  const exp={};
- vm.runInNewContext(compiled.outputText,{exports:exp,require:k=>mocks[k]??{},Promise,Map,Set,Date,URL,Request,Response,console},
+ vm.runInNewContext(compiled.outputText,{exports:exp,require:k=>mocks[k]??{},Promise,Map,Set,Date,URL,Request,Response,console,process:{env:{WETUDY_MULTISCHOOL_LISTINGS_ENABLED:"false"}}},
    {filename:route,timeout:1500});
  return{calls,request:async(path="/api/marketplace/my-school")=>{
    const response=await exp.GET(new Request("https://synthetic.invalid"+path));
