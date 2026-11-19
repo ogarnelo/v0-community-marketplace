@@ -18,6 +18,8 @@ export type ListingDraftPayload = {
   model: string;
   season: string;
   isDonation: boolean;
+  // Stored as a choice key only; never grants school access by itself.
+  schoolContextKey?: string;
 };
 
 export type ListingDraftPhoto = {
@@ -45,6 +47,7 @@ export const EMPTY_LISTING_DRAFT_PAYLOAD: ListingDraftPayload = {
   model: "",
   season: "",
   isDonation: false,
+  schoolContextKey: "",
 };
 
 export function draftDisplayTitle(payload: Partial<ListingDraftPayload> | null | undefined) {
