@@ -54,7 +54,8 @@ function prepareFiles(){
    "lib/supabase/server.ts",
    "lib/supabase/client.ts",
    "lib/supabase/admin.ts",
-   "lib/supabase/proxy.ts","proxy.ts"
+   "lib/supabase/proxy.ts","proxy.ts",
+   "lib/marketplace/unique-school-admin-context.ts"
  ])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))
    fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
