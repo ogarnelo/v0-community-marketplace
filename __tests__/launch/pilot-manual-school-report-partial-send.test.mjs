@@ -50,7 +50,7 @@ function fixture(opts={}){
     if(opts.ackThrows)throw Error("PRIVATE_ACK");},
  },
  "@/lib/emails/school-impact-report-email":{sendMonthlySchoolImpactEmail:async()=>{
-  events.push("EMAIL");return {id:"synthetic-provider-id"};}},
+  events.push("EMAIL");if(opts.providerThrows)throw Error("PRIVATE_PROVIDER");return {id:"synthetic-provider-id"};}},
  "@/lib/reports/school-impact-report":{
   loadSchoolImpactReport:async()=>({school:{is_active:true}}),
   previousCalendarMonth:()=>({start:"2026-10-01",end:"2026-10-31",label:"octubre",key:"2026-10"}),
@@ -135,4 +135,12 @@ test("manual provider acknowledgement outage cannot appear successful",async()=>
  assert.equal(r.status,503);
  assert.deepEqual(f.events,["CLAIM","EMAIL","ACK"]);
  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_ACK/);
+});
+
+test("ambiguous manual provider exception stays held and requires reconciliation",async()=>{
+ const f=fixture({providerThrows:true}),r=await f.send();
+ assert.equal(r.status,503);
+ assert.match(r.body.error,/resultado.*no está confirmado/i);
+ assert.deepEqual(f.events,["CLAIM","EMAIL"]);
+ assert.doesNotMatch(JSON.stringify(r.body)+JSON.stringify(f.errors),/PRIVATE_PROVIDER/);
 });
