@@ -34,6 +34,16 @@ function fixture({failAt=null,noPublicUrlAt=null,cleanupFails=false}={}){
     assert.equal(bucket,"listing-photos");
     return storage;
   }}});
+  const uploadSanitizedPhoto=async (photo,destination)=>{
+    assert.equal(destination,"draft");
+    uploadCount++;
+    const path=user+"/drafts/current/upload-"+uploadCount+".webp";
+    operations.push(["upload",path]);
+    if(uploadCount===failAt)throw Error("PRIVATE_PROVIDER_ERROR");
+    publicUrlCount++;
+    return {path,publicUrl:publicUrlCount===noPublicUrlAt
+      ?null:"https://fixture.invalid/"+path};
+  };
   const trans=ts.transpileModule(extracted,{
     fileName:"uploadListingPhotos.tsx",reportDiagnostics:true,
     compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}
@@ -42,7 +52,7 @@ function fixture({failAt=null,noPublicUrlAt=null,cleanupFails=false}={}){
   const exported={},logs=[];
   vm.runInNewContext(trans.outputText,{
     exports:exported,createClient,STORAGE_BUCKET:"listing-photos",
-    sanitizeFileName:name=>name,Date,
+    sanitizeFileName:name=>name,uploadSanitizedPhoto,Date,
     console:{error:(...args)=>logs.push(args)}
   },{timeout:1500});
   return {...exported,operations,logs};
@@ -65,7 +75,7 @@ test("second upload failure removes only successfully uploaded new file, not reu
    e=>e.message==="listing_photo_upload_failed");
  assert.deepEqual(f.operations.map(x=>x[0]),["upload","upload","remove"]);
  assert.equal(f.operations[2].length,2);
- assert.ok(f.operations[2][1].startsWith(user+"/"+listing+"/"));
+ assert.ok(f.operations[2][1].startsWith(user+"/drafts/current/"));
  assert.notEqual(f.operations[2][1],reused.storagePath);
 });
 test("failure obtaining public URL removes successfully uploaded file",async()=>{
