@@ -102,17 +102,19 @@ test("all 12 delivery recipients use at most 13 codes without global scan",()=>{
 
 test("worker checks live school before radius and before BOTH channels",()=>{
   assert.match(route,/codesForLiveSchoolPage, partitionLiveSchool/);
-  assert.match(route,/partitionLiveSchool\(page, listing, directoryLinks, savedSearchMatchesListing\)/);
+  assert.match(route,/partitionLiveSchool\(page, listing, directoryLinks, savedSearchMatchesListing,\s*deliveryFamilyScopes\)/);
   assert.match(route,/schoolValid\.filter\(hasRadiusConstraint\)/);
   assert.match(route,/partitionLiveRadius\(\s*schoolValid, profilePostcodes/);
   assert.equal((route.match(/await verifyWorkerRecipients\(/g)||[]).length,2);
-  assert.equal((route.match(/saved_searches!inner\(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code\)/g)||[]).length,2);
+  assert.match(route,/const legacyDeliveryProjection =/);
+  assert.equal((route.match(/\.select\(deliveryProjection\)/g)||[]).length,2);
+  assert.match(route,/\.eq\("saved_searches\.notifications_enabled", true\)/);
   assert.match(route,/\.in\("official_code", codes\)/);
   assert.match(route,/invalidation_reason: stale\.reason/);
   assert.match(route,/school_link_changed/);
   assert.match(route,/radius_changed/);
   assert.match(route,/\.is\("invalidated_at", null\)/);
-  const before=route.indexOf("partitionLiveSchool(page, listing, directoryLinks, savedSearchMatchesListing)");
+  const before=route.indexOf("partitionLiveSchool(page, listing, directoryLinks, savedSearchMatchesListing,");
   const radius=route.indexOf("partitionLiveRadius(\n        schoolValid");
   const email=route.indexOf("await sendTransactionalEmailOnce(");
   assert.ok(before>=0&&radius>before&&email>radius);

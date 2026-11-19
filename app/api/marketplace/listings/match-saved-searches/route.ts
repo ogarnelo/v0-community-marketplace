@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savedSearchMatchesListing } from "@/lib/marketplace/saved-search-matching";
+import { loadCurrentFamilyAlertScopes } from "@/lib/marketplace/active-family-alert-scopes";
 import { approximateDistanceKm } from "@/lib/marketplace/postal-distance";
 import { loadAllSortedPages, batchAlertItems } from "@/lib/marketplace/saved-search-batches.mjs";
 import { selectDeliveryPage, summarizeDeliveryProgress } from "@/lib/marketplace/alert-delivery-progress.mjs";
@@ -156,13 +157,27 @@ export async function POST(request: Request) {
     }
 
     const isWorkerDelivery = isOutboxWorker && workerStage === "deliver";
+    // Independent OFF-by-default switch. Until the SQL review-only column is
+    // authorized and applied, NO query can reference that missing column.
+    const dynamicAlertScopesEnabled =
+      process.env.WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true" &&
+      process.env.WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED === "true";
+    const legacySearchProjection =
+      "id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id";
+    const legacyDeliveryProjection =
+      "id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code)";
+    const deliveryProjection = dynamicAlertScopesEnabled
+      ? legacyDeliveryProjection.replace("directory_school_code)", "directory_school_code, community_scope_mode)")
+      : legacyDeliveryProjection;
     let matches: { saved_search_id: string; listing_id: string; user_id: string }[] = [];
     if (!isWorkerDelivery) {
     // Supabase's configured maximum row count must never silently truncate
     // the audience. Stable UUID keyset pages also avoid large OFFSET scans.
     const loadSearches = async (afterId: string | null, limit: number) => {
       let query = admin.from("saved_searches")
-        .select("id, user_id, query, isbn_query, category, grade_level, listing_type, condition, only_my_community, school_id, directory_school_code, radius_km, demand_request_id")
+        .select(dynamicAlertScopesEnabled
+          ? legacySearchProjection + ", community_scope_mode"
+          : legacySearchProjection)
         .eq("notifications_enabled", true)
         .neq("user_id", listingOwnerId)
         .order("id", { ascending: true })
@@ -193,6 +208,23 @@ export async function POST(request: Request) {
         ...search, only_my_community: false, radius_km: null,
       }, listing));
 
+    // Dynamic family subscriptions have one saved-search ID and a LIVE
+    // authenticated school set. Ownership is reloaded for each worker
+    // discovery page; no school ID stored on the search authorizes matching.
+    const dynamicUsers = dynamicAlertScopesEnabled
+      ? [...new Set(contentCandidates.filter((search) =>
+          search.only_my_community && search.community_scope_mode === "active_family"
+        ).map((search) => search.user_id))]
+      : [];
+    const currentFamilyScopes = new Map<string, {
+      schoolIds: string[]; directoryCodes: string[]
+    }>();
+    for (let start = 0; start < dynamicUsers.length; start += 150) {
+      const page = await loadCurrentFamilyAlertScopes(admin,
+        dynamicUsers.slice(start, start + 150));
+      for (const [userId, scope] of page) currentFamilyScopes.set(userId, scope);
+    }
+
     // Resolve directory↔operational school links once per publishing event.
     // Database references are authoritative: no school code arrives from the
     // browser. Directory codes without an explicit link cannot be matched
@@ -214,11 +246,17 @@ export async function POST(request: Request) {
         directoryLinks.set(school.official_code, school.linked_school_id || null);
       }
     }
-    const schoolLinksFor = (search: { directory_school_code?: string | null }) => ({
+    const schoolLinksFor = (search: {
+      directory_school_code?: string | null;
+      community_scope_mode?: string | null;
+      user_id?: string;
+    }) => ({
       savedDirectoryLinkedSchoolId:
         directoryLinks.get(search.directory_school_code || "") || null,
       listingDirectoryLinkedSchoolId:
         directoryLinks.get(listing.directory_school_code || "") || null,
+      activeFamilyScope: search.community_scope_mode === "active_family"
+        ? currentFamilyScopes.get(search.user_id || "") || null : null,
     });
 
     // Only inspect postcode profiles for geographically bounded searches
@@ -343,8 +381,23 @@ export async function POST(request: Request) {
           directoryLinks.set(link.official_code, link.linked_school_id || null);
         }
       }
+      // Re-authorize against CURRENT memberships for each delivery channel,
+      // including after a school is removed from the family. Do not rely on
+      // the discovery-time membership snapshot or a client-supplied school.
+      const deliveryUsers = dynamicAlertScopesEnabled
+        ? [...new Set(page.filter((item) => {
+            const search = Array.isArray(item.saved_searches)
+              ? item.saved_searches[0] : item.saved_searches;
+            return search?.only_my_community &&
+              search?.community_scope_mode === "active_family";
+          }).map((item) => item.user_id as string))]
+        : [];
+      const deliveryFamilyScopes = deliveryUsers.length
+        ? await loadCurrentFamilyAlertScopes(admin, deliveryUsers)
+        : new Map();
       const { deliverable: schoolValid, invalidated: schoolInvalid } =
-        partitionLiveSchool(page, listing, directoryLinks, savedSearchMatchesListing);
+        partitionLiveSchool(page, listing, directoryLinks, savedSearchMatchesListing,
+          deliveryFamilyScopes);
       const geoPage = schoolValid.filter(hasRadiusConstraint);
       const profilePostcodes = new Map<string, string | null>();
       let listingZone: string | null = listing.postal_code || null;
@@ -390,7 +443,7 @@ export async function POST(request: Request) {
     const pendingNotifications = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code)")
+            .select(deliveryProjection)
             .eq("listing_id", listing.id)
             .eq("saved_searches.notifications_enabled", true)
             .lte("saved_searches.updated_at", listing.created_at)
@@ -447,7 +500,7 @@ export async function POST(request: Request) {
     const pendingMatches = isWorkerDelivery
       ? await (async () => {
           const { data, error } = await admin.from("saved_search_matches")
-            .select("id, user_id, saved_searches!inner(id, notifications_enabled, updated_at, radius_km, only_my_community, school_id, directory_school_code)")
+            .select(deliveryProjection)
             .eq("listing_id", listing.id)
             .eq("saved_searches.notifications_enabled", true)
             .lte("saved_searches.updated_at", listing.created_at)

@@ -7,6 +7,7 @@ type SavedSearchCandidate = {
   listing_type?: string | null;
   condition?: string | null;
   only_my_community?: boolean | null;
+  community_scope_mode?: "single" | "active_family" | null;
   school_id?: string | null;
   directory_school_code?: string | null;
   radius_km?: number | null;
@@ -89,6 +90,7 @@ function containsText(haystack: string, needle: string | null | undefined) {
 type SchoolDirectoryLinks = {
   savedDirectoryLinkedSchoolId?: string | null;
   listingDirectoryLinkedSchoolId?: string | null;
+  activeFamilyScope?: { schoolIds: string[]; directoryCodes: string[] } | null;
 };
 
 export function savedSearchMatchesListing(
@@ -114,7 +116,21 @@ export function savedSearchMatchesListing(
   ].filter(Boolean).join(" "));
   const listingType = listing.type || listing.listing_type || null;
 
-  if (search.only_my_community) {
+  if (search.only_my_community && search.community_scope_mode === "active_family") {
+    // The caller MUST supply a freshly authenticated, server-derived scope.
+    // No saved school IDs, search parameters or fallback profile are trusted.
+    const scope = links?.activeFamilyScope;
+    if (!scope || !Array.isArray(scope.schoolIds) || !Array.isArray(scope.directoryCodes)) {
+      return false;
+    }
+    const listingCode = listing.directory_school_code?.trim() || null;
+    if (listingCode) {
+      // Directory code on a listing is authoritative, not its stale school_id.
+      if (!scope.directoryCodes.includes(listingCode)) return false;
+    } else if (!listing.school_id || !scope.schoolIds.includes(listing.school_id)) {
+      return false;
+    }
+  } else if (search.only_my_community) {
     const savedCode = search.directory_school_code?.trim() || null;
     const listingCode = listing.directory_school_code?.trim() || null;
 
