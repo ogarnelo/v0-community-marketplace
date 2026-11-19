@@ -11,11 +11,11 @@ test("cron integrates only private claimed delivery behind explicit opt-in",()=>
  assert.match(sql,/REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC,anon,authenticated/);
  assert.doesNotMatch(sql,/DROP TABLE|TRUNCATE |ALTER DEFAULT PRIVILEGES|SET ROLE authenticated/i);
  const cron=readFileSync("app/api/cron/school-impact-reports/route.ts","utf8");
- assert.match(cron,/acquireDurableSchoolReportClaim/);
- assert.match(cron,/acknowledgeDurableSchoolReportClaim/);
+ assert.match(cron,/acquireSharedSchoolReportClaim/);
+ assert.match(cron,/acknowledgeSharedSchoolReportClaim/);
  assert.match(cron,/WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED/);
- assert.ok(cron.indexOf("acquireDurableSchoolReportClaim({")<cron.indexOf("sendMonthlySchoolImpactEmail({"));
- assert.ok(cron.indexOf("acknowledgeDurableSchoolReportClaim({")<cron.indexOf("const { error: deliveryError }"));
+ assert.ok(cron.indexOf("acquireSharedSchoolReportClaim({")<cron.indexOf("sendMonthlySchoolImpactEmail({"));
+ assert.ok(cron.indexOf("acknowledgeSharedSchoolReportClaim({")<cron.indexOf("const { error: deliveryError }"));
  assert.ok(cron.indexOf("WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED")<cron.indexOf("const admin = createAdminClient()"));
 });
 test("durable unique subscription/period claim has no expiry or automatic retry",()=>{
