@@ -47,6 +47,8 @@ jobs:
         run: node --experimental-strip-types --test __tests__/launch/p0-multischool-foundation.test.mjs
       - name: OFF-by-default multi-school publication selector cannot accept foreign school IDs
         run: node --test __tests__/launch/p0-multischool-publish-gate.test.mjs
+      - name: Multischool draft restores only current authorized school contexts
+        run: node --test __tests__/launch/p0-multischool-draft-context.test.mjs
       - name: Signed alert worker pause must keep prior failed attempts and correct lease
         run: node --test __tests__/launch/p0-alert-paused-lease-runtime.test.mjs
       - name: Message send and conversation summary fail closed on Auth outage
