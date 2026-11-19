@@ -12,6 +12,7 @@ import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-schoo
 import {
   makeMarketplaceSchoolFilter,
   resolveMarketplaceSchoolScope,
+  resolveMarketplaceMultiSchoolScope,
 } from "@/lib/marketplace/school-scope";
 import {
   buildPhotosMap,
@@ -82,7 +83,30 @@ export async function GET(request: Request) {
   const schoolId = managedSchoolId ||
     (student ? student.school_id || "" : profile?.school_id || "");
   try {
-    const schoolScope = await resolveMarketplaceSchoolScope(schoolId, directoryCode);
+    // The feature flag stays OFF until the dual SQL attribution guard is
+    // installed. Do not accept schoolIds/directoryCodes from query params.
+    const multiEnabled = process.env.WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true" &&
+      !managedSchoolId;
+    let schoolScope;
+    if (multiEnabled) {
+      const { data: activeStudents, error: activeError } = await supabase
+        .from("account_students")
+        .select("school_id,directory_school_code")
+        .eq("owner_user_id", user.id)
+        .eq("active", true)
+        .limit(101);
+      if (activeError) throw new Error("MULTISCHOOL_ACTIVE_CONTEXT_READ_FAILED");
+      // No current students: preserve legacy profile school; having active
+      // students with no school NEVER activates a stale profile fallback.
+      const contexts = (activeStudents || []).length > 0
+        ? (activeStudents || []).map((row) => ({
+            schoolId: row.school_id, directorySchoolCode: row.directory_school_code,
+          }))
+        : [{ schoolId, directorySchoolCode: directoryCode }];
+      schoolScope = await resolveMarketplaceMultiSchoolScope(contexts);
+    } else {
+      schoolScope = await resolveMarketplaceSchoolScope(schoolId, directoryCode);
+    }
     const expression = makeMarketplaceSchoolFilter(schoolScope);
     if (!expression) {
       return NextResponse.json({ listings: [], total: 0, offset, hasMore: false }, {

@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
 import { approximateDistanceKm, hasKnownPostalCode } from "@/lib/marketplace/postal-distance";
-import { makeMarketplaceSchoolFilter, resolveMarketplaceSchoolScope } from "@/lib/marketplace/school-scope";
+import { makeMarketplaceSchoolFilter, resolveMarketplaceSchoolScope, resolveMarketplaceMultiSchoolScope } from "@/lib/marketplace/school-scope";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 import {
   buildPhotosMap,
   type ListingPhotoRow,
@@ -32,6 +33,8 @@ export default async function MarketplacePage() {
   let viewerSchoolId = "";
   let viewerDirectorySchoolCode = "";
   let viewerPostalCode = "";
+  let multiCommunityContexts: Array<{schoolId:string|null;directorySchoolCode:string|null}> | null = null;
+  let multiCommunityEnabled = false;
 
   if (user) {
     const [
@@ -79,16 +82,52 @@ export default async function MarketplacePage() {
         ? primaryStudentContext.school_id?.trim() || ""
         : typedProfile?.school_id?.trim() || "");
     viewerPostalCode = typedProfile?.postal_code?.trim() || "";
+
+    if (process.env.WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true") {
+      // Separate from the primary-school card context. Revalidate roles
+      // and all active student links; do not infer rights from query parameters.
+      const [roles, contexts] = await Promise.all([
+        supabase.from("user_roles").select("school_id").eq("user_id", user.id)
+          .eq("role", "school_admin").limit(2),
+        supabase.from("account_students").select("school_id,directory_school_code")
+          .eq("owner_user_id", user.id).eq("active", true).limit(101),
+      ]);
+      if (roles.error || contexts.error) {
+        // Keep the general marketplace usable; no privileged school count.
+        multiCommunityContexts = [];
+        multiCommunityEnabled = true;
+        viewerSchoolId = "";
+        viewerDirectorySchoolCode = "";
+      } else {
+        try {
+          const managedId = resolveUniqueSchoolAdminSchoolId(roles.data);
+          multiCommunityContexts = managedId
+            ? [{ schoolId: managedId, directorySchoolCode: null }]
+            : (contexts.data || []).length > 0
+              ? (contexts.data || []).map((row) => ({
+                  schoolId: row.school_id, directorySchoolCode: row.directory_school_code
+                }))
+              : [{ schoolId: viewerSchoolId, directorySchoolCode: viewerDirectorySchoolCode }];
+          multiCommunityEnabled = !managedId && (contexts.data || []).length > 0;
+        } catch {
+          multiCommunityContexts = [];
+          multiCommunityEnabled = true;
+          viewerSchoolId = "";
+          viewerDirectorySchoolCode = "";
+        }
+      }
+    }
   }
 
   // Exact school count (including older cards) and national-directory ↔
   // operational-centre continuity. A failed school lookup must not block the
   // general marketplace from loading.
   let communityListingCount: number | null = null;
-  if (viewerDirectorySchoolCode || viewerSchoolId) {
+  if (viewerDirectorySchoolCode || viewerSchoolId || multiCommunityContexts !== null) {
     try {
-      const scope = await resolveMarketplaceSchoolScope(
-        viewerSchoolId, viewerDirectorySchoolCode);
+      const scope = multiCommunityContexts !== null
+        ? await resolveMarketplaceMultiSchoolScope(multiCommunityContexts)
+        : await resolveMarketplaceSchoolScope(viewerSchoolId, viewerDirectorySchoolCode);
       const schoolFilter = makeMarketplaceSchoolFilter(scope);
       if (schoolFilter) {
         const result = await admin.from("listings")
@@ -223,6 +262,7 @@ export default async function MarketplacePage() {
       initialGeneralHasMore={initialGeneralHasMore}
       initialIsAuthenticated={Boolean(user)}
       initialHasKnownPostalCode={hasKnownPostalCode(viewerPostalCode)}
+      initialHasMultiSchoolContext={multiCommunityEnabled && (multiCommunityContexts?.some((ctx) => Boolean(ctx.schoolId || ctx.directorySchoolCode)) || false)}
     />
   );
 }
