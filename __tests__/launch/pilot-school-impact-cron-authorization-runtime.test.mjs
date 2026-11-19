@@ -109,6 +109,17 @@ function fixture(options = {}) {
   };
   const mocks = {
     "@/lib/supabase/admin":{createAdminClient:()=>admin},
+    "@/lib/reports/p0-school-impact-claim-rpc": {
+      acquireDurableSchoolReportClaim:async()=>{
+        events.push("CLAIM");
+        if(options.claimThrows)throw Error("PRIVATE_CLAIM");
+        return options.claimDenied?null:"55555555-5555-4555-8555-555555555555";
+      },
+      acknowledgeDurableSchoolReportClaim:async()=>{
+        events.push("ACK");
+        if(options.ackThrows)throw Error("PRIVATE_ACK");
+      },
+    },
     "@/lib/reports/school-impact-cron-subscriptions":{
       loadDueSchoolImpactSubscriptions:async()=> {
         events.push("FROM:school_impact_report_subscriptions");
@@ -406,4 +417,35 @@ test("monthly school impact cron is disabled without explicit send flag before p
   assert.equal(result.body.ok,false);
   assert.equal(result.cache,"private, no-store");
   assert.deepEqual(h.events,[]);
+});
+
+
+test("unique claim is acquired after final recipient checks and before provider email",async()=>{
+ const h=fixture(),r=await h.run();
+ assert.equal(r.body.sent,1);
+ assert.ok(h.events.indexOf("CLAIM")>h.events.indexOf("FROM:school_impact_report_deliveries"));
+ assert.ok(h.events.indexOf("EMAIL")>h.events.indexOf("CLAIM"));
+ assert.ok(h.events.indexOf("ACK")>h.events.indexOf("EMAIL"));
+ assert.ok(h.events.indexOf("DELIVERY")>h.events.indexOf("ACK"));
+});
+test("an ineligible or already claimed month never calls the email provider",async()=>{
+ const h=fixture({claimDenied:true}),r=await h.run();
+ assert.equal(r.body.sent,0);assert.equal(r.body.skipped,1);
+ assert.equal(h.events.includes("CLAIM"),true);
+ assert.equal(h.events.includes("EMAIL"),false);
+});
+test("claim uncertainty stops email and requires reconciliation",async()=>{
+ const h=fixture({claimThrows:true}),r=await h.run();
+ assert.equal(r.status,503);assert.equal(r.body.failed,1);
+ assert.equal(h.events.includes("EMAIL"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_CLAIM/);
+});
+test("provider accepted but acknowledgement uncertain never reports delivery success",async()=>{
+ const h=fixture({ackThrows:true}),r=await h.run();
+ assert.equal(r.status,503);assert.equal(r.body.failed,1);
+ assert.equal(r.body.unrecorded,1);
+ assert.equal(h.events.filter(e=>e==="EMAIL").length,1);
+ assert.equal(h.events.includes("DELIVERY"),false);
+ assert.equal(h.events.includes("UPDATE"),false);
+ assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ACK/);
 });

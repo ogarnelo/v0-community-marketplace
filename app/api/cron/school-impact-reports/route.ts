@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { acquireDurableSchoolReportClaim, acknowledgeDurableSchoolReportClaim } from "@/lib/reports/p0-school-impact-claim-rpc";
 import {
   loadSchoolImpactReport,
   previousCalendarMonth,
@@ -210,6 +211,19 @@ export async function GET(request: Request) {
         continue;
       }
 
+      // An irreversible monthly send is permitted only after winning the
+      // database-unique subscription/period claim. A null/ambiguous result
+      // must NEVER trigger provider delivery or an automatic retry.
+      const claimId = await acquireDurableSchoolReportClaim({
+        admin, subscriptionId: subscription.id, userId: subscription.user_id,
+        schoolId: subscription.school_id, periodKey: period.key, day,
+        email: subscription.email, expectedLastSent: subscription.last_sent_month,
+      });
+      if (!claimId) {
+        skipped += 1;
+        continue;
+      }
+
       const emailResult = await sendMonthlySchoolImpactEmail({
         to: subscription.email,
         report,
@@ -222,6 +236,12 @@ export async function GET(request: Request) {
         emailResult && typeof emailResult === "object" && "id" in emailResult && typeof emailResult.id === "string"
           ? emailResult.id
           : null;
+
+      // Acceptance is durable before writing the secondary audit/marker.
+      // Missing/ambiguous provider IDs leave the claim held for reconciliation.
+      await acknowledgeDurableSchoolReportClaim({
+        admin, claimId, providerMessageId: providerMessageId ?? "",
+      });
 
       const { error: deliveryError } = await admin
         .from("school_impact_report_deliveries")
