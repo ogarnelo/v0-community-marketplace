@@ -169,3 +169,6 @@ jobs:
 
       - name: Stripe webhook invoice identity and registered session attestation
         run: node --test __tests__/launch/p0-stripe-webhook-attestation-runtime.test.mjs
+
+      - name: Shipping dispatch requires paid order with matching actors
+        run: node --test __tests__/launch/p0-shipment-dispatch-payment-identity-runtime.test.mjs
