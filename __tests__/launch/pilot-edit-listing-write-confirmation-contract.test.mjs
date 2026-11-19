@@ -36,7 +36,10 @@ test("photo URL sync verifies a row was updated before redirect",()=>{
  assert.match(submit.slice(photoSync,confirmation),/\.select\("id"\)\s*\.maybeSingle\(\)/);
 });
 test("errors displayed to families do not contain SQL messages",()=>{
- assert.match(submit,/setSubmitError\("No se pudo actualizar el anuncio\. Inténtalo de nuevo\."\)/);
+ assert.match(submit,/setSubmitError\(safeMessages\[savePhase\]\)/);
+ for(const phase of ["listing","upload","photo_rows","remove","order","sync"]){
+   assert.match(submit,new RegExp(phase+': "[^"]+"'));
+ }
  assert.doesNotMatch(submit,/setSubmitError\(error\.message|setSubmitError\(error\?\.message/);
 });
 
