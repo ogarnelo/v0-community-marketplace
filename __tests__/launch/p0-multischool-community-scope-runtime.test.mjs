@@ -63,3 +63,16 @@ test("HTTP community feed takes school contexts from authenticated user only",()
  assert.doesNotMatch(route,/params\.get\("directorySchoolCode"\)/);
  assert.match(route,/Cache-Control": "private, no-store"/);
 });
+
+test("server-rendered school counts share the exact authenticated union",()=>{
+ const page=readFileSync("app/marketplace/page.tsx","utf8");
+ const client=readFileSync("components/marketplace/marketplace-client.tsx","utf8");
+ assert.match(page,/process\.env\.WETUDY_MULTISCHOOL_LISTINGS_ENABLED === "true"/);
+ assert.match(page,/\.eq\("owner_user_id", user\.id\)\.eq\("active", true\)\.limit\(101\)/);
+ assert.match(page,/resolveUniqueSchoolAdminSchoolId\(roles\.data\)/);
+ assert.match(page,/resolveMarketplaceMultiSchoolScope\(multiCommunityContexts\)/);
+ assert.match(page,/initialHasMultiSchoolContext=\{/);
+ assert.match(client,/initialHasMultiSchoolContext = false/);
+ assert.match(client,/currentUserDirectorySchoolCode \|\| initialHasMultiSchoolContext/);
+ assert.match(page,/select\("id", \{ count: "exact", head: true \}\)/);
+});
