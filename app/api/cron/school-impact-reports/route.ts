@@ -66,6 +66,7 @@ export async function GET(request: Request) {
     }
 
     let providerAccepted = false;
+    let providerAttempted = false;
     let auditRecorded = false;
     let auditFailedCounted = false;
     try {
@@ -225,6 +226,7 @@ export async function GET(request: Request) {
         continue;
       }
 
+      providerAttempted = true;
       const emailResult = await sendMonthlySchoolImpactEmail({
         to: subscription.email,
         report,
@@ -289,7 +291,11 @@ export async function GET(request: Request) {
     } catch {
       // If provider accepted the email but the audit could not be verified,
       // preserve that uncertainty explicitly. Never claim a retry-safe send.
-      if (providerAccepted && !auditRecorded && !auditFailedCounted) {
+      if (providerAttempted && !providerAccepted) {
+        // A provider may have accepted the email before a timeout/exception.
+        // Keep the exclusive claim and report this as ambiguous, not retry-safe.
+        unrecorded += 1;
+      } else if (providerAccepted && !auditRecorded && !auditFailedCounted) {
         unrecorded += 1;
       }
       // Subscription IDs and provider/SQL exception messages may contain private
