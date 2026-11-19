@@ -98,6 +98,7 @@ export async function GET(request: Request) {
     const stage = discoveryState.discovery_completed_at ? "deliver" : "discover";
     let success = false;
     let partialProgress = false;
+    let alertsPaused = false;
     let awaitingPhotos = false;
     let reviewRequired = false;
     let errorCode = "unknown";
@@ -139,6 +140,8 @@ export async function GET(request: Request) {
             const body = await response.json();
             success = body?.ok === true && body?.complete === true;
             partialProgress = body?.ok === true && body?.complete === false;
+            alertsPaused = response.status === 202 && partialProgress &&
+              body?.paused === true && body?.reason === "alerts_disabled";
             if (!success && !partialProgress) errorCode = "unexpected_matcher_body";
           } else if (response.status === 409) {
             const body = await response.json().catch(() => null);
@@ -177,6 +180,28 @@ export async function GET(request: Request) {
       return Response.json({
         ok:false, claimed:1, outcome:"review_required",
       }, {status:202,headers:{"Cache-Control":"no-store"}});
+    }
+
+    if (alertsPaused) {
+      // A global stop while a lease is processing must preserve prior failed
+      // attempts. The progress RPC resets attempts to zero and is NOT suitable
+      // for pauses. If this private RPC is absent, fail closed: no emails or
+      // settlement, and the lease may be reconciled before any retry.
+      const { data: paused, error: pauseError } = await admin.rpc(
+        "marketplace_alert_pause_outbox_v1", {
+          p_listing_id: job.listing_id,
+          p_lease_token: job.lease_token,
+        }
+      );
+      if (pauseError) throw pauseError;
+      if (paused !== true) {
+        return Response.json({ ok: false, reason: "stale_lease" }, {
+          status: 409, headers: { "Cache-Control": "private, no-store" },
+        });
+      }
+      return Response.json({
+        ok: true, complete: false, claimed: 1, outcome: "alerts_paused",
+      }, { status: 202, headers: { "Cache-Control": "private, no-store" } });
     }
 
     if (awaitingPhotos) {
