@@ -24,6 +24,12 @@ export async function GET(request: Request) {
       process.env.WETUDY_ALERT_INTENT_DELIVERY_ENABLED !== "true") {
     return new Response(null, { status: 204 });
   }
+  // Additional rollout circuit-breaker for the signed recovery worker.
+  // Do NOT silently disable the legacy, seller-triggered matcher path:
+  // this gate is specific to background recovery.
+  if (process.env.WETUDY_SAVED_SEARCH_ALERTS_ENABLED !== "true") {
+    return new Response(null, { status: 204 });
+  }
 
   try {
     const admin = createAdminClient();
