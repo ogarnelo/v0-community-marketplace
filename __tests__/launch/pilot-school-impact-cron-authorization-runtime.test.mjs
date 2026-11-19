@@ -109,13 +109,13 @@ function fixture(options = {}) {
   };
   const mocks = {
     "@/lib/supabase/admin":{createAdminClient:()=>admin},
-    "@/lib/reports/p0-school-impact-claim-rpc": {
-      acquireDurableSchoolReportClaim:async()=>{
+    "@/lib/reports/p0-school-impact-shared-claim-rpc": {
+      acquireSharedSchoolReportClaim:async()=>{
         events.push("CLAIM");
         if(options.claimThrows)throw Error("PRIVATE_CLAIM");
         return options.claimDenied?null:"55555555-5555-4555-8555-555555555555";
       },
-      acknowledgeDurableSchoolReportClaim:async()=>{
+      acknowledgeSharedSchoolReportClaim:async()=>{
         events.push("ACK");
         if(options.ackThrows)throw Error("PRIVATE_ACK");
       },
