@@ -44,6 +44,10 @@ function fixture({failAt=null,noPublicUrlAt=null,cleanupFails=false}={}){
     return {path,publicUrl:publicUrlCount===noPublicUrlAt
       ?null:"https://fixture.invalid/"+path};
   };
+  const cleanupSanitizedPhotoUploads=async paths=>{
+    operations.push(["remove",...paths]);
+    if(cleanupFails)throw Error("PRIVATE_CLEANUP_FAILURE");
+  };
   const trans=ts.transpileModule(extracted,{
     fileName:"uploadListingPhotos.tsx",reportDiagnostics:true,
     compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}
@@ -52,7 +56,7 @@ function fixture({failAt=null,noPublicUrlAt=null,cleanupFails=false}={}){
   const exported={},logs=[];
   vm.runInNewContext(trans.outputText,{
     exports:exported,createClient,STORAGE_BUCKET:"listing-photos",
-    sanitizeFileName:name=>name,uploadSanitizedPhoto,Date,
+    sanitizeFileName:name=>name,uploadSanitizedPhoto,cleanupSanitizedPhotoUploads,Date,
     console:{error:(...args)=>logs.push(args)}
   },{timeout:1500});
   return {...exported,operations,logs};
