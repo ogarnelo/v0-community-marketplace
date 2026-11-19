@@ -14,9 +14,9 @@ const auth = read("components/auth/auth-form.tsx");
 test("AMPA reports are queried only for the authorized school's listing IDs", () => {
   assert.match(admin, /\.from\("listings"\)[\s\S]*?\.eq\("school_id", effectiveSchoolId\)/);
   assert.match(admin, /const listingIds = safeListings\.map\(\(item\) => item\.id\)/);
-  assert.match(admin, /const \{ data: reports \} = listingIds\.length > 0/);
+  assert.match(admin, /const \{ data: reports, error: reportsError \} = listingIds\.length > 0/);
   assert.match(admin, /\.from\("reports"\)[\s\S]*?\.eq\("target_type", "listing"\)\s*\.in\("listing_id", listingIds\)/);
-  assert.match(admin, /: \{ data: \[\] as ReportRow\[\] \}/);
+  assert.match(admin, /: \{ data: \[\] as ReportRow\[\], error: null \}/);
   assert.match(admin, /const safeListingReports = safeReports\.filter/);
   assert.doesNotMatch(admin, /\.from\("reports"\)[\s\S]*?\.eq\("target_type", "listing"\)\s*\.order\("created_at"/);
 });
