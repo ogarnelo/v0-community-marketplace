@@ -12,8 +12,7 @@ test("photo edit failure category is stable and never includes provider diagnost
  const phases=["listing","upload","photo_rows","remove","order","sync"];
  for(const phase of phases){
    assert.match(fn,new RegExp('\\b'+phase+': "[^"]+"'));
-   assert.match(fn,new RegExp('savePhase = "'+phase+'"').source==="impossible"?/^$/:
-     new RegExp(phase==="listing"?'savePhase: "listing"':'savePhase = "'+phase+'"'));
+   assert.match(fn,new RegExp(phase==="listing"?'savePhase: "listing"':'savePhase = "'+phase+'"'));
  }
  assert.match(fn,/setSubmitError\(safeMessages\[savePhase\]\)/);
  assert.doesNotMatch(fn,/setSubmitError\((?:updateError|photoSyncError|uploadError|error)(?:\.|\b)/);
