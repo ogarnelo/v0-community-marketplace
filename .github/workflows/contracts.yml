@@ -187,3 +187,6 @@ jobs:
 
       - name: Family without a school is directed to support rather than AMPA institutional registration
         run: node --test __tests__/launch/missing-school-family-help.test.mjs
+
+      - name: Supabase-admin default ACL owner handoff without elevation
+        run: node --test __tests__/launch/p0-owner-default-acl-handoff-contract.test.mjs
