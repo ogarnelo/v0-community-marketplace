@@ -138,7 +138,7 @@ function fixture(options = {}) {
       assert.ok(name in mocks,"Unexpected dependency "+name);
       return mocks[name];
     },
-    process:{env:{CRON_SECRET:options.noCronSecret?undefined:"synthetic-secret"}},
+    process:{env:{CRON_SECRET:options.noCronSecret?undefined:"synthetic-secret", WETUDY_SCHOOL_IMPACT_EMAIL_ENABLED: options.disabledSend ? "false" : "true"}},
     Intl,Date,Response,Request,Promise,console:{error:(...args)=>logs.push(args)},
   },{filename:"school-impact-cron.js",timeout:1800});
   return {events,logs,run:async()=>{
@@ -396,4 +396,14 @@ test("global user_roles read failure does not send or expose role details",async
  assert.equal(res.body.failed,1);
  assert.equal(h.events.includes("EMAIL"),false);
  assert.doesNotMatch(JSON.stringify(h.logs),/PRIVATE_ROLE/);
+});
+
+
+test("monthly school impact cron is disabled without explicit send flag before privileged reads",async()=>{
+  const h=fixture({disabledSend:true});
+  const result=await h.run();
+  assert.equal(result.status,503);
+  assert.equal(result.body.ok,false);
+  assert.equal(result.cache,"private, no-store");
+  assert.deepEqual(h.events,[]);
 });
