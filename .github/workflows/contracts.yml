@@ -193,3 +193,6 @@ jobs:
 
       - name: Wetudy Easy AI simulation is only preview and never publishes or calls providers
         run: node --test __tests__/launch/wetudy-easy-preview-only-synthetic-runtime.test.mjs
+
+      - name: Unreferenced listing photo cleanup never deletes foreign or referenced objects
+        run: node --test __tests__/launch/pilot-listing-photo-orphan-cleanup-runtime.test.mjs
