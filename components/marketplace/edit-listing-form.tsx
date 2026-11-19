@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { uploadSanitizedPhoto } from "@/lib/marketplace/upload-sanitized-photo";
 import { missingListingPhotoMetadata } from "@/lib/marketplace/missing-listing-photos.mjs";
 import { BookIsbnLookup, type BookLookupBook } from "@/components/marketplace/book-isbn-lookup";
 import { isValidIsbn, normalizeIsbn } from "@/lib/books/isbn";
@@ -357,22 +358,15 @@ export default function EditListingForm({
     try {
       for (let index = 0; index < newPhotos.length; index += 1) {
         const item = newPhotos[index];
-        const safeName = sanitizeFileName(item.file.name);
-        const fileExt = item.file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const filePath = `${currentUserId}/${initialListing.id}/${Date.now()}-${index}-${safeName || `image.${fileExt}`}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(filePath, item.file, { cacheControl: "3600", upsert: false });
-        if (uploadError) throw uploadError;
+        const { path: filePath, publicUrl } = await uploadSanitizedPhoto(
+          item.file, "listing", initialListing.id
+        );
         freshlyUploadedPaths.push(filePath);
-
-        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-        if (!data?.publicUrl) throw new Error("listing_edit_photo_url_unavailable");
+        if (!publicUrl) throw new Error("listing_edit_photo_url_unavailable");
 
         uploadedRows.push({
           listing_id: initialListing.id,
-          url: data.publicUrl,
+          url: publicUrl,
           sort_order: startingSortOrder + index,
         });
       }
