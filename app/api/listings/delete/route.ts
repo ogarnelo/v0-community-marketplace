@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { cleanupDeletedListingPhotos } from "@/lib/marketplace/cleanup-deleted-listing-photos";
 
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { data: listing, error: listingError } = await admin
       .from("listings")
-      .select("id,seller_id,status")
+      .select("id,seller_id,status,photos")
       .eq("id", listingId)
       .maybeSingle();
 
@@ -96,6 +97,22 @@ export async function POST(request: Request) {
       return privateJson({ ok: true, mode: "archived", hadHistory: true });
     }
 
+    // Collect only server-owned listing photo URLs before the FK cascade.
+    // A failed read is not permission to delete and lose references: fail
+    // before touching the listing or Storage, with no client-controlled paths.
+    const { data: photoRows, error: photoReadError } = await admin
+      .from("listing_photos")
+      .select("url")
+      .eq("listing_id", listingId);
+    if (photoReadError) {
+      console.error("listing_photo_cleanup_preflight_failed");
+      return privateJson({ error: "No se pudo comprobar el historial fotográfico." }, 503);
+    }
+    const photoUrls = [...new Set([
+      ...(Array.isArray(listing.photos) ? listing.photos : []),
+      ...(photoRows || []).map(row => row.url),
+    ].filter((url): url is string => typeof url === "string"))];
+
     // The audited FK constraints use ON DELETE CASCADE / SET NULL for
     // dependent records. Do not delete listing_photos, favorites or views
     // before the listing delete is confirmed: a failed delete would
@@ -111,6 +128,14 @@ export async function POST(request: Request) {
     if (deleteError || !deleted) {
       console.error("listing_delete_not_confirmed");
       return privateJson({ error: "No se pudo eliminar el anuncio." }, 503);
+    }
+    // Never call Storage before a verified DELETE or after an archive.
+    // Cleanup is best effort, scoped to this seller/listing and only
+    // when the object has no remaining references across persisted tables.
+    if (photoUrls.length > 0) {
+      await cleanupDeletedListingPhotos(admin, {
+        ownerId: user.id, listingId, urls: photoUrls,
+      });
     }
     return privateJson({ ok: true, mode: "deleted" });
   } catch {
