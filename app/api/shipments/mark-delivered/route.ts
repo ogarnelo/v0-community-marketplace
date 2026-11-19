@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const adminSupabase = createAdminClient();
     const { data: shipment, error: shipmentError } = await adminSupabase
       .from("shipments")
-      .select("id, buyer_id, payment_intent_id, status")
+      .select("id, buyer_id, seller_id, listing_id, payment_intent_id, status")
       .eq("id", shipmentId)
       .maybeSingle();
 
@@ -62,10 +62,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // A shipment cannot be delivered without a paid order to attribute it to.
+    if (!shipment.payment_intent_id || !shipment.listing_id ||
+        !shipment.seller_id || !shipment.buyer_id) {
+      return privateJson({ error: "El envío no tiene un pago vinculable; requiere conciliación." }, { status: 409 });
+    }
+
     const { data: payment, error: paymentError } = shipment.payment_intent_id
       ? await adminSupabase
           .from("payment_intents")
-          .select("id, status, metadata")
+          .select("id, status, buyer_id, seller_id, listing_id, metadata")
           .eq("id", shipment.payment_intent_id)
           .maybeSingle()
       : { data: null, error: null };
@@ -77,9 +83,14 @@ export async function POST(request: Request) {
       );
     }
 
-    if (shipment.payment_intent_id && (!payment || payment.status !== "succeeded")) {
+    if (!payment || payment.status !== "succeeded" ||
+        payment.id !== shipment.payment_intent_id ||
+        payment.buyer_id !== shipment.buyer_id ||
+        payment.seller_id !== shipment.seller_id ||
+        payment.listing_id !== shipment.listing_id ||
+        payment.metadata?.delivery_method !== "shipping") {
       return privateJson(
-        { error: "El pago asociado debe estar confirmado antes de cerrar el envío." },
+        { error: "El envío requiere un pago confirmado del mismo comprador, vendedor y anuncio." },
         { status: 409 }
       );
     }
@@ -92,6 +103,8 @@ export async function POST(request: Request) {
         updated_at: now,
       })
       .eq("id", shipmentId)
+      .eq("buyer_id", user.id)
+      .eq("payment_intent_id", payment.id)
       .eq("status", "in_transit")
       .select("id")
       .maybeSingle();
@@ -132,6 +145,7 @@ export async function POST(request: Request) {
           updated_at: now,
         })
         .eq("id", payment.id)
+        .eq("buyer_id", user.id)
         .eq("status", "succeeded")
         .select("id")
         .maybeSingle();
