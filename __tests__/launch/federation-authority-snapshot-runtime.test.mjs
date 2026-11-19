@@ -140,9 +140,13 @@ test("piloto ficticio: AMPA desverificada no concede reporting a su federación"
 test("piloto ficticio: no se filtran usuarios, correos ni identificadores de otro colegio",()=>{
  const s=syntheticTwoSchoolThreeAmpaSnapshot();
  const authority=build(s);
- assert.equal(authority.representations.every(x=>x.schoolId===pilotSchoolA),true);
- assert.equal(authority.representations.length,2);
- const text=JSON.stringify(authority);
+ // The trusted backend snapshot can contain cross-federation links, but
+ // the resolved authorization scope delivered to the reporting loader must not.
+ const authorized=Array.from(hierarchy.resolveHierarchySchoolScope(authority));
+ assert.deepEqual(authorized,[pilotSchoolA]);
+ assert.throws(()=>scope.requireRepresentedSchool(authorized,pilotSchoolB),/DENIED/);
+ assert.equal(authority.representations.length,3);
+ const text=JSON.stringify({allowedSchools:authorized});
  assert.doesNotMatch(text,/correo|phone|email|password|address|storage_path|service_role/i);
  assert.equal(s.associations.length,3);
 });
