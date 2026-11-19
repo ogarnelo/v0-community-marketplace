@@ -85,3 +85,68 @@ test("contradictory duplicate legal relationships cannot restore a revoked grant
  assert.throws(()=>build(good({schools:[{id:school,is_active:true},{id:school,is_active:false}]})),
   /CONFLICTING_FEDERATION_SNAPSHOT/);
 });
+
+
+/** Synthetic pilot cohort only: two fictitious schools, three fictitious AMPAs,
+ *  two fictitious FAMPAs and a fictitious CEAPA; never seeded in Supabase. */
+const pilotSchoolA=id(10),pilotSchoolB=id(11);
+const pilotAmpaA=id(12),pilotAmpaB=id(13),pilotAmpaC=id(14);
+const pilotFampaB=id(15);
+function syntheticTwoSchoolThreeAmpaSnapshot() {
+ const verified=(relation)=>({...relation,status:"verified",verified_by:verifier,
+   valid_from:"2026-01-01T00:00:00+00:00",valid_until:null});
+ return good({
+  organizations:[{id:ceapa,status:"verified"},{id:fampa,status:"verified"},
+   {id:pilotFampaB,status:"verified"}],
+  associations:[pilotAmpaA,pilotAmpaB,pilotAmpaC].map(id=>({id,status:"verified"})),
+  schools:[pilotSchoolA,pilotSchoolB].map(id=>({id,is_active:true})),
+  associationSchools:[
+   verified({association_id:pilotAmpaA,school_id:pilotSchoolA}),
+   verified({association_id:pilotAmpaB,school_id:pilotSchoolA}),
+   verified({association_id:pilotAmpaC,school_id:pilotSchoolB}),
+  ],
+  organizationAssociations:[
+   verified({organization_id:fampa,association_id:pilotAmpaA}),
+   verified({organization_id:fampa,association_id:pilotAmpaB}),
+   verified({organization_id:pilotFampaB,association_id:pilotAmpaC}),
+  ],
+  hierarchy:[verified({parent_id:ceapa,child_id:fampa})],
+  memberships:[{organization_id:ceapa,user_id:user,role:"report_viewer",
+   status:"active",verified_by:verifier}],
+ });
+}
+test("pilot ficticio: CEAPA solo puede consultar colegios de AMPAs representadas",()=>{
+ const s=syntheticTwoSchoolThreeAmpaSnapshot();
+ assert.equal(s.schools.length,2);
+ assert.equal(s.associations.length,3);
+ assert.deepEqual(allowed(s),[pilotSchoolA]);
+ assert.throws(()=>scope.requireRepresentedSchool(allowed(s),pilotSchoolB),/DENIED/);
+});
+test("piloto ficticio: FAMPA B solo puede ver el colegio B de su AMPA ficticia",()=>{
+ const s=syntheticTwoSchoolThreeAmpaSnapshot();
+ s.memberships=[{organization_id:pilotFampaB,user_id:user,role:"report_viewer",
+  status:"active",verified_by:verifier}];
+ const authority=adapter.buildFederationAuthoritySnapshot({
+  userId:user,rootFederationId:pilotFampaB,now,snapshot:s
+ });
+ assert.deepEqual(Array.from(hierarchy.resolveHierarchySchoolScope(authority)),[pilotSchoolB]);
+ assert.throws(()=>scope.requireRepresentedSchool([pilotSchoolB],pilotSchoolA),/DENIED/);
+});
+test("piloto ficticio: AMPA desverificada no concede reporting a su federación",()=>{
+ const s=syntheticTwoSchoolThreeAmpaSnapshot();
+ s.associations=s.associations.map(x=>({...x,status:"pending"}));
+ assert.deepEqual(allowed(s),[]);
+});
+test("piloto ficticio: no se filtran usuarios, correos ni identificadores de otro colegio",()=>{
+ const s=syntheticTwoSchoolThreeAmpaSnapshot();
+ const authority=build(s);
+ // The trusted backend snapshot can contain cross-federation links, but
+ // the resolved authorization scope delivered to the reporting loader must not.
+ const authorized=Array.from(hierarchy.resolveHierarchySchoolScope(authority));
+ assert.deepEqual(authorized,[pilotSchoolA]);
+ assert.throws(()=>scope.requireRepresentedSchool(authorized,pilotSchoolB),/DENIED/);
+ assert.equal(authority.representations.length,3);
+ const text=JSON.stringify({allowedSchools:authorized});
+ assert.doesNotMatch(text,/correo|phone|email|password|address|storage_path|service_role/i);
+ assert.equal(s.associations.length,3);
+});
