@@ -47,6 +47,7 @@ function fixture(globalFlag){
      data:{user},error:null})}})},
    "@/lib/supabase/admin":{createAdminClient:()=>admin},
    "@/lib/marketplace/saved-search-matching":{savedSearchMatchesListing:()=>true},
+   "@/lib/marketplace/active-family-alert-scopes":{loadCurrentFamilyAlertScopes:failProvider},
    "@/lib/marketplace/postal-distance":{approximateDistanceKm:()=>0},
    "@/lib/marketplace/saved-search-batches.mjs":{
      loadAllSortedPages:async(loader)=>{const result=await loader(null,50);return result},
