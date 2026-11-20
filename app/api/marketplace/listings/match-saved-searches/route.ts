@@ -94,9 +94,11 @@ export async function POST(request: Request) {
     }
     const listingOwnerId = listing.seller_id || listing.user_id;
     if (!listingOwnerId) return privateJson({ error: "Anuncio sin vendedor." }, { status: 409 });
-    // Internal reconciliation excludes DEMO content, even if someone set the
-    // DEMO flag after an outbox entry was initially created.
-    if (isOutboxWorker && listing.is_demo === true) {
+    // DEMO listings must not generate matches or notifications through
+    // EITHER the signed worker or the interactive seller-triggered path.
+    // The cron also skips demo listings, but this endpoint is callable
+    // directly by the owner, so it needs its own unconditional guard.
+    if (listing.is_demo === true) {
       return privateJson({ ok: true, skipped: true, reason: "demo_listing" });
     }
     if (listing.status !== "available") return privateJson({ ok: true, skipped: true, reason: "listing_not_available" });
