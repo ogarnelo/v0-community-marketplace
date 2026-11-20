@@ -8,6 +8,7 @@ on:
       - ".github/workflows/pilot-anon-select-next-browser-local.yml"
       - "app/api/schools/public/route.ts"
       - "app/api/marketplace/feed/route.ts"
+      - "app/account/saved-searches/page.tsx"
       - "lib/supabase/server.ts"
       - "lib/supabase/client.ts"
       - "lib/supabase/admin.ts"
@@ -38,7 +39,7 @@ jobs:
           npm install --prefix /tmp/wetudy-anon-next-local --no-save --package-lock=false --no-audit --no-fund \
             supabase@2.121.0 next@16.3.5 react@19.2.4 react-dom@19.2.4 \
             @supabase/ssr@0.6.1 @supabase/supabase-js@2.58.0 \
-            playwright@1.65.0 typescript@5.9.3 \
+            playwright@1.65.0 typescript@5.9.3 lucide-react@0.468.0 \
             @types/node@24.10.1 @types/react@19.2.2 @types/react-dom@19.2.2
           /tmp/wetudy-anon-next-local/node_modules/.bin/playwright install --with-deps chromium
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
