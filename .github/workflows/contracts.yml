@@ -113,6 +113,8 @@ jobs:
         run: node --test __tests__/launch/pilot-anon-next-browser-local-closure.test.mjs
       - name: Lock all first-party five-table readers and dynamic table callers
         run: node scripts/pilot-anon-five-table-source-audit.mjs --check
+      - name: Unknown external clients must prevent privacy-block production readiness
+        run: node --test __tests__/launch/pilot-anon-external-consumer-closure-gate.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
