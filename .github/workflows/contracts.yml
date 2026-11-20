@@ -9,7 +9,7 @@ on:
 jobs:
   critical-contracts:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: 22
       - name: Install
-        run: npm install --ignore-scripts
+        run: npm install --legacy-peer-deps
       - name: Critical contract tests
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
@@ -236,6 +236,22 @@ jobs:
 
       - name: School QR sharing is authorized only by one active school_admin
         run: node --test __tests__/launch/p0-share-qr-global-school-scope-runtime.test.mjs
+
+      - name: Mandatory production Next.js compilation and sitemap prerender
+        # This step stays IN critical-contracts so a build failure cannot pass
+        # the existing main-branch critical-contracts check.
+        env:
+          CI: "true"
+          NEXT_TELEMETRY_DISABLED: "1"
+          # Deliberately invalid CI placeholders, never production keys.
+          NEXT_PUBLIC_SUPABASE_URL: "https://wetudy-build-preflight.invalid"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-not-a-real-key"
+          SUPABASE_SERVICE_ROLE_KEY: "ci-placeholder-not-a-real-key"
+        run: |
+          npx --no-install next build
+          test -f .next/server/app/sitemap.xml/route.js || \
+            test -f .next/server/app/sitemap.xml/route.js.nft.json || \
+            (echo "Sitemap route missing after compilation" >&2; exit 1)
 
   shared-school-report-pg17:
     name: Isolated PG17 school report shared-claim race
