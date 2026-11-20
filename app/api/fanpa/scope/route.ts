@@ -106,7 +106,19 @@ export async function GET(request: Request) {
         freshIds.some((id, index) => id !== scope.representedSchoolIds[index])) {
       return respond({ error: "scope_changed" }, 409);
     }
-    const byId = new Map(schools.data.map(school => [school.id, school]));
+    const freshSchools = await admin.from("schools").select("id,name,is_active,is_test")
+      .in("id", freshIds).limit(MAX_LINKS + 1);
+    if (freshSchools.error || !Array.isArray(freshSchools.data) ||
+        freshSchools.data.length > MAX_LINKS) {
+      return respond({ error: "scope_unavailable" }, 503);
+    }
+    const freshScope = resolveFederationRepresentation({
+      authenticatedUserId: user.id, requestedFederationId: federationId,
+      federations: freshFederation.data, administratorLinks: freshMember.data,
+      schoolLinks: freshLinks.data, schools: freshSchools.data,
+    });
+    if (!freshScope.authorized) return respond({ error: "scope_forbidden" }, 403);
+    const byId = new Map(freshSchools.data.map(school => [school.id, school]));
     return respond({
       federationId: scope.federationId,
       schools: scope.representedSchoolIds.map(id => ({
