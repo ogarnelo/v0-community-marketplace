@@ -99,6 +99,24 @@ jobs:
         run: node --test __tests__/launch/pilot-private-inbox-course-failclosed.test.mjs
       - name: Authenticated marketplace page permission-failure regression
         run: node --test __tests__/launch/pilot-auth-marketplace-read-failclosed-runtime.test.mjs
+      - name: Anonymous SELECT five-table proposal must be local-only
+        run: node --test __tests__/launch/pilot-anon-select-wave1-review-only.test.mjs
+      - name: Anonymous SELECT real PostgREST guest and authorized HTTP smoke must be local-only
+        run: node --test __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs
+      - name: Anonymous SELECT realtime RPC and view dependencies must stay review-only
+        run: node --test __tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs
+      - name: Realtime privacy block cannot close without genuine four-actor WebSocket scenario
+        run: node --test __tests__/launch/pilot-anon-realtime-block-gate.test.mjs
+      - name: Guest schools and marketplace API compatibility after fake anon revoke
+        run: node --test __tests__/launch/pilot-anon-five-table-public-reader-runtime.test.mjs
+      - name: Browser SSR and real local Supabase privacy gate must remain mandatory
+        run: node --test __tests__/launch/pilot-anon-next-browser-local-closure.test.mjs
+      - name: Private family and AMPA browser SSR must survive five-table anon revocation locally
+        run: node --test __tests__/launch/pilot-anon-private-ssr-block-gate.test.mjs
+      - name: Lock all first-party five-table readers and dynamic table callers
+        run: node scripts/pilot-anon-five-table-source-audit.mjs --check
+      - name: Unknown external clients must prevent privacy-block production readiness
+        run: node --test __tests__/launch/pilot-anon-external-consumer-closure-gate.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation

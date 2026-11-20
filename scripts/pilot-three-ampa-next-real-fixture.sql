@@ -1,12 +1,26 @@
 -- Disposable PostgreSQL on Supabase CLI localhost only.
 -- Exact production server page reads these minimum-shaped data tables.
 -- All names, emails, schools and contents below are synthetic.
+-- IMPORTANT: all writes below target only the disposable Supabase CLI stack.
+DO $local_only$
+BEGIN
+ IF current_database()<>'postgres'
+    OR current_setting('application_name')<>'wetudy_ampa_private_anon_revoke_local_20261120' THEN
+   RAISE EXCEPTION 'Refuse private-school QA outside designated local stack';
+ END IF;
+END $local_only$;
 CREATE TABLE public.schools (
  id uuid PRIMARY KEY, name text, city text, region text,
  postal_code text, school_type text, is_active boolean DEFAULT true
 );
 CREATE TABLE public.profiles (
  id uuid PRIMARY KEY, full_name text, school_id uuid
+);
+CREATE TABLE public.saved_searches (
+ id uuid PRIMARY KEY,user_id uuid NOT NULL,query text
+);
+CREATE TABLE public.demand_requests (
+ id uuid PRIMARY KEY,owner_id uuid NOT NULL,title text
 );
 CREATE TABLE public.user_roles (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid,role text,school_id uuid
@@ -30,7 +44,8 @@ CREATE TABLE public.donation_requests (
  updated_at timestamptz,school_id uuid
 );
 CREATE TABLE public.agreements (
- id uuid PRIMARY KEY,listing_id uuid,agreement_type text,status text,
+ id uuid PRIMARY KEY,listing_id uuid,buyer_id uuid,seller_id uuid,
+ agreement_type text,status text,
  amount numeric,confirmed_at timestamptz,created_at timestamptz,school_id uuid
 );
 CREATE TABLE public.reports (
@@ -49,12 +64,28 @@ CREATE TABLE public.school_impact_report_deliveries (
  source text,sent_at timestamptz
 );
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.demand_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agreements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY qa_profile_self ON public.profiles FOR SELECT TO authenticated
  USING (id=(select auth.uid()));
 CREATE POLICY qa_role_self ON public.user_roles FOR SELECT TO authenticated
  USING (user_id=(select auth.uid()));
+CREATE POLICY qa_schools_active ON public.schools FOR SELECT TO authenticated
+ USING (is_active=true);
+CREATE POLICY qa_search_self ON public.saved_searches FOR SELECT TO authenticated
+ USING (user_id=(select auth.uid()));
+CREATE POLICY qa_demand_self ON public.demand_requests FOR SELECT TO authenticated
+ USING (owner_id=(select auth.uid()));
+CREATE POLICY qa_agreement_participants ON public.agreements FOR SELECT TO authenticated
+ USING (buyer_id=(select auth.uid()) OR seller_id=(select auth.uid()));
+-- Deliberately reproduce the five target anon grants for the before/after test.
+-- No SELECT policy exists for anon so it sees no data even before REVOKE.
 GRANT SELECT ON public.profiles,public.user_roles TO authenticated;
+GRANT SELECT ON public.agreements,public.demand_requests,public.profiles,
+ public.saved_searches,public.schools TO anon,authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO service_role;
 INSERT INTO public.schools(id,name,city,region,is_active) VALUES

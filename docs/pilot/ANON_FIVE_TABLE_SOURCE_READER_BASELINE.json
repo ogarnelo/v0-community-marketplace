@@ -1,0 +1,578 @@
+{
+  "schema_version": 1,
+  "targets": [
+    "agreements",
+    "demand_requests",
+    "profiles",
+    "saved_searches",
+    "schools"
+  ],
+  "readers": [
+    {
+      "path": "app/account/activity/page.tsx",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/account/activity/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/account/listings/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/account/page.tsx",
+      "table": "agreements",
+      "calls": 2
+    },
+    {
+      "path": "app/account/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/account/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/account/reviews/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/account/saved-searches/page.tsx",
+      "table": "saved_searches",
+      "calls": 2
+    },
+    {
+      "path": "app/admin/login/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/school/page.tsx",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/school/page.tsx",
+      "table": "profiles",
+      "calls": 3
+    },
+    {
+      "path": "app/admin/school/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/demand/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/demand/page.tsx",
+      "table": "saved_searches",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/liquidity/page.tsx",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/liquidity/page.tsx",
+      "table": "demand_requests",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/liquidity/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/liquidity/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/mvp/page.tsx",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/mvp/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/mvp/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/page.tsx",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/admin/super/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/reports/[id]/page.tsx",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/reports/[id]/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/schools/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/schools/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/users/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/admin/super/users/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/api/account/type/route.ts",
+      "table": "profiles",
+      "calls": 4
+    },
+    {
+      "path": "app/api/admin/delete-school/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/api/admin/delete-school/route.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/api/admin/link-directory-school/route.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/api/admin/toggle-school-active/route.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/api/agreements/confirm/route.ts",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/api/agreements/dispute/route.ts",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/api/agreements/propose/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/api/agreements/review/route.ts",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/api/cron/school-impact-reports/route.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/api/emails/welcome/route.ts",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/api/marketplace/feed/route.ts",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/api/marketplace/listings/match-saved-searches/route.ts",
+      "table": "profiles",
+      "calls": 4
+    },
+    {
+      "path": "app/api/marketplace/listings/match-saved-searches/route.ts",
+      "table": "saved_searches",
+      "calls": 1
+    },
+    {
+      "path": "app/api/marketplace/my-school/route.ts",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/api/marketplace/saved-searches/route.ts",
+      "table": "demand_requests",
+      "calls": 1
+    },
+    {
+      "path": "app/api/marketplace/saved-searches/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/api/marketplace/saved-searches/route.ts",
+      "table": "saved_searches",
+      "calls": 2
+    },
+    {
+      "path": "app/api/marketplace/search-events/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/api/messages/conversation-summary/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/api/messages/send/route.ts",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/api/school/impact-report/route.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/api/school/report-subscription/route.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/api/school/send-impact-report/route.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/api/school/share-qr/route.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/api/schools/public/route.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/api/schools/requests/route.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/api/schools/resolve-code/route.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/api/shipments/create-label/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/api/support/tickets/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/auth/callback/route.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/blog/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/favorites/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/marketplace/edit/[id]/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/marketplace/listing/[id]/page.tsx",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/marketplace/listing/[id]/page.tsx",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/marketplace/new/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/marketplace/new/page.tsx",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "app/marketplace/page.tsx",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/messages/[id]/page.tsx",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "app/messages/[id]/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/messages/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/mi-curso/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/mi-curso/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/onboarding/join-school/page.tsx",
+      "table": "profiles",
+      "calls": 3
+    },
+    {
+      "path": "app/onboarding/students/page.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "app/onboarding/students/page.tsx",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "app/profile/[id]/page.tsx",
+      "table": "profiles",
+      "calls": 2
+    },
+    {
+      "path": "app/sitemap.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "components/account/account-profile-form.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "components/account/saved-searches-list.tsx",
+      "table": "saved_searches",
+      "calls": 2
+    },
+    {
+      "path": "components/auth/auth-form.tsx",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/account-students/server.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/account-students/server.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/course-need-observability.ts",
+      "table": "demand_requests",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/course-need-observability.ts",
+      "table": "saved_searches",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/demand-opportunities.ts",
+      "table": "demand_requests",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/demand-opportunities.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/demand-opportunities.ts",
+      "table": "saved_searches",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/demand-opportunities.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/school-admin-role.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/admin/school-admin-role.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/demand/need-attribution.ts",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "lib/demand/need-attribution.ts",
+      "table": "demand_requests",
+      "calls": 5
+    },
+    {
+      "path": "lib/demand/need-attribution.ts",
+      "table": "saved_searches",
+      "calls": 5
+    },
+    {
+      "path": "lib/fanpa/federation-scoped-activity-reader.ts",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "lib/fanpa/federation-scoped-activity-reader.ts",
+      "table": "demand_requests",
+      "calls": 1
+    },
+    {
+      "path": "lib/fanpa/federation-server-scope.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/marketplace/active-family-alert-scopes.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/my-course/course-need-history-server.ts",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "lib/my-course/course-need-history-server.ts",
+      "table": "demand_requests",
+      "calls": 1
+    },
+    {
+      "path": "lib/my-course/course-need-search-server.ts",
+      "table": "demand_requests",
+      "calls": 13
+    },
+    {
+      "path": "lib/my-course/course-need-search-server.ts",
+      "table": "saved_searches",
+      "calls": 14
+    },
+    {
+      "path": "lib/navbar/get-navbar-data.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/reports/school-impact-report.ts",
+      "table": "agreements",
+      "calls": 2
+    },
+    {
+      "path": "lib/reports/school-impact-report.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/reports/school-impact-report.ts",
+      "table": "schools",
+      "calls": 2
+    },
+    {
+      "path": "lib/reports/super-admin-report.ts",
+      "table": "agreements",
+      "calls": 1
+    },
+    {
+      "path": "lib/reports/super-admin-report.ts",
+      "table": "profiles",
+      "calls": 1
+    },
+    {
+      "path": "lib/reports/super-admin-report.ts",
+      "table": "saved_searches",
+      "calls": 1
+    },
+    {
+      "path": "lib/reports/super-admin-report.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/schools/directory-seo-eligibility.ts",
+      "table": "schools",
+      "calls": 1
+    },
+    {
+      "path": "lib/supabase/get-profile.ts",
+      "table": "profiles",
+      "calls": 1
+    }
+  ],
+  "dynamic_from": [
+    {
+      "path": "app/api/listings/delete/route.ts",
+      "argument": "table"
+    }
+  ]
+}
