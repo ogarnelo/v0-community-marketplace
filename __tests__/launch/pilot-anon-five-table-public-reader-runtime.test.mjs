@@ -162,3 +162,15 @@ test("public navigation and saved search readers remain behind Auth guards",()=>
     homepage.indexOf('from("profiles")')>homepage.indexOf("if (user) {"));
   assert.match(homepage, /const admin = createAdminClient\(\)/);
 });
+
+test("dynamic agreements history reads are server-admin only after owner authorization",()=>{
+  const file=readFileSync("app/api/listings/delete/route.ts","utf8");
+  assert.match(file,/const RETAIN_HISTORY_TABLES = \[/);
+  assert.match(file,/"agreements"/);
+  assert.match(file,/RETAIN_HISTORY_TABLES\.map\(table =>\s*admin\.from\(table\)/);
+  const auth=file.indexOf("if (!user) return privateJson(");
+  const owner=file.indexOf("listing.seller_id !== user.id");
+  const dynamic=file.indexOf("admin.from(table)");
+  assert.ok(auth>=0 && owner>auth && dynamic>owner,
+    "Dynamic history read must not precede authenticated listing ownership check");
+});
