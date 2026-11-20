@@ -239,16 +239,28 @@ try:
         raise AssertionError("Local Realtime tenant not ready: " + log[-4500:])
 
     def check_phase(phase):
-        try:
-            command(["node", str(WS_TEST), phase], timeout=125)
-        except Exception as error:
-            logs_result = command(["docker", "logs", "--tail", "115", RT_NAME],
-                                  allow_fail=True)
-            logs = logs_result.stdout + logs_result.stderr
-            slots = postgres("select coalesce(string_agg(slot_name||chr(58)||plugin||chr(58)||active::text, chr(44)),chr(45)) from pg_replication_slots")
-            raise AssertionError("Isolated Realtime diagnostics, phase=" + phase +
-                                 ", replication_slots=" + slots +
-                                 ", server_logs_tail=" + logs[-8800:]) from error
+        # Tenant migration startup can briefly accept HTTP health while the
+        # Phoenix WebSocket listener is reloading. Retry exactly ONCE only for
+        # a transport failure before subscription. Never retry missing WAL,
+        # permission errors, leaks, assertions or real delivery failures.
+        for attempt in range(2):
+            try:
+                command(["node", str(WS_TEST), phase], timeout=125)
+                return
+            except Exception as error:
+                if attempt == 0 and "transport failure" in str(error):
+                    print("Local tenant transport startup raced migrations; "
+                          "one fresh connection retry, delivery checks unchanged")
+                    time.sleep(6)
+                    continue
+                logs_result = command(["docker", "logs", "--tail", "115", RT_NAME],
+                                      allow_fail=True)
+                logs = logs_result.stdout + logs_result.stderr
+                slots = postgres("select coalesce(string_agg(slot_name||chr(58)||plugin||chr(58)||active::text, chr(44)),chr(45)) from pg_replication_slots")
+                raise AssertionError("Isolated Realtime diagnostics, phase=" + phase +
+                                     ", replication_slots=" + slots +
+                                     ", server_logs_tail=" + logs[-8800:]) from error
+        raise AssertionError("Local Realtime retry guard exhausted")
 
     check_phase("before")
     pgfile(PROPOSAL)
