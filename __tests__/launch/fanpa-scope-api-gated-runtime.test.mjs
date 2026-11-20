@@ -6,6 +6,7 @@ import ts from "typescript";
 
 const route=readFileSync("app/api/fanpa/scope/route.ts","utf8");
 const resolveSource=readFileSync("lib/fanpa/federation-representation.ts","utf8");
+const sharedSource=readFileSync("lib/fanpa/federation-server-scope.ts","utf8");
 function transpile(src) {
  return ts.transpileModule(src,{compilerOptions:{
   module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022
@@ -72,6 +73,15 @@ function fixture(options={}) {
   };
   return builder;
  }};
+ const shared={exports:{}};
+ vm.runInNewContext(transpile(sharedSource),{
+  module:shared,exports:shared.exports,Set,Map,
+  require(name){
+   if(name==="@/lib/fanpa/federation-representation")return scopeModule.exports;
+   if(name==="@/lib/supabase/admin")return {createAdminClient:()=>adminClient};
+   throw Error("Unexpected shared import "+name);
+  }
+ });
  const mod={exports:{}};
  const env={WETUDY_FANPA_REPORTING_ENABLED: options.flagOn?"true":"false"};
  vm.runInNewContext(transpile(route),{
@@ -135,7 +145,8 @@ test("provider read failure rejects entire scope, no partial disclosure",async()
 test("route does not expose KPI or personal data and caps representation reads",()=>{
  assert.doesNotMatch(route,/\.from\("profiles"\)|\.from\("account_students"\)|\.from\("demand_requests"\)|\.from\("agreements"\)/);
  assert.match(route,/WETUDY_FANPA_REPORTING_ENABLED !== "true"/);
- assert.match(route,/MAX_LINKS = 100/);
- assert.match(route,/resolveFederationRepresentation/);
+ assert.match(sharedSource,/FANPA_MAX_LINKS = 100/);
+ assert.match(sharedSource,/resolveFederationRepresentation/);
+ assert.match(route,/sameFederationScope/);
  assert.match(route,/freshAuth/);
 });
