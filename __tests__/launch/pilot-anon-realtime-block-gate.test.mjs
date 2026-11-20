@@ -56,6 +56,15 @@ test("real signed JWT + postgres_changes exercise participant and unauthorized a
   assert.match(python, /check_phase\("before"\)/);
   assert.match(python, /pgfile\(PROPOSAL\)/);
   assert.match(python, /check_phase\("after"\)/);
+
+  assert.match(python, /check_phase\("restored"\)/);
+  assert.match(python, /pgfile\(ROLLBACK\)/);
+  assert.match(python, /pilot-anon-select-rollback-local-only\.sql/);
+  assert.match(python, /RLS disabled during local Realtime rollback/);
+  assert.match(python, /Local rollback did not restore/);
+  assert.match(client, /"restored"\]\.includes\(phase\)/);
+  assert.match(client, /rollback_confirmed/);
+
   assert.match(python, /has_table_privilege\('anon'/);
   assert.match(python, /has_table_privilege\('authenticated'/);
 });
