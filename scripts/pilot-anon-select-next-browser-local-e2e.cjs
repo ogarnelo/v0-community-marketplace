@@ -46,6 +46,7 @@ function installQAApplication() {
   for(const file of [
     "app/api/schools/public/route.ts",
     "app/api/marketplace/feed/route.ts",
+    "app/account/saved-searches/page.tsx",
     "lib/supabase/client.ts","lib/supabase/server.ts",
     "lib/supabase/admin.ts","lib/supabase/proxy.ts","proxy.ts",
     "lib/marketplace/feed-filters.ts","lib/marketplace/postal-distance.ts",
@@ -53,6 +54,9 @@ function installQAApplication() {
   ]) copy(file);
   const writes={
     "app/layout.tsx":'import React from "react";export default function Layout({children}:{children:React.ReactNode}){return <html lang="es"><body>{children}</body></html>;}',
+    "qa/button.tsx":'import React from "react";export const Button=({children,asChild}:any)=>asChild?<>{children}</>:<button>{children}</button>;',
+    "qa/saved-searches-list.tsx":'import React from "react";export const SavedSearchesList=({initialSearches}:any)=><ul data-testid="private-saved-searches">{initialSearches.map((s:any)=><li key={s.id}>{s.query}</li>)}</ul>;',
+    "qa/saved-search-matches-list.tsx":'import React from "react";export const SavedSearchMatchesList=({initialMatches}:any)=><ul data-testid="private-matched-listings">{initialMatches.map((m:any)=><li key={m.id}>{m.listingTitle}</li>)}</ul>;',
     "app/page.tsx":[
       '"use client";',
       'import {useEffect} from "react";',
@@ -81,14 +85,19 @@ function installQAApplication() {
   fs.writeFileSync(path.join(fixture,"package.json"),JSON.stringify({
     name:"wetudy-anon-local-next-qa",version:"0.0.0",private:true,
     dependencies:{next:"16.3.5",react:"19.2.4","react-dom":"19.2.4",
-      "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0"}
+      "@supabase/ssr":"0.6.1","@supabase/supabase-js":"2.58.0",
+      "lucide-react":"0.468.0"}
   },null,2));
   fs.writeFileSync(path.join(fixture,"tsconfig.json"),JSON.stringify({
     compilerOptions:{target:"ES2020",lib:["dom","dom.iterable","esnext"],
       allowJs:true,skipLibCheck:true,strict:false,noEmit:true,
       esModuleInterop:true,module:"esnext",moduleResolution:"bundler",
       resolveJsonModule:true,isolatedModules:true,jsx:"preserve",
-      baseUrl:".",paths:{"@/*":["./*"]}},
+      baseUrl:".",paths:{
+        "@/components/ui/button":["./qa/button.tsx"],
+        "@/components/account/saved-searches-list":["./qa/saved-searches-list.tsx"],
+        "@/components/account/saved-search-matches-list":["./qa/saved-search-matches-list.tsx"],
+        "@/*":["./*"]}},
     include:["**/*.ts","**/*.tsx",".next/types/**/*.ts"],exclude:["node_modules"]
   },null,2));
 }
@@ -205,6 +214,45 @@ async function authenticatedReads(buyer,seller,outsider,identities) {
     assert.equal(demand.data.length,actor===buyer?1:0);
   }
 }
+async function privateFamilyPage(actor,expectedSearch,expectedMatch) {
+  const page=await actor.context.newPage();
+  try {
+    await page.goto(origin+"/account/saved-searches",{
+      waitUntil:"domcontentloaded",timeout:40000
+    });
+    if(expectedSearch===null){
+      await page.waitForURL(u=>u.pathname==="/auth",{timeout:12000});
+      assert.equal(await page.getByTestId("private-saved-searches").count(),0);
+      return {redirect:"/auth"};
+    }
+    const header=page.getByRole("heading",{name:"Mis búsquedas"});
+    await header.waitFor({timeout:35000});
+    const own=await page.getByTestId("private-saved-searches").innerText();
+    const matched=await page.getByTestId("private-matched-listings").innerText();
+    if(expectedSearch===""){
+      assert.equal(own.trim(),"","Non-owner must see zero saved searches");
+    }else{
+      assert.ok(own.includes(expectedSearch),"Own saved search unavailable");
+    }
+    assert.equal(matched.trim(),expectedMatch);
+    for(const forbidden of ["PRIVADA_BUYER_LIBROS","PRIVADA_SELLER_MATERIAL"])
+      if(forbidden!==expectedSearch)
+        assert.ok(!own.includes(forbidden),"Cross-account saved-search leak: "+forbidden);
+    assert.ok(!matched.includes("PRIVATE_OTHER_LOCAL"));
+    return {saved:own.trim(),matched:matched.trim()};
+  } finally {await page.close();}
+}
+async function privateFamilyPages(guest,buyer,seller,outsider) {
+  const result={
+    guest:await privateFamilyPage(guest,null,""),
+    buyer:await privateFamilyPage(buyer,"PRIVADA_BUYER_LIBROS",
+      "LIBRO QA DE SEGUNDA MANO"),
+    seller:await privateFamilyPage(seller,"PRIVADA_SELLER_MATERIAL",""),
+    outsider:await privateFamilyPage(outsider,"",""),
+  };
+  return result;
+}
+
 function revokeOnlyLocally(){
   // This is the same five-table SELECT ACL delta; the hardened review SQL
   // targets a separately named disposable PG17 DB, not Supabase CLI postgres.
@@ -246,6 +294,11 @@ let next=null,nextLogs="",browser=null,allActors=[];
     "('11111111-1111-4111-8111-111111111111','"+buyer.id+"','QA prueba');"+
     "INSERT INTO public.demand_requests(id,owner_id,title) VALUES "+
     "('22222222-2222-4222-8222-222222222222','"+buyer.id+"','Material ficticio');"+
+    "INSERT INTO public.saved_searches(id,user_id,query,intent_source) VALUES "+
+    "('33333333-3333-4333-8333-333333333333','"+seller.id+"','PRIVADA_SELLER_MATERIAL','manual');"+
+    "UPDATE public.saved_searches SET query='PRIVADA_BUYER_LIBROS', intent_source='manual' WHERE id='11111111-1111-4111-8111-111111111111';"+
+    "INSERT INTO public.saved_search_matches(id,user_id,listing_id,saved_search_id) VALUES "+
+    "('44444444-4444-4444-8444-444444444444','"+buyer.id+"','"+listingId+"','11111111-1111-4111-8111-111111111111');"+
     "NOTIFY pgrst,'reload schema';");
   await sleep(1400);
   next=spawn(process.execPath,[nextBin,"dev","--hostname","127.0.0.1","--port","31389"],{
@@ -266,16 +319,21 @@ let next=null,nextLogs="",browser=null,allActors=[];
   await guestReads(guest,false);
   await authenticatedReads(b,s,o,ids);
   const publicBefore=await publicRoutes(guest,seller.id);
+  const familyBefore=await privateFamilyPages(guest,b,s,o);
   revokeOnlyLocally();
   await sleep(1200);
   await guestReads(guest,true);
   await authenticatedReads(b,s,o,ids);
   const publicAfter=await publicRoutes(guest,seller.id);
+  const familyAfter=await privateFamilyPages(guest,b,s,o);
+  assert.deepEqual(familyAfter,familyBefore,
+    "Actual private saved-search SSR page changed after local anon revoke");
   assert.deepEqual(publicAfter,publicBefore,
     "Real Next public routes changed after isolated anon revoke");
   console.log("PASS REAL Next 16 SSR + Chromium + local GoTrue/PostgREST: "+
     "anonymous five-table grants revoked; 3 signed users preserve RLS; "+
-    "two public routes remain equivalent with live synthetic listing and school.");
+    "two public routes remain equivalent with live synthetic listing and school; "+
+    "private saved-search SSR page preserves buyer/seller isolation and guest redirect.");
   console.log("LIMIT: isolated small Next QA app copies unchanged production API routes, "+
     "NOT full WETUDY page bundle, external client inventory, or production rollout.");
 })().catch(error=>{
