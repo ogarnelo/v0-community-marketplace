@@ -108,6 +108,7 @@ def initialize():
     CREATE ROLE service_role NOLOGIN BYPASSRLS;
     CREATE ROLE supabase_admin LOGIN SUPERUSER PASSWORD 'wetudy_local_realtime_pg17_only_password';
     CREATE ROLE supabase_realtime_admin NOLOGIN;
+    CREATE ROLE dashboard_user NOLOGIN;
     GRANT anon,authenticated,service_role TO supabase_realtime_admin;
     CREATE SCHEMA auth;
     CREATE SCHEMA extensions;
@@ -227,16 +228,35 @@ try:
              RT_IMAGE], timeout=160)
     started.append(RT_NAME)
 
+    # Supabase Realtime v2.148.3 can report tenant HTTP health before
+    # finishing the tenant's Ecto migrations. In particular its 20260707
+    # migration references dashboard_user. Require the ACTUAL FINAL
+    # 20261009120000 tenant migration marker from the pinned image, not a
+    # healthcheck-only guess or a mere websocket CHANNEL_JOIN.
     ready = False
-    for _ in range(75):
+    migration = "not_checked"
+    for _ in range(85):
         if healthcheck():
-            ready = True
-            break
+            present = postgres("select to_regclass("
+                               "'realtime.schema_migrations') is not null")
+            if present == "t":
+                migration = postgres("select coalesce(max(version),0)::bigint "
+                                     ">= 20261009120000 "
+                                     "from realtime.schema_migrations")
+                if migration == "t":
+                    ready = True
+                    break
+            else:
+                migration = "schema_migrations_not_yet_created"
         time.sleep(2)
     if not ready:
-        log = command(["docker", "logs", "--tail", "110", RT_NAME],
-                      allow_fail=True).stderr
-        raise AssertionError("Local Realtime tenant not ready: " + log[-4500:])
+        output = command(["docker", "logs", "--tail", "95", RT_NAME],
+                         allow_fail=True)
+        log = output.stdout + output.stderr
+        raise AssertionError("Local Realtime tenant migrations not ready: " +
+                             str(migration) + " " + log[-8500:])
+    print("PASS: pinned Realtime v2.148.3 tenant migrated through "
+          "20261009120000 before WebSocket subscription")
 
     def check_phase(phase):
         # Tenant migration startup can briefly accept HTTP health while the
