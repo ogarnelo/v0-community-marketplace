@@ -74,6 +74,29 @@ Additional aggregate log metadata on 10–17 November (UTC) found **124** select
 
 **Global privacy block still OPEN**. Remaining hold: inventory/atestación by owners of all clients that can call Data API, RPC, GraphQL, Realtime and views, including external websites, mobile builds, automation, offline tools, and inactive integrations; document each owner's environment, key/role type, tables/views/RPC consumed, guest requirement, and rollback acceptance. In addition, any final production change requires separate human review, approved plan, explicit permission, reversible rollout and verification. Pilot continues NO-GO; PR #787 remains DRAFT.
 
+## External consumer owner attestation — OPEN (20 November 2026)
+
+**Current gate: BLOCKED / NO-GO.** External absence is not established by source search, by read-only Postgres object metadata or by sampled API request logs. The [machine-readable attestation](./ANON_FIVE_TABLE_CONSUMER_ATTESTATION_2026-11-20.json) enumerates eight consumer classes, preserving missing owners and reviewer signoffs as `null` and explicit independent checks as `false`; it does **not** suggest approvals were received. The offline script `scripts/pilot-anon-external-consumer-gate.mjs --audit` validates the current blocked status; `--review-ready` **intentionally fails** until every class and review has independent, evidenced signoff. Critical-contracts CI asserts that this fail-closed behavior remains mandatory.
+
+Actual first-party source classes discovered:
+
+| Consumer class | Known technical evidence | Missing closure |
+|---|---|---|
+| WETUDY browser | `lib/supabase/client.ts`: `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Owner signoff for any other frontends/older builds |
+| WETUDY server SSR | `lib/supabase/server.ts`: SSR cookies and user JWT on same public key | Owner confirms all deployed SSR environments |
+| WETUDY privileged backend | `lib/supabase/admin.ts`: server-only service key | Independent inventory of all server deployments and exposed integrations |
+| Scheduled Vercel handlers | `vercel.json`: school-impact-reports, super-admin-reports and email-health crons; other worker routes exist but are not registered there | Actual active schedules, downstream API use and deployment owner |
+| Realtime agreement readers | `components/agreements/agreement-panel.tsx`, signed `/messages/[id]` page; isolated real WebSocket PASS | Any third-party Realtime consumers beyond the repository |
+| Offline tools | Local school import, audit and QA scripts in `scripts/` | Independent evidence whether any client/old script still uses hosted credentials |
+| Direct REST/vistas/RPC/GraphQL external clients | `public.demand_opportunities_30d` has `security_invoker=true`, currently anon SELECT on view; base `demand_requests` loses anon SELECT under proposed revoke | **Risk of changing an anonymous view call from empty data to HTTP 42501**, even if no row was leaked; identify consumer and decide compatibility |
+| Other websites, apps, mobile versions, scheduled partner integrations and dormant clients | No individual consumers established by repo search | Independent owner attestation of presence **or evidenced absence**, including old versions and automation |
+
+**Refined request-role evidence (read-only aggregate ClickHouse query, 10–20 Nov UTC):** 251 REST requests matching the five tables **and the two dependent invoker views**; 185 used a secret API key, and 66 used an inherited legacy `anon` API key **with an `authenticated` JWT authorization role**. Zero had an observed **effective `anon` role** (checking both `authorization.payload.role` and `apikey.payload.role` rather than mistakenly classifying a signed user with an anon API key as an anonymous guest). Zero direct matched view requests. Supabase reports **zero deployed Edge Functions**. The samples cannot establish who owns the requests, whether traffic was missed by logging, or whether an idle/external integration will run tomorrow. SDK family identification is **not** human owner attestation. These totals are not a guaranteed census of all requests.
+
+**Evidence required before closing this same global block:** each owner must provide the client/app/integration identifier, deployment environment/version, secret vs publishable/legacy key *type only* (never paste any key/token), Auth role and session behavior, five-table/view/RPC access list, whether guests need those permissions, an isolated smoke outcome after the exact SQL change, rollback acceptance, a dated GitHub evidence link and an independent reviewer. Account for inactive integrations, partner apps, mobile binaries, offline tooling and any external use of `demand_opportunities_30d`. Confirm representative private family/admin browser routes in isolated QA. If a consumer cannot be identified, **do not mark it "absent"** and do not authorize a production REVOKE.
+
+**CI assertions cannot replace real human signatures.** Even after future documentary review, any future production grant change requires an independently authorized change request with migration/rollback review. This PR contains no deployable permission migration and must stay DRAFT / NO-MERGE; pilot stays NO-GO.
+
 ## Files and tests
 
 - scripts/pilot-anon-select-wave1-local-only.sql: disposable-database guard; RLS/policy preflight; five explicit REVOKE SELECT; postflight requiring no effective table or column SELECT for anon, while authenticated and service_role retain SELECT. It also rejects SELECT inherited through PUBLIC or residual column ACLs rather than pretending the revoke succeeded.
