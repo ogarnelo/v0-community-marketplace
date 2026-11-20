@@ -99,6 +99,8 @@ jobs:
         run: node --test __tests__/launch/pilot-private-inbox-course-failclosed.test.mjs
       - name: Authenticated marketplace page permission-failure regression
         run: node --test __tests__/launch/pilot-auth-marketplace-read-failclosed-runtime.test.mjs
+      - name: Anonymous SELECT five-table proposal must be local-only
+        run: node --test __tests__/launch/pilot-anon-select-wave1-review-only.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
