@@ -141,9 +141,12 @@ export async function loadCurrentFamilyAlertScopes(
           directoryCodes.add(linkedCode);
         }
       } else if (code && listedCodes.has(code)) {
-        directoryCodes.add(code);
         const linkedId = listedCodes.get(code)?.toLowerCase() || null;
-        if (linkedId && activeSchoolIds.has(linkedId)) {
+        // A directory-only school may be listed without an operational link.
+        // An existing but inactive/malformed link MUST NOT authorize alerts.
+        if (linkedId && !activeSchoolIds.has(linkedId)) continue;
+        directoryCodes.add(code);
+        if (linkedId) {
           schoolIds.add(linkedId);
           for (const linkedCode of directoryCodesForSchool.get(linkedId) || []) {
             directoryCodes.add(linkedCode);
