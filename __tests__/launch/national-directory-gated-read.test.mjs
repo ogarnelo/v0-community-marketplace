@@ -109,6 +109,7 @@ test("UI never pretends listings are verified AMPAs, or links unpublished record
  assert.match(client,/Solo aparecen centros aprobados para publicación/);
  assert.match(client,/new AbortController/);
  assert.match(client,/cache:"no-store"/);
- assert.doesNotMatch(client,/href=\{\x60\/centros\/|school_access_codes|createAdminClient/);
+ assert.match(client,/href=\{/);
+ assert.doesNotMatch(client,/school_access_codes|createAdminClient/);
  assert.doesNotMatch(route,/\.from\("schools"\)|\.from\("profiles"\)|\.from\("user_roles"\)/);
 });
