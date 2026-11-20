@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  metricLabels, metricText, validReport, validSchoolOptions,
+  metricLabels, schoolMetricLabels, metricText, validReport, validSchoolOptions,
   type Report, type SchoolOption,
 } from "@/lib/fanpa/federation-dashboard-contract";
 
@@ -178,7 +178,7 @@ export function FederationReportingDashboard({ federationId }: { federationId: s
                       <tr>
                         <th scope="col" className="px-4 py-3 font-semibold">Colegio</th>
                         <th scope="col" className="px-4 py-3 font-semibold">Usuarios</th>
-                        {metricLabels.filter(m => m.key !== "uniqueUsers").map(metric => (
+                        {schoolMetricLabels.map(metric => (
                           <th key={metric.key} scope="col" className="px-4 py-3 font-semibold">
                             {metric.label}
                           </th>
@@ -190,7 +190,7 @@ export function FederationReportingDashboard({ federationId }: { federationId: s
                         <tr key={school.schoolId} className="border-t">
                           <th scope="row" className="px-4 py-3 font-medium">{school.name}</th>
                           <td className="px-4 py-3">{metricText(school.users)}</td>
-                          {metricLabels.filter(m => m.key !== "uniqueUsers").map(metric => (
+                          {schoolMetricLabels.map(metric => (
                             <td key={metric.key} className="px-4 py-3">
                               {metricText(school[metric.key])}
                             </td>
