@@ -18,8 +18,9 @@ const service=process.env.LOCAL_SUPABASE_SERVICE_KEY||"";
 const db=process.env.LOCAL_DB_URL||"";
 const loopback=h=>["localhost","127.0.0.1","[::1]","::1"].includes(h);
 if(!api||!anon||!service||!db||!loopback(new URL(api).hostname)||
-  !loopback(new URL(db).hostname)||!api.startsWith("http://"))
-    throw Error("Refusing a nonlocal Supabase service, DB or nonlocal API");
+  !loopback(new URL(db).hostname)||!api.startsWith("http://")||
+  process.env.PGAPPNAME!=="wetudy_ampa_private_anon_revoke_local_20261120")
+    throw Error("Refusing nonlocal or unexpected private-school Supabase test database");
 function sql(s){
   execFileSync("psql",["-X","-v","ON_ERROR_STOP=1",db,"-c",s],{
     stdio:["ignore","pipe","pipe"],timeout:18000
@@ -208,6 +209,56 @@ async function ready(next,origin){
    await actor.page.waitForURL(u=>!u.pathname.endsWith("/admin/school"),{timeout:30000});
    assert.equal(await actor.page.locator('[data-testid="school-dashboard"]').count(),0);
   }
+  // Repeat the full private authenticated page after EXACT five-table anon
+  // SELECT revocation on this disposable Supabase CLI Postgres. The original
+  // admin page, auth cookies, scoped service-role reads and count RPC are real.
+  for(const table of ["agreements","demand_requests","profiles",
+                      "saved_searches","schools"]) {
+    const grants=sql("SELECT has_table_privilege('anon','public."+table+
+                     "','SELECT')").toString().trim();
+    assert.equal(grants,"t","Fixture must initially include anon SELECT on "+table);
+  }
+  sql("DO $ BEGIN IF current_database()<>'postgres' "+
+      "OR current_setting('application_name')<>"+
+      "'wetudy_ampa_private_anon_revoke_local_20261120' "+
+      "THEN RAISE EXCEPTION 'not isolated AMPA database'; END IF; END $; "+
+      "REVOKE SELECT ON public.agreements,public.demand_requests,public.profiles,"+
+      "public.saved_searches,public.schools FROM anon; "+
+      "NOTIFY pgrst,'reload schema';");
+  for(const table of ["agreements","demand_requests","profiles",
+                      "saved_searches","schools"]) {
+    const acl=sql("SELECT has_table_privilege('anon','public."+table+
+                   "','SELECT'),has_table_privilege('authenticated','public."+
+                   table+"','SELECT'),has_table_privilege('service_role','public."+
+                   table+"','SELECT')").toString().trim();
+    assert.equal(acl,"f|t|t","Local private school ACL mismatch on "+table);
+  }
+  for(let i=0;i<schools.length;i++){
+    const page=sessions[i].page;
+    await page.reload({waitUntil:"domcontentloaded"});
+    await page.getByTestId("school-title").waitFor({timeout:30000});
+    const html=await page.locator("body").innerText();
+    assert.ok(html.includes("COLEGIO QA "+schools[i].label));
+    assert.ok(html.includes("LIBRO EXCLUSIVO "+schools[i].label));
+    assert.ok(html.includes("QA-CODIGO-"+schools[i].label));
+    assert.ok(html.includes("RAZON RESERVADA "+schools[i].label));
+    assert.equal(await page.getByTestId("member-count").innerText(),"1");
+    for(let j=0;j<schools.length;j++)if(j!==i)
+      for(const prefix of ["COLEGIO QA ","LIBRO EXCLUSIVO ",
+                           "QA-CODIGO-","RAZON RESERVADA "])
+        assert.ok(!html.includes(prefix+schools[j].label),
+          "Anonymous grant revoke changed private multi-school isolation");
+  }
+  for(const actor of [noRole,guest]){
+    await actor.page.goto(origin+"/admin/school",{waitUntil:"domcontentloaded"});
+    await actor.page.waitForURL(u=>!u.pathname.endsWith("/admin/school"),
+      {timeout:30000});
+    assert.equal(await actor.page.getByTestId("school-dashboard").count(),0);
+  }
+  console.log("PASS private actual school admin SSR after local five-table REVOKE: "+
+    "3 signed school owners remain scoped; unprivileged user and guest denied; "+
+    "authenticated/service_role SELECT retained; anon denied.");
+
   // Database role revocation immediately invalidates SSR server data access
   // without refreshing GoTrue JWT: GAMMA loses access, BETA unaffected.
   sql("delete from public.user_roles where user_id='"+users[2].userId+
