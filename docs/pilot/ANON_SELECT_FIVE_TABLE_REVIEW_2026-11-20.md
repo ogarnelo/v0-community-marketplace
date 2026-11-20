@@ -37,7 +37,28 @@ GitHub code search in modern main found **no references** to demand_opportunitie
 - `components/agreements/agreement-panel.tsx` creates a browser `postgres_changes` subscription filtered by `conversation_id`; code search found one render site, `app/messages/[id]/page.tsx`, where `getCurrentUser()` precedes a redirect for missing users and the agreement component render. This protects the inspected route but does NOT prove actual Realtime delivery or external subscriber absence.
 - A metadata-only `pg_proc.prosrc` textual scan found **20 public/private functions mentioning at least one target**; **9 SECURITY DEFINER**. Of these, **0 are executable by `anon` and 0 by `authenticated` according to `has_function_privilege`**; 19 are executable by `service_role`. The remaining function is not service-executable. Textual body matching can miss dynamic SQL and dependencies in nested calls; **not a complete RPC security proof**. No function was executed.
 - The SQL inventory in `scripts/pilot-anon-select-dependencies-readonly.sql` is a repeatable metadata-only snapshot; it must not be used to read personal rows, execute functions or make permission changes.
-- The disposable PostgreSQL 17 test creates a synthetic publication for agreements and verifies membership and authenticated SELECT survive the proposed revoke. That tests **publication metadata, not a live Supabase Realtime websocket or change delivery**. An independent Realtime/browser pilot test is still a hold point.
+- The disposable PostgreSQL 17 test creates a synthetic publication for agreements and verifies membership and authenticated SELECT survive the proposed revoke. In addition, the **real Realtime WebSocket subblock has been completed**: a disposable PostgreSQL 17 logical-WAL fixture with Supabase Realtime server and real signed JS clients delivered agreement UPDATE messages only to buyer/seller before and after the proposal, not to outsider or guest. CI evidence: https://github.com/ogarnelo/v0-community-marketplace/actions/runs/44804789909 . This still does **not** prove full browser/app or production Realtime equivalence.
+
+## First-party reader census and external traffic — current hold point
+
+The new offline AST inventory (captured from a passing GitHub Actions job on this PR) records **72 first-party source files**, **112 file/table pairs**, **178 literal Supabase table calls** targeting the five relations: agreements 16, demand_requests 24, profiles 67, saved_searches 30, schools 41. These include updates/upserts, not only reads. Direct literal \`/rest/v1/<table>\` references are also checked. This is a source-code census, **not** a claim that all 178 calls have passed auth/RLS E2E.
+
+The AST scan excludes \`Array.from\` and Supabase Storage's \`storage.from(bucket)\`. One nonliteral database table lookup remains: \`admin.from(table)\` inside \`app/api/listings/delete/route.ts\`, where a static retention-table list contains \`agreements\`; the handler requires authenticated listing ownership before making this server-admin query. The source snapshot is locked at \`docs/pilot/ANON_FIVE_TABLE_SOURCE_READER_BASELINE.json\` and CI runs \`--check\`, rejecting new or changed source references until reviewed. New raw SQL, RPC dependencies, clients outside this repository, and nonliteral direct REST routes remain possible blind spots.
+
+A real-handler in-memory guest fixture exercises \`GET /api/schools/public\` and \`GET /api/marketplace/feed\` with **all five anonymous table reads treated as forbidden**; the minimal public school response, general marketplace feed, and guest distance denial still behave as expected. Existing code guards require verified users for profile and saved-search client reads. **This is code-path compatibility, not live Next.js/Supabase full-stack E2E.**
+
+Read-only **aggregated Supabase edge request logs** were consulted without any raw paths, IPs, tokens, user IDs or request bodies. For each window in UTC, only requests to the five named \`/rest/v1/<table>\` relations were counted:
+
+| UTC window | Observed target REST requests (method/relation) | Reported credential classification |
+|---|---|---|
+| 17 Nov 00:00–18 Nov 00:00 | 9 GET profiles | 9 secret-key |
+| 18 Nov 00:00–19 Nov 00:00 | 2 GET profiles | 2 secret-key |
+| 19 Nov 00:00–20 Nov 00:00 | 5 GET agreements; 8 HEAD agreements; 1 GET demand_requests; 96 GET profiles; 1 GET saved_searches; 5 GET schools | GET agreements 5 secret-key; HEAD agreements 8 authenticated JWT; demand_requests 1 secret-key; profiles 52 secret-key + 44 authenticated JWT; saved_searches 1 secret-key; schools 5 authenticated JWT |
+| Rolling last 24h queried on 20 Nov | 7 GET profiles | 7 secret-key, 0 publishable-key |
+
+For these windows there was **no logged \`anon\` JWT role among the matched requests**, but key-classification fields are not present for every logging/auth mode. Observed traffic is not proof that outside clients, obsolete apps, scheduled integrations or guest direct reads do not exist on another day or without classified role metadata. Never use the absence of a logged guest request as authorization for a production permission change. No live permission mutation occurred in this audit.
+
+**Gate stays OPEN**: independently identify/attest external Data API consumers, review API request/client telemetry beyond the sampled days where available, and run representative authenticated and anonymous application/browser coverage. Do not merge #787 or revoke production anon SELECT based solely on this census.
 
 ## Files and tests
 
