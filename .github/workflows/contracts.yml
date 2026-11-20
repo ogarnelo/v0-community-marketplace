@@ -103,6 +103,8 @@ jobs:
         run: node --test __tests__/launch/pilot-anon-select-wave1-review-only.test.mjs
       - name: Anonymous SELECT real PostgREST guest and authorized HTTP smoke must be local-only
         run: node --test __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs
+      - name: Anonymous SELECT realtime RPC and view dependencies must stay review-only
+        run: node --test __tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
