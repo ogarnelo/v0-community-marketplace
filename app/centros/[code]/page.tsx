@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { isDirectoryCentreSeoEligible } from "@/lib/schools/directory-seo-eligibility";
 import { notFound } from "next/navigation";
 import {
   directoryPageUrl,
@@ -24,11 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const centre = await readListedDirectoryCentre(code);
     if (!centre) return disabled;
+    const canIndex = await isDirectoryCentreSeoEligible(centre.official_code);
     return {
       title: `${centre.name} · Directorio informativo | WETUDY`,
       description: `Ficha informativa de ${centre.name} en ${centre.municipality}. Su inclusión no implica adhesión a WETUDY.`,
       alternates: { canonical: directoryPageUrl(centre.official_code) },
-      robots: { index: false, follow: false },
+      robots: { index: canIndex, follow: canIndex },
     };
   } catch {
     return disabled;
