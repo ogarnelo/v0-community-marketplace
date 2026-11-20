@@ -64,13 +64,20 @@ test("scopes both totals and rows; no out-of-federation school leaks",()=>{
  const result=report(data,["A","B","A"]);
  assert.equal(result.totalSchools,2);
  assert.deepEqual(Array.from(result.schools.map(x=>x.id)),["A","B"]);
- assert.equal(result.uniqueUsers,6);
- assert.equal(result.activeListings,2);
- assert.equal(result.totalListings,2);
+ assert.equal(result.uniqueUsers,null);
+ assert.equal(result.activeListings,null);
+ assert.equal(result.totalListings,null);
  assert.equal(result.openDemands,null,"tiny B cohort suppresses all-school sensitive totals");
  assert.equal(result.confirmedExchanges,null);
  assert.equal(result.schools[0].openDemands,1);
  assert.equal(result.schools[1].openDemands,null);
+ for(const metric of ["users","students","activeListings","totalListings","openDemands","confirmedExchanges"]) {
+  assert.equal(result.schools[1][metric],null,"tiny B school leaked "+metric);
+  assert.equal(result[metric === "users" ? "uniqueUsers" : metric],null,
+    "aggregate allows subtraction to reveal "+metric);
+ }
+ assert.equal(result.schools[0].users,6);
+ assert.equal(result.schools[0].students,1);
  const serialized=JSON.stringify(result);
  for(const forbidden of ["foreign","secret","private","admin-a","family","Cole C"]) {
   assert.equal(serialized.includes(forbidden),false,forbidden+" must not leave the server");
@@ -85,10 +92,14 @@ test("verified per-school filter cannot disclose another school or bypass small 
  assert.equal(a.confirmedExchanges,1);
  const b=report(data,["A","B"],"B");
  assert.equal(b.totalSchools,1);
- assert.equal(b.uniqueUsers,1);
+ assert.equal(b.uniqueUsers,null);
  assert.equal(b.openDemands,null);
  assert.equal(b.confirmedExchanges,null);
  assert.equal(b.schools[0].openDemands,null);
+ assert.equal(b.schools[0].users,null);
+ assert.equal(b.schools[0].students,null);
+ assert.equal(b.schools[0].activeListings,null);
+ assert.equal(b.schools[0].totalListings,null);
 });
 
 test("legacy profile at A is not counted if an active student is only at B",()=>{
@@ -99,7 +110,20 @@ test("legacy profile at A is not counted if an active student is only at B",()=>
   admins:[], listings:[],demands:[],agreements:[]
  };
  const result=report(minimal,["A"]);
- assert.equal(result.uniqueUsers,0);
+ assert.equal(result.uniqueUsers,null);
+});
+
+test("zero-member school suppresses activity counts and global total",()=>{
+ const input={...data,schools:[{id:"A",name:"Cole A"},{id:"D",name:"Cole D"}],
+  listings:[...data.listings,{id:"d",school_id:"D",status:"available"}]};
+ const r=report(input,["A","D"]);
+ assert.equal(r.totalSchools,2);
+ assert.equal(r.uniqueUsers,null);
+ assert.equal(r.totalListings,null);
+ const d=r.schools.find(x=>x.id==="D");
+ for(const metric of ["users","students","activeListings","totalListings","openDemands","confirmedExchanges"]){
+  assert.equal(d[metric],null,"empty school leaked "+metric);
+ }
 });
 
 test("no caller can route a selectedSchoolId into a broader disclosure",()=>{
