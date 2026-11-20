@@ -278,6 +278,30 @@ function revokeOnlyLocally(){
     assert.equal(effective.trim(),"f|t|t",table+" ACL changed unexpectedly: "+effective);
   }
 }
+function restoreOnlyLocally() {
+  // Compensating grants reproduce the initial ACL state ONLY in the disposable
+  // Supabase CLI QA database. This is NOT a production rollback script.
+  const identity=sql("select current_database()||'|'||current_setting('application_name')");
+  assert.equal(identity.trim(),
+    "postgres|wetudy_disposable_next_browser_20261120",
+    "Refuse rollback outside explicitly labeled disposable local Supabase CLI");
+  for(const table of target){
+    const before=sql("select has_table_privilege('anon','public."+table+"','SELECT'),"+
+       "has_table_privilege('authenticated','public."+table+"','SELECT'),"+
+       "has_table_privilege('service_role','public."+table+"','SELECT')");
+    assert.equal(before.trim(),"f|t|t",
+      "Rollback expects exact locally revoked baseline: "+table);
+  }
+  sql("GRANT SELECT ON public.agreements,public.demand_requests,public.profiles,"+
+    "public.saved_searches,public.schools TO anon; NOTIFY pgrst,'reload schema';");
+  for(const table of target){
+    const after=sql("select has_table_privilege('anon','public."+table+"','SELECT'),"+
+       "has_table_privilege('authenticated','public."+table+"','SELECT'),"+
+       "has_table_privilege('service_role','public."+table+"','SELECT')");
+    assert.equal(after.trim(),"t|t|t",
+      "Compensating local GRANT failed to restore exact SELECT baseline: "+table);
+  }
+}
 let next=null,nextLogs="",browser=null,allActors=[];
 (async()=>{
   installQAApplication();
@@ -334,6 +358,24 @@ let next=null,nextLogs="",browser=null,allActors=[];
     "Actual private saved-search SSR page changed after local anon revoke");
   assert.deepEqual(publicAfter,publicBefore,
     "Real Next public routes changed after isolated anon revoke");
+
+  // Third phase: compensating GRANT in local Postgres only, same live cookies,
+  // same browser contexts, same original Next route files and synthetic rows.
+  restoreOnlyLocally();
+  await sleep(1200);
+  await guestReads(guest,false); // 42501 -> 200/empty, never rows
+  await authenticatedReads(b,s,o,ids);
+  const publicRestored=await publicRoutes(guest,seller.id);
+  const familyRestored=await privateFamilyPages(guest,b,s,o);
+  assert.deepEqual(publicRestored,publicBefore,
+    "Real public HTTP route changed after rollback in local-only fixture");
+  assert.deepEqual(familyRestored,familyBefore,
+    "Private family SSR changed after synthetic rollback");
+  assert.deepEqual(familyRestored,familyAfter,
+    "Restored family owner isolation differs from post-REVOKE result");
+  console.log("PASS REAL local browser rollback: anonymous five-table HTTP "+
+    "200/empty -> 42501 -> 200/empty, all authenticated accounts remain "+
+    "isolated, original family SSR and two public Next responses are identical.");
   console.log("PASS REAL Next 16 SSR + Chromium + local GoTrue/PostgREST: "+
     "anonymous five-table grants revoked; 3 signed users preserve RLS; "+
     "two public routes remain equivalent with live synthetic listing and school; "+
