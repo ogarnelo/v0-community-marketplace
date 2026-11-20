@@ -13,6 +13,9 @@ on:
       - "scripts/pilot-anon-select-wave1-pg17.py"
       - "scripts/pilot-anon-select-wave1-local-only.sql"
       - "scripts/pilot-anon-select-postgrest-pg17.py"
+      - "scripts/pilot-anon-realtime-live-pg17.py"
+      - "scripts/pilot-anon-realtime-live-client.mjs"
+      - "__tests__/launch/pilot-anon-realtime-block-gate.test.mjs"
       - "scripts/pilot-anon-select-dependencies-readonly.sql"
       - "__tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs"
       - "__tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs"
@@ -90,3 +93,25 @@ jobs:
         run: python3 scripts/pilot-anon-select-wave1-pg17.py
       - name: Confirm anonymous HTTP denials and authorized reads through isolated PostgREST
         run: python3 scripts/pilot-anon-select-postgrest-pg17.py
+
+  synthetic-realtime-agreement-closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - name: Checkout only the PR test branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22 for official Realtime JS client
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install locked project dependencies
+        run: npm install --legacy-peer-deps --ignore-scripts
+      - name: Pin synthetic tenant to loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "127.0.0.1 realtime-dev.localhost" | sudo tee -a /etc/hosts
+      - name: Realtime four-role signed WebSocket and RLS regression in disposable PG17
+        run: python3 scripts/pilot-anon-realtime-live-pg17.py
