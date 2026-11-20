@@ -68,6 +68,17 @@ test("five-table privileges and RLS remain strict before and after real local re
   assert.match(browser,/assert\.equal\(list\.status,200/);
   assert.match(browser,/assert\.equal\(feed\.status,200/);
   assert.match(browser,/assert\.equal\(distance\.status,401/);
+  assert.match(browser,/app\/account\/saved-searches\/page\.tsx/);
+  assert.match(browser,/privateFamilyPages\(guest,b,s,o\)/);
+  assert.match(browser,/assert\.deepEqual\(familyAfter,familyBefore/);
+  assert.match(browser,/waitForURL\(u=>u\.pathname==="\/auth"/);
+  assert.match(browser,/Cross-account saved-search leak/);
+  assert.match(browser,/PRIVADA_BUYER_LIBROS/);
+  assert.match(browser,/PRIVADA_SELLER_MATERIAL/);
+  assert.match(browser,/LIBRO QA DE SEGUNDA MANO/);
+  assert.match(fixture,/CREATE TABLE public\.saved_search_matches/);
+  assert.match(fixture,/wetudy_local_search_matches_self/);
+  assert.match(workflow,/lucide-react@0\.468\.0/);
   assert.match(browser,/LOCAL DB|local CLI QA|Only disposable loopback/);
 });
 
