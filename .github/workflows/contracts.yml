@@ -111,6 +111,8 @@ jobs:
         run: node --test __tests__/launch/pilot-anon-five-table-public-reader-runtime.test.mjs
       - name: Browser SSR and real local Supabase privacy gate must remain mandatory
         run: node --test __tests__/launch/pilot-anon-next-browser-local-closure.test.mjs
+      - name: Private family and AMPA browser SSR must survive five-table anon revocation locally
+        run: node --test __tests__/launch/pilot-anon-private-ssr-block-gate.test.mjs
       - name: Lock all first-party five-table readers and dynamic table callers
         run: node scripts/pilot-anon-five-table-source-audit.mjs --check
       - name: Unknown external clients must prevent privacy-block production readiness
