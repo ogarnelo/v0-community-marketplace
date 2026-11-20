@@ -95,7 +95,9 @@ def healthcheck():
     try:
         with urlopen(request, timeout=3) as response:
             return response.status in (200, 204)
-    except (HTTPError, URLError, TimeoutError):
+    except (HTTPError, URLError, TimeoutError, ConnectionError):
+        # Fresh local Realtime boot may close a socket while replacing listeners.
+        # Retry startup readiness, but never treat this as a passed WebSocket test.
         return False
 
 
