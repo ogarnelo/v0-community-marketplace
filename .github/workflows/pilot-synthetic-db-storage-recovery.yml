@@ -13,6 +13,7 @@ on:
       - "scripts/pilot-anon-select-wave1-pg17.py"
       - "scripts/pilot-anon-select-wave1-local-only.sql"
       - "scripts/pilot-anon-select-postgrest-pg17.py"
+      - "scripts/pilot-anon-select-rollback-local-only.sql"
       - "scripts/pilot-anon-realtime-live-pg17.py"
       - "scripts/pilot-anon-realtime-live-client.mjs"
       - "__tests__/launch/pilot-anon-realtime-block-gate.test.mjs"
