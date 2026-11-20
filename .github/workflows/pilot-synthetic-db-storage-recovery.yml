@@ -12,6 +12,8 @@ on:
       - "scripts/pilot-wave1-client-privilege-regression.py"
       - "scripts/pilot-anon-select-wave1-pg17.py"
       - "scripts/pilot-anon-select-wave1-local-only.sql"
+      - "scripts/pilot-anon-select-postgrest-pg17.py"
+      - "__tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs"
       - "__tests__/launch/pilot-anon-select-wave1-review-only.test.mjs"
       - "scripts/p0_public_tables_nonrls_privileges_review_only.sql"
       - "scripts/p0_public_tables_nonrls_privileges_readonly.sql"
@@ -84,3 +86,5 @@ jobs:
         run: python3 scripts/pilot-client-privilege-function-regression.py
       - name: Deny anonymous SELECT on five review tables in disposable PostgreSQL17
         run: python3 scripts/pilot-anon-select-wave1-pg17.py
+      - name: Confirm anonymous HTTP denials and authorized reads through isolated PostgREST
+        run: python3 scripts/pilot-anon-select-postgrest-pg17.py
