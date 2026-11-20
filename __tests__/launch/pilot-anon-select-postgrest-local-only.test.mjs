@@ -42,6 +42,18 @@ test("HTTP test checks guest before/after, separate signed owner and non-owner R
   assert.match(source, /security_invoker = true/);
   assert.match(source, /Guest invoker-view dependency not denied/);
   assert.match(source, /Authorized invoker-view regression/);
+  assert.match(source, /ROLLBACK = Path/);
+  assert.match(source, /pilot-anon-select-rollback-local-only\\.sql/);
+  assert.match(source, /def acl_fingerprint\\(\\):/);
+  assert.match(source, /matrix_before = acl_fingerprint\\(\\)/);
+  assert.match(source, /matrix_revoked = acl_fingerprint\\(\\)/);
+  assert.match(source, /matrix_restored = acl_fingerprint\\(\\)/);
+  assert.match(source, /Rollback blocked: anon already has SELECT/);
+  assert.match(source, /matrix_restored != matrix_before/);
+  assert.match(source, /check_rows\\(expected_revoke=False\\)/);
+  assert.match(source, /check_rows\\(expected_revoke=True\\)/);
+  assert.match(source, /42501 -> 200\\/empty/);
+
   assert.match(source, /IMAGE\s*=\s*"postgrest\/postgrest:v[0-9]/);
 });
 
