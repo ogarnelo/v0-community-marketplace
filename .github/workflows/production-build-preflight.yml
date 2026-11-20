@@ -1,0 +1,49 @@
+name: Production Next.js build preflight
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      # CI-only syntactically valid placeholders, NEVER production credentials.
+      # All rollout/worker/public-directory flags remain UNSET.
+      NEXT_PUBLIC_SUPABASE_URL: "https://wetudy-build-preflight.invalid"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-not-a-real-key"
+      SUPABASE_SERVICE_ROLE_KEY: "ci-placeholder-not-a-real-key"
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node.js 22 (production-compatible)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install using the production dependency resolver
+        run: npm install --legacy-peer-deps
+      - name: Compile and prerender entire Next.js application
+        # The separate mandatory critical-contracts job runs prebuild tests.
+        # Execute next build directly to avoid duplicating that long suite.
+        run: npx --no-install next build
+      - name: Confirm sitemap route was generated
+        shell: bash
+        run: |
+          test -f .next/server/app/sitemap.xml/route.js || \
+            test -f .next/server/app/sitemap.xml/route.js.nft.json || \
+            (echo "Sitemap server route missing after build" >&2; exit 1)
