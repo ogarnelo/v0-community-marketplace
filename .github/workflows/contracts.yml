@@ -109,8 +109,8 @@ jobs:
         run: node --test __tests__/launch/pilot-anon-realtime-block-gate.test.mjs
       - name: Guest schools and marketplace API compatibility after fake anon revoke
         run: node --test __tests__/launch/pilot-anon-five-table-public-reader-runtime.test.mjs
-      - name: Inventory first-party five-table source readers (review-only)
-        run: node scripts/pilot-anon-five-table-source-audit.mjs --inventory
+      - name: Lock all first-party five-table readers and dynamic table callers
+        run: node scripts/pilot-anon-five-table-source-audit.mjs --check
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
