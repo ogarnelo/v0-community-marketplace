@@ -61,9 +61,18 @@ test("authentication provider errors fail closed before any saved-search writes"
  assert.match(route.slice(auth,auth+500),/private, no-store/);
 });
 
+test("school admin assignment must be unique before any saved search is inserted",()=>{
+ const auth=route.indexOf("managedSchoolId = resolveUniqueSchoolAdminSchoolId(schoolAdminRoles)");
+ const saved=route.indexOf('.from("saved_searches")');
+ assert.ok(auth>0 && auth<saved);
+ assert.match(route,/\.eq\("role", "school_admin"\)\s*\.limit\(2\)/);
+ assert.ok(!route.includes('.not("school_id", "is", null)'));
+ assert.match(route.slice(auth,auth+350),/school_context_unavailable/);
+});
+
 test("context read failures deny saving before the insert or stale-school fallback",()=>{
  assert.match(route,/\{ data: profile, error: profileError \}/);
- assert.match(route,/\{ data: schoolAdminRole, error: schoolAdminRoleError \}/);
+ assert.match(route,/\{ data: schoolAdminRoles, error: schoolAdminRoleError \}/);
  assert.match(route,/\{ data: primaryStudentContext, error: primaryStudentContextError \}/);
  const deny=route.indexOf("if (profileError || schoolAdminRoleError || primaryStudentContextError)");
  assert.ok(deny>0);

@@ -65,7 +65,9 @@ test("school context does not weaken radius, product filters or global searches"
 test("school identity is derived from selected student/role, not user-supplied URL",()=>{
   assert.match(savedRoute,/select\("school_id,directory_school_code,is_primary,sort_order,created_at"\)/);
   assert.match(savedRoute,/primaryStudentContext\?\.directory_school_code\?\.trim\(\)/);
-  assert.match(savedRoute,/schoolAdminRole\?\.school_id\?\.trim\(\)/);
+  assert.match(savedRoute,/managedSchoolId \|\|/);
+  assert.match(savedRoute,/resolveUniqueSchoolAdminSchoolId\(schoolAdminRoles\)/);
+  assert.match(savedRoute,/\.eq\("role", "school_admin"\)\s*\.limit\(2\)/);
   assert.match(savedRoute,/primaryStudentContext\s*\?\s*primaryStudentContext\.school_id\?\.trim\(\) \|\| null/);
   assert.match(savedRoute,/school_context_required/);
   assert.match(savedRoute,/directory_school_code: directorySchoolCode/);
