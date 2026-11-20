@@ -88,7 +88,7 @@ def get(table, jwt=None):
 
 
 def acl_fingerprint():
-    """Capture exact effective four-operation privilege matrix + RLS by table.
+    """Capture effective eight-operation privilege matrix + RLS by table.
 
     This catches an unrelated client privilege becoming reachable during a
     rollback. It is not a complete pg_catalog ACL snapshot for production.
@@ -100,6 +100,10 @@ def acl_fingerprint():
         'insert', has_table_privilege(r.role_name,c.oid,'INSERT'),
         'update', has_table_privilege(r.role_name,c.oid,'UPDATE'),
         'delete', has_table_privilege(r.role_name,c.oid,'DELETE'),
+        'truncate', has_table_privilege(r.role_name,c.oid,'TRUNCATE'),
+        'references', has_table_privilege(r.role_name,c.oid,'REFERENCES'),
+        'trigger', has_table_privilege(r.role_name,c.oid,'TRIGGER'),
+        'maintain', has_table_privilege(r.role_name,c.oid,'MAINTAIN'),
         'rls', c.relrowsecurity
       ) ORDER BY c.relname,r.role_name),'[]'::jsonb)
       FROM pg_class c
@@ -176,8 +180,20 @@ try:
              " values ('" + OWNER + "','" + OWNER + "','own'),('"
              + OTHER + "','" + OTHER + "','other')")
         psql(test_url, "alter table public." + table + " enable row level security")
+        # Mirror verified read-only *production catalogue* ACL semantics:
+        # agreement has anon/auth SELECT+MAINTAIN, four other targets have
+        # anon/auth SELECT+INSERT+UPDATE+DELETE, service_role has ALL.
+        # RLS still has zero anon/public policies, so writes are denied.
         psql(test_url, "grant select on public." + table +
              " to anon,authenticated,service_role")
+        if table == "agreements":
+            psql(test_url, "grant maintain on public." + table +
+                 " to anon,authenticated")
+        else:
+            psql(test_url, "grant insert,update,delete on public." + table +
+                 " to anon,authenticated")
+        psql(test_url, "grant all privileges on public." + table +
+             " to service_role")
         psql(test_url, "create policy owner_only on public." + table +
              " for select to authenticated using "
              "(owner_id = (nullif(current_setting('request.jwt.claims',true),'')::jsonb ->> 'sub')::uuid)")
@@ -221,6 +237,21 @@ try:
     matrix_before = acl_fingerprint()
     if not all(row["select"] for row in matrix_before):
         raise AssertionError("Baseline grants missing before rollback drill")
+    for row in matrix_before:
+        if row["role"] in ("anon", "authenticated"):
+            table = row["relation"]
+            for op in ("insert", "update", "delete"):
+                expected = table != "agreements"
+                if row[op] != expected:
+                    raise AssertionError("Local synthetic baseline does not match "
+                                         "read-only observed production DML grants")
+            if row["maintain"] != (table == "agreements"):
+                raise AssertionError("Local synthetic baseline misses observed "
+                                     "anon/auth MAINTAIN privilege")
+        elif row["role"] == "service_role":
+            if not all(row[op] for op in ("select","insert","update",
+                                          "delete","maintain")):
+                raise AssertionError("Local service_role baseline privileges drifted")
     rollback_early = run([
         "psql", "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1",
         "--dbname", test_url, "-f", str(ROLLBACK)
