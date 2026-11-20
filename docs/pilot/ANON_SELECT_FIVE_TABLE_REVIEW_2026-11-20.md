@@ -31,11 +31,21 @@ A read-only pg_rewrite/pg_depend query identifies two views depending on the fiv
 
 GitHub code search in modern main found **no references** to demand_opportunities_30d and five references to saved_search_demand_summary (migrations, docs, and tests). Absence of code references does **not** rule out external clients, stored procedures, or RPC. An anonymous query to an invoker view may start returning a permission error after the underlying grant is revoked; the synthetic HTTP harness explicitly covers this behavior. Do not silently remove the view grant as part of the five-table proposal. Static function dependency query returned no pg_proc dependencies; dynamic SQL/PLpgSQL dependencies are not exhaustively captured that way.
 
+## RPC and Realtime dependency audit (catalog-only production evidence)
+
+- Read-only query of `pg_publication_tables`: among the five target tables, **only `public.agreements`** is a member of `supabase_realtime` (replica identity `d`, RLS ON). The others are not currently in this publication.
+- `components/agreements/agreement-panel.tsx` creates a browser `postgres_changes` subscription filtered by `conversation_id`; code search found one render site, `app/messages/[id]/page.tsx`, where `getCurrentUser()` precedes a redirect for missing users and the agreement component render. This protects the inspected route but does NOT prove actual Realtime delivery or external subscriber absence.
+- A metadata-only `pg_proc.prosrc` textual scan found **20 public/private functions mentioning at least one target**; **9 SECURITY DEFINER**. Of these, **0 are executable by `anon` and 0 by `authenticated` according to `has_function_privilege`**; 19 are executable by `service_role`. The remaining function is not service-executable. Textual body matching can miss dynamic SQL and dependencies in nested calls; **not a complete RPC security proof**. No function was executed.
+- The SQL inventory in `scripts/pilot-anon-select-dependencies-readonly.sql` is a repeatable metadata-only snapshot; it must not be used to read personal rows, execute functions or make permission changes.
+- The disposable PostgreSQL 17 test creates a synthetic publication for agreements and verifies membership and authenticated SELECT survive the proposed revoke. That tests **publication metadata, not a live Supabase Realtime websocket or change delivery**. An independent Realtime/browser pilot test is still a hold point.
+
 ## Files and tests
 
 - scripts/pilot-anon-select-wave1-local-only.sql: disposable-database guard; RLS/policy preflight; five explicit REVOKE SELECT; postflight requiring no effective table or column SELECT for anon, while authenticated and service_role retain SELECT. It also rejects SELECT inherited through PUBLIC or residual column ACLs rather than pretending the revoke succeeded.
 - scripts/pilot-anon-select-wave1-pg17.py: PostgreSQL 17 disposable local DB, synthetic ownership/RLS, five role grants, two non-target controls, idempotence, re-grant recovery, rollback on PUBLIC and column privilege drift, and unexpected anonymous RLS policy denial. No real-family fixtures.
 - __tests__/launch/pilot-anon-select-wave1-review-only.test.mjs: static contract, Python parse, CI coupling, and no remote DB configuration.
+- scripts/pilot-anon-select-dependencies-readonly.sql: four SQL metadata-only statements for grants/RLS, publication membership, view dependencies and heuristic RPC permissions; enclosed in BEGIN TRANSACTION READ ONLY and COMMIT.
+- __tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs: required static critical contract for the read-only inventory, authenticated subscription source path and isolated publication regression.
 - scripts/pilot-anon-select-postgrest-pg17.py: starts official version-tagged PostgREST Docker container on the GitHub runner's loopback interface, backed only by a disposable PostgreSQL17 database; checks the five table endpoints and an invoker-view dependency before and after REVOKE using anonymous HTTP and signed synthetic authenticated JWTs for two distinct owners. No live Supabase endpoint or real credentials are used.
 - __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs: contracts ensuring the HTTP test is loopback-only, synthetically authenticated, and executed by the isolated PG17 workflow.
 - .github/workflows/contracts.yml: required critical-contracts job executes static contract.
@@ -43,8 +53,8 @@ GitHub code search in modern main found **no references** to demand_opportunitie
 
 ## Hold points before ANY future production change
 
-1. Finish a separate inventory of actual anonymous callers, SSR, browser, Data API and RPC/SECURITY DEFINER dependencies, views, Realtime and column ACLs. Static source checks are insufficient.
-2. Run application-level browser and authenticated admin/family paths against an isolated representative Supabase stack (or authorized pilot QA); the local PostgREST HTTP smoke validates permission enforcement and simulated owner isolation, but **does not** reproduce every live Supabase schema, JWT/RLS function, RPC, Storage, Realtime or Next.js end-to-end behavior.
+1. Finish a separate inventory of actual anonymous callers, SSR, browser, Data API, external clients, RPC/SECURITY DEFINER dependencies, views, Realtime and column ACLs. Current code search/catalog findings are useful but static checks are insufficient, and the invoker view may change its guest error behavior.
+2. Run application-level browser and authenticated admin/family paths, including agreement Realtime delivery after revoke, against an isolated representative Supabase stack (or authorized pilot QA); the local PostgREST HTTP smoke validates permission enforcement and simulated owner isolation, but **does not** reproduce every live Supabase schema, JWT/RLS function, RPC, Storage, Realtime or Next.js end-to-end behavior.
 3. Create a separate, independently reviewed production migration only after risk and compatibility checks; confirm current grants, RLS and client versions again immediately before rollout. Require explicit permission for grant changes.
 4. Preserve the ability to restore the exact recorded grants on rollback, and verify real postflight. Do not activate the pilot for this.
 
