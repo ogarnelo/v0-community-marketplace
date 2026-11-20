@@ -72,7 +72,7 @@ test("school admin assignment must be unique before any saved search is inserted
 
 test("context read failures deny saving before the insert or stale-school fallback",()=>{
  assert.match(route,/\{ data: profile, error: profileError \}/);
- assert.match(route,/\{ data: schoolAdminRole, error: schoolAdminRoleError \}/);
+ assert.match(route,/\{ data: schoolAdminRoles, error: schoolAdminRoleError \}/);
  assert.match(route,/\{ data: primaryStudentContext, error: primaryStudentContextError \}/);
  const deny=route.indexOf("if (profileError || schoolAdminRoleError || primaryStudentContextError)");
  assert.ok(deny>0);
