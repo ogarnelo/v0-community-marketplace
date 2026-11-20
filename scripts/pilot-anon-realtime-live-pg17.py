@@ -177,8 +177,9 @@ try:
              "-e", "POSTGRES_PASSWORD=" + LOCAL_PW,
              "-e", "POSTGRES_DB=" + DB_NAME,
              "-p", "127.0.0.1:" + str(PG_PORT) + ":5432",
-             PG_IMAGE, "-c", "wal_level=logical", "-c", "max_replication_slots=10",
-             "-c", "max_wal_senders=10"], timeout=130)
+             PG_IMAGE, "-c", "wal_level=logical",
+             "-c", "output_plugin_libraries=wal2json",
+             "-c", "max_replication_slots=10", "-c", "max_wal_senders=10"], timeout=130)
     started.append(PG_NAME)
     ready = False
     for _ in range(40):
