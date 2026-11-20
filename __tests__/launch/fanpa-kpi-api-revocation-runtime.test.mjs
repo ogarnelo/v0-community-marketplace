@@ -96,7 +96,7 @@ function fixture(options={}) {
    })}};
    if(name==="@/lib/supabase/server")return {createClient:async()=>({auth})};
    if(name==="@/lib/supabase/admin")return {createAdminClient:()=>adminClient};
-   if(name==="@/lib/fanpa/federation-representation")return scopeModule.exports;
+   if(name==="@/lib/fanpa/federation-server-scope")return shared.exports;
    throw Error("Unexpected import "+name);
   }
  });
