@@ -125,6 +125,28 @@ test("inactive, unlisted or contradictory contexts cannot broaden community scop
   assert.deepEqual([...scope.directoryCodes],[]);
 });
 
+test("listed directory code linked to an inactive or unknown school grants no alert scope",async()=>{
+  const db=fakeDb();
+  db.directories.push(
+    {official_code:"28000004",linked_school_id:C,is_listed:true},
+    {official_code:"28000005",linked_school_id:"malformed",is_listed:true},
+    {official_code:"28000006",linked_school_id:null,is_listed:true},
+  );
+  db.schools.find(s=>s.id===C).is_active=false;
+  db.students.push(
+    {owner_user_id:U,school_id:null,directory_school_code:"28000004",active:true},
+    {owner_user_id:U,school_id:null,directory_school_code:"28000005",active:true},
+    {owner_user_id:U,school_id:null,directory_school_code:"28000006",active:true},
+  );
+  const scope=(await loadScopes(db,[U])).get(U);
+  assert.equal(scope.directoryCodes.includes("28000004"),false,"inactive linked school denied");
+  assert.equal(scope.directoryCodes.includes("28000005"),false,"invalid linked school denied");
+  assert.equal(scope.directoryCodes.includes("28000006"),true,"unlinked listed directory remains supported");
+  assert.equal(matches(search,listing(null,"28000004"),undefined,activeLinks(scope)),false);
+  assert.equal(matches(search,listing(null,"28000005"),undefined,activeLinks(scope)),false);
+  assert.equal(matches(search,listing(null,"28000006"),undefined,activeLinks(scope)),true);
+});
+
 test("server failures, unbounded pages and forged user identities fail closed",async()=>{
   const db=fakeDb();
   db.errorTable="account_students";
