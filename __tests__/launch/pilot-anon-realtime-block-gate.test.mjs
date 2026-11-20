@@ -66,6 +66,6 @@ test("Realtime is mandatory in isolated CI and cannot be passed by static checks
   assert.match(workflow, /python3 scripts\/pilot-anon-realtime-live-pg17\.py/);
   assert.match(workflow, /node-version: 22/);
   assert.match(critical, /node --test __tests__\/launch\/pilot-anon-realtime-block-gate\.test\.mjs/);
-  assert.match(python, /raise AssertionError\("Local Realtime tenant not ready/);
+  assert.match(python, /raise AssertionError\("Local Realtime tenant migrations not ready/);
   assert.match(python, /raise AssertionError\("Anonymous SELECT survived/);
 });
