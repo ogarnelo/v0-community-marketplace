@@ -18,6 +18,7 @@ test("Realtime WebSocket test refuses real Supabase environments", () => {
   assert.match(python, /postgres:17/);
   assert.match(python, /supabase\/realtime:v2\./);
   assert.match(python, /wal_level=logical/);
+  assert.match(python, /except \(HTTPError, URLError, TimeoutError, ConnectionError\)/);
   assert.match(python, /CREATE PUBLICATION supabase_realtime FOR TABLE public\.agreements/);
   assert.match(python, /no prod/i);
   assert.match(python, /docker", "rm", "-f"/);
