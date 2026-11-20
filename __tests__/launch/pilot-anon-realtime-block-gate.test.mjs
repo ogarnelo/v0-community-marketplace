@@ -19,7 +19,7 @@ test("Realtime WebSocket test refuses real Supabase environments", () => {
   assert.match(python, /supabase\/realtime:v2\./);
   assert.match(python, /wal_level=logical/);
   assert.match(python, /CREATE PUBLICATION supabase_realtime FOR TABLE public\.agreements/);
-  assert.match(python, /No prod/);
+  assert.match(python, /no prod/i);
   assert.match(python, /docker", "rm", "-f"/);
   assert.doesNotMatch(python, /https?:\/\/[^"\s]+supabase\.co|SUPABASE_URL|SERVICE_ROLE_KEY\s*=\s*['"]/i);
   const r = spawnSync("python3", ["-c",
@@ -40,10 +40,10 @@ test("real signed JWT + postgres_changes exercise participant and unauthorized a
   assert.match(client, /role:"guest"/);
   assert.match(client, /assert\.equal\(delivered, true/);
   assert.match(client, /must never receive private agreement records/);
-  assert.match(client, /new\.status/);
-  assert.match(python, /WS_TEST\), "before"/);
+  assert.match(client, /new\?\.status/);
+  assert.match(python, /check_phase\("before"\)/);
   assert.match(python, /pgfile\(PROPOSAL\)/);
-  assert.match(python, /WS_TEST\), "after"/);
+  assert.match(python, /check_phase\("after"\)/);
   assert.match(python, /has_table_privilege\('anon'/);
   assert.match(python, /has_table_privilege\('authenticated'/);
 });
