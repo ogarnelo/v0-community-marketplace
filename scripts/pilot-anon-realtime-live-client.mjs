@@ -99,7 +99,7 @@ try {
     "' RETURNING status";
   const updated = execFileSync("docker", [
     "exec", pgContainer, "psql", "-X", "-q", "-A", "-t",
-    "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "-c", query
+    "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "wetudy_pilot_anon_select_wave1", "-c", query
   ], {encoding:"utf8",timeout:15000}).trim();
   assert.match(updated, new RegExp(expectedStatus), "Synthetic agreement UPDATE was not applied");
 
