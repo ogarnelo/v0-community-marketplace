@@ -71,6 +71,14 @@ test("five-table privileges and RLS remain strict before and after real local re
   assert.match(browser,/app\/account\/saved-searches\/page\.tsx/);
   assert.match(browser,/privateFamilyPages\(guest,b,s,o\)/);
   assert.match(browser,/assert\.deepEqual\(familyAfter,familyBefore/);
+  assert.match(browser,/function restoreOnlyLocally\(\)/);
+  assert.match(browser,/Refuse rollback outside explicitly labeled disposable local Supabase CLI/);
+  assert.match(browser,/rollback in local-only fixture/);
+  assert.match(browser,/assert\.deepEqual\(publicRestored,publicBefore/);
+  assert.match(browser,/assert\.deepEqual\(familyRestored,familyBefore/);
+  assert.match(browser,/assert\.deepEqual\(familyRestored,familyAfter/);
+  assert.match(browser,/await guestReads\(guest,false\)/);
+  assert.match(browser,/200\/empty -> 42501 -> 200\/empty/);
   assert.match(browser,/waitForURL\(u=>u\.pathname==="\/auth"/);
   assert.match(browser,/Cross-account saved-search leak/);
   assert.match(browser,/PRIVADA_BUYER_LIBROS/);
