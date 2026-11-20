@@ -22,7 +22,7 @@ if(!api||!anon||!service||!db||!loopback(new URL(api).hostname)||
   process.env.PGAPPNAME!=="wetudy_ampa_private_anon_revoke_local_20261120")
     throw Error("Refusing nonlocal or unexpected private-school Supabase test database");
 function sql(s){
-  execFileSync("psql",["-X","-v","ON_ERROR_STOP=1",db,"-c",s],{
+  execFileSync("psql",["-X","-q","-t","-A","-v","ON_ERROR_STOP=1",db,"-c",s],{
     stdio:["ignore","pipe","pipe"],timeout:18000
   });
 }
