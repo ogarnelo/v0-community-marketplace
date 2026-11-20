@@ -14,8 +14,6 @@ const SITE_URL = "https://www.wetudy.com"
  */
 async function approvedDirectorySeoPages(): Promise<MetadataRoute.Sitemap> {
   if (!isDirectorySeoEnabled()) return [];
-  const directoryPages = await approvedDirectorySeoPages()
-
   try {
     const admin = createAdminClient();
     const { data, error } = await admin.from("school_directory")
@@ -67,6 +65,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly",
     priority: 0.55,
   }))
+
+  const directoryPages = await approvedDirectorySeoPages()
 
   try {
     const admin = createAdminClient()
