@@ -46,7 +46,9 @@ function buildInventory() {
         const receiver=node.expression.expression;
         const builtin=ts.isIdentifier(receiver)&&
           ["Array","Buffer","Promise","Set","Object"].includes(receiver.text);
-        if(!builtin) {
+        const storage=ts.isPropertyAccessExpression(receiver)&&
+          receiver.name.text==="storage";
+        if(!builtin&&!storage) {
           const argument=node.arguments[0];
           if(argument&&ts.isStringLiteralLike(argument)){
             if(names.includes(argument.text))
