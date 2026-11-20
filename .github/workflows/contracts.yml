@@ -107,6 +107,8 @@ jobs:
         run: node --test __tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs
       - name: Realtime privacy block cannot close without genuine four-actor WebSocket scenario
         run: node --test __tests__/launch/pilot-anon-realtime-block-gate.test.mjs
+      - name: Guest schools and marketplace API compatibility after fake anon revoke
+        run: node --test __tests__/launch/pilot-anon-five-table-public-reader-runtime.test.mjs
       - name: Inventory first-party five-table source readers (review-only)
         run: node scripts/pilot-anon-five-table-source-audit.mjs --inventory
       - name: Production ACL reader compatibility
