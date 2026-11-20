@@ -51,6 +51,17 @@ test("HTTP test checks guest before/after, separate signed owner and non-owner R
   assert.match(source, /matrix_restored = acl_fingerprint\(\)/);
   assert.match(source, /Rollback blocked: anon already has SELECT/);
   assert.match(source, /matrix_restored != matrix_before/);
+
+  assert.match(source, /grant insert,update,delete on public/);
+  assert.match(source, /grant maintain on public/);
+  assert.match(source, /grant all privileges on public/);
+  assert.match(source, /def assert_anon_insert_denied\(table\):/);
+  assert.match(source, /assert_anon_insert_denied\(table\)/);
+  assert.match(source, /Synthetic data altered by rejected anonymous POST/);
+  assert.match(source, /Local synthetic baseline does not match/);
+  assert.match(source, /'maintain', has_table_privilege/);
+  assert.match(source, /'truncate', has_table_privilege/);
+
   assert.match(source, /check_rows\(expected_revoke=False\)/);
   assert.match(source, /check_rows\(expected_revoke=True\)/);
   assert.match(source, /42501 -> 200\/empty/);
