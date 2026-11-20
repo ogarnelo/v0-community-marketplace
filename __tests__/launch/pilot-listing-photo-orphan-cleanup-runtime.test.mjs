@@ -74,6 +74,17 @@ for(const table of ["listings","listing_photos","listing_drafts"]){
   }
  });
 }
+test("reference failures remain fail-closed and log only fixed source labels",async()=>{
+ const labels=["PHOTO_REF_listing_array","PHOTO_REF_photo_rows","PHOTO_REF_draft_url","PHOTO_REF_draft_path"];
+ for(const label of labels){
+  const data=readFileSync("lib/marketplace/cleanup-deleted-listing-photos.ts","utf8");
+  assert.ok(data.includes(label.replace("PHOTO_REF_","\"").replace(/^"/,"")) || data.includes(label.slice(10)));
+ }
+ assert.match(source,/PHOTO_REF_UNKNOWN/);
+ assert.match(source,/PHOTO_REF_\(\?:listing_array\|photo_rows\|draft_url\|draft_path\)/);
+ assert.doesNotMatch(source,/console\.error\([^\n]*error\.message/);
+});
+
 test("provider error is best effort and never leaks provider details to requester",async()=>{
  const h=fixture({storageFails:true});
  await assert.doesNotReject(h.cleanup([safe]));
