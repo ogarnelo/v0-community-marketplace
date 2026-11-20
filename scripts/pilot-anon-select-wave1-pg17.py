@@ -141,14 +141,14 @@ try:
         raise AssertionError("Failed proposal unexpectedly committed changes")
     query("revoke select on public.profiles from public")
 
-    # Negative test: a remaining column-specific SELECT must fail closed too.
-    query("grant select(owner_id) on public.demand_requests to anon")
+    # Negative test: a column SELECT inherited via PUBLIC must fail closed too.
+    query("grant select(owner_id) on public.demand_requests to public")
     _, error = proposal(succeeds=False)
     if "Anonymous SELECT survives" not in error:
         raise AssertionError("Column-specific SELECT was not rejected")
     if privilege("anon", "agreements", "SELECT") != "t":
         raise AssertionError("Failed column-ACL proposal did not roll back")
-    query("revoke select(owner_id) on public.demand_requests from anon")
+    query("revoke select(owner_id) on public.demand_requests from public")
 
     # A new anon-visible RLS policy must block this proposal before REVOKE.
     query("create policy test_anon on public.profiles for select to anon using (true)")
