@@ -38,6 +38,10 @@ test("HTTP test checks guest before/after, separate signed owner and non-owner R
   assert.match(source, /len\(result\)\s*!=\s*1/);
   assert.match(source, /request\.jwt\.claim\.sub/);
   assert.match(source, /enable row level security/);
+  assert.match(source, /create view public\.demand_opportunities_30d/);
+  assert.match(source, /security_invoker = true/);
+  assert.match(source, /Guest invoker-view dependency not denied/);
+  assert.match(source, /Authorized invoker-view regression/);
   assert.match(source, /IMAGE\s*=\s*"postgrest\/postgrest:v[0-9]/);
 });
 
