@@ -8,19 +8,19 @@ import { computeFederationKpis } from "@/lib/fanpa/federation-kpis";
 type Source = Parameters<typeof computeFederationKpis>[0];
 export type FederationReportView = {
   totalSchools: number;
-  uniqueUsers: number;
-  students: number;
-  activeListings: number;
-  totalListings: number;
+  uniqueUsers: number | null;
+  students: number | null;
+  activeListings: number | null;
+  totalListings: number | null;
   openDemands: number | null;
   confirmedExchanges: number | null;
   schools: Array<{
     id: string;
     name: string;
-    users: number;
-    students: number;
-    activeListings: number;
-    totalListings: number;
+    users: number | null;
+    students: number | null;
+    activeListings: number | null;
+    totalListings: number | null;
     openDemands: number | null;
     confirmedExchanges: number | null;
   }>;
@@ -55,27 +55,36 @@ export function computeScopedFederationReport(
     ? raw.schools.filter(school => school.id === selectedSchoolId)
     : raw.schools;
   const restricted = selected.some(school => school.users < MIN_PRIVATE_COHORT);
-  // Hide sensitive totals too when any represented school has a tiny cohort:
-  // a visible total minus the other schools' rows could reveal that school.
-  const safe = selected.map(school => ({
-    id: school.id,
-    name: school.name,
-    users: school.users,
-    students: school.students,
-    activeListings: school.activeListings,
-    totalListings: school.totalListings,
-    openDemands: school.users < MIN_PRIVATE_COHORT ? null : school.openDemands,
-    confirmedExchanges: school.users < MIN_PRIVATE_COHORT ? null : school.confirmedExchanges,
-  }));
-  const uniqueUsers = selectedSchoolId ? selected[0].users : raw.uniqueUsers;
+  // Every small-cohort count can identify families, including listings,
+  // students and user totals. Hide all numbers in the small-school rows.
+  // Hide EVERY federation aggregate if any represented school is small,
+  // preventing a total minus the other school filters from exposing it.
+  const safe = selected.map(school => {
+    const hide = school.users < MIN_PRIVATE_COHORT;
+    return {
+      id: school.id,
+      name: school.name,
+      users: hide ? null : school.users,
+      students: hide ? null : school.students,
+      activeListings: hide ? null : school.activeListings,
+      totalListings: hide ? null : school.totalListings,
+      openDemands: hide ? null : school.openDemands,
+      confirmedExchanges: hide ? null : school.confirmedExchanges,
+    };
+  });
   return {
     totalSchools: selected.length,
-    uniqueUsers,
-    students: selected.reduce((total, school) => total + school.students, 0),
-    activeListings: selected.reduce((total, school) => total + school.activeListings, 0),
-    totalListings: selected.reduce((total, school) => total + school.totalListings, 0),
-    openDemands: restricted ? null : selected.reduce((total, school) => total + school.openDemands, 0),
-    confirmedExchanges: restricted ? null : selected.reduce((total, school) => total + school.confirmedExchanges, 0),
+    uniqueUsers: restricted ? null : (selectedSchoolId ? selected[0].users : raw.uniqueUsers),
+    students: restricted ? null :
+      selected.reduce((total, school) => total + school.students, 0),
+    activeListings: restricted ? null :
+      selected.reduce((total, school) => total + school.activeListings, 0),
+    totalListings: restricted ? null :
+      selected.reduce((total, school) => total + school.totalListings, 0),
+    openDemands: restricted ? null :
+      selected.reduce((total, school) => total + school.openDemands, 0),
+    confirmedExchanges: restricted ? null :
+      selected.reduce((total, school) => total + school.confirmedExchanges, 0),
     schools: safe,
   };
 }
