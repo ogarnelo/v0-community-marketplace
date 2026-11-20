@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { RealtimeClient } from "@supabase/supabase-js";
 
 const phase = process.argv[2];
-if (!["before", "after"].includes(phase)) throw Error("Expected before/after phase");
+if (!["before", "after", "restored"].includes(phase)) throw Error("Expected before/after/restored phase");
 const realtimeUrl = "http://realtime-dev.localhost:4107/socket";
 const pgContainer = "wetudy-realtime-test-pg17";
 const jwtSecret = "wetudy_realtime_synthetic_secret_local_only_2026_123456789";
@@ -15,7 +15,8 @@ const conversation = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const buyerId = "11111111-1111-4111-8111-111111111111";
 const sellerId = "22222222-2222-4222-8222-222222222222";
 const strangerId = "33333333-3333-4333-8333-333333333333";
-const expectedStatus = phase === "before" ? "buyer_confirmed" : "seller_confirmed";
+const expectedStatus = phase === "before" ? "buyer_confirmed" :
+  phase === "after" ? "seller_confirmed" : "rollback_confirmed";
 
 if (typeof globalThis.WebSocket !== "function") {
   throw Error("Node 22 native WebSocket is required");
