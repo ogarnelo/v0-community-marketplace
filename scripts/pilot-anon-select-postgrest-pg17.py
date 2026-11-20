@@ -87,6 +87,29 @@ def get(table, jwt=None):
         return error.code, json.loads(error.read().decode())
 
 
+def assert_anon_insert_denied(table):
+    """DML table grant is NOT authorization: real PostgREST + RLS deny it."""
+    req = Request("http://" + HOST + ":" + str(PORT) + "/" + table,
+                  data=json.dumps({
+                      "id": "99999999-9999-4999-8999-999999999999",
+                      "owner_id": OWNER, "label": "never-created-local"
+                  }).encode(), method="POST",
+                  headers={"Content-Type": "application/json"})
+    try:
+        with urlopen(req, timeout=3) as response:
+            status = response.status
+            result = json.loads(response.read().decode())
+    except HTTPError as error:
+        status = error.code
+        result = json.loads(error.read().decode())
+    if status not in (401, 403) or not isinstance(result, dict) or \
+        result.get("code") != "42501":
+        raise AssertionError("Guest INSERT unexpectedly authorized for " + table +
+                             " with current RLS (status=" + str(status) + ")")
+    if psql(test_url, "select count(*) from public." + table) != "2":
+        raise AssertionError("Synthetic data altered by rejected anonymous POST: " + table)
+
+
 def acl_fingerprint():
     """Capture effective eight-operation privilege matrix + RLS by table.
 
@@ -124,6 +147,7 @@ def check_rows(expected_revoke):
     owner_token = signed_user_jwt(OWNER)
     other_token = signed_user_jwt(OTHER)
     for table in TABLES:
+        assert_anon_insert_denied(table)
         status, guest = get(table)
         if expected_revoke:
             if status not in (401, 403) or not isinstance(guest, dict) \
@@ -287,10 +311,11 @@ try:
             "'saved_searches','schools') and c.relrowsecurity") != "5":
         raise AssertionError("RLS turned off in PostgREST fixture")
     print("PASS: local PostgREST five-table rollback drill: guest HTTP "
-          "200/empty -> 42501 -> 200/empty; invoker view follows same "
-          "status sequence; owners retain isolated JWT rows in all phases; "
-          "original 15-role ACL/RLS matrix restored exactly; early rollback "
-          "rejected without changes.")
+          "200/empty -> 42501 -> 200/empty; anonymous POST is always denied "
+          "by real RLS despite production-shaped legacy DML grants; invoker "
+          "view follows the same status sequence; signed JWT owner rows remain "
+          "isolated in all phases; original 15-role/8-verb ACL+RLS matrix "
+          "restored exactly; early rollback rejected without changes.")
 finally:
     if container_started:
         run(["docker", "rm", "-f", CONTAINER], timeout=20)
