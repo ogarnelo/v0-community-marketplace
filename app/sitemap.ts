@@ -2,8 +2,46 @@ import type { MetadataRoute } from "next"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { posts } from "@/lib/blog-data"
 import { isDemoListing } from "@/lib/seo/demo-listing"
+import { isDirectorySeoEnabled, isDirectoryCentreSeoEligible } from "@/lib/schools/directory-seo-eligibility"
+import { directoryPageUrl } from "@/lib/schools/listed-directory-centre"
 
 const SITE_URL = "https://www.wetudy.com"
+
+/**
+ * Strictly bounded by 24 candidate records until manual editorial review
+ * certifies the SEO rollout. Missing/failing data never adds URLs.
+ * The imported 34,845 directory records are NEVER listed automatically.
+ */
+async function approvedDirectorySeoPages(): Promise<MetadataRoute.Sitemap> {
+  if (!isDirectorySeoEnabled()) return [];
+  const directoryPages = await approvedDirectorySeoPages()
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("school_directory")
+      .select("official_code,updated_at")
+      .eq("is_listed", true)
+      .eq("seo_indexable", true)
+      .not("linked_school_id", "is", null)
+      .order("official_code", { ascending: true })
+      .limit(24);
+    if (error || !Array.isArray(data)) return [];
+    const pages: MetadataRoute.Sitemap = [];
+    for (const centre of data) {
+      if (typeof centre.official_code !== "string" ||
+          !(await isDirectoryCentreSeoEligible(centre.official_code))) continue;
+      pages.push({
+        url: directoryPageUrl(centre.official_code),
+        lastModified: centre.updated_at || undefined,
+        changeFrequency: "monthly",
+        priority: 0.4,
+      });
+    }
+    return pages;
+  } catch {
+    return [];
+  }
+}
 
 export const revalidate = 3600
 
@@ -73,9 +111,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.7,
       }))
 
-    return [...staticPages, ...blogPages, ...listingPages]
+    return [...staticPages, ...blogPages, ...listingPages, ...directoryPages]
   } catch (error) {
     console.error("No se pudieron añadir anuncios al sitemap:", error)
-    return [...staticPages, ...blogPages]
+    return [...staticPages, ...blogPages, ...directoryPages]
   }
 }
