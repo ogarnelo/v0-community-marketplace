@@ -85,7 +85,7 @@ export async function POST(request: Request) {
 
     const [
       { data: profile, error: profileError },
-      { data: schoolAdminRole, error: schoolAdminRoleError },
+      { data: schoolAdminRoles, error: schoolAdminRoleError },
       { data: primaryStudentContext, error: primaryStudentContextError },
     ] = await Promise.all([
       supabase
@@ -98,9 +98,7 @@ export async function POST(request: Request) {
         .select("school_id")
         .eq("user_id", user.id)
         .eq("role", "school_admin")
-        .not("school_id", "is", null)
-        .limit(1)
-        .maybeSingle(),
+        .limit(2),
       supabase
         .from("account_students")
         .select("school_id,directory_school_code,is_primary,sort_order,created_at")
@@ -125,13 +123,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "postal_code_required" }, { status: 422 });
     }
 
+    // Match the school feed: never choose an arbitrary LIMIT 1 from
+    // contradictory or unscoped school_admin grants.
+    let managedSchoolId: string | null;
+    try {
+      managedSchoolId = resolveUniqueSchoolAdminSchoolId(schoolAdminRoles);
+    } catch {
+      return NextResponse.json({ ok: false, error: "school_context_unavailable" },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    }
+
     // Match the exact school context shown on /marketplace:
     // a selected directory school takes precedence over stale profile.school_id.
     let familyScopeMode: "single" | "active_family" = "single";
-    let directorySchoolCode = schoolAdminRole?.school_id
+    let directorySchoolCode = managedSchoolId
       ? null : primaryStudentContext?.directory_school_code?.trim() || null;
     let schoolId =
-      schoolAdminRole?.school_id?.trim() ||
+      managedSchoolId ||
       (primaryStudentContext
         ? primaryStudentContext.school_id?.trim() || null
         : profile?.school_id?.trim() || null);
