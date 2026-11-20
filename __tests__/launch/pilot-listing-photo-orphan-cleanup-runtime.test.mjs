@@ -17,10 +17,11 @@ const compiled=ts.transpileModule(source,{fileName:"cleanup.ts",reportDiagnostic
  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});
 assert.equal((compiled.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
 const exports={};
+const observedErrors=[];
 vm.runInNewContext(compiled.outputText,{exports,require(name){
  if(name==="@/lib/supabase/admin")return{};
  throw Error("Unexpected import "+name);
-},Map,Promise,URL,Set,decodeURIComponent,console:{error:()=>{}}},{timeout:2000});
+},Map,Promise,URL,Set,decodeURIComponent,console:{error:(...args)=>observedErrors.push(args)}},{timeout:2000});
 function fixture({references=[],errors=[],storageFails=false}={}){
  const calls=[];
  const admin={
@@ -74,6 +75,22 @@ for(const table of ["listings","listing_photos","listing_drafts"]){
   }
  });
 }
+test("four reference checks log only fixed names and never provider messages",async()=>{
+ for(const [table,expected] of [["listings","PHOTO_REF_listing_array"],
+  ["listing_photos","PHOTO_REF_photo_rows"],["listing_drafts","PHOTO_REF_draft_url"]]){
+  observedErrors.length=0;
+  const h=fixture({errors:[table]});
+  await h.cleanup([safe]);
+  assert.equal(h.calls.some(x=>x.type==="remove"),false);
+  assert.equal(observedErrors.length,1);
+  assert.equal(observedErrors[0][0],"listing_photo_orphan_cleanup_reference_unavailable");
+  assert.equal(observedErrors[0][1],expected);
+  assert.doesNotMatch(JSON.stringify(observedErrors),/private|https:\/\/|11111111/);
+ }
+ assert.match(source,/PHOTO_REF_UNKNOWN/);
+ assert.match(source,/draft_path/);
+});
+
 test("provider error is best effort and never leaks provider details to requester",async()=>{
  const h=fixture({storageFails:true});
  await assert.doesNotReject(h.cleanup([safe]));
