@@ -1,0 +1,51 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+
+const file = "scripts/pilot-anon-select-postgrest-pg17.py";
+const source = readFileSync(file, "utf8");
+const critical = readFileSync(".github/workflows/contracts.yml", "utf8");
+const pg17 = readFileSync(".github/workflows/pilot-synthetic-db-storage-recovery.yml", "utf8");
+const tables = ["agreements", "demand_requests", "profiles", "saved_searches", "schools"];
+
+test("PostgREST test only reaches named local PG17 and local HTTP", () => {
+  assert.match(source, /Refusing nonlocal\/non-disposable PostgreSQL/);
+  assert.match(source, /parts\.hostname not in \("localhost", "127\.0\.0\.1", "::1"\)/);
+  assert.match(source, /parts\.path != "\/" \+ SOURCE_DB/);
+  assert.match(source, /local_only_password/);
+  assert.match(source, /Refusing to overwrite existing QA database/);
+  assert.match(source, /"127\.0\.0\.1"/);
+  assert.match(source, /"--network", "host"/);
+  assert.match(source, /"docker", "rm", "-f"/);
+  assert.match(source, /drop database if exists/);
+  assert.match(source, /pilot-anon-select-wave1-local-only\.sql/);
+  assert.doesNotMatch(source, /supabase\.co|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_DB_URL/i);
+  const parsed = spawnSync("python3", ["-c",
+    "import ast,pathlib;ast.parse(pathlib.Path('" + file + "').read_text())"],
+    { encoding:"utf8", timeout:5000 });
+  assert.equal(parsed.status, 0, parsed.stderr);
+});
+
+test("HTTP test checks guest before/after, separate signed owner and non-owner RLS", () => {
+  for (const table of tables) assert.ok(source.includes('"' + table + '"'));
+  assert.match(source, /check_rows\(expected_revoke=False\)/);
+  assert.match(source, /check_rows\(expected_revoke=True\)/);
+  assert.match(source, /guest\.get\("code"\)\s*!=\s*"42501"/);
+  assert.match(source, /status\s+not\s+in\s+\(401,\s*403\)/);
+  assert.match(source, /signed_user_jwt\(OWNER\)/);
+  assert.match(source, /signed_user_jwt\(OTHER\)/);
+  assert.match(source, /len\(result\)\s*!=\s*1/);
+  assert.match(source, /request\.jwt\.claim\.sub/);
+  assert.match(source, /enable row level security/);
+  assert.match(source, /IMAGE\s*=\s*"postgrest\/postgrest:v[0-9]/);
+});
+
+test("static critical guard and isolated PG17 workflow both exercise new HTTP probe", () => {
+  assert.ok(critical.includes("node --test __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs"));
+  assert.ok(pg17.includes('"scripts/pilot-anon-select-postgrest-pg17.py"'));
+  assert.ok(pg17.includes('"__tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs"'));
+  assert.ok(pg17.includes("python3 scripts/pilot-anon-select-postgrest-pg17.py"));
+  assert.match(pg17, /image: postgres:17/);
+  assert.match(pg17, /127\.0\.0\.1:5432\/wetudy_pilot_dr_source/);
+});
