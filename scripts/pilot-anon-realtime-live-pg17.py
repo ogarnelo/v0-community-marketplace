@@ -224,7 +224,18 @@ try:
                       allow_fail=True).stderr
         raise AssertionError("Local Realtime tenant not ready: " + log[-4500:])
 
-    command(["node", str(WS_TEST), "before"], timeout=110)
+    def check_phase(phase):
+        try:
+            command(["node", str(WS_TEST), phase], timeout=125)
+        except Exception as error:
+            logs = command(["docker", "logs", "--tail", "115", RT_NAME],
+                           allow_fail=True).stderr
+            slots = postgres("select coalesce(string_agg(slot_name||chr(58)||plugin||chr(58)||active::text, chr(44)),chr(45)) from pg_replication_slots")
+            raise AssertionError("Isolated Realtime diagnostics, phase=" + phase +
+                                 ", replication_slots=" + slots +
+                                 ", server_logs_tail=" + logs[-8800:]) from error
+
+    check_phase("before")
     pgfile(PROPOSAL)
     for table in TARGETS:
         permitted = postgres("select has_table_privilege('anon',"
@@ -235,7 +246,7 @@ try:
                         "'public." + table + "','SELECT')")
         if auth != "t":
             raise AssertionError("Authenticated SELECT removed from " + table)
-    command(["node", str(WS_TEST), "after"], timeout=110)
+    check_phase("after")
 
     print("PASS: REAL Realtime websocket postgres_changes delivered fake agreement "
           "updates exclusively to buyer/seller before and after exact five-table "
