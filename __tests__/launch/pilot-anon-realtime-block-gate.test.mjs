@@ -18,6 +18,12 @@ test("Realtime WebSocket test refuses real Supabase environments", () => {
   assert.match(python, /postgres:17/);
   assert.match(python, /supabase\/realtime:v2\./);
   assert.match(python, /wal_level=logical/);
+  assert.match(python, /CREATE ROLE dashboard_user NOLOGIN/);
+  assert.match(python, /realtime\.schema_migrations/);
+  assert.match(python, /20261009120000/);
+  assert.match(python, /Local Realtime tenant migrations not ready/);
+  assert.match(python, /before WebSocket subscription/);
+
   assert.match(python, /except \(HTTPError, URLError, TimeoutError, ConnectionError\)/);
   assert.match(python, /for attempt in range\(2\):/);
   assert.match(python, /attempt == 0 and "transport failure" in str\(error\)/);
