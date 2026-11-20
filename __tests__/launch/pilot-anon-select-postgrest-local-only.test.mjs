@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 
 const file = "scripts/pilot-anon-select-postgrest-pg17.py";
 const source = readFileSync(file, "utf8");
+const rollback = readFileSync("scripts/pilot-anon-select-rollback-local-only.sql","utf8");
 const critical = readFileSync(".github/workflows/contracts.yml", "utf8");
 const pg17 = readFileSync(".github/workflows/pilot-synthetic-db-storage-recovery.yml", "utf8");
 const tables = ["agreements", "demand_requests", "profiles", "saved_searches", "schools"];
@@ -55,6 +56,27 @@ test("HTTP test checks guest before/after, separate signed owner and non-owner R
   assert.match(source, /42501 -> 200\/empty/);
 
   assert.match(source, /IMAGE\s*=\s*"postgrest\/postgrest:v[0-9]/);
+});
+
+test("compensating GRANT is fail-closed in named local DB and NEVER production-ready",()=>{
+  assert.match(rollback,/NOT a migration or authorization for hosted Supabase/);
+  assert.match(rollback,/current_database\(\) <> 'wetudy_pilot_anon_select_wave1'/);
+  assert.match(rollback,/Refusing rollback outside disposable named PG17 QA database/);
+  assert.match(rollback,/Rollback blocked: anon already has SELECT on/);
+  assert.match(rollback,/Rollback blocked: anonymous SELECT policy drift/);
+  assert.match(rollback,/has_table_privilege\('authenticated',object_oid,'SELECT'\)/);
+  assert.match(rollback,/has_table_privilege\('service_role',object_oid,'SELECT'\)/);
+  assert.match(rollback,/GRANT SELECT ON TABLE/);
+  assert.match(rollback,/TO anon;/);
+  assert.match(rollback,/COMMIT;/);
+  for(const table of tables)assert.ok(rollback.includes("public."+table));
+  const code=rollback.split("\n").filter(l=>!l.trimStart().startsWith("--")).join("\n");
+  assert.doesNotMatch(code,/\b(?:DROP|ALTER|CREATE|TRUNCATE|INSERT|UPDATE|DELETE)\b/i);
+  assert.doesNotMatch(code,/GRANT\s+(?:ALL|INSERT|UPDATE|DELETE)/i);
+  assert.doesNotMatch(rollback,/\.supabase\.co|https:\/\/(?:www\.)?wetudy\.com/i);
+  assert.ok(pg17.includes('"scripts/pilot-anon-select-rollback-local-only.sql"'));
+  assert.match(source,/psql\(test_url, file=ROLLBACK\)/);
+  assert.match(source,/matrix_restored != matrix_before/);
 });
 
 test("static critical guard and isolated PG17 workflow both exercise new HTTP probe", () => {
