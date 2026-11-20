@@ -13,6 +13,8 @@ on:
       - "scripts/pilot-anon-select-wave1-pg17.py"
       - "scripts/pilot-anon-select-wave1-local-only.sql"
       - "scripts/pilot-anon-select-postgrest-pg17.py"
+      - "scripts/pilot-anon-select-dependencies-readonly.sql"
+      - "__tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs"
       - "__tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs"
       - "__tests__/launch/pilot-anon-select-wave1-review-only.test.mjs"
       - "scripts/p0_public_tables_nonrls_privileges_review_only.sql"
