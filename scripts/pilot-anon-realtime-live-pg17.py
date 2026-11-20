@@ -189,6 +189,17 @@ try:
         time.sleep(1)
     if not ready:
         raise AssertionError("Disposable PG17 failed startup")
+    # The Supabase Realtime postgres_cdc_rls poller requires wal2json;
+    # stock postgres:17 does not ship that logical decoding plugin.
+    # Install inside this disposable container, never on the runner or prod DB.
+    command(["docker", "exec", "-u", "root", PG_NAME, "bash", "-lc",
+             "apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
+             "apt-get install -y -qq postgresql-17-wal2json"], timeout=180)
+    plugin = postgres("select slot_name from "
+                      "pg_create_logical_replication_slot("
+                      "'wetudy_wal2json_preflight', 'wal2json', true)")
+    if "wetudy_wal2json_preflight" not in plugin:
+        raise AssertionError("Local wal2json plugin unavailable")
     initialize()
 
     command(["docker", "run", "--rm", "-d", "--network", "host", "--name", RT_NAME,
@@ -228,8 +239,9 @@ try:
         try:
             command(["node", str(WS_TEST), phase], timeout=125)
         except Exception as error:
-            logs = command(["docker", "logs", "--tail", "115", RT_NAME],
-                           allow_fail=True).stderr
+            logs_result = command(["docker", "logs", "--tail", "115", RT_NAME],
+                                  allow_fail=True)
+            logs = logs_result.stdout + logs_result.stderr
             slots = postgres("select coalesce(string_agg(slot_name||chr(58)||plugin||chr(58)||active::text, chr(44)),chr(45)) from pg_replication_slots")
             raise AssertionError("Isolated Realtime diagnostics, phase=" + phase +
                                  ", replication_slots=" + slots +
