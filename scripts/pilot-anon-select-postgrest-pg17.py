@@ -28,6 +28,7 @@ OWNER = "11111111-1111-4111-8111-111111111111"
 OTHER = "22222222-2222-4222-8222-222222222222"
 TABLES = ("agreements", "demand_requests", "profiles", "saved_searches", "schools")
 PROPOSAL = Path(__file__).resolve().parent / "pilot-anon-select-wave1-local-only.sql"
+ROLLBACK = Path(__file__).resolve().parent / "pilot-anon-select-rollback-local-only.sql"
 
 source = os.environ.get("LOCAL_RESTORE_URL", "")
 parts = urlsplit(source)
@@ -84,6 +85,35 @@ def get(table, jwt=None):
             return response.status, json.loads(response.read().decode())
     except HTTPError as error:
         return error.code, json.loads(error.read().decode())
+
+
+def acl_fingerprint():
+    """Capture exact effective four-operation privilege matrix + RLS by table.
+
+    This catches an unrelated client privilege becoming reachable during a
+    rollback. It is not a complete pg_catalog ACL snapshot for production.
+    """
+    query = """
+      SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'relation', c.relname, 'role', r.role_name,
+        'select', has_table_privilege(r.role_name,c.oid,'SELECT'),
+        'insert', has_table_privilege(r.role_name,c.oid,'INSERT'),
+        'update', has_table_privilege(r.role_name,c.oid,'UPDATE'),
+        'delete', has_table_privilege(r.role_name,c.oid,'DELETE'),
+        'rls', c.relrowsecurity
+      ) ORDER BY c.relname,r.role_name),'[]'::jsonb)
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      CROSS JOIN (VALUES ('anon'),('authenticated'),('service_role'))
+        AS r(role_name)
+      WHERE n.nspname='public'
+        AND c.relname IN ('agreements','demand_requests','profiles',
+                          'saved_searches','schools')
+    """
+    matrix = json.loads(psql(test_url, query))
+    if len(matrix) != 15 or not all(x["rls"] for x in matrix):
+        raise AssertionError("Missing RLS matrix or target table in fixture")
+    return matrix
 
 
 def check_rows(expected_revoke):
@@ -187,17 +217,49 @@ try:
         details = run(["docker", "logs", "--tail", "35", CONTAINER])[1]
         raise AssertionError("Local PostgREST did not become ready: " + details[-500:])
 
+    # A rollback script is NOT allowed before the matching revoke.
+    matrix_before = acl_fingerprint()
+    if not all(row["select"] for row in matrix_before):
+        raise AssertionError("Baseline grants missing before rollback drill")
+    rollback_early = run([
+        "psql", "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1",
+        "--dbname", test_url, "-f", str(ROLLBACK)
+    ], ok=False)
+    if "Rollback blocked: anon already has SELECT" not in rollback_early[1]:
+        raise AssertionError("Expected fail-closed rollback preflight")
+    if acl_fingerprint() != matrix_before:
+        raise AssertionError("Early rollback unexpectedly changed grants")
     check_rows(expected_revoke=False)
+
     psql(test_url, file=PROPOSAL)
+    matrix_revoked = acl_fingerprint()
+    for original, revoked in zip(matrix_before, matrix_revoked):
+        expected = dict(original)
+        if expected["role"] == "anon":
+            expected["select"] = False
+        if revoked != expected:
+            raise AssertionError("REVOKE changed more than five anon SELECT grants: "
+                                 + str(revoked["relation"]))
     check_rows(expected_revoke=True)
+
+    # Simulate compensating action after the actual five-table change:
+    # five grants only, restoring original HTTP status (42501 -> 200/empty).
+    psql(test_url, file=ROLLBACK)
+    matrix_restored = acl_fingerprint()
+    if matrix_restored != matrix_before:
+        raise AssertionError("Rollback failed to restore EXACT original "
+                             "effective permission matrix or RLS")
+    check_rows(expected_revoke=False)
     if psql(test_url, "select count(*) from pg_class c join pg_namespace n "
             "on n.oid=c.relnamespace where n.nspname='public' and "
             "c.relname in ('agreements','demand_requests','profiles',"
             "'saved_searches','schools') and c.relrowsecurity") != "5":
         raise AssertionError("RLS turned off in PostgREST fixture")
-    print("PASS: local PostgREST denies five anonymous HTTP table reads and "
-          "the dependent security_invoker view; signed owners retain only "
-          "their synthetic rows; RLS and session separation hold.")
+    print("PASS: local PostgREST five-table rollback drill: guest HTTP "
+          "200/empty -> 42501 -> 200/empty; invoker view follows same "
+          "status sequence; owners retain isolated JWT rows in all phases; "
+          "original 15-role ACL/RLS matrix restored exactly; early rollback "
+          "rejected without changes.")
 finally:
     if container_started:
         run(["docker", "rm", "-f", CONTAINER], timeout=20)
