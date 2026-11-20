@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Internal only. Accept school IDs only from a freshly verified federation
 // representation decision, never directly from user-provided query strings.
 // No route imports this module while the reporting flag is disabled.
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MIN_PRIVATE_COHORT = 5;
 const MAX_REPRESENTED_SCHOOLS = 100;
 
