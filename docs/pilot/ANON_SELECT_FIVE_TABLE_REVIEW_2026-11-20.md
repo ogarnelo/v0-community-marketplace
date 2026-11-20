@@ -20,12 +20,23 @@ On Supabase project Education Marketplace, PostgreSQL 17 catalog metadata-only S
 
 All five intended targets preserve authenticated and service_role direct SELECT grants. The catalog queries also found no extra role memberships for anon. This is **not** a proof about every API/RPC/view or about end-to-end HTTP behavior; RLS still needs to be audited if policies change. A harmless-looking grant can become dangerous following later policy drift.
 
+## Dependent views and caveats (metadata-only production check)
+
+A read-only pg_rewrite/pg_depend query identifies two views depending on the five target tables:
+
+| View | Depends on | Direct/effective anon SELECT | security_invoker |
+|---|---|---|---|
+| public.demand_opportunities_30d | public.demand_requests | yes | true |
+| public.saved_search_demand_summary | public.saved_searches | no | true |
+
+GitHub code search in modern main found **no references** to demand_opportunities_30d and five references to saved_search_demand_summary (migrations, docs, and tests). Absence of code references does **not** rule out external clients, stored procedures, or RPC. An anonymous query to an invoker view may start returning a permission error after the underlying grant is revoked; the synthetic HTTP harness explicitly covers this behavior. Do not silently remove the view grant as part of the five-table proposal. Static function dependency query returned no pg_proc dependencies; dynamic SQL/PLpgSQL dependencies are not exhaustively captured that way.
+
 ## Files and tests
 
 - scripts/pilot-anon-select-wave1-local-only.sql: disposable-database guard; RLS/policy preflight; five explicit REVOKE SELECT; postflight requiring no effective table or column SELECT for anon, while authenticated and service_role retain SELECT. It also rejects SELECT inherited through PUBLIC or residual column ACLs rather than pretending the revoke succeeded.
 - scripts/pilot-anon-select-wave1-pg17.py: PostgreSQL 17 disposable local DB, synthetic ownership/RLS, five role grants, two non-target controls, idempotence, re-grant recovery, rollback on PUBLIC and column privilege drift, and unexpected anonymous RLS policy denial. No real-family fixtures.
 - __tests__/launch/pilot-anon-select-wave1-review-only.test.mjs: static contract, Python parse, CI coupling, and no remote DB configuration.
-- scripts/pilot-anon-select-postgrest-pg17.py: starts official version-tagged PostgREST Docker container on the GitHub runner's loopback interface, backed only by a disposable PostgreSQL17 database; checks the five table endpoints before and after REVOKE using anonymous HTTP and signed synthetic authenticated JWTs for two distinct owners. No live Supabase endpoint or real credentials are used.
+- scripts/pilot-anon-select-postgrest-pg17.py: starts official version-tagged PostgREST Docker container on the GitHub runner's loopback interface, backed only by a disposable PostgreSQL17 database; checks the five table endpoints and an invoker-view dependency before and after REVOKE using anonymous HTTP and signed synthetic authenticated JWTs for two distinct owners. No live Supabase endpoint or real credentials are used.
 - __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs: contracts ensuring the HTTP test is loopback-only, synthetically authenticated, and executed by the isolated PG17 workflow.
 - .github/workflows/contracts.yml: required critical-contracts job executes static contract.
 - .github/workflows/pilot-synthetic-db-storage-recovery.yml: PR-triggered isolated PostgreSQL 17 execution and HTTP PostgREST probe with loopback-only URLs; never pointed to Supabase. Docker image `postgrest/postgrest:v14.18` is a tool for testing PostgREST permission enforcement, not a statement about the live Supabase API version.
