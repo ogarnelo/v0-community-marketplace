@@ -45,6 +45,9 @@ test("real three-school AMPA SSR page retains isolation and group authorization 
   assert.match(admin,/has_table_privilege\('service_role'/);
   assert.match(admin,/f\|t\|t/);
   assert.match(admin,/wetudy_ampa_private_anon_revoke_local_20261120/);
+  assert.match(admin,/current_database\(\)\|\|'\|'\|\|current_setting\('application_name'\)/);
+  assert.match(admin,/Refuse to revoke any permissions except in disposable private-school QA/);
+  assert.doesNotMatch(admin,/sql\("DO \$ BEGIN/);
   assert.match(adminSql,/Refuse private-school QA outside designated local stack/);
   assert.match(adminWorkflow,/PGAPPNAME: wetudy_ampa_private_anon_revoke_local_20261120/);
   assert.match(adminWorkflow,/supabase@2\.121\.0/);
