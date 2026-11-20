@@ -237,6 +237,9 @@ jobs:
       - name: School QR sharing is authorized only by one active school_admin
         run: node --test __tests__/launch/p0-share-qr-global-school-scope-runtime.test.mjs
 
+      - name: Offline national directory importer validation (no real network)
+        run: python3 -m unittest discover -s scripts -p test_import_school_directory.py -v
+
       - name: Mandatory production Next.js compilation and sitemap prerender
         # This step stays IN critical-contracts so a build failure cannot pass
         # the existing main-branch critical-contracts check.
