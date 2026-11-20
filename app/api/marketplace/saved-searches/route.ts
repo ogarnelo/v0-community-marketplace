@@ -22,12 +22,19 @@ function cleanNumber(value: unknown) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      const sessionMissing = authError.name === "AuthSessionMissingError" ||
+        authError.code === "session_not_found";
+      return NextResponse.json(
+        { ok: false, error: sessionMissing ? "auth_required" : "auth_unavailable" },
+        { status: sessionMissing ? 401 : 503,
+          headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
     if (!user) {
-      return NextResponse.json({ ok: false, error: "auth_required" }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "auth_required" },
+        { status: 401, headers: { "Cache-Control": "private, no-store" } });
     }
 
     const body = await request.json().catch(() => ({}));

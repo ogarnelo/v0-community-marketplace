@@ -49,6 +49,18 @@ test("saved-search route enforces authenticated multi-school scope and 409 befor
  assert.match(route,/if \(body\.onlyMyCommunity && !directorySchoolCode && !schoolId &&\s*familyScopeMode !== "active_family"\)/);
  assert.match(route,/WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED !== "true"/);
 });
+test("authentication provider errors fail closed before any saved-search writes",()=>{
+ assert.ok(route.includes("error: authError } = await supabase.auth.getUser()"));
+ const auth=route.indexOf("if (authError) {");
+ assert.ok(auth>0);
+ assert.ok(auth<route.indexOf('.from("saved_searches")'));
+ assert.match(route.slice(auth,auth+500),/AuthSessionMissingError/);
+ assert.match(route.slice(auth,auth+500),/session_not_found/);
+ assert.match(route.slice(auth,auth+500),/auth_unavailable/);
+ assert.match(route.slice(auth,auth+500),/status: sessionMissing \? 401 : 503/);
+ assert.match(route.slice(auth,auth+500),/private, no-store/);
+});
+
 test("context read failures deny saving before the insert or stale-school fallback",()=>{
  assert.match(route,/\{ data: profile, error: profileError \}/);
  assert.match(route,/\{ data: schoolAdminRole, error: schoolAdminRoleError \}/);
