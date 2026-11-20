@@ -73,14 +73,14 @@ test("only double-approved listed, linked and live school with genuine material 
  const f=fixture();
  assert.equal(await f.eligible(CODE),true);
  assert.ok(f.calls.some(c=>c.table==="school_directory"&&
-   c.filters.some(([k,v])=>k==="is_listed"&&v===true)&&
-   c.filters.some(([k,v])=>k==="seo_indexable"&&v===true)));
+   c.filters?.some(([k,v])=>k==="is_listed"&&v===true)&&
+   c.filters?.some(([k,v])=>k==="seo_indexable"&&v===true)));
  assert.ok(f.calls.some(c=>c.table==="schools"&&
-   c.filters.some(([k,v])=>k==="is_active"&&v===true)&&
-   c.filters.some(([k,v])=>k==="is_test"&&v===false)));
+   c.filters?.some(([k,v])=>k==="is_active"&&v===true)&&
+   c.filters?.some(([k,v])=>k==="is_test"&&v===false)));
  assert.ok(f.calls.some(c=>c.table==="listings"&&
-   c.filters.some(([k,v])=>k==="school_id"&&v===linked)&&
-   c.filters.some(([k,v])=>k==="status"&&v==="available")));
+   c.filters?.some(([k,v])=>k==="school_id"&&v===linked)&&
+   c.filters?.some(([k,v])=>k==="status"&&v==="available")));
  assert.ok(f.calls.every(c=>c.method!=="limit"||c.max<=40));
 });
 test("reject unpublished, unapproved, unlinked, demo and empty listings",async()=>{
