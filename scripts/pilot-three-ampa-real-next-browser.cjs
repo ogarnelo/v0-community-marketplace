@@ -218,11 +218,13 @@ async function ready(next,origin){
                      "','SELECT')").toString().trim();
     assert.equal(grants,"t","Fixture must initially include anon SELECT on "+table);
   }
-  sql("DO $ BEGIN IF current_database()<>'postgres' "+
-      "OR current_setting('application_name')<>"+
-      "'wetudy_ampa_private_anon_revoke_local_20261120' "+
-      "THEN RAISE EXCEPTION 'not isolated AMPA database'; END IF; END $; "+
-      "REVOKE SELECT ON public.agreements,public.demand_requests,public.profiles,"+
+  // Explicit SQL preflight avoids unsafe dollar-quoted psql fragments.
+  // The Node connection guard and initial fixture also require localhost.
+  const source=sql("select current_database()||'|'||current_setting('application_name')")
+    .toString().trim();
+  assert.equal(source,"postgres|wetudy_ampa_private_anon_revoke_local_20261120",
+    "Refuse to revoke any permissions except in disposable private-school QA");
+  sql("REVOKE SELECT ON public.agreements,public.demand_requests,public.profiles,"+
       "public.saved_searches,public.schools FROM anon; "+
       "NOTIFY pgrst,'reload schema';");
   for(const table of ["agreements","demand_requests","profiles",
