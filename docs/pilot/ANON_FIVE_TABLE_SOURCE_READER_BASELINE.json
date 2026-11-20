@@ -573,38 +573,6 @@
     {
       "path": "app/api/listings/delete/route.ts",
       "argument": "table"
-    },
-    {
-      "path": "app/api/marketplace/listing-draft/route.ts",
-      "argument": "STORAGE_BUCKET"
-    },
-    {
-      "path": "app/api/marketplace/listing-draft/route.ts",
-      "argument": "STORAGE_BUCKET"
-    },
-    {
-      "path": "app/api/marketplace/listing-draft/route.ts",
-      "argument": "STORAGE_BUCKET"
-    },
-    {
-      "path": "app/api/uploads/sanitized-photo/route.ts",
-      "argument": "bucket"
-    },
-    {
-      "path": "app/api/uploads/sanitized-photo/route.ts",
-      "argument": "bucket"
-    },
-    {
-      "path": "lib/marketplace/cleanup-deleted-listing-photos.ts",
-      "argument": "BUCKET"
-    },
-    {
-      "path": "lib/marketplace/cleanup-deleted-listing-photos.ts",
-      "argument": "BUCKET"
-    },
-    {
-      "path": "lib/marketplace/cleanup-deleted-listing-photos.ts",
-      "argument": "BUCKET"
     }
   ]
 }
