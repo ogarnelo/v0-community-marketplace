@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { DIRECTORY_COMMUNITIES, SCHOOL_DIRECTORY_PAGE_SIZE } from "@/lib/schools/public-directory-search";
 
 type Centre={
@@ -107,7 +108,10 @@ export function NationalSchoolDirectory() {
       <ul className="space-y-3">
         {result.centres.map(centre=><li key={centre.official_code}
           className="space-y-1 rounded-lg border p-4">
-          <h2 className="font-semibold">{centre.name}</h2>
+          <h2 className="font-semibold">
+            <Link href={`/centros/${centre.official_code}`}
+              className="underline-offset-2 hover:underline">{centre.name}</Link>
+          </h2>
           <p className="text-sm text-muted-foreground">
             {centre.municipality} · {centre.province} · {centre.autonomous_community}
           </p>
