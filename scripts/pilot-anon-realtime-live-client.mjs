@@ -48,9 +48,11 @@ async function openSubscription(identity) {
   });
   clients.push(socket);
   const messages = [];
+  const systemEvents = [];
   const topic = "agreement-block-" + phase + "-" + identity.role;
   const channel = socket
     .channel(topic)
+    .on("system", {}, (message) => systemEvents.push({status:message.status,message:message.message}))
     .on("postgres_changes", {
       event:"UPDATE", schema:"public", table:"agreements",
       filter:"conversation_id=eq." + conversation,
@@ -76,7 +78,7 @@ async function openSubscription(identity) {
       identity.role + " must establish authenticated postgres_changes subscription; " +
       JSON.stringify(errors));
   }
-  return {role:identity.role,allow:identity.allow,messages,subscribed,status,channel};
+  return {role:identity.role,allow:identity.allow,messages,systemEvents,subscribed,status,channel};
 }
 
 async function waitFor(callback, timeoutMs) {
@@ -111,7 +113,7 @@ try {
   assert.equal(delivered, true,
     "Both signed agreement participants must get REAL Realtime WAL UPDATE. " +
     JSON.stringify({phase,diagnostic:states.map(s=>({
-      role:s.role,joined:s.subscribed,events:s.messages.map(m=>({
+      role:s.role,joined:s.subscribed,systems:s.systemEvents,events:s.messages.map(m=>({
         event:m.eventType, status:m?.new?.status,conversation:m?.new?.conversation_id
       }))
     })),errors}));
