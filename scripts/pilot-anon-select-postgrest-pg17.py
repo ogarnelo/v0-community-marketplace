@@ -103,6 +103,20 @@ def check_rows(expected_revoke):
             if status != 200 or len(result) != 1 or result[0]["owner_id"] != uid:
                 raise AssertionError("JWT / owner RLS incompatible for " + table
                                      + " (status=" + str(status) + ")")
+    # This view remains SELECT-granted to anon but uses its invoker's
+    # underlying table rights; it must become inaccessible after the revoke.
+    view = "demand_opportunities_30d"
+    status, guest = get(view)
+    if expected_revoke:
+        if status not in (401, 403) or not isinstance(guest, dict) \
+            or guest.get("code") != "42501":
+            raise AssertionError("Guest invoker-view dependency not denied")
+    elif status != 200 or guest != []:
+        raise AssertionError("Guest invoker-view RLS baseline incorrect")
+    for user_id in (OWNER, OTHER):
+        status, rows = get(view, signed_user_jwt(user_id))
+        if status != 200 or len(rows) != 1 or rows[0]["owner_id"] != user_id:
+            raise AssertionError("Authorized invoker-view regression")
 
 
 if psql(source, "select count(*) from pg_database where datname='"
@@ -137,6 +151,13 @@ try:
         psql(test_url, "create policy owner_only on public." + table +
              " for select to authenticated using "
              "(owner_id = nullif(current_setting('request.jwt.claim.sub',true),'')::uuid)")
+
+    # Synthetic representation of a live security_invoker view dependency.
+    psql(test_url, "create view public.demand_opportunities_30d "
+         "with (security_invoker = true) as select id, owner_id "
+         "from public.demand_requests")
+    psql(test_url, "grant select on public.demand_opportunities_30d "
+         "to anon, authenticated")
 
     docker_cmd = [
         "docker", "run", "--rm", "-d", "--network", "host", "--name", CONTAINER,
@@ -174,9 +195,9 @@ try:
             "c.relname in ('agreements','demand_requests','profiles',"
             "'saved_searches','schools') and c.relrowsecurity") != "5":
         raise AssertionError("RLS turned off in PostgREST fixture")
-    print("PASS: local PostgREST denies five anonymous HTTP reads after "
-          "revoke; signed owners retain only their own synthetic rows; "
-          "RLS and session separation hold.")
+    print("PASS: local PostgREST denies five anonymous HTTP table reads and "
+          "the dependent security_invoker view; signed owners retain only "
+          "their synthetic rows; RLS and session separation hold.")
 finally:
     if container_started:
         run(["docker", "rm", "-f", CONTAINER], timeout=20)
