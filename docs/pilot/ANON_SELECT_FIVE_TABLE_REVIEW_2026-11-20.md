@@ -25,13 +25,15 @@ All five intended targets preserve authenticated and service_role direct SELECT 
 - scripts/pilot-anon-select-wave1-local-only.sql: disposable-database guard; RLS/policy preflight; five explicit REVOKE SELECT; postflight requiring no effective table or column SELECT for anon, while authenticated and service_role retain SELECT. It also rejects SELECT inherited through PUBLIC or residual column ACLs rather than pretending the revoke succeeded.
 - scripts/pilot-anon-select-wave1-pg17.py: PostgreSQL 17 disposable local DB, synthetic ownership/RLS, five role grants, two non-target controls, idempotence, re-grant recovery, rollback on PUBLIC and column privilege drift, and unexpected anonymous RLS policy denial. No real-family fixtures.
 - __tests__/launch/pilot-anon-select-wave1-review-only.test.mjs: static contract, Python parse, CI coupling, and no remote DB configuration.
+- scripts/pilot-anon-select-postgrest-pg17.py: starts official version-tagged PostgREST Docker container on the GitHub runner's loopback interface, backed only by a disposable PostgreSQL17 database; checks the five table endpoints before and after REVOKE using anonymous HTTP and signed synthetic authenticated JWTs for two distinct owners. No live Supabase endpoint or real credentials are used.
+- __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs: contracts ensuring the HTTP test is loopback-only, synthetically authenticated, and executed by the isolated PG17 workflow.
 - .github/workflows/contracts.yml: required critical-contracts job executes static contract.
-- .github/workflows/pilot-synthetic-db-storage-recovery.yml: PR-triggered isolated PostgreSQL 17 execution with loopback-only URL; never pointed to Supabase.
+- .github/workflows/pilot-synthetic-db-storage-recovery.yml: PR-triggered isolated PostgreSQL 17 execution and HTTP PostgREST probe with loopback-only URLs; never pointed to Supabase. Docker image `postgrest/postgrest:v14.18` is a tool for testing PostgREST permission enforcement, not a statement about the live Supabase API version.
 
 ## Hold points before ANY future production change
 
 1. Finish a separate inventory of actual anonymous callers, SSR, browser, Data API and RPC/SECURITY DEFINER dependencies, views, Realtime and column ACLs. Static source checks are insufficient.
-2. Verify signed-in owner, admin, and public read paths against an isolated PostgREST and representative synthetic schema and explicit failure/rollback. This PG17 fixture tests privilege mechanics, **not** complete Supabase or browser integration.
+2. Run application-level browser and authenticated admin/family paths against an isolated representative Supabase stack (or authorized pilot QA); the local PostgREST HTTP smoke validates permission enforcement and simulated owner isolation, but **does not** reproduce every live Supabase schema, JWT/RLS function, RPC, Storage, Realtime or Next.js end-to-end behavior.
 3. Create a separate, independently reviewed production migration only after risk and compatibility checks; confirm current grants, RLS and client versions again immediately before rollout. Require explicit permission for grant changes.
 4. Preserve the ability to restore the exact recorded grants on rollback, and verify real postflight. Do not activate the pilot for this.
 
