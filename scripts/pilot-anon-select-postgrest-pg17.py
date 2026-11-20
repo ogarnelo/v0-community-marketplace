@@ -150,7 +150,7 @@ try:
              " to anon,authenticated,service_role")
         psql(test_url, "create policy owner_only on public." + table +
              " for select to authenticated using "
-             "(owner_id = nullif(current_setting('request.jwt.claim.sub',true),'')::uuid)")
+             "(owner_id = (nullif(current_setting('request.jwt.claims',true),'')::jsonb ->> 'sub')::uuid)")
 
     # Synthetic representation of a live security_invoker view dependency.
     psql(test_url, "create view public.demand_opportunities_30d "
