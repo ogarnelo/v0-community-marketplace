@@ -36,7 +36,7 @@ test("HTTP test checks guest before/after, separate signed owner and non-owner R
   assert.match(source, /signed_user_jwt\(OWNER\)/);
   assert.match(source, /signed_user_jwt\(OTHER\)/);
   assert.match(source, /len\(result\)\s*!=\s*1/);
-  assert.match(source, /request\.jwt\.claim\.sub/);
+  assert.match(source, /request\.jwt\.claims/);
   assert.match(source, /enable row level security/);
   assert.match(source, /create view public\.demand_opportunities_30d/);
   assert.match(source, /security_invoker = true/);
