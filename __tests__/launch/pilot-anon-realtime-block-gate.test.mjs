@@ -19,6 +19,11 @@ test("Realtime WebSocket test refuses real Supabase environments", () => {
   assert.match(python, /supabase\/realtime:v2\./);
   assert.match(python, /wal_level=logical/);
   assert.match(python, /except \(HTTPError, URLError, TimeoutError, ConnectionError\)/);
+  assert.match(python, /for attempt in range\(2\):/);
+  assert.match(python, /attempt == 0 and "transport failure" in str\(error\)/);
+  assert.match(python, /Local Realtime retry guard exhausted/);
+  assert.match(python, /Never retry missing WAL/);
+
   assert.match(python, /CREATE PUBLICATION supabase_realtime FOR TABLE public\.agreements/);
   assert.match(python, /no prod/i);
   assert.match(python, /docker", "rm", "-f"/);
