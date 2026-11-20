@@ -16,7 +16,17 @@ CREATE TABLE public.profiles (
   id uuid PRIMARY KEY, full_name text, school_id uuid, postal_code text
 );
 CREATE TABLE public.saved_searches (
-  id uuid PRIMARY KEY, user_id uuid NOT NULL, query text
+  id uuid PRIMARY KEY, user_id uuid NOT NULL, query text,
+  isbn_query text, category text, grade_level text, listing_type text,
+  condition text, only_my_community boolean DEFAULT false,
+  radius_km numeric, need_details text, results_count integer DEFAULT 0,
+  notifications_enabled boolean DEFAULT false, intent_source text,
+  demand_request_id uuid, created_at timestamptz DEFAULT now()
+);
+CREATE TABLE public.saved_search_matches (
+  id uuid PRIMARY KEY, user_id uuid NOT NULL,
+  listing_id uuid NOT NULL, saved_search_id uuid NOT NULL,
+  matched_at timestamptz DEFAULT now()
 );
 CREATE TABLE public.demand_requests (
   id uuid PRIMARY KEY, owner_id uuid NOT NULL, title text
@@ -42,6 +52,7 @@ CREATE TABLE public.listing_photos (
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.saved_search_matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.demand_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agreements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY;
@@ -54,6 +65,10 @@ CREATE POLICY wetudy_local_profile_self ON public.profiles FOR SELECT TO authent
   USING (id = (SELECT auth.uid()));
 CREATE POLICY wetudy_local_saved_self ON public.saved_searches FOR SELECT TO authenticated
   USING (user_id = (SELECT auth.uid()));
+CREATE POLICY wetudy_local_search_matches_self ON public.saved_search_matches
+  FOR SELECT TO authenticated USING (user_id = (SELECT auth.uid()));
+CREATE POLICY wetudy_local_listings_available ON public.listings
+  FOR SELECT TO authenticated USING (status = 'available');
 CREATE POLICY wetudy_local_demand_self ON public.demand_requests FOR SELECT TO authenticated
   USING (owner_id = (SELECT auth.uid()));
 CREATE POLICY wetudy_local_agreement_participants ON public.agreements
@@ -64,6 +79,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT SELECT ON public.schools,public.profiles,public.saved_searches,
   public.demand_requests,public.agreements TO anon,authenticated,service_role;
 GRANT SELECT ON public.listings,public.listing_photos TO service_role;
+GRANT SELECT ON public.saved_search_matches,public.listings TO authenticated;
 
 INSERT INTO public.schools(id,name,city,is_active,is_test) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','COLEGIO QA DELTA','Ciudad ficticia',true,false),
