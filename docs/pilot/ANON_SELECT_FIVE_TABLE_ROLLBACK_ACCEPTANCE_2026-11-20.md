@@ -8,13 +8,31 @@
 
 Se prueba exclusivamente retirar `SELECT` del rol de base de datos `anon` sobre `public.agreements`, `public.demand_requests`, `public.profiles`, `public.saved_searches` y `public.schools`. No se modifican políticas RLS, privilegios de `authenticated` o `service_role`, vistas, publicaciones Realtime ni el esquema de producción. La propuesta de SQL ya existente está protegida por el nombre de base de datos ficticia `wetudy_pilot_anon_select_wave1`.
 
+## ACL observadas en producción (consulta de catálogo SOLO LECTURA)
+
+La inspección real de `pg_class.relacl`, `pg_attribute.attacl`, `pg_policies` y `pg_roles` el 20/11/2026 encontró lo siguiente. **No se ha ejecutado ninguna sentencia de escritura ni cambiado un permiso en el proyecto alojado.** Son permisos de tabla completos, no una autorización para que el invitado pueda operar con filas.
+
+| Tabla | Permisos directos actuales de `anon` | RLS | Políticas para `anon` / `PUBLIC` | ACL por columna |
+|---|---|---|---|---|
+| `agreements` | `SELECT`, `MAINTAIN` | Activo | Ninguna | Ninguna |
+| `demand_requests` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Activo | Ninguna | Ninguna |
+| `profiles` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Activo | Ninguna | Ninguna |
+| `saved_searches` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Activo | Ninguna | Ninguna |
+| `schools` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Activo | Ninguna | Ninguna |
+
+`anon` es rol NOLOGIN y sin BYPASSRLS. Las políticas RLS existentes no autorizan operaciones de fila anónimas mediante `anon`. **Sin embargo, RLS no gobierna todas las operaciones de mantenimiento**, por lo que el `MAINTAIN` de `agreements` exige una revisión de alcance y conectividad/roles separada del cambio de `SELECT`. Los permisos de escritura heredados tampoco deben confundirse con permisos efectivos para insertar/actualizar filas; el riesgo reaparece si alguien altera las políticas RLS o las membresías más adelante.
+
+**Requisito de reversión:** al actuar únicamente sobre cinco `SELECT`, los otros privilegios `INSERT`, `UPDATE`, `DELETE`, `MAINTAIN` y los de `authenticated`/`service_role` deben permanecer **idénticos** antes, después y durante la restauración. Por ello el ensayo PG17/PostgREST utiliza ahora el mismo perfil de ACL observado y una huella de las ocho operaciones principales. También intenta un `POST` anónimo en cada fase para verificar que RLS lo rechaza con `42501` y no crea filas ficticias. **No se propone ni autoriza ampliar el alcance de esta PR a revocaciones DML/MAINTAIN reales**: cualquier remediación adicional necesita inventario y revisión independiente dentro del mismo bloque de privacidad.
+
 ## Prueba reproducible de tres fases
 
-1. **Antes**: en una base PostgreSQL 17 desechable con datos artificiales se conservan cinco `GRANT SELECT` para `anon`, RLS activo y ninguna política de lectura anónima. Se captura una matriz de 15 combinaciones (cinco tablas por tres roles), para cada una `SELECT`, `INSERT`, `UPDATE`, `DELETE` y el estado RLS. PostgREST debe contestar HTTP 200 con `[]` para invitados; compradores autenticados reciben exclusivamente su propia fila; la vista ficticia `security_invoker=true` devuelve `[]` al invitado. El script compensatorio debe **rechazar una ejecución prematura** sin cambiar la matriz.
+1. **Antes**: en una base PostgreSQL 17 desechable con datos artificiales se conservan cinco `GRANT SELECT` para `anon`, RLS activo y ninguna política de lectura anónima. Se captura una matriz de 15 combinaciones (cinco tablas por tres roles), para cada una `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER` y `MAINTAIN`, más el estado RLS. PostgREST debe contestar HTTP 200 con `[]` para invitados; compradores autenticados reciben exclusivamente su propia fila; la vista ficticia `security_invoker=true` devuelve `[]` al invitado. El script compensatorio debe **rechazar una ejecución prematura** sin cambiar la matriz.
 2. **Después de retirar el permiso local**: exclusivamente en esa base se ejecuta `scripts/pilot-anon-select-wave1-local-only.sql`. La matriz solo puede variar en los cinco valores `anon SELECT`. Las cinco rutas REST anónimas y la vista invocadora pasan a error PostgreSQL `42501` (HTTP 401/403); las sesiones autenticadas siguen aisladas. Se verifica que RLS continúa activo.
 3. **Restauración local**: `scripts/pilot-anon-select-rollback-local-only.sql`, que también exige nombre de base ficticia, permisos intermedios exactos, RLS y ausencia de políticas anónimas, concede únicamente los cinco `SELECT` de prueba. La matriz completa de privilegios y RLS debe ser idéntica a la original; la vista y las cinco rutas anónimas vuelven a **HTTP 200 y `[]`**, nunca a mostrar filas privadas. En paralelo, la prueba real Next.js + Chromium + Supabase CLI repite las tres fases manteniendo las mismas sesiones de comprador, vendedor y tercero, el invitado, la página `/account/saved-searches`, `/api/schools/public` y `/api/marketplace/feed`: las respuestas SSR públicas/privadas autorizadas deben ser idénticas antes, durante y después.
 
 Los tests fallan si la revocación altera permisos de escritura, el acceso de `authenticated`/`service_role`, la propiedad de datos, los códigos de respuesta esperados, el aislamiento entre usuarios o el alcance exacto del rollback.
+
+**Realtime:** en el servidor local `supabase/realtime:v2.148.3`, el comprador y el vendedor ficticios deben recibir una actualización WAL real en cada uno de los tres estados (`before`, `after`, `restored`); invitado y tercero no deben recibir datos de acuerdo en ninguna fase. Se requiere completar la migración tenant antes de suscribirse. Esto no sustituye pruebas de terceros.
 
 **Límite:** son fixtures sintéticos mínimos, no un clon completo de la política RLS, los grants heredados, permisos por columna, hooks, versión exacta de PostgREST ni aplicaciones de clientes externos. `GRANT SELECT TO anon` no reproduce necesariamente todos los ACL originales en un proyecto con personalizaciones; por eso **no puede copiarse la compensación local como procedimiento de rollback productivo**.
 
