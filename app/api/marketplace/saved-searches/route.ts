@@ -77,9 +77,9 @@ export async function POST(request: Request) {
     }
 
     const [
-      { data: profile },
-      { data: schoolAdminRole },
-      { data: primaryStudentContext },
+      { data: profile, error: profileError },
+      { data: schoolAdminRole, error: schoolAdminRoleError },
+      { data: primaryStudentContext, error: primaryStudentContextError },
     ] = await Promise.all([
       supabase
         .from("profiles")
@@ -105,6 +105,14 @@ export async function POST(request: Request) {
         .limit(1)
         .maybeSingle(),
     ]);
+
+    // Do not persist a search against a partial school/postcode context.
+    // A transient RLS/provider failure must never silently fall back to a
+    // stale profile school or erase a community/radius restriction.
+    if (profileError || schoolAdminRoleError || primaryStudentContextError) {
+      return NextResponse.json({ ok: false, error: "school_context_unavailable" },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    }
 
     if (radiusKm !== null && !hasKnownPostalCode(profile?.postal_code)) {
       return NextResponse.json({ ok: false, error: "postal_code_required" }, { status: 422 });
