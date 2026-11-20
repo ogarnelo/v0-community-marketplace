@@ -105,6 +105,8 @@ jobs:
         run: node --test __tests__/launch/pilot-anon-select-postgrest-local-only.test.mjs
       - name: Anonymous SELECT realtime RPC and view dependencies must stay review-only
         run: node --test __tests__/launch/pilot-anon-select-dependencies-review-only.test.mjs
+      - name: Realtime privacy block cannot close without genuine four-actor WebSocket scenario
+        run: node --test __tests__/launch/pilot-anon-realtime-block-gate.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
