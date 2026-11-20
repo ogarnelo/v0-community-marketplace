@@ -208,7 +208,11 @@ async function authenticatedReads(buyer,seller,outsider,identities) {
     assert.deepEqual(agreements.data.map(a=>a.id),allow?[agreementId]:[]);
     const saved=await rawRead(actor,"saved_searches","id,user_id,query");
     assert.equal(saved.error,null,JSON.stringify(saved));
-    assert.equal(saved.data.length,actor===buyer?1:0);
+    assert.equal(saved.data.length,actor===outsider?0:1);
+    if(actor!==outsider){
+      assert.equal(saved.data[0].query,actor===buyer?
+        "PRIVADA_BUYER_LIBROS":"PRIVADA_SELLER_MATERIAL");
+    }
     const demand=await rawRead(actor,"demand_requests","id,owner_id,title");
     assert.equal(demand.error,null,JSON.stringify(demand));
     assert.equal(demand.data.length,actor===buyer?1:0);
