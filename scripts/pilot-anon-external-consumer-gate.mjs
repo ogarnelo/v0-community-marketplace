@@ -26,7 +26,7 @@ const independent=[
  "owner_signed_view_and_rpc_consumers",
  "representative_private_family_admin_end_to_end",
  "database_owner_review_of_production_rollback",
- "independent_security_review"
+ "independent_security_review","owner_signed_legacy_anon_grant_review"
 ];
 function requiredString(value){
  return typeof value==="string"&&value.trim().length>=4;
