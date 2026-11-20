@@ -21,7 +21,22 @@
     "observed_direct_view_requests": 0,
     "supabase_edge_functions_deployed": 0,
     "known_invoker_view_at_risk": "public.demand_opportunities_30d",
-    "limits": "Aggregate read-only edge logs, selected REST paths only. Key classification and JWT role do not identify customer app/owner. Cannot prove absence of dormant/remote clients, indirect functions or unobserved access."
+    "limits": "Aggregate read-only edge logs, selected REST paths only. Key classification and JWT role do not identify customer app/owner. Cannot prove absence of dormant/remote clients, indirect functions or unobserved access.",
+    "production_catalog_snapshot_date": "2026-11-20",
+    "anon_direct_dml_grants": [
+      "demand_requests",
+      "profiles",
+      "saved_searches",
+      "schools"
+    ],
+    "anon_direct_maintain_grant": [
+      "agreements"
+    ],
+    "anon_has_login": false,
+    "anon_has_bypassrls": false,
+    "target_tables_with_anon_or_public_rls_policies": 0,
+    "columns_with_custom_acl_on_five_tables": 0,
+    "legacy_grant_caveat": "Read-only catalogue observation, not a verified absence of other access routes. Existing anon DML/MAINTAIN grants remain unchanged by a SELECT-only proposal; independent review mandatory."
   },
   "independent_discovery": {
     "owner_signed_external_app_inventory": false,
@@ -30,7 +45,8 @@
     "owner_signed_view_and_rpc_consumers": false,
     "representative_private_family_admin_end_to_end": false,
     "database_owner_review_of_production_rollback": false,
-    "independent_security_review": false
+    "independent_security_review": false,
+    "owner_signed_legacy_anon_grant_review": false
   },
   "consumers": [
     {
