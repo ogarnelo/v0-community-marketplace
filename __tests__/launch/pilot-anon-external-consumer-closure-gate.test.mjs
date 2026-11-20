@@ -18,6 +18,14 @@ test("external owner discovery is explicitly NOT attested; release remains NO-GO
  assert.ok(m.consumers.every(c=>c.disposition==="pending"&&
    c.responsible_owner===null&&c.independent_reviewer===null));
  assert.ok(Object.values(m.independent_discovery).every(x=>x===false));
+ assert.equal(m.independent_discovery.owner_signed_legacy_anon_grant_review,false);
+ assert.deepEqual(m.evidence.anon_direct_dml_grants,
+   ["demand_requests","profiles","saved_searches","schools"]);
+ assert.deepEqual(m.evidence.anon_direct_maintain_grant,["agreements"]);
+ assert.equal(m.evidence.anon_has_login,false);
+ assert.equal(m.evidence.anon_has_bypassrls,false);
+ assert.equal(m.evidence.target_tables_with_anon_or_public_rls_policies,0);
+ assert.equal(m.evidence.columns_with_custom_acl_on_five_tables,0);
  for(const required of [
    "external-datapi-view-rpc","external-app-mobile-automations",
    "wetudy-browser-client","wetudy-server-ssr",
@@ -63,5 +71,6 @@ test("mandatory readiness check fails closed without independent human owner sig
  assert.match(out.stderr,/external-app-mobile-automations/);
  assert.match(out.stderr,/representative_private_family_admin_end_to_end/);
  assert.match(out.stderr,/independent_security_review/);
+ assert.match(out.stderr,/owner_signed_legacy_anon_grant_review/);
  assert.match(workflow,/pilot-anon-external-consumer-closure-gate\.test\.mjs/);
 });
