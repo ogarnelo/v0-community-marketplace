@@ -181,6 +181,17 @@ test("new schema is review-only, additive, preserves legacy and rejects mixed mo
   assert.doesNotMatch(sql,/(?:^|\\n)\\s*(?:DROP TABLE|TRUNCATE|DELETE FROM|UPDATE public\\.saved_searches|INSERT INTO public\\.saved_searches|GRANT|REVOKE)\\b/im);
 });
 
+test("DEMO listings never create saved-search matches from interactive or worker calls",()=>{
+  const route=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");
+  const start=route.indexOf("if (listing.is_demo === true)");
+  const matchWrites=route.indexOf('.from("saved_search_matches")');
+  const delivery=route.indexOf("const isWorkerDelivery");
+  assert.ok(start > 0,"unconditional demo guard is required");
+  assert.ok(start < matchWrites && start < delivery,"demo must be rejected before discovery or delivery");
+  assert.match(route.slice(start,start+180),/skipped: true, reason: "demo_listing"/);
+  assert.doesNotMatch(route,/if \(isOutboxWorker && listing\.is_demo === true\)/);
+});
+
 test("both discovery and live delivery re-authorize; notifications stay independently gated",()=>{
   const route=readFileSync("app/api/marketplace/saved-searches/route.ts","utf8");
   const worker=readFileSync("app/api/marketplace/listings/match-saved-searches/route.ts","utf8");

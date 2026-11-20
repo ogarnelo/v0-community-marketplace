@@ -66,7 +66,10 @@ test("outbox is not scheduled and no user-facing workflow is changed",()=>{
   assert.match(matcher,/if \(!isOutboxWorker\)/);
   assert.match(matcher,/listing\.seller_id !== user\.id && listing\.user_id !== user\.id/);
   assert.match(matcher,/\.neq\("user_id", listingOwnerId\)/);
-  assert.match(matcher,/if \(isOutboxWorker && listing\.is_demo === true\)/);
+  assert.match(matcher,/if \(listing\.is_demo === true\)/);
+  assert.ok(matcher.indexOf("if (listing.is_demo === true)") <
+    matcher.indexOf('.from("saved_search_matches")'),
+    "DEMO guard precedes persistence for both worker and seller");
   assert.match(matcher,/onConflict: "saved_search_id,listing_id", ignoreDuplicates: true/);
   assert.match(matcher,/sendTransactionalEmailOnce\(/);
 });
