@@ -97,6 +97,22 @@ function fixture(options={}) {
    if(name==="@/lib/supabase/server")return {createClient:async()=>({auth})};
    if(name==="@/lib/supabase/admin")return {createAdminClient:()=>adminClient};
    if(name==="@/lib/fanpa/federation-server-scope")return shared.exports;
+   if(name==="@/lib/fanpa/federation-scoped-activity-reader")return {
+    readScopedFederationActivityCounts:async(ids)=>{
+     calls.push({type:"kpi",ids:[...ids]});
+     if(options.kpiError)throw Error("private provider error");
+     return {
+      totalSchools:ids.length,uniqueUsers:ids.length===1?8:null,
+      students:ids.length*3,activeListings:ids.length*2,
+      totalListings:ids.length*4,openDemands:ids.length,
+      confirmedExchanges:ids.length,
+      schools:ids.map(id=>({
+       schoolId:id,users:8,students:3,activeListings:2,
+       totalListings:4,openDemands:1,confirmedExchanges:1
+      }))
+     };
+    }
+   };
    throw Error("Unexpected import "+name);
   }
  });
