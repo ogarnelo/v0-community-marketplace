@@ -50,7 +50,7 @@ test("saved-search route enforces authenticated multi-school scope and 409 befor
  assert.match(route,/WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED !== "true"/);
 });
 test("authentication provider errors fail closed before any saved-search writes",()=>{
- assert.match(route,/error: authError \} = await supabase\\.auth\\.getUser\\(\\)/);
+ assert.ok(route.includes("error: authError } = await supabase.auth.getUser()"));
  const auth=route.indexOf("if (authError) {");
  assert.ok(auth>0);
  assert.ok(auth<route.indexOf('.from("saved_searches")'));
