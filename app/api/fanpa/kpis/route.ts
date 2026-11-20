@@ -5,6 +5,7 @@ import {
   FANPA_UUID, readAuthorizedFederationScope, sameFederationScope,
 } from "@/lib/fanpa/federation-server-scope";
 import { readScopedFederationActivityCounts } from "@/lib/fanpa/federation-scoped-activity-reader";
+import { projectVerifiedFederationKpis } from "@/lib/fanpa/federation-kpi-response-guard";
 
 export const dynamic = "force-dynamic";
 const PRIVATE = { "Cache-Control": "private, no-store" };
@@ -68,15 +69,24 @@ export async function GET(request: Request) {
     if (!sameFederationScope(initial.scope, fresh.scope)) {
       return respond({ error: "scope_changed" }, 409);
     }
-    const names = new Map(fresh.scope.schools.map(school => [school.id, school.name]));
+    // Fail closed if the server reader returns a foreign/duplicate school,
+    // a malformed count or any aggregate that could reveal a small cohort.
+    // Explicit wire projection prevents accidental serialization of fields
+    // introduced by future privileged reader changes.
+    const safe = projectVerifiedFederationKpis(
+      kpis, schoolIds, fresh.scope.schools,
+    );
     return respond({
       federationId,
       selectedSchoolId,
-      ...kpis,
-      schools: kpis.schools.map(school => ({
-        ...school,
-        name: names.get(school.schoolId) ?? "",
-      })),
+      totalSchools: safe.totalSchools,
+      uniqueUsers: safe.uniqueUsers,
+      students: safe.students,
+      activeListings: safe.activeListings,
+      totalListings: safe.totalListings,
+      openDemands: safe.openDemands,
+      confirmedExchanges: safe.confirmedExchanges,
+      schools: safe.schools,
     }, 200);
   } catch {
     console.error("fanpa_kpi_read_unavailable");
