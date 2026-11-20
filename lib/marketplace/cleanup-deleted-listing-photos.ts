@@ -52,9 +52,12 @@ async function stillReferenced(admin: Admin, url: string, path: string): Promise
   ]);
 
   // Fail closed on any database error: a leftover file is safer than a broken
-  // published listing. This check runs only after the listing row is deleted.
-  if (checks.some(({ error }) => error)) {
-    throw new Error("No se pudieron verificar todas las referencias de la fotografía.");
+  // published listing. The error label is an INTERNAL, fixed identifier;
+  // never log a provider message, SQL diagnostics, URL, or user information.
+  const referenceChecks = ["listing_array", "photo_rows", "draft_url", "draft_path"] as const;
+  const firstFailure = checks.findIndex(({ error }) => Boolean(error));
+  if (firstFailure !== -1) {
+    throw new Error("PHOTO_REF_" + referenceChecks[firstFailure]);
   }
   return checks.some(({ data }) => Boolean(data));
 }
@@ -82,8 +85,13 @@ export async function cleanupDeletedListingPhotos(
       const { error } = await admin.storage.from(BUCKET).remove([path]);
       if (error) console.error("listing_photo_orphan_cleanup_storage_failed");
     } catch (error) {
-      // Never roll back a successful listing deletion because of GC failure.
-      console.error("listing_photo_orphan_cleanup_reference_unavailable");
+      // A fixed, server-owned code identifies which query failed, without
+      // exposing provider errors, listing IDs, URLs, or school/user details.
+      const diagnostic = error instanceof Error &&
+        /^PHOTO_REF_(?:listing_array|photo_rows|draft_url|draft_path)$/.test(error.message)
+          ? error.message : "PHOTO_REF_UNKNOWN";
+      console.error("listing_photo_orphan_cleanup_reference_unavailable", diagnostic);
+      // Never roll back a successful parent deletion because GC failed.
     }
   }
 }
