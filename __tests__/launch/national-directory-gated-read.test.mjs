@@ -99,7 +99,7 @@ test("invalid page never hits service, provider error never leaks details",async
  assert.equal(JSON.stringify(r.body).includes("private"),false);
 });
 test("page is independent from the private family selector and noindexed",()=>{
- assert.match(page,/WETUDY_PUBLIC_SCHOOL_DIRECTORY_ENABLED !== "true"/);
+ assert.match(page,/WETUDY_PUBLIC_SCHOOL_DIRECTORY_ENABLED\\s*!==\\s*"true"/);
  assert.match(page,/notFound\(\)/);
  assert.match(page,/robots:\{index:false,follow:false\}/);
  assert.match(route,/\.eq\("is_listed",true\)/);
