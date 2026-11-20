@@ -9,6 +9,13 @@ export const metricLabels: ReadonlyArray<{ key: PrivateMetric; label: string }> 
   { key: "openDemands", label: "Necesidades abiertas" },
   { key: "confirmedExchanges", label: "Intercambios confirmados" },
 ];
+export const schoolMetricLabels: ReadonlyArray<{
+  key: Exclude<PrivateMetric, "uniqueUsers">;
+  label: string;
+}> = metricLabels.filter(
+  (metric): metric is { key: Exclude<PrivateMetric, "uniqueUsers">; label: string } =>
+    metric.key !== "uniqueUsers",
+);
 export type SchoolOption = { id: string; name: string };
 export type SchoolReport = {
   schoolId: string;
