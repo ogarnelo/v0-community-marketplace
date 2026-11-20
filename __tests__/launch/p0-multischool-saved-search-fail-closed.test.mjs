@@ -49,6 +49,18 @@ test("saved-search route enforces authenticated multi-school scope and 409 befor
  assert.match(route,/if \(body\.onlyMyCommunity && !directorySchoolCode && !schoolId &&\s*familyScopeMode !== "active_family"\)/);
  assert.match(route,/WETUDY_MULTISCHOOL_ALERT_SCOPE_ENABLED !== "true"/);
 });
+test("context read failures deny saving before the insert or stale-school fallback",()=>{
+ assert.match(route,/\{ data: profile, error: profileError \}/);
+ assert.match(route,/\{ data: schoolAdminRole, error: schoolAdminRoleError \}/);
+ assert.match(route,/\{ data: primaryStudentContext, error: primaryStudentContextError \}/);
+ const deny=route.indexOf("if (profileError || schoolAdminRoleError || primaryStudentContextError)");
+ assert.ok(deny>0);
+ assert.ok(deny < route.indexOf("if (radiusKm !== null && !hasKnownPostalCode"));
+ assert.ok(deny < route.indexOf('.from("saved_searches")'));
+ assert.match(route.slice(deny, deny+300),/school_context_unavailable/);
+ assert.match(route.slice(deny, deny+300),/status: 503/);
+});
+
 test("client explains limited notifications instead of promising unimplemented multi-school alerts",()=>{
  assert.match(client,/payload\?\.error === "multi_school_saved_search_not_supported"/);
  assert.match(client,/saveSearchStatus === "multischool"/);
