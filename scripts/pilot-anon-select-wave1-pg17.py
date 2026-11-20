@@ -59,7 +59,22 @@ def visible_rows(role, table, actor=OWNER, *, succeeds=True):
     return psql(test_url, sql=sql, succeeds=succeeds)[0]
 
 
+def check_realtime_publication():
+    result = query(
+        "select count(*) from pg_publication_tables "
+        "where pubname='wetudy_test_agreements_pub' "
+        "and schemaname='public' and tablename='agreements'")
+    if result != "1":
+        raise AssertionError("Agreement Realtime publication membership changed")
+    if privilege("authenticated", "agreements", "SELECT") != "t":
+        raise AssertionError("Agreement authenticated Realtime SELECT changed")
+    if query("select relreplident from pg_class where oid="
+             "'public.agreements'::regclass") != "d":
+        raise AssertionError("Agreement replica identity drift")
+
+
 def check_contract():
+    check_realtime_publication()
     for table in TABLES:
         if privilege("anon", table, "SELECT") != "f":
             raise AssertionError("Anonymous SELECT remained on " + table)
@@ -111,6 +126,12 @@ try:
         query("create policy test_owner_select on public." + table
               + " for select to authenticated using "
               + "(owner_id = nullif(current_setting('app.actor_id',true),'')::uuid)")
+    # Publication metadata behaves independently from anon SELECT changes.
+    # This does not simulate Supabase Realtime websocket or WAL delivery.
+    query("create publication wetudy_test_agreements_pub "
+          "for table public.agreements")
+    check_realtime_publication()
+
     for table in TABLES:
         query("grant select,insert,update,delete on public." + table + " to anon")
         if privilege("anon", table, "SELECT") != "t":
@@ -164,6 +185,7 @@ try:
     print("PASS: five anon SELECT grants removed in disposable PG17; "
           "authenticated/service_role and unrelated rights preserved; "
           "RLS ownership, idempotence, rollback, PUBLIC and column grants, "
-          "unexpected anon policy, and named-database guard verified.")
+          "unexpected anon policy, publication membership and authenticated "
+          "read grant, and named-database guard verified.")
 finally:
     psql(raw_url, sql="drop database if exists " + TEST_DB + " with (force)")
