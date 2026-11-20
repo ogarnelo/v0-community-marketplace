@@ -7,6 +7,7 @@ import ts from "typescript";
 const route=readFileSync("app/api/fanpa/kpis/route.ts","utf8");
 const resolveSource=readFileSync("lib/fanpa/federation-representation.ts","utf8");
 const sharedSource=readFileSync("lib/fanpa/federation-server-scope.ts","utf8");
+const projectionSource=readFileSync("lib/fanpa/federation-kpi-response-guard.ts","utf8");
 function transpile(src) {
  return ts.transpileModule(src,{compilerOptions:{
   module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022
@@ -15,6 +16,10 @@ function transpile(src) {
 const scopeModule={exports:{}};
 vm.runInNewContext(transpile(resolveSource),{
   module:scopeModule,exports:scopeModule.exports,Set,Map
+});
+const projectionModule={exports:{}};
+vm.runInNewContext(transpile(projectionSource),{
+  module:projectionModule,exports:projectionModule.exports,Set,Map,Number,Error,
 });
 
 const F="ffffffff-ffff-4fff-8fff-ffffffffffff";
@@ -97,11 +102,12 @@ function fixture(options={}) {
    if(name==="@/lib/supabase/server")return {createClient:async()=>({auth})};
    if(name==="@/lib/supabase/admin")return {createAdminClient:()=>adminClient};
    if(name==="@/lib/fanpa/federation-server-scope")return shared.exports;
+   if(name==="@/lib/fanpa/federation-kpi-response-guard")return projectionModule.exports;
    if(name==="@/lib/fanpa/federation-scoped-activity-reader")return {
     readScopedFederationActivityCounts:async(ids)=>{
      calls.push({type:"kpi",ids:[...ids]});
      if(options.kpiError)throw Error("private provider error");
-     return {
+     const payload={
       totalSchools:ids.length,uniqueUsers:ids.length===1?8:null,
       students:ids.length*3,activeListings:ids.length*2,
       totalListings:ids.length*4,openDemands:ids.length,
@@ -111,6 +117,7 @@ function fixture(options={}) {
        totalListings:4,openDemands:1,confirmedExchanges:1
       }))
      };
+     return options.kpiPayload ? options.kpiPayload(payload,ids) : payload;
     }
    };
    throw Error("Unexpected import "+name);
@@ -191,9 +198,81 @@ test("provider read/count errors fail closed without leaking underlying details"
  assert.equal(r.status,503);
  assert.equal(JSON.stringify(r.body).includes("private provider"),false);
 });
+test("unexpected internal reader attributes are never serialized to federations",async()=>{
+ const f=fixture({flagOn:true,kpiOn:true,kpiPayload:p=>({
+  ...p,
+  debugUserEmails:["never-return-private@example.invalid"],
+  schools:p.schools.map(s=>({
+   ...s,user_id:"never-export-user-id",email:"never-export-private@example.invalid",
+   owner_user_id:"never-export-owner",directMessages:[{body:"PRIVATE_MESSAGE"}],
+  })),
+ })});
+ const res=await f.GET(req());
+ assert.equal(res.status,200,JSON.stringify(res.body));
+ const wire=JSON.stringify(res.body);
+ for(const secret of ["never-return-private","never-export","PRIVATE_MESSAGE",
+  "owner_user_id","debugUserEmails","directMessages"]) {
+  assert.equal(wire.includes(secret),false,"Leaked internal field: "+secret);
+ }
+ assert.deepEqual(Object.keys(res.body).sort(),[
+  "federationId","selectedSchoolId","totalSchools","uniqueUsers",
+  "students","activeListings","totalListings","openDemands",
+  "confirmedExchanges","schools"].sort());
+ assert.deepEqual(Object.keys(res.body.schools[0]).sort(),[
+  "schoolId","name","users","students","activeListings","totalListings",
+  "openDemands","confirmedExchanges"].sort());
+});
+test("projection refuses foreign, repeated, partial, unsuppressed or contradictory KPI",async()=>{
+ const mutations=[
+  p=>({...p,schools:[{...p.schools[0],schoolId:C},p.schools[1]]}),
+  p=>({...p,schools:[p.schools[0],p.schools[0]]}),
+  p=>({...p,schools:p.schools.slice(0,1)}),
+  p=>({...p,totalSchools:3}),
+  p=>({...p,students:p.students+1}),
+  p=>({...p,uniqueUsers:16}),
+  p=>({...p,schools:[{...p.schools[0],users:3},p.schools[1]]}),
+  p=>({...p,schools:[{...p.schools[0],users:null},p.schools[1]]}),
+  p=>({...p,schools:[{...p.schools[0],totalListings:-1},p.schools[1]]}),
+  p=>({...p,schools:[{...p.schools[0],totalListings:NaN},p.schools[1]]}),
+  p=>({...p,schools:[{...p.schools[0],students:7},p.schools[1]]}),
+  p=>({...p,schools:[{...p.schools[0],users:null,students:null,
+    activeListings:null,totalListings:null,openDemands:null,
+    confirmedExchanges:null},p.schools[1]]}),
+ ];
+ for(const [i,mutate] of mutations.entries()){
+  const f=fixture({flagOn:true,kpiOn:true,kpiPayload:mutate});
+  const res=await f.GET(req());
+  assert.equal(res.status,503,"unsafe internal payload "+i);
+  assert.equal(res.body.error,"scope_unavailable");
+  assert.equal(res.body.schools,undefined);
+  assert.equal(res.headers["Cache-Control"],"private, no-store");
+ }
+});
+test("small-school totals must remain hidden even if internal adapter regresses",async()=>{
+ const hidden={schoolId:B,users:null,students:null,activeListings:null,
+   totalListings:null,openDemands:null,confirmedExchanges:null};
+ const healthy=fixture({flagOn:true,kpiOn:true,kpiPayload:p=>({
+   ...p,uniqueUsers:null,students:null,activeListings:null,totalListings:null,
+   openDemands:null,confirmedExchanges:null,schools:[p.schools[0],hidden]
+ })});
+ const safe=await healthy.GET(req());
+ assert.equal(safe.status,200);
+ assert.equal(safe.body.students,null);
+ assert.equal(safe.body.schools[1].users,null);
+ const leaking=fixture({flagOn:true,kpiOn:true,kpiPayload:p=>({
+   ...p,schools:[p.schools[0],hidden],students:3
+ })});
+ const denied=await leaking.GET(req());
+ assert.equal(denied.status,503);
+ assert.equal(denied.body.schools,undefined);
+});
 test("KPI route reuses shared authorization and never reads personal rows",()=>{
  assert.match(route,/readAuthorizedFederationScope/);
  assert.match(route,/sameFederationScope/);
  assert.match(route,/WETUDY_FANPA_KPI_ENABLED !== "true"/);
+ assert.match(route,/projectVerifiedFederationKpis/);
+ assert.doesNotMatch(route,/\.\.\.kpis|\.\.\.school/);
+ assert.match(projectionSource,/MIN_PRIVATE_COHORT = 5/);
+ assert.match(projectionSource,/fanpa_kpi_projection_unavailable/);
  assert.doesNotMatch(route,/\.from\("profiles"\)|\.from\("account_students"\)|\.from\("listings"\)/);
 });
