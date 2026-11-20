@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 BASE = Path(__file__).resolve().parent
 PROPOSAL = BASE / "pilot-anon-select-wave1-local-only.sql"
+ROLLBACK = BASE / "pilot-anon-select-rollback-local-only.sql"
 WS_TEST = BASE / "pilot-anon-realtime-live-client.mjs"
 PG_NAME = "wetudy-realtime-test-pg17"
 RT_NAME = "wetudy-realtime-test-srv"
@@ -39,7 +40,8 @@ if any(os.environ.get(k) for k in
        ("SUPABASE_DB_URL", "DATABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
         "SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF")):
     raise SystemExit("Refusing any remote Supabase credential in Realtime QA")
-if WS_TEST.resolve().parent != BASE.resolve() or not PROPOSAL.exists():
+if (WS_TEST.resolve().parent != BASE.resolve() or not PROPOSAL.exists()
+        or not ROLLBACK.exists()):
     raise SystemExit("Refusing unexpected test files")
 if socket.gethostbyname("realtime-dev.localhost") != "127.0.0.1":
     raise SystemExit("Realtime synthetic tenant must resolve to loopback only")
@@ -295,9 +297,27 @@ try:
             raise AssertionError("Authenticated SELECT removed from " + table)
     check_phase("after")
 
-    print("PASS: REAL Realtime websocket postgres_changes delivered fake agreement "
-          "updates exclusively to buyer/seller before and after exact five-table "
-          "anon revoke in disposable PG17. No outsider/guest records; no prod.")
+    # Third real-WAL phase: same pinned tenant and synthetic agreement, but
+    # the five SELECT grants have been restored by the NAME-GUARDED QA SQL.
+    # The anonymous JWT now has table SELECT but RLS must still block it.
+    pgfile(ROLLBACK)
+    for table in TARGETS:
+        for role in ("anon", "authenticated", "service_role"):
+            allowed = postgres("select has_table_privilege('" + role +
+                               "','public." + table + "','SELECT')")
+            if allowed != "t":
+                raise AssertionError("Local rollback did not restore " + role +
+                                     " SELECT on " + table)
+        if postgres("select relrowsecurity from pg_class where oid='public." +
+                    table + "'::regclass") != "t":
+            raise AssertionError("RLS disabled during local Realtime rollback: " + table)
+    check_phase("restored")
+
+    print("PASS: REAL Realtime websocket postgres_changes delivered synthetic "
+          "agreement updates ONLY to buyer/seller in THREE stages: original, "
+          "after five-table anon revoke, and after local-only compensating "
+          "five-table SELECT GRANT. Guest/outsider receive zero agreement "
+          "records in every phase; local RLS remains enabled; no prod.")
 finally:
     for name in reversed(started):
         command(["docker", "rm", "-f", name], timeout=25, allow_fail=True)
