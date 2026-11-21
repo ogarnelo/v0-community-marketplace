@@ -36,6 +36,11 @@ BEGIN
  OR v_sub.report_format IS DISTINCT FROM p_format
  OR NOT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=p_user_id AND role='super_admin')
  THEN RETURN NULL; END IF;
+ -- A configuration change must not create a fresh attempt while a prior
+ -- provider outcome for the same subscription is unresolved.
+ IF EXISTS (SELECT 1 FROM public.r1_global_report_dispatch_claims
+   WHERE subscription_id=p_subscription_id AND status IN ('claimed','unknown'))
+ THEN RETURN NULL; END IF;
  -- No automatic lease expiry: after a crash the claim remains blocked.
  -- An unknown/claimed dispatch must be reconciled, never automatically retried.
  INSERT INTO public.r1_global_report_dispatch_claims(subscription_id,scheduled_for)
