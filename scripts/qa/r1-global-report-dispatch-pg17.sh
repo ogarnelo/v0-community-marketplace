@@ -61,4 +61,8 @@ SELECT has_function_privilege('authenticated','public.r1_global_report_ack(uuid,
 SELECT relrowsecurity FROM pg_class WHERE oid='public.r1_global_report_dispatch_claims'::regclass;
 SQL
 [[ "$(cat "$tmp/acl")" == $'f\nf\nf\nf\nt' ]]
+# Account/subscription deletion must not be blocked by an irreversible claim.
+"${P[@]}" -c "DELETE FROM public.super_admin_report_subscriptions;"
+[[ "$("${P[@]}" -c "SELECT count(*) FROM public.r1_global_report_dispatch_claims")" == 1 ]]
+[[ "$("${P[@]}" -c "SET ROLE service_role; SELECT coalesce($claim::text,'NONE');")" == NONE ]]
 echo "R1 PG17: exclusive claim, stale recipient denial, no ambiguous retry, ACK fencing, revoked role and ACL/RLS PASS"
