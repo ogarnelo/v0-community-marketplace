@@ -26,6 +26,14 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Keep automated attachment delivery dormant until durable exclusive claims
+  // and ambiguous provider outcomes have passed the R1 acceptance gate.
+  if (process.env.WETUDY_SUPER_ADMIN_REPORT_EMAIL_ENABLED !== "true") {
+    return Response.json({ ok: true, paused: true }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
   const now = new Date();
   const nowIso = now.toISOString();
   const admin = createAdminClient();
@@ -73,13 +81,18 @@ export async function GET(request: Request) {
       const scheduledFor = subscription.next_send_at || nowIso;
 
       if (!(await recipientStillAuthorized(subscription))) { skipped++; continue; }
-      await sendSuperAdminReportEmail({
+      const delivery = await sendSuperAdminReportEmail({
         to: subscription.email,
         subscriptionId: subscription.id,
         report,
         format: subscription.report_format,
         scheduledFor,
       });
+
+      if (!delivery || delivery.skipped === true ||
+          typeof delivery.id !== "string" || !delivery.id.trim()) {
+        throw new Error("delivery_provider_unconfirmed");
+      }
 
       const next = new Date(now);
       next.setUTCDate(next.getUTCDate() + subscription.frequency_days);
