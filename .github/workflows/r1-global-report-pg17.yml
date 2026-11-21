@@ -1,0 +1,28 @@
+name: R1 global report isolated PG17
+on:
+  pull_request:
+    paths:
+      - 'docs/pilot/sql/r1_global_report_dispatch_review_only_20261121.sql'
+      - 'scripts/qa/r1-global-report-dispatch-pg17.sh'
+      - 'app/api/cron/super-admin-reports/route.ts'
+      - '.github/workflows/r1-global-report-pg17.yml'
+jobs:
+  r1-global-dispatch-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: wetudy_r1_synthetic
+          POSTGRES_DB: wetudy_r1_synthetic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_r1_synthetic"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - run: bash scripts/qa/r1-global-report-dispatch-pg17.sh
