@@ -81,6 +81,19 @@ export async function GET(request: Request) {
       const scheduledFor = subscription.next_send_at || nowIso;
 
       if (!(await recipientStillAuthorized(subscription))) { skipped++; continue; }
+      const claim = await admin.rpc("r1_global_report_claim", {
+        p_subscription_id: subscription.id, p_user_id: subscription.user_id,
+        p_scheduled_for: scheduledFor, p_email: subscription.email,
+        p_frequency: subscription.frequency_days, p_range: subscription.report_range,
+        p_format: subscription.report_format,
+      });
+      if (claim.error) throw new Error("dispatch_claim_unavailable");
+      if (claim.data === null) { skipped++; continue; }
+      if (typeof claim.data !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claim.data))
+        throw new Error("dispatch_claim_invalid");
+      // Never release an acquired claim automatically, even after revocation,
+      // timeout or ambiguous provider response. Reconciliation is offline.
+      if (!(await recipientStillAuthorized(subscription))) { skipped++; continue; }
       const delivery = await sendSuperAdminReportEmail({
         to: subscription.email,
         subscriptionId: subscription.id,
@@ -94,6 +107,10 @@ export async function GET(request: Request) {
         throw new Error("delivery_provider_unconfirmed");
       }
 
+      const ack = await admin.rpc("r1_global_report_ack", {
+        p_claim_id: claim.data, p_provider_id: delivery.id,
+      });
+      if (ack.error || ack.data !== true) throw new Error("dispatch_ack_unconfirmed");
       const next = new Date(now);
       next.setUTCDate(next.getUTCDate() + subscription.frequency_days);
 
@@ -107,6 +124,8 @@ export async function GET(request: Request) {
         .eq("id", subscription.id)
         .eq("next_send_at", scheduledFor).eq("enabled", true)
         .eq("email", subscription.email).eq("user_id", subscription.user_id)
+        .eq("frequency_days", subscription.frequency_days).eq("report_range", subscription.report_range)
+        .eq("report_format", subscription.report_format)
         .select("id").maybeSingle();
 
       if (updateError || !updated?.id) throw new Error("delivery_settlement_unconfirmed");
