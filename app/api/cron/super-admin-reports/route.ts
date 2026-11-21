@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    return new Response(null, { status: 204 });
+    return Response.json({ ok: false, error: "cron_auth_unavailable" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
 
   if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
@@ -38,20 +38,41 @@ export async function GET(request: Request) {
     .returns<SubscriptionRow[]>();
 
   if (error) {
-    console.error("Error cargando informes globales:", error);
+    console.error("super_admin_report_subscription_read_failed");
     return Response.json({ ok: false }, { status: 500 });
   }
 
   let sent = 0;
-  const failures: Array<{ id: string; message: string }> = [];
+  let failed = 0;
+  let skipped = 0;
+  async function recipientStillAuthorized(subscription: SubscriptionRow) {
+    const identity = await admin.auth.admin.getUserById(subscription.user_id);
+    if (identity.error) throw new Error("recipient_identity_unavailable");
+    const user = identity.data?.user;
+    if (!user || user.id !== subscription.user_id || !user.email_confirmed_at ||
+      (user.email || "").trim().toLowerCase() !== subscription.email.trim().toLowerCase()) return false;
+    const roles = await admin.from("user_roles").select("role")
+      .eq("user_id", subscription.user_id).eq("role", "super_admin").limit(1);
+    if (roles.error) throw new Error("recipient_role_unavailable");
+    if (!roles.data?.length) return false;
+    const fresh = await admin.from("super_admin_report_subscriptions")
+      .select("id").eq("id", subscription.id).eq("user_id", subscription.user_id)
+      .eq("email", subscription.email).eq("enabled", true)
+      .eq("frequency_days", subscription.frequency_days).eq("report_range", subscription.report_range)
+      .eq("report_format", subscription.report_format).eq("next_send_at", subscription.next_send_at!).maybeSingle();
+    if (fresh.error) throw new Error("recipient_subscription_unavailable");
+    return Boolean(fresh.data?.id);
+  }
 
   for (const subscription of subscriptions || []) {
     try {
+      if (!subscription.next_send_at || !(await recipientStillAuthorized(subscription))) { skipped++; continue; }
       const report = await loadSuperAdminReport(
         normalizeSuperAdminRange(subscription.report_range)
       );
       const scheduledFor = subscription.next_send_at || nowIso;
 
+      if (!(await recipientStillAuthorized(subscription))) { skipped++; continue; }
       await sendSuperAdminReportEmail({
         to: subscription.email,
         subscriptionId: subscription.id,
@@ -63,7 +84,7 @@ export async function GET(request: Request) {
       const next = new Date(now);
       next.setUTCDate(next.getUTCDate() + subscription.frequency_days);
 
-      const { error: updateError } = await admin
+      const { data: updated, error: updateError } = await admin
         .from("super_admin_report_subscriptions")
         .update({
           last_sent_at: nowIso,
@@ -71,25 +92,22 @@ export async function GET(request: Request) {
           updated_at: nowIso,
         })
         .eq("id", subscription.id)
-        .eq("next_send_at", scheduledFor);
+        .eq("next_send_at", scheduledFor).eq("enabled", true)
+        .eq("email", subscription.email).eq("user_id", subscription.user_id)
+        .select("id").maybeSingle();
 
-      if (updateError) throw updateError;
+      if (updateError || !updated?.id) throw new Error("delivery_settlement_unconfirmed");
       sent += 1;
-    } catch (cause: any) {
-      failures.push({
-        id: subscription.id,
-        message: cause?.message || "Error desconocido",
-      });
+    } catch {
+      failed++;
     }
   }
 
-  if (failures.length > 0) {
-    console.error("Fallos enviando informes globales:", failures);
-  }
+  if (failed > 0) console.error("super_admin_report_delivery_failed", failed);
 
   return Response.json({
-    ok: failures.length === 0,
+    ok: failed === 0,
     sent,
-    failed: failures.length,
-  });
+    failed, skipped,
+  }, { status: failed > 0 ? 503 : 200, headers: { "Cache-Control": "private, no-store" } });
 }
