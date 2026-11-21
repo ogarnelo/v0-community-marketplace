@@ -53,6 +53,13 @@ export async function GET(request: Request) {
   const range = normalizeSuperAdminRange(url.searchParams.get("range"));
   const format = url.searchParams.get("format") === "csv" ? "csv" : "pdf";
   const report = await loadSuperAdminReport(range);
+  const fresh = await supabase.auth.getUser();
+  if (fresh.error) return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+  if (fresh.data?.user?.id !== user.id) return privateJson({ error: "No autorizado." }, { status: 403 });
+  const freshRoles = await supabase.from("user_roles").select("role")
+    .eq("user_id", user.id).eq("role", "super_admin").limit(1);
+  if (freshRoles.error) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+  if (!freshRoles.data?.length) return privateJson({ error: "Permiso revocado." }, { status: 403 });
   const suffix = range === "total" ? "historico" : range;
 
   if (format === "csv") {

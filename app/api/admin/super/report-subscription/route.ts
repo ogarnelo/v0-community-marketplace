@@ -67,7 +67,10 @@ export async function POST(request: Request) {
         }
       | null;
 
-    const enabled = body?.enabled === true;
+    if (!body || typeof body.enabled !== "boolean" || (body.email !== undefined && typeof body.email !== "string")) {
+      return privateJson({ error: "Configuración inválida." }, { status: 400 });
+    }
+    const enabled = body.enabled;
     const email = (body?.email || user.email || "").trim().toLowerCase();
     const frequencyDays = Number(body?.frequencyDays || 30);
     const reportRange = normalizeSuperAdminRange(body?.range);
@@ -75,6 +78,10 @@ export async function POST(request: Request) {
       ? String(body?.format)
       : "both";
 
+    const verifiedEmail = user.email_confirmed_at ? (user.email || "").trim().toLowerCase() : "";
+    if (!verifiedEmail || verifiedEmail !== email) {
+      return privateJson({ error: "Solo puedes usar el correo verificado de tu cuenta." }, { status: 403 });
+    }
     if (!isEmail(email)) {
       return privateJson({ error: "Introduce un email válido." }, { status: 400 });
     }
@@ -86,6 +93,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const fresh = await supabase.auth.getUser();
+    if (fresh.error) return privateJson({ error: "No se pudo comprobar tu sesión." }, { status: 503 });
+    const current = fresh.data?.user;
+    if (!current || current.id !== user.id || !current.email_confirmed_at || (current.email || "").trim().toLowerCase() !== email) {
+      return privateJson({ error: "Sesión o dirección verificada modificada." }, { status: 403 });
+    }
+    const freshRoles = await supabase.from("user_roles").select("role")
+      .eq("user_id", user.id).eq("role", "super_admin").limit(1);
+    if (freshRoles.error) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    if (!freshRoles.data?.length) return privateJson({ error: "Permiso revocado." }, { status: 403 });
     const admin = createAdminClient();
     const { error } = await admin
       .from("super_admin_report_subscriptions")
