@@ -42,6 +42,11 @@ for f in "$tmp/a" "$tmp/b"; do
  if [[ "$value" =~ ^[0-9a-f-]{36}$ ]]; then wins=$((wins+1)); else [[ "$value" == NONE ]]; fi
 done
 [[ "$wins" == 1 ]]
+# Reconfiguring the subscription cannot bypass an unresolved claim.
+"${P[@]}" -c "UPDATE public.super_admin_report_subscriptions SET next_send_at='2020-01-03T00:00:00Z';"
+reconfigured="${claim/2020-01-01/2020-01-03}"
+[[ "$("${P[@]}" -c "SET ROLE service_role; SELECT coalesce($reconfigured::text,'NONE');")" == NONE ]]
+"${P[@]}" -c "UPDATE public.super_admin_report_subscriptions SET next_send_at='2020-01-01T00:00:00Z';"
 # Unacknowledged provider attempt must remain reserved after worker exit.
 [[ "$("${P[@]}" -c "SET ROLE service_role; SELECT coalesce($claim::text,'NONE');")" == NONE ]]
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.r1_global_report_dispatch_claims")" == 1 ]]
