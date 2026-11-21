@@ -4,7 +4,9 @@ SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='30s';
 CREATE TABLE public.r1_global_report_dispatch_claims (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- subscription_id uuid NOT NULL REFERENCES public.super_admin_report_subscriptions(id) ON DELETE RESTRICT,
+ -- Retain opaque dispatch identity without blocking subscription/account deletion.
+ -- The claim function verifies and locks the live subscription before INSERT.
+ subscription_id uuid NOT NULL,
  scheduled_for timestamptz NOT NULL,
  status text NOT NULL DEFAULT 'claimed' CHECK(status IN ('claimed','accepted','unknown')),
  provider_message_id text,
