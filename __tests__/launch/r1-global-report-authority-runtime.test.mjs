@@ -9,9 +9,23 @@ const sub={id:'22222222-2222-4222-8222-222222222222',user_id:user.id,email:user.
 function harness(kind,opts={}){
  const calls=[]; let roleReads=0,authReads=0,subscriptionReads=0;
  const path=kind==='cron'?'app/api/cron/super-admin-reports/route.ts':kind==='export'?'app/api/admin/super/report/route.ts':'app/api/admin/super/report-subscription/route.ts';
+ let claimed=false;
  const client={
- auth:{getUser:async()=>({data:{user:++authReads===2&&opts.changedEmail?{...user,email:'changed@example.invalid'}:user},error:null}),
- admin:{getUserById:async()=>({data:{user:++authReads===2&&opts.changedEmail?{...user,email:'changed@example.invalid'}:user},error:opts.authError?{message:'PRIVATE'}:null})}},
+ rpc:async(name,args)=>{
+  calls.push(name);
+  if(name==='r1_global_report_claim'){
+   assert.equal(args.p_subscription_id,sub.id);
+   if(opts.claimError)return {error:{message:'PRIVATE'},data:null};
+   if(opts.claimLost||claimed)return {error:null,data:null};
+   claimed=true;
+   return {error:null,data:'33333333-3333-4333-8333-333333333333'};
+  }
+  assert.equal(name,'r1_global_report_ack');
+  assert.equal(args.p_claim_id,'33333333-3333-4333-8333-333333333333');
+  return {error:null,data:!opts.ackLost};
+ },
+ auth:{getUser:async()=>({data:{user:([2,3].includes(++authReads)&&opts.changedEmail||authReads===3&&opts.postClaimEmail)?{...user,email:'changed@example.invalid'}:user},error:null}),
+ admin:{getUserById:async()=>({data:{user:([2,3].includes(++authReads)&&opts.changedEmail||authReads===3&&opts.postClaimEmail)?{...user,email:'changed@example.invalid'}:user},error:opts.authError?{message:'PRIVATE'}:null})}},
  from(table){
   let writing=false;
   const q={select:()=>q,eq:()=>q,limit:()=>q,lte:()=>q,returns:()=>q,
@@ -50,6 +64,10 @@ for(const [kind,opts,status,forbidden] of [
  ['cron',{revoked:true},200,'send'],
  ['cron',{changedEmail:true},200,'send'],
  ['cron',{changedSub:true},200,'send'],
+ ['cron',{claimError:true},503,'send'],
+ ['cron',{claimLost:true},200,'send'],
+ ['cron',{postClaimEmail:true},200,'send'],
+ ['cron',{ackLost:true},503,'settle'],
  ['cron',{skipped:true},503,'settle'],
  ['cron',{noId:true},503,'settle'],
  ['cron',{noSettlement:true},503,null],
@@ -63,3 +81,12 @@ for(const [kind,opts,status,forbidden] of [
   if(kind==='export'&&!Object.keys(opts).length)assert.ok(h.calls.includes('render'));
  });
 }
+
+test('concurrent cron attempts share one durable claim in mocked DB',async()=>{
+ const h=harness('cron');
+ const results=await Promise.all([h.run(),h.run()]);
+ assert.equal(results.filter(r=>r.status===200).length,2);
+ assert.equal(h.calls.filter(x=>x==='send').length,1);
+ assert.ok(h.calls.indexOf('r1_global_report_claim')<h.calls.indexOf('send'));
+ assert.ok(h.calls.indexOf('r1_global_report_ack')<h.calls.indexOf('settle'));
+});
