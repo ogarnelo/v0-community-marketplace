@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/notifications";
 import { getAdminFlags } from "@/lib/admin/roles";
+import { resolveUniqueSchoolAdminSchoolId } from "@/lib/marketplace/unique-school-admin-context";
 
 export async function POST(request: Request) {
   try {
@@ -33,15 +34,33 @@ export async function POST(request: Request) {
       .select("role, school_id")
       .eq("user_id", user.id);
 
-    if (roleError) return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
-
+    if (roleError || !Array.isArray(roles)) {
+      return privateJson({ error: "No se pudo comprobar tu permiso." }, { status: 503 });
+    }
     const adminFlags = getAdminFlags({
       email: user.email,
-      roles: (roles || []) as Array<{ role: string; school_id: string | null }>,
+      roles: roles as Array<{ role: string; school_id: string | null }>,
     });
-
     if (!adminFlags.canAccessAdmin) {
       return privateJson({ error: "Sin permisos." }, { status: 403 });
+    }
+
+    // A school manager with two active/duplicated grants may not choose an
+    // arbitrary first school. Super-admin authority is explicit and separate.
+    let verifiedSchoolAdminSchoolId: string | null = null;
+    if (!adminFlags.isSuperAdmin) {
+      try {
+        verifiedSchoolAdminSchoolId = resolveUniqueSchoolAdminSchoolId(
+          roles.filter((role) => role.role === "school_admin").map((role) => ({
+            school_id: role.school_id,
+          }))
+        );
+      } catch {
+        return privateJson({ error: "Permisos de centro ambiguos." }, { status: 403 });
+      }
+      if (!verifiedSchoolAdminSchoolId) {
+        return privateJson({ error: "Sin permisos de centro válidos." }, { status: 403 });
+      }
     }
 
     const body = await request.json();
@@ -73,10 +92,26 @@ export async function POST(request: Request) {
 
     const allowedSchoolId = adminFlags.isSuperAdmin
       ? donationRequest.school_id
-      : adminFlags.schoolAdminSchoolId;
+      : verifiedSchoolAdminSchoolId;
 
-    if (!adminFlags.isSuperAdmin && donationRequest.school_id !== allowedSchoolId) {
+    if (
+      !donationRequest.school_id || !allowedSchoolId ||
+      donationRequest.school_id.toLowerCase() !== allowedSchoolId.toLowerCase()
+    ) {
       return privateJson({ error: "No puedes revisar solicitudes de otro centro." }, { status: 403 });
+    }
+
+    // Deny decisions for a deactivated or missing school, before any write.
+    const { data: school, error: schoolError } = await adminSupabase
+      .from("schools")
+      .select("id, is_active")
+      .eq("id", donationRequest.school_id)
+      .maybeSingle();
+    if (schoolError) {
+      return privateJson({ error: "No se pudo verificar el centro." }, { status: 503 });
+    }
+    if (!school || school.is_active !== true) {
+      return privateJson({ error: "El centro ya no está activo." }, { status: 403 });
     }
 
     const { data: listing, error: listingError } = await adminSupabase
@@ -102,57 +137,106 @@ export async function POST(request: Request) {
     if (conversationError) return privateJson({ error: "No se pudo verificar la conversación." }, { status: 503 });
     const conversationId = existingConversation?.id || null;
 
+    // OFF by default. Installing the review-only candidate RPC AND enabling
+    // this switch are separate, owner-authorized production operations.
+    // The RPC coordinates winner, losing pending rows and listing archive in
+    // ONE DB transaction; notifications remain explicit postcommit effects.
+    const atomicReviewEnabled =
+      typeof process !== "undefined" &&
+      process.env.WETUDY_R3_DONATION_ATOMIC_REVIEW_ENABLED === "true";
+    if (atomicReviewEnabled) {
+      const { data: rpcData, error: rpcError } = await adminSupabase.rpc(
+        "r3_review_donation_atomic",
+        {
+          p_actor_id: user.id,
+          p_request_id: donationRequestId,
+          p_action: action,
+          p_note: note || null,
+        }
+      );
+      if (rpcError) {
+        const denied = rpcError.code === "42501";
+        const conflict =
+          rpcError.code === "23505" || rpcError.message?.includes("R3_DONATION_STATUS_CONFLICT") ||
+          rpcError.message?.includes("R3_DONATION_ARCHIVE_CONFLICT") ||
+          rpcError.message?.includes("R3_DONATION_CONTEXT_CONFLICT");
+        return privateJson(
+          { error: denied ? "Sin permisos para esta revisión." : conflict
+            ? "La solicitud ya ha cambiado. Actualiza la pantalla."
+            : "No se pudo confirmar la decisión. Comprueba su estado antes de volver a intentarlo." },
+          { status: denied ? 403 : conflict ? 409 : 503 }
+        );
+      }
+      const row = Array.isArray(rpcData) ? rpcData[0] || null : rpcData;
+      if (
+        !row || row.request_id !== donationRequestId ||
+        row.decision_status !== (action === "approve" ? "approved" : "rejected") ||
+        row.listing_id !== donationRequest.listing_id ||
+        row.requester_id !== donationRequest.requester_id ||
+        row.school_id !== donationRequest.school_id
+      ) {
+        console.error("r3_donation_review_rpc_result_unverified");
+        return privateJson(
+          { error: "No se pudo verificar la decisión. Comprueba su estado antes de reintentar." },
+          { status: 503 }
+        );
+      }
+    }
+
     if (action === "approve") {
       if (!donationRequest.requester_id) {
         return privateJson({ error: "La solicitud no tiene destinatario válido." }, { status: 409 });
       }
       const now = new Date().toISOString();
 
+      if (!atomicReviewEnabled) {
       const { data: approved, error: approveError } = await adminSupabase
-        .from("donation_requests")
-        .update({
-          status: "approved",
-          assigned_to_requester_id: donationRequest.requester_id,
-          approved_by_admin_id: user.id,
-          note: note || null,
-          updated_at: now,
-        })
-        .eq("id", donationRequestId)
-        .eq("status", "pending")
-        .select("id")
-        .maybeSingle();
-      if (approveError) return privateJson({ error: "No se pudo aprobar la solicitud." }, { status: 503 });
-      if (!approved) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
-
-      const { error: competitorsError } = await adminSupabase
-        .from("donation_requests")
-        .update({
-          status: "rejected",
-          note: "La donación ya fue asignada a otro solicitante.",
-          updated_at: now,
-        })
-        .eq("listing_id", donationRequest.listing_id)
-        .neq("id", donationRequestId)
-        .eq("status", "pending");
-      if (competitorsError) {
-        console.error("donation_review_competitor_rejection_failed");
-        return privateJson(
-          { error: "La asignación se guardó, pero requiere conciliar las solicitudes competidoras." },
-          { status: 503 }
-        );
-      }
-
-      const { error: archiveError } = await adminSupabase
-        .from("listings")
-        .update({ status: "archived" })
-        .eq("id", donationRequest.listing_id);
-      if (archiveError) {
-        console.error("donation_review_listing_archive_failed");
-        return privateJson(
-          { error: "La asignación se guardó, pero requiere conciliar el anuncio." },
-          { status: 503 }
-        );
-      }
+          .from("donation_requests")
+          .update({
+            status: "approved",
+            assigned_to_requester_id: donationRequest.requester_id,
+            approved_by_admin_id: user.id,
+            note: note || null,
+            updated_at: now,
+          })
+          .eq("id", donationRequestId)
+          .eq("status", "pending")
+          .select("id")
+          .maybeSingle();
+        if (approveError) return privateJson({ error: "No se pudo aprobar la solicitud." }, { status: 503 });
+        if (!approved) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
+  
+        const { error: competitorsError } = await adminSupabase
+          .from("donation_requests")
+          .update({
+            status: "rejected",
+            note: "La donación ya fue asignada a otro solicitante.",
+            updated_at: now,
+          })
+          .eq("listing_id", donationRequest.listing_id)
+          .neq("id", donationRequestId)
+          .eq("status", "pending");
+        if (competitorsError) {
+          console.error("donation_review_competitor_rejection_failed");
+          return privateJson(
+            { error: "La asignación se guardó, pero requiere conciliar las solicitudes competidoras." },
+            { status: 503 }
+          );
+        }
+  
+        const { error: archiveError } = await adminSupabase
+          .from("listings")
+          .update({ status: "archived" })
+          .eq("id", donationRequest.listing_id);
+        if (archiveError) {
+          console.error("donation_review_listing_archive_failed");
+          return privateJson(
+            { error: "La asignación se guardó, pero requiere conciliar el anuncio." },
+            { status: 503 }
+          );
+        }
+  
+        }
 
       if (conversationId) {
         const { error: messageError } = await adminSupabase.from("messages").insert({
@@ -226,20 +310,23 @@ export async function POST(request: Request) {
     } else {
       const now = new Date().toISOString();
 
+      if (!atomicReviewEnabled) {
       const { data: rejected, error: rejectError } = await adminSupabase
-        .from("donation_requests")
-        .update({
-          status: "rejected",
-          approved_by_admin_id: user.id,
-          note: note || null,
-          updated_at: now,
-        })
-        .eq("id", donationRequestId)
-        .eq("status", "pending")
-        .select("id")
-        .maybeSingle();
-      if (rejectError) return privateJson({ error: "No se pudo rechazar la solicitud." }, { status: 503 });
-      if (!rejected) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
+          .from("donation_requests")
+          .update({
+            status: "rejected",
+            approved_by_admin_id: user.id,
+            note: note || null,
+            updated_at: now,
+          })
+          .eq("id", donationRequestId)
+          .eq("status", "pending")
+          .select("id")
+          .maybeSingle();
+        if (rejectError) return privateJson({ error: "No se pudo rechazar la solicitud." }, { status: 503 });
+        if (!rejected) return privateJson({ error: "La solicitud ha cambiado de estado. Actualiza la pantalla." }, { status: 409 });
+  
+        }
 
       if (conversationId) {
         const { error: messageError } = await adminSupabase.from("messages").insert({
