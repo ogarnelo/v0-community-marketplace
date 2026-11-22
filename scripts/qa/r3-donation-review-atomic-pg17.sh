@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# WETUDY R3/A-002 — PG17 disposable DB ONLY. Never read DATABASE_URL.
+# WETUDY R3/A-002 — PG17 disposable DB ONLY; never read remote connection settings.
 export PGHOST=127.0.0.1 PGPORT=5432 PGUSER=postgres PGPASSWORD=wetudy_synthetic_pg17 PGCONNECT_TIMEOUT=5
 db=wetudy_r3_donation_atomic_synthetic
 tmp=$(mktemp -d)
