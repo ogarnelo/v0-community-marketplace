@@ -45,6 +45,10 @@ La **PR #787 sigue DRAFT** con ocho categorías de consumidores sin atestación 
 
 **No iniciar #227 ni otra PR funcional mientras #787 siga ABIERTO**, a menos que el propietario decida explícitamente repriorizar por bloqueo externo. Evitar gastar más tiempo repitiendo pruebas ya aprobadas.
 
+## #787 — Responsable identificado, firma aún pendiente (22/11/2026)
+
+El propietario ha confirmado que **por ahora él mismo es responsable de inventariar las aplicaciones externas, móviles y automatizaciones**. Esto identifica el interlocutor pero **no constituye atestación firmada de que no existen otros consumidores**. Se ha preparado un inventario con hechos observados y una declaración de siete puntos que el propietario debe validar: [P0_PRIVACY_787_OWNER_CONSUMER_INVENTORY_20261122.md](P0_PRIVACY_787_OWNER_CONSUMER_INVENTORY_20261122.md). El revisor independiente de seguridad/rollback sigue sin identificarse. **#787 permanece ABIERTO/BLOQUEADO EXTERNAMENTE; no REVOKE ni otro frente sin decisión expresa.**
+
 ## Qué hacer ahora
 
 - Priorizar una **acción nueva y verificable** sin duplicar R2: abordar la revisión externa de consumidores/rollback de #787 por vía documental; no retirar grants hasta atestación. Si dependencias necesitan consentimiento externo, registrar bloqueo y pasar al siguiente frente no bloqueado.
