@@ -45,6 +45,9 @@ GRANT SELECT,UPDATE ON public.listings,public.agreements TO service_role;
 GRANT SELECT ON public.listing_offers,public.donation_requests TO service_role;
 GRANT INSERT ON public.agreement_events,public.messages TO service_role;
 SQL
+# Apply original production function snapshot first, so candidate's
+# body-hash preflight tests exact rollback source instead of a stub.
+psql -X -v ON_ERROR_STOP=1 -d "$db" -f scripts/review_only/r3_agreements_a025_a026_before_snapshot.sql >"$tmp/baseline.log"
 psql -X -v ON_ERROR_STOP=1 -d "$db" -f "$candidate" >"$tmp/install.log"
 acl=$(psql -XAt -v ON_ERROR_STOP=1 -d "$db" -c "SELECT (has_function_privilege('anon','public.server_confirm_agreement(uuid,uuid)','EXECUTE'))::int || ':' || (has_function_privilege('authenticated','public.server_confirm_agreement(uuid,uuid)','EXECUTE'))::int || ':' || (has_function_privilege('service_role','public.server_confirm_agreement(uuid,uuid)','EXECUTE'))::int")
 [[ "$acl" == "0:0:1" ]] || { echo "Unsafe confirm ACL: $acl" >&2; exit 1; }
