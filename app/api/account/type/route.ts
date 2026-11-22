@@ -86,11 +86,35 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (currentType === targetType) {
-    return NextResponse.json({ userType: targetType }, { headers: PRIVATE_HEADERS });
-  }
-
   const activeStudents = students || [];
+
+  // A no-op request must not conceal drift between profile, Auth metadata,
+  // and educational contexts. Only reads are performed.
+  if (currentType === targetType) {
+    try {
+      const { data: authRecord, error: authError } =
+        await admin.auth.admin.getUserById(user.id);
+      if (authError || !authRecord?.user || authRecord.user.id !== user.id) {
+        return jsonError("No se pudo verificar la consistencia de tu cuenta.", 503,
+          "account_type_reconciliation_required");
+      }
+      const relationshipsConsistent = activeStudents.every(student =>
+        student.relationship === (targetType === "student" ? "self" : "guardian") &&
+        (targetType !== "student" || student.alias === null));
+      const primaryCount = activeStudents.filter(student => student.is_primary).length;
+      if (authRecord.user.user_metadata?.user_type !== targetType ||
+          !relationshipsConsistent ||
+          (targetType === "student" && activeStudents.length > 1) ||
+          (activeStudents.length > 0 && primaryCount !== 1)) {
+        return jsonError("La cuenta necesita una revisión de consistencia.", 409,
+          "account_type_state_mismatch");
+      }
+      return NextResponse.json({ userType: targetType }, { headers: PRIVATE_HEADERS });
+    } catch {
+      return jsonError("No se pudo verificar la consistencia de tu cuenta.", 503,
+        "account_type_reconciliation_required");
+    }
+  }
 
   if (targetType === "student" && activeStudents.length > 1) {
     return jsonError(
