@@ -6,7 +6,7 @@ import {createRequire} from "node:module";
 const ts=createRequire(import.meta.url)("typescript");
 const USER="11111111-1111-4111-8111-111111111111";
 const SCHOOL="22222222-2222-4222-8222-222222222222";
-function fixture({flag=true,error=false,approved=true}={}){
+function fixture({flag=true,error=false,approved=true,canary=USER}={}){
  const calls=[],exports={};
  const admin={
   rpc:async(name,args)=>{
@@ -22,7 +22,7 @@ function fixture({flag=true,error=false,approved=true}={}){
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}
  }).outputText;
  vm.runInNewContext(js,{exports,require:k=>k==="@/lib/supabase/admin"?{createAdminClient:()=>admin}:{},
-  Promise,Error,process:{env:{WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_ENABLED:flag?"true":"false"}}});
+  Promise,Error,process:{env:{WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_ENABLED:flag?"true":"false",WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_CANARY_USER_IDS:canary}}});
  return {calls,grant:()=>exports.grantSchoolAdminRole({userId:USER,schoolId:SCHOOL})};
 }
 test("ON grant succeeds with exactly one RPC and zero legacy writes",async()=>{
@@ -36,5 +36,23 @@ test("ON rejects an unauthorized/invalid target without any fallback",async()=>{
 test("ON handles absent RPC or DB errors without leaking details or fallback",async()=>{
  const f=fixture({error:true});
  await assert.rejects(f.grant(),e=>!e.message.includes("SENSITIVE_DB_ERROR"));
+ assert.deepEqual(f.calls,["RPC"]);
+});
+
+for(const [description,opts] of [
+ ["global switch OFF",{flag:false,canary:USER}],
+ ["empty canary list",{flag:true,canary:""}],
+ ["non-matching canary",{flag:true,canary:"33333333-3333-4333-8333-333333333333"}],
+ ["malformed canary",{flag:true,canary:"all,not-a-uuid"}],
+]){
+ test("atomic grant bypassed when "+description,async()=>{
+  const f=fixture(opts);
+  await assert.rejects(f.grant(),/unexpected legacy DB query/);
+  assert.deepEqual(f.calls,["LEGACY_DB"]);
+ });
+}
+test("canary supports normalized UUIDs in comma-separated list",async()=>{
+ const f=fixture({canary:"33333333-3333-4333-8333-333333333333, 11111111-1111-4111-8111-111111111111 "});
+ await f.grant();
  assert.deepEqual(f.calls,["RPC"]);
 });
