@@ -1,10 +1,13 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
-**Fecha de corte:** 22 noviembre 2026. **Documento breve de traspaso entre chats**. Para detalle probatorio e histórico integral, utilizar el maestro descargable **WETUDY_AUDITORIA_CONTINUIDAD_22NOV2026_V38.md** generado en la conversación y el [issue #767](https://github.com/ogarnelo/v0-community-marketplace/issues/767). No copiar los cientos de KB del maestro al repositorio; este archivo es el índice verificable y compacto.
+> **OBLIGATORIO: leer `AGENTS.md` en la raíz antes de cualquier avance.** La norma de cerrar un bloque antes de abrir otro es una **regla permanente de WETUDY**, reiterada por el propietario en múltiples ocasiones: TERMINAR → VALIDAR → FUSIONAR → READY → DOCUMENTAR → CERRAR. No volver a tratarla como regla nueva, no abrir micro-PR duplicadas ni cambiar de frente por iniciativa propia. Si el bloque está bloqueado externamente, permanece ABIERTO y solo podrá repriorizarse por decisión expresa. Al finalizar cada tanda actualizar **el índice, #767 y el maestro completo**, conservando el histórico.
+
+
+**Fecha de corte:** 22 noviembre 2026 (actualizar SHA y estado en cada cierre). **Documento breve de traspaso entre chats**. Para detalle probatorio e histórico integral, utilizar el maestro descargable **WETUDY_AUDITORIA_CONTINUIDAD_22NOV2026_V40.md** (o versión más reciente) generado en la conversación y el [issue #767](https://github.com/ogarnelo/v0-community-marketplace/issues/767). No copiar los cientos de KB del maestro al repositorio; este archivo es el índice verificable y compacto.
 
 ## Cómo reanudar sin repetir trabajo
 
-En un chat nuevo decir: *«Continúa WETUDY desde `docs/pilot/WETUDY_START_HERE_CONTINUIDAD.md` en `ogarnelo/v0-community-marketplace` y el issue #767. Lee el estado actualizado, verifica main y despliegue, evita repetir las PR #790–#799 y avanza sobre el primer bloqueo real sin alterar producción sin autorización.»* Adjuntar V38 si se requiere el histórico integral. Los estados son la última observación, no una garantía futura: comprobar SHA/flags antes de cualquier acción.
+En un chat nuevo decir: *«Continúa WETUDY desde `docs/pilot/WETUDY_START_HERE_CONTINUIDAD.md` en `ogarnelo/v0-community-marketplace` y el issue #767. Lee el estado actualizado, verifica main y despliegue, evita repetir las PR #790–#799 y avanza sobre el primer bloqueo real sin alterar producción sin autorización.»* Adjuntar la versión maestra más reciente si se requiere el histórico integral. Los estados son la última observación, no una garantía futura: comprobar SHA/flags antes de cualquier acción.
 
 - Código: GitHub **ogarnelo/v0-community-marketplace**; base antes de este cambio documental: `b586e0a5069409fbff39795f169453a8585d4650` (PR #799).
 - Producción web: [wetudy.com](https://www.wetudy.com). Vercel project `prj_CLCg95Wcc9ScRMEhzwHTShCi8Ev5`, team `team_eUWtljTIUV67Un3Cx2mMZpNp`; deployment de #799 `dpl_9Bztj6BrcSwLpqJLBuYCZwcR2fAF` **READY**.
@@ -36,13 +39,19 @@ Otros bloques sin reabrir: reporting global R1 PR #789 migrada, cron apagado; fe
 
 La comprobación de catálogo de **solo lectura** del 22/11/2026 confirma las cinco tablas con anon SELECT, RLS activo y cero políticas anon/PUBLIC. Se han identificado dos vistas invocadoras dependientes: `demand_opportunities_30d` sobre `demand_requests` (**anon SELECT en la vista = sí**, potencial ruptura de consumidor invitado), y `saved_search_demand_summary` sobre `saved_searches` (**anon SELECT en la vista = no**). No son riesgos idénticos. Ver evidencias y consulta reproducible en [P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md](P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md). Atestaciones externas siguen sin acreditarse; **no aplicar REVOKE** ni cerrar #787 por pruebas locales.
 
+## Puerta #787 — bloqueo real, no cierre simulado
+
+La **PR #787 sigue DRAFT** con ocho categorías de consumidores sin atestación firmada y ocho verificaciones externas en falso, conforme al manifiesto de su rama. El cierre técnico de ensayos PG17/SSR/PostgREST/Realtime locales **no habilita** `REVOKE` en producción ni el merge. Faltan responsables externos y revisor independiente para el inventario, ensayos de integraciones, rollback sobre ACL exactos y aprobación de propietario. Ver el acta de cierre pendiente: [P0_PRIVACY_787_CIERRE_PENDIENTE_20261122.md](P0_PRIVACY_787_CIERRE_PENDIENTE_20261122.md).
+
+**No iniciar #227 ni otra PR funcional mientras #787 siga ABIERTO**, a menos que el propietario decida explícitamente repriorizar por bloqueo externo. Evitar gastar más tiempo repitiendo pruebas ya aprobadas.
+
 ## Qué hacer ahora
 
 - Priorizar una **acción nueva y verificable** sin duplicar R2: abordar la revisión externa de consumidores/rollback de #787 por vía documental; no retirar grants hasta atestación. Si dependencias necesitan consentimiento externo, registrar bloqueo y pasar al siguiente frente no bloqueado.
 - Mantener el canary escolar y RPC baja estudiantes **OFF** hasta puerta funcional y autorización separada.
 - No fusionar ramas enormes/draft sin limpiar alcance y verificar HEAD de CI, ni confiar en builds verdes de commits antiguos.
-- Al finalizar cada tanda: verificar main, CI y Vercel `READY` del SHA resultante; registrar en [#767](https://github.com/ogarnelo/v0-community-marketplace/issues/767) y **crear V39** anexando hechos nuevos al maestro V38, conservando V38 íntegro. Actualizar este índice solo si cambian las prioridades o hechos de referencia.
+- Al finalizar cada tanda: verificar main, CI y Vercel `READY` del SHA resultante; registrar en [#767](https://github.com/ogarnelo/v0-community-marketplace/issues/767) y **crear la siguiente versión maestra** anexando hechos nuevos al archivo anterior, conservando el histórico íntegro. Actualizar este índice solo si cambian las prioridades o hechos de referencia.
 
-## Evidencias de última tanda (22/11/2026)
+## Evidencias históricas de tanda anterior (22/11/2026; no sustituyen verificaciones actuales)
 
 GitHub main `b586e0a5069409fbff39795f169453a8585d4650`, Vercel `READY`; PR abiertas exactamente #787/#232/#231/#227. Ambas RPC R2 presentes; 11 usuarios Auth, 11 perfiles, 1 colegio, 2 roles, 1 school_admin, 0 diferencias rol/perfil. No se ejecutó DML ni DDL en este repaso. Los cambios introducidos en este PR son **solo documentación de continuidad**, sin flags ni migraciones.
