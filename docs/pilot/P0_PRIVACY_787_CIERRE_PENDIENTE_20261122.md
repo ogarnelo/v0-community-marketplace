@@ -1,5 +1,7 @@
 # WETUDY — Acta de cierre pendiente del bloque #787
 
+> **ACTUALIZACIÓN VIGENTE 22/11/2026:** por autorización expresa del propietario, [PR #787](https://github.com/ogarnelo/v0-community-marketplace/pull/787) se **cerró SIN MERGE** (cierre administrativo, no remediación). La retirada de `anon SELECT` en cinco tablas no se ha efectuado y queda **pendiente de seguridad** en [issue #804](https://github.com/ogarnelo/v0-community-marketplace/issues/804); revisión independiente, firmas y rollback productivo siguen como condiciones de reactivación. El resto de esta acta documenta el bloqueo **anterior a la decisión** y conserva su valor histórico, pero no debe interpretarse como que la PR sigue abierta. Repriorización permitida por decisión explícita. Piloto NO-GO.
+
 **Fecha:** 22/11/2026 · **Tipo:** bloqueo externo verificable, no una nueva auditoría repetida. [PR #787](https://github.com/ogarnelo/v0-community-marketplace/pull/787) / [seguimiento #767](https://github.com/ogarnelo/v0-community-marketplace/issues/767).
 
 ## Decisión de estado
