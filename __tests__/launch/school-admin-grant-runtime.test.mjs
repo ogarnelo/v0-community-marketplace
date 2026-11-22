@@ -42,7 +42,7 @@ function makeCase(opts={}) {
   assert.equal((transpiled.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error).length,0);
   vm.runInNewContext(transpiled.outputText,{exports:out,
     require:(name)=>name==="@/lib/supabase/admin"?{createAdminClient:()=>admin}:{},
-    Promise,Error},{filename:"school-admin-role.js",timeout:2000});
+    Promise,Error,process:{env:{WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_ENABLED:"false"}}},{filename:"school-admin-role.js",timeout:2000});
   return {calls,grant:()=>out.grantSchoolAdminRole({userId:USER,schoolId:SCHOOL})};
 }
 test("inactive centre never reaches user roles or profile",async()=>{
