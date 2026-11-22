@@ -21,6 +21,8 @@ jobs:
         run: npm install --legacy-peer-deps
       - name: R1 global report recipient and delivery safety
         run: node --test __tests__/launch/r1-global-report-authority-runtime.test.mjs
+      - name: R2 student context concurrent mutation fencing
+        run: node --test __tests__/launch/r2-student-context-state-fencing.test.mjs
       - name: Critical contract tests
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
