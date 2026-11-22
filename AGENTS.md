@@ -2,6 +2,16 @@
 
 Este archivo es la **base operativa permanente** de WETUDY. Debe leerse antes de planificar, editar, revisar, fusionar o desplegar cualquier cambio, también al iniciar un chat nuevo. Su contenido no depende de la memoria de un chat.
 
+## PRIORIDAD VINCULANTE — ECONOMÍA DE BUILDS (22/11/2026)
+
+El propietario ha recibido cargos adicionales de **Build CPU Minutes** en Vercel tras numerosas iteraciones; la protección de su presupuesto es una condición de cierre de cada bloque. Referencia permanente: [norma de costes #767](https://github.com/ogarnelo/v0-community-marketplace/issues/767).
+
+1. **Un bloque funcional a la vez, y una sola PR con un solo commit multifichero por candidato siempre que sea posible.** Preparar archivos y pruebas offline antes del primer push. No publicar una cadena de `update_file` que inicie una compilación por archivo, ni construir de nuevo tras una auditoría repetida.
+2. **Objetivo máximo operativo: una preview READY y un build productivo por bloque**, salvo fallo demostrado y corregido fuera de Vercel; analizar primero el log de cualquier fallo antes de otro intento. No hacer redeploy manual ni `forceNew` sin justificación registrada.
+3. **NO hacer commits de documentación exclusivamente para actualizar continuidad**. El issue #767 y el maestro acumulativo son la vía inmediata sin builds; incorporar `AGENTS.md` y `START_HERE` con la próxima PR funcional o de mantenimiento imprescindible.
+4. El filtro real `vercel.json` → `scripts/vercel-ignore-qa-only.cjs` preserva los QA-only históricos, **omite previews sin PR** y puede omitir solo cambios de Markdown seguros si se conoce el último SHA desplegado. **PR con cambios funcionales y producción siempre compilan**. Si el historial Git/variables no permite comprobarlo, el filtro falla abierto y compila. Verificación: `node scripts/vercel-ignore-qa-only.cjs --self-test`.
+5. Registrar explícitamente builds CANCELED/ERROR/READY y el SHA verificado. No alterar por defecto el tamaño de máquina, presupuestos, límites de gasto ni pausar producción. Cualquier ajuste adicional requiere autorización específica.
+
 ## ESTADO VIGENTE — decisión expresa del propietario, 22/11/2026
 
 **#787 CERRADA ADMINISTRATIVAMENTE SIN MERGE**, no cerrada como remediación ejecutada. El propietario autorizó explícitamente archivar la PR #787 sin integrar sus 98 commits y **repriorizar** para avanzar a otro bloque; la PR se ha comprobado `CLOSED`/`merged=false`. La propuesta de retirar cinco `anon SELECT` **NO SE HA APLICADO** y continúa **PENDIENTE DE SEGURIDAD**, rastreada en [issue #804](https://github.com/ogarnelo/v0-community-marketplace/issues/804). Esta excepción está permitida por la norma general de repriorización expresa; no convertirla en precedente automático.

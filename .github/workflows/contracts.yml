@@ -17,6 +17,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Vercel build cost gate must be fail-open for unsafe changes
+        run: node scripts/vercel-ignore-qa-only.cjs --self-test
       - name: Install
         run: npm install --legacy-peer-deps
       - name: R1 global report recipient and delivery safety
