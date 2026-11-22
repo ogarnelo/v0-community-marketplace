@@ -14,6 +14,10 @@ BEGIN
  OR to_regclass('public.listings') IS NULL
  OR to_regclass('public.listing_offers') IS NULL
  OR to_regclass('public.donation_requests') IS NULL
+ OR (SELECT md5(prosrc) FROM pg_proc WHERE oid='public.server_confirm_agreement(uuid,uuid)'::regprocedure)
+    IS DISTINCT FROM '64b5cff657441f2c31f12ab1f62fa80e'
+ OR (SELECT md5(prosrc) FROM pg_proc WHERE oid='public.server_cancel_agreement(uuid,uuid,text)'::regprocedure)
+    IS DISTINCT FROM 'f883d0dc3abe694ee62946e51971f11b'
  OR NOT EXISTS(SELECT 1 FROM pg_class c WHERE c.oid='public.agreements'::regclass AND c.relrowsecurity)
  OR NOT EXISTS(SELECT 1 FROM pg_class c WHERE c.oid='public.listings'::regclass AND c.relrowsecurity)
  OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid IN
