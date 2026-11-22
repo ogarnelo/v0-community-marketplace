@@ -1,6 +1,18 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
-## BLOQUE ACTIVO R3/A-015 — duplicidad de solicitudes de donación pendientes (22/11/2026)
+## CIERRE DEFINITIVO R3/A-015 — unicidad de solicitud de donación pendiente (22/11/2026)
+
+**CERRADO técnica y productivamente con autorización expresa del propietario.** [PR #807](https://github.com/ogarnelo/v0-community-marketplace/pull/807) MERGED, squash `main` `f731276eb4a3c0fe25f7d4ca0a8b01fd717267ce`, CI completa SUCCESS (incluye concurrencia real PG17 aislada, runtime 23505→HTTP 409 y build Next.js), Vercel producción `dpl_A3xSsjmqcFNQoXparYE6QAaaeE1J` **READY**. La autorización posterior del propietario cubrió **solo la instalación del índice nuevo** en Supabase **Education Marketplace/WETUDY** `jpsljmakoscqevssimtk`; no se extendió a permisos, otros índices, RLS, flag, SQL ajeno ni piloto.
+
+**Migración aplicada y verificada:** `20261122201851_r3_donation_pending_unique_a015_20261122` mediante Supabase `apply_migration` dentro de `BEGIN/COMMIT`, con `lock_timeout=5s` y `statement_timeout=20s`. Fuente SQL versionada en `scripts/review_only/r3_donation_pending_unique_candidate.sql` (nació como candidato review-only, hoy el mismo contenido está aplicado con límites de tiempo). El índice único parcial `public.donation_requests_one_pending_per_requester_listing_idx` sobre `(listing_id, requester_id)` filtrado por `status='pending'` e IDs no nulos está **UNIQUE/VALID/READY**. Guardar el nombre y la versión; **no reejecutar el candidato ni reinstalarlo**.
+
+**Preflight + postflight read-only:** 0 solicitudes, 0 duplicados, RLS `ON`; políticas intactas (INSERT `authenticated`, SELECT `PUBLIC` condicionada a identidad). ACL de tabla **idéntica antes y después** `{postgres=arwdDxtm/postgres,anon=arwd/postgres,authenticated=arwd/postgres,service_role=arwdDxtm/postgres}`; 0 ACL por columna. Índice previo `donation_requests_one_approved_per_listing_idx` mantiene `UNIQUE/VALID/READY`. No hubo DML, usuarios sintéticos ni variaciones de filas en producción. VM Copilot permanece fuera de alcance y sin intervenciones.
+
+**Rollback SOLO ante nueva autorización/incident real:** snapshot de nombre/definición/ACL/RLS y comprobación de consumidores/estado; `DROP INDEX public.donation_requests_one_pending_per_requester_listing_idx` en transacción controlada, y verificar que el índice `approved`, políticas y permisos continúan idénticos. No eliminar nunca el antiguo índice aprobado. Una reversión volvería a permitir solicitudes pending duplicadas y exige evaluación de impacto.
+
+**Próxima puerta de trabajo:** continuar R3 en el siguiente hallazgo de adjudicación/donaciones sin repetir A-015, A-019, #591 ni #787. R3 general **aún ABIERTO**; #804 pendiente de privacidad, piloto **NO-GO**. Ensayos reales de familias solo en piloto, no imputar E2E productivo no realizado.
+
+## HISTÓRICO PREVIO AL CIERRE R3/A-015 — propuesta y puerta de autorización (22/11/2026)
 
 **PR [#807](https://github.com/ogarnelo/v0-community-marketplace/pull/807)**: corrección completa propuesta para que un mismo solicitante no cree **dos solicitudes pending** simultáneas del mismo anuncio. El código `lib/services/donations.service.ts` ya comprobaba pending antes de insertar, pero no estaba protegido frente a dos peticiones concurrentes. En la lectura SQL de 22/11, `donation_requests` tenía 0 filas; el índice existente `donation_requests_one_approved_per_listing_idx` limita un **approved** por anuncio, **no** los pending por usuario. No reinterpretar el alcance de #591 ni repetir su ensayo.
 
