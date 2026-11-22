@@ -33,6 +33,8 @@ jobs:
         run: node --test __tests__/launch/r3-agreement-rpc-ack-runtime.test.mjs
       - name: R3 pending donation index collision must fail closed
         run: node --test __tests__/launch/r3-donation-pending-unique-review-runtime.test.mjs
+      - name: R3 atomic donation review contract and actor authorization
+        run: node --test __tests__/launch/r3-donation-review-atomic-contract.test.mjs __tests__/launch/pilot-donation-admin-review-safe.test.mjs __tests__/launch/pilot-donation-review-side-effects-runtime.test.mjs
       - name: Critical contract tests
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
@@ -344,3 +346,28 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Two concurrent pending donation inserts, replay, and duplicate preflight
         run: bash scripts/qa/r3-donation-pending-unique-pg17.sh
+
+  r3-donation-review-pg17:
+    name: Isolated PG17 school donation approval transaction
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: R3 donation review locks listing and request, enforces scope and one winner
+        run: bash scripts/qa/r3-donation-review-atomic-pg17.sh
