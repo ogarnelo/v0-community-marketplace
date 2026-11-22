@@ -3,26 +3,6 @@
 BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='30s';
--- A school activation toggle may race with the grant. Coordinate ALL
--- is_active updates (including legacy application routes) with the grant.
--- Advisory locks live until COMMIT/ROLLBACK; none widen table privileges.
-CREATE FUNCTION public.r2_school_active_transition_lock_candidate()
-RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
-SET search_path=pg_catalog,public AS $school_guard$
-BEGIN
-  PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended('wetudy:r2:school:' || NEW.id::text, 0)
-  );
-  RETURN NEW;
-END
-$school_guard$;
-REVOKE ALL ON FUNCTION public.r2_school_active_transition_lock_candidate()
-FROM PUBLIC, anon, authenticated;
-CREATE TRIGGER r2_school_active_transition_lock_candidate
-BEFORE UPDATE OF is_active ON public.schools
-FOR EACH ROW WHEN (OLD.is_active IS DISTINCT FROM NEW.is_active)
-EXECUTE FUNCTION public.r2_school_active_transition_lock_candidate();
-
 CREATE FUNCTION public.r2_grant_school_admin_atomic_candidate(
   p_user_id uuid, p_school_id uuid
 ) RETURNS boolean
@@ -41,16 +21,14 @@ BEGIN
   WHERE id=p_user_id FOR UPDATE;
   IF NOT FOUND THEN RETURN false; END IF;
 
-  -- Match the school is_active transition trigger, without FOR SHARE
-  -- or any UPDATE grant on public.schools.
-  PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended('wetudy:r2:school:' || p_school_id::text, 0)
-  );
+  -- Production service_role has UPDATE on schools, allowing a real row lock.
+  -- FOR SHARE conflicts with the non-key UPDATE of schools.is_active,
+  -- serializing grants against the existing direct toggle endpoint.
   SELECT is_active INTO v_active FROM public.schools
-  WHERE id=p_school_id;
+  WHERE id=p_school_id FOR SHARE;
   IF NOT FOUND OR v_active IS DISTINCT FROM true THEN RETURN false; END IF;
 
-  -- Schools stays SELECT-only for service_role; the trigger coordinates toggles.
+  -- No privileges are changed by this candidate SQL.
   -- The current dashboard supports exactly one school-admin school per user.
   IF EXISTS (
     SELECT 1 FROM public.user_roles
@@ -87,9 +65,7 @@ GRANT EXECUTE ON FUNCTION public.r2_grant_school_admin_atomic_candidate(uuid,uui
   TO service_role;
 DO $guard$
 BEGIN
-  IF has_function_privilege('anon','public.r2_school_active_transition_lock_candidate()','EXECUTE')
-  OR has_function_privilege('authenticated','public.r2_school_active_transition_lock_candidate()','EXECUTE')
-  OR has_function_privilege('anon','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
+  IF has_function_privilege('anon','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
   OR has_function_privilege('authenticated','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
   OR NOT has_function_privilege('service_role','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
   OR (SELECT prosecdef FROM pg_proc
