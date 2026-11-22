@@ -62,6 +62,17 @@ export async function grantSchoolAdminRole(params: {
     throw new Error("El usuario ya administra otro centro. Revisa sus permisos antes de asignarle uno nuevo.");
   }
 
+  // A role must never be inserted for an absent or unreadable profile.
+  // This read is intentionally before the privileged role mutation.
+  const { data: profileBeforeGrant, error: profileLookupError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", params.userId)
+    .maybeSingle();
+  if (profileLookupError || !profileBeforeGrant?.id) {
+    throw new Error("No se pudo confirmar el perfil. No se ha iniciado la concesión del rol.");
+  }
+
   if (!existingRole) {
     const { error: roleInsertError } = await admin.from("user_roles").insert({
       user_id: params.userId,

@@ -70,16 +70,21 @@ test("valid school admin grant updates profile after role insertion",async()=>{
   assert.ok(h.calls.indexOf("PROFILE_UPDATE")>h.calls.indexOf("ROLE_INSERT"));
 });
 
-test("zero affected profile rows is partial success, not successful role grant",async()=>{
+test("missing profile fails before granting a privileged school role",async()=>{
   const h=makeCase({profileMissing:true});
   await assert.rejects(h.grant(),/confirmar el perfil/);
-  assert.ok(h.calls.includes("ROLE_INSERT"));
-  assert.ok(h.calls.includes("PROFILE_UPDATE"));
+  assert.equal(h.calls.includes("ROLE_INSERT"),false);
+  assert.equal(h.calls.includes("PROFILE_UPDATE"),false);
 });
-test("profile SQL error after grant requires reconciliation",async()=>{
+test("profile SQL preflight error prevents granting a privileged role",async()=>{
   const h=makeCase({profileSqlError:true});
   await assert.rejects(h.grant(),/confirmar el perfil/);
-  assert.ok(h.calls.includes("ROLE_INSERT"));
+  assert.equal(h.calls.includes("ROLE_INSERT"),false);
+});
+test("an existing same-school role also requires a readable profile",async()=>{
+  const h=makeCase({existingRole:true,profileMissing:true});
+  await assert.rejects(h.grant(),/confirmar el perfil/);
+  assert.equal(h.calls.includes("PROFILE_UPDATE"),false);
 });
 
 test("null school activation cannot grant administrator privileges",async()=>{
