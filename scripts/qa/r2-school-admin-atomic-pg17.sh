@@ -25,7 +25,7 @@ ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA public TO anon,authenticated,service_role;
-GRANT SELECT ON public.schools TO service_role;
+GRANT SELECT,UPDATE ON public.schools TO service_role;
 GRANT SELECT,UPDATE ON public.profiles TO service_role;
 GRANT SELECT,INSERT ON public.user_roles TO service_role;
 INSERT INTO public.schools VALUES
@@ -79,8 +79,8 @@ wait "$pa"; wait "$pb"
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles WHERE user_id='66666666-6666-4666-8666-666666666666';")" == 1 ]]
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles r JOIN public.profiles p ON p.id=r.user_id WHERE r.role='school_admin' AND p.school_id IS DISTINCT FROM r.school_id;")" == 0 ]]
 [[ "$("${P[@]}" -c "SELECT has_function_privilege('anon','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')::text || ':' || has_function_privilege('authenticated','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')::text || ':' || has_function_privilege('service_role','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')::text || ':' || (SELECT prosecdef::text FROM pg_proc WHERE oid='public.r2_grant_school_admin_atomic_candidate(uuid,uuid)'::regprocedure);")" == false:false:true:false ]]
-# Direct school status UPDATE is protected by the new trigger even when
-# the application does not use an RPC for toggling.
+# A school status UPDATE conflicts with the grant FOR SHARE lock, even when
+# the application uses the existing direct school toggle route.
 "${P[@]}" <<'SQL'
 INSERT INTO public.schools VALUES
 ('99999999-9999-4999-8999-999999999999',true);
@@ -89,7 +89,7 @@ INSERT INTO public.profiles(id) VALUES
 SQL
 status_school="'99999999-9999-4999-8999-999999999999'"
 status_user="'88888888-8888-4888-8888-888888888888'"
-# Deactivation wins first: grant must wait for the trigger lock and then deny.
+# Deactivation wins first: grant waits for the school row lock and denies.
 ("${P[@]}" -c "BEGIN; UPDATE public.schools SET is_active=false WHERE id=$status_school; SELECT pg_sleep(1); COMMIT;" >"$tmp/toggle") &
 toggle_pid=$!
 sleep 0.25
@@ -107,5 +107,5 @@ wait "$grant_pid"
 [[ "$(grep -c '^t' "$tmp/grant")" == 1 ]]
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles WHERE user_id=$status_user;")" == 1 ]]
 [[ "$("${P[@]}" -c "SELECT is_active::text FROM public.schools WHERE id=$status_school;")" == false ]]
-[[ "$("${P[@]}" -c "SELECT has_function_privilege('anon','public.r2_school_active_transition_lock_candidate()','EXECUTE')::text || ':' || has_function_privilege('authenticated','public.r2_school_active_transition_lock_candidate()','EXECUTE')::text;")" == false:false ]]
+
 echo "R2 PASS: idempotency, rollback, conflicting schools, ACL, both orders of active-toggle concurrency"
