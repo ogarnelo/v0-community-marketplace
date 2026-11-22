@@ -1,6 +1,17 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
-## R3/A-002 — AUTORIZACIÓN ESCOLAR ENDURECIDA; ATOMICIDAD SQL PENDIENTE (22/11/2026)
+## R3/A-002 — SQL INSTALADO, ACTIVACIÓN DE VERCEL EN CURSO (22/11/2026)
+
+**Propietario autorizó expresamente dos operaciones y sus verificaciones, en ese orden:** (1) instalar la función SQL `public.r3_review_donation_atomic(uuid,uuid,text,text)` en **Supabase Education Marketplace/WETUDY** (`jpsljmakoscqevssimtk`), (2) configurar `WETUDY_R3_DONATION_ATOMIC_REVIEW_ENABLED=true` **solo en producción Vercel** (`prj_CLCg95Wcc9ScRMEhzwHTShCi8Ev5`) y desplegar/verificar. No autoriza tocar **VM Copilot** ni abrir el piloto.
+
+- **SQL INSTALADO y postflight VERIFICADO:** Supabase migration `20261122211819_r3_donation_review_atomic_a002_20261122` (`success:true`), fuente exacta `scripts/review_only/r3_donation_review_atomic_a002_candidate.sql` Git blob SHA `561402ffe32df8964541aef6a9d33fa5c46f9101`. `SECURITY INVOKER`; EXECUTE `service_role=true`, `anon=false`, `authenticated=false`, `PUBLIC=false`; ACL exacta `{postgres=X/postgres,service_role=X/postgres}`, search_path fijado. RLS, políticas y ACL de `donation_requests`, `listings`, `schools`, `user_roles` idénticas antes/después, índices aprobados y pending UNIQUE/VALID/READY, 0 solicitudes y 0 escrituras de test en producción. Rollback de función solo por nueva autorización (`DROP FUNCTION` exacta), conservando ACL/índices.
+- **Vercel flag creado** con ID `P0gKIP1uIt2Lhy14`, tipo plain, `true`, target exclusivo `production`; no se creó en preview/development. **Cambiar a `false` y generar nuevo deploy** es la reversión del flag; también puede promoverse despliegue anterior OFF bajo revisión.
+- **Primera compilación manual por API FALLIDA**, deployment `dpl_BwKt6i8LSx5o4C3hQ23WtbUNZ5p9` sobre commit `b84625ccf422017711c4ee88b5b9df06bceeafe9`, error Next/Turbopack `@vercel/turbopack-next/internal/font/google/font` (DM Sans). La web viva `www.wetudy.com` **continuó vinculada** al deploy anterior `dpl_dftYtJFzBoAjWVvSJ8HaEurR7Qd2` (READY, flag previo OFF). No atribuir el error a SQL ni anunciar activación por el simple hecho de configurar el flag.
+- **Reanudación única:** este commit documental desencadena el deploy del flujo Git integrado antes exitoso. Verificar build READY, commit exacto, target producción, alias **www.wetudy.com** apuntando al nuevo deployment, y smoke anónimo 401 sin escrituras. Si falla, investigar logs; si no puede resolverse de forma segura, devolver flag a `false` y mantener alias antiguo, documentando estado. No activar otro bloque.
+
+**ESTADO AHORA:** autorización escolar por código #808 sí desplegada, función SQL instalada y asegurada, pero A-002 **NO SE DECLARA CERRADO hasta verificar el despliegue con flag ON y alias**. No hay E2E con familias reales (se realizará en piloto). #804 privacidad pendiente, piloto NO-GO. No reabrir A-015/A-019/#591/#787 ni repetir los ensayos PG17 ya cerrados.
+
+## HISTÓRICO R3/A-002 ANTES DE AUTORIZACIÓN SQL/FLAG (22/11/2026)
 
 **Único bloque R3 activo.** [PR #808](https://github.com/ogarnelo/v0-community-marketplace/pull/808) **MERGED** por squash en `main` `87e0a759c1743dfd8c01ca490fbe873d7b708015`. HEAD revisado `b5ddf9bf30e08bb45f24571cc53abc8d3f263851`, CI `45070103645` con 5 jobs **SUCCESS**, incluido ensayo PG17 aislado de dos revisiones concurrentes, permisos ambiguos, centro inactivo, tests runtime y build Next.js; preview `dpl_298zDsRzQzDtg4fa7WHQHurZWoed` READY. **Vercel producción `dpl_CysG9epDvkvCbcZTKiAnwwWgKbH6` READY para ese mismo SHA**.
 
