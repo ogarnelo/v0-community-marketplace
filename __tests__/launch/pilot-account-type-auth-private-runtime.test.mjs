@@ -24,12 +24,18 @@ function fixture(o={}){
   }},
   "@/lib/supabase/admin":{createAdminClient:()=>{
    events.push("CREATE_ADMIN");
-   return {from:(table)=>{
+   return {
+    auth:{admin:{getUserById:async()=>{
+      events.push("AUTH_ADMIN_CHECK");
+      if(o.authAdminDown)return {data:{user:null},error:{message:"PRIVATE_AUTH_ADMIN"}};
+      return {data:{user:{id:ID,user_metadata:{user_type:o.authMetadataType??o.currentType??"parent"}}},error:null};
+    }}},
+    from:(table)=>{
      const q={select:()=>q,eq:()=>q,order:()=>q,
      maybeSingle:async()=>({data:{user_type:o.currentType??"parent"},
        error:o.profileSql?{message:"PRIVATE_PROFILE"}:null}),
      then:(resolve,reject)=>Promise.resolve({
-       data:[],error:o.studentsSql?{message:"PRIVATE_STUDENTS"}:null
+       data:o.activeStudents??[],error:o.studentsSql?{message:"PRIVATE_STUDENTS"}:null
      }).then(resolve,reject)};
      events.push("FROM:"+table);return q;
    }};
@@ -85,6 +91,39 @@ test("student list failure cannot proceed into account changes",async()=>{
  const x=fixture({studentsSql:true}),response=await x.post();
  assert.equal(response.status,500);assert.equal(response.cache,"private, no-store");
  assert.equal(response.body.code,"students_load_failed");
+});
+test("no-op parent with matching Auth and no students performs no writes",async()=>{
+ const x=fixture(),r=await x.post();
+ assert.equal(r.status,200);
+ assert.ok(x.events.includes("AUTH_ADMIN_CHECK"));
+ assert.equal(x.events.some(e=>e.startsWith("DB_WRITE")),false);
+});
+test("no-op with stale Auth metadata fails closed without DB writes",async()=>{
+ const x=fixture({authMetadataType:"student"}),r=await x.post();
+ assert.equal(r.status,409);
+ assert.equal(r.body.code,"account_type_state_mismatch");
+ assert.equal(r.cache,"private, no-store");
+});
+test("no-op with unavailable Auth returns private 503",async()=>{
+ const x=fixture({authAdminDown:true}),r=await x.post();
+ assert.equal(r.status,503);
+ assert.equal(r.body.code,"account_type_reconciliation_required");
+ assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_/);
+});
+for(const students of [
+ [{id:"one",relationship:"self",alias:null,is_primary:true}],
+ [{id:"one",relationship:"guardian",alias:null,is_primary:false}],
+ [{id:"one",relationship:"guardian",alias:null,is_primary:true},{id:"two",relationship:"guardian",alias:null,is_primary:true}],
+]){
+ test("no-op refuses inconsistent educational state",async()=>{
+  const x=fixture({activeStudents:students}),r=await x.post();
+  assert.equal(r.status,409);
+  assert.equal(r.body.code,"account_type_state_mismatch");
+ });
+}
+test("no-op accepts consistent guardian children",async()=>{
+ const x=fixture({activeStudents:[{id:"one",relationship:"guardian",alias:null,is_primary:true}]}),r=await x.post();
+ assert.equal(r.status,200);
 });
 test("source does not falsely promise rollback preservation",()=>{
  const s=readFileSync("app/api/account/type/route.ts","utf8");
