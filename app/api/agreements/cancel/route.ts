@@ -77,6 +77,20 @@ export async function POST(request: Request) {
     }
 
     const agreement = normalizeRpcRow<any>(data);
+    // The RPC may have committed even if its response was lost or empty.
+    // Never acknowledge an unverified transition or emit follow-up effects.
+    if (
+      !agreement ||
+      typeof agreement.id !== "string" ||
+      agreement.id.toLowerCase() !== agreementId.toLowerCase() ||
+      agreement.status !== "cancelled"
+    ) {
+      console.error("agreement_cancel_rpc_result_unverified");
+      return privateJson(
+        { error: "No se pudo verificar la cancelación. Actualiza la conversación antes de volver a intentarlo." },
+        { status: 503 }
+      );
+    }
 
     if (agreement) {
       const recipientId =

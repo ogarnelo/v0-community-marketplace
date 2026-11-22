@@ -1,5 +1,11 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
+## Bloque activo R3 — acuerdo/cancelación/incidencia, hallazgo A-019 (22/11/2026)
+
+La [PR #806](https://github.com/ogarnelo/v0-community-marketplace/pull/806) atiende exclusivamente A-019, previamente documentado: dos endpoints de acuerdos podían responder `ok:true` cuando `server_cancel_agreement` o `server_dispute_agreement` devolvía `null`/respuesta vacía. Se añaden comprobaciones de fila, ID y estado esperado, respuesta privada 503 de resultado no verificado, y pruebas runtime sintéticas de ambas rutas incluidas en CI. No hay evidencia de falsos éxitos reales productivos.
+
+**Criterio de cierre A-019:** comprobar CI de HEAD exacto, fusionar sin solapamiento, verificar Vercel producción READY y anotar el cierre en #767 y maestro. **No atribuirle cierre a todo R3**: concurrencia de adjudicación/donaciones y otros hallazgos A-002/A-015/A-025/A-026 requieren sus propios criterios y no se han intervenido. No ejecutar SQL, activar flags, enviar correos ni abrir piloto por esta corrección. Mantener donaciones entre colegios permitidas.
+
 ## ESTADO VIGENTE — decisión expresa del propietario, 22/11/2026
 
 **#787 CERRADA ADMINISTRATIVAMENTE SIN MERGE**, no cerrada como remediación ejecutada. El propietario autorizó explícitamente archivar la PR #787 sin integrar sus 98 commits y **repriorizar** para avanzar a otro bloque; la PR se ha comprobado `CLOSED`/`merged=false`. La propuesta de retirar cinco `anon SELECT` **NO SE HA APLICADO** y continúa **PENDIENTE DE SEGURIDAD**, rastreada en [issue #804](https://github.com/ogarnelo/v0-community-marketplace/issues/804). Esta excepción está permitida por la norma general de repriorización expresa; no convertirla en precedente automático.
