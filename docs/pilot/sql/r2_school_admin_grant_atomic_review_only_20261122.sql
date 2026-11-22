@@ -21,11 +21,15 @@ BEGIN
   WHERE id=p_user_id FOR UPDATE;
   IF NOT FOUND THEN RETURN false; END IF;
 
+  -- Production service_role has UPDATE on schools, allowing a real row lock.
+  -- FOR SHARE conflicts with the non-key UPDATE of schools.is_active,
+  -- serializing grants against the existing direct toggle endpoint.
   SELECT is_active INTO v_active FROM public.schools
-  WHERE id=p_school_id;
+  WHERE id=p_school_id FOR SHARE;
   IF NOT FOUND OR v_active IS DISTINCT FROM true THEN RETURN false; END IF;
 
-  -- Schools is SELECT-only for service_role: never require extra UPDATE grants.\n  -- The current dashboard supports exactly one school-admin school per user.
+  -- No privileges are changed by this candidate SQL.
+  -- The current dashboard supports exactly one school-admin school per user.
   IF EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id=p_user_id AND role='school_admin'
