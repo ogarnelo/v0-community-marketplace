@@ -8,7 +8,7 @@ const ID="11111111-1111-4111-8111-111111111111";
 const OWNER="22222222-2222-4222-8222-222222222222";
 function invoke({flag,accountType="parent",role="guardian",rpcResult=true,rpcError=false}){
   const calls=[];
-  const context={id:ID,relationship:role,active:true,is_primary:true};
+  const context={id:ID,relationship:role,active:true,is_primary:false};
   function query(table){
     let kind="read";
     const q={select:()=>q,eq:()=>q,update:()=>{kind="update";calls.push("legacy_update");return q;},
