@@ -1,5 +1,11 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
+## CIERRE VERIFICADO R3 / A-019 — 22/11/2026
+
+La [PR #806](https://github.com/ogarnelo/v0-community-marketplace/pull/806) **se fusionó** por squash en `main` commit `053a4645d21e18cfb24f848e2bc086028b620eb0` tras CI íntegra SUCCESS del HEAD `dfb5a28bc347bb7839ae4e036a328e34a18a42d8` (contratos con prueba runtime de ambas rutas, PG17 escolar y alertas, compilación Next.js/sitemap). El despliegue de producción Vercel `dpl_EQY7rub4SuiGf362cL94Xn8NE25C` fue confirmado **READY para ese SHA exacto**. **Subbloque A-019 CERRADO**, sin DDL/DML, permisos, flags, Auth, correos ni datos alterados. La PR solo impide falsos éxitos de cancelación/incidencia cuando una RPC devuelve un resultado ausente, ajeno o de estado incorrecto.
+
+**No confundir con cierre R3 global**: adjudicación concurrente, donaciones y otros hallazgos A-002/A-015/A-025/A-026 siguen en backlog, con pruebas sintéticas y exigencia de cierre secuencial. La antigua sección «Bloque activo R3 — ...» de más abajo describe la fase previa a este cierre; este encabezado es el estado vigente. #787 archivada sin merge, deuda #804 abierta; piloto general NO-GO. No repetir A-019 si no hay regresión.
+
 ## Bloque activo R3 — acuerdo/cancelación/incidencia, hallazgo A-019 (22/11/2026)
 
 La [PR #806](https://github.com/ogarnelo/v0-community-marketplace/pull/806) atiende exclusivamente A-019, previamente documentado: dos endpoints de acuerdos podían responder `ok:true` cuando `server_cancel_agreement` o `server_dispute_agreement` devolvía `null`/respuesta vacía. Se añaden comprobaciones de fila, ID y estado esperado, respuesta privada 503 de resultado no verificado, y pruebas runtime sintéticas de ambas rutas incluidas en CI. No hay evidencia de falsos éxitos reales productivos.
