@@ -100,6 +100,29 @@ export async function PATCH(request: Request) {
     );
   }
 
+  // Check Auth availability before changing any educational context or profile.
+  // Auth and PostgreSQL cannot share a transaction; a failed preflight
+  // must not start a partially applied DB transition.
+  let existingAuthUser;
+  try {
+    const { data: authRecord, error: authLookupError } =
+      await admin.auth.admin.getUserById(user.id);
+    if (authLookupError || !authRecord?.user || authRecord.user.id !== user.id) {
+      return jsonError(
+        "No se pudo verificar la cuenta en Auth. Inténtalo más tarde.",
+        503,
+        "account_auth_preflight_unavailable"
+      );
+    }
+    existingAuthUser = authRecord.user;
+  } catch {
+    return jsonError(
+      "No se pudo verificar la cuenta en Auth. Inténtalo más tarde.",
+      503,
+      "account_auth_preflight_unavailable"
+    );
+  }
+
   const snapshots = activeStudents.map((student) => ({
     id: student.id,
     relationship: student.relationship,
@@ -181,24 +204,23 @@ export async function PATCH(request: Request) {
       throw updateProfileError || new Error("ACCOUNT_TYPE_STATE_CHANGED");
     }
 
-    const { data: freshUser, error: userError } =
+    // Re-read Auth immediately before updating metadata so any unrelated
+    // user-metadata edits since preflight are not silently overwritten.
+    const { data: freshAuth, error: freshAuthError } =
       await admin.auth.admin.getUserById(user.id);
-
-    if (userError || !freshUser.user) {
-      await admin
-        .from("profiles")
-        .update({ user_type: currentType })
-        .eq("id", user.id)
-        .eq("user_type", targetType);
+    if (freshAuthError || !freshAuth?.user || freshAuth.user.id !== existingAuthUser.id) {
+      await admin.from("profiles").update({ user_type: currentType })
+        .eq("id", user.id).eq("user_type", targetType);
       await restoreStudents();
-      throw userError || new Error("No se pudo cargar Auth.");
+      throw freshAuthError || new Error("AUTH_RECHECK_UNAVAILABLE");
     }
 
+    // Metadata is display state only, never an authorization source.
     const { error: authUpdateError } = await admin.auth.admin.updateUserById(
       user.id,
       {
         user_metadata: {
-          ...(freshUser.user.user_metadata || {}),
+          ...(freshAuth.user.user_metadata || {}),
           user_type: targetType,
         },
       }

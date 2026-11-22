@@ -25,6 +25,8 @@ jobs:
         run: node --test __tests__/launch/r2-student-context-state-fencing.test.mjs
       - name: R2 atomic student deactivation feature gate and fail-closed runtime
         run: node --test __tests__/launch/r2-atomic-student-deactivate-adapter-runtime.test.mjs
+      - name: R2 Auth preflight and account type reconciliation runtime
+        run: node --test __tests__/launch/r2-account-auth-preflight-runtime.test.mjs
       - name: Critical contract tests
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
