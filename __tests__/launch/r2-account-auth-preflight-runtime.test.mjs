@@ -5,19 +5,20 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 const ts=createRequire(import.meta.url)("typescript");
 const USER="11111111-1111-4111-8111-111111111111";
-function fixture({authUnavailable=false,authThrows=false,recheckUnavailable=false,authWriteError=false}={}){
+function fixture({authUnavailable=false,authThrows=false,recheckUnavailable=false,authWriteError=false,postwriteAuthMismatch=false,postwriteAuthUnavailable=false,postwriteProfileMismatch=false}={}){
  const events=[];
  const profile={user_type:"parent"};
  const ctx={id:"22222222-2222-4222-8222-222222222222",relationship:"guardian",alias:null,is_primary:true,active:true};
- let authReads=0;
+ let authReads=0,committedAuthType="parent";
  const admin={
    auth:{admin:{
      getUserById:async()=>{events.push("AUTH_LOOKUP");authReads++;
        if(authThrows)throw Error("PRIVATE_AUTH_EXCEPTION");
-       if(authUnavailable||recheckUnavailable&&authReads>1)return {data:{user:null},error:{message:"PRIVATE_AUTH_UNAVAILABLE"}};
-       return {data:{user:{id:USER,user_metadata:{display_name:"Family"}}},error:null};
+       if(authUnavailable||recheckUnavailable&&authReads>1||postwriteAuthUnavailable&&authReads>2)return {data:{user:null},error:{message:"PRIVATE_AUTH_UNAVAILABLE"}};
+       return {data:{user:{id:USER,user_metadata:{display_name:"Family",user_type:postwriteAuthMismatch&&authReads>2?"parent":committedAuthType}}},error:null};
      },
      updateUserById:async(_uid,payload)=>{events.push("AUTH_UPDATE");assert.equal(payload.user_metadata.display_name,"Family");
+       if(!authWriteError)committedAuthType=payload.user_metadata.user_type;
        return {error:authWriteError?{message:"PRIVATE_AUTH_WRITE"}:null};
      }
    }},
@@ -27,7 +28,7 @@ function fixture({authUnavailable=false,authThrows=false,recheckUnavailable=fals
        select:()=>q,eq:(k,v)=>{filters.push([k,v]);return q;},order:()=>q,
        update:(v)=>{mode="write";dataToWrite=v;events.push("DB_WRITE:"+table);return q;},
        maybeSingle:async()=>{
-         if(mode==="read")return {data:table==="profiles"?{...profile}:{...ctx},error:null};
+         if(mode==="read")return {data:table==="profiles"?{...profile,user_type:postwriteProfileMismatch&&committedAuthType==="student"?"parent":profile.user_type}:{...ctx},error:null};
          if(table==="profiles"){profile.user_type=dataToWrite.user_type;return {data:{id:USER},error:null};}
          Object.assign(ctx,dataToWrite);return {data:{id:ctx.id},error:null};
        },
@@ -62,7 +63,7 @@ test("successful change reads Auth before DB and checks again before Auth update
  assert.equal(r.status,200);assert.equal(r.body.userType,"student");
  const i=f.events.indexOf("DB_WRITE:account_students");
  assert.ok(i>f.events.indexOf("AUTH_LOOKUP"));
- assert.equal(f.events.filter(e=>e==="AUTH_LOOKUP").length,2);
+ assert.equal(f.events.filter(e=>e==="AUTH_LOOKUP").length,3);
  assert.ok(f.events.indexOf("AUTH_UPDATE")>i);
 });
 test("late Auth read failure reports reconciliation without Auth write",async()=>{
@@ -76,3 +77,18 @@ test("late Auth update failure reports reconciliation without leaking Auth error
  assert.equal(r.status,503);assert.equal(r.body.code,"account_type_reconciliation_required");
  assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_/);
 });
+
+for(const [name,opts] of [
+ ["Auth type mismatch",{postwriteAuthMismatch:true}],
+ ["Auth read unavailable",{postwriteAuthUnavailable:true}],
+ ["profile mismatched after commit",{postwriteProfileMismatch:true}],
+]){
+ test("postwrite "+name+" never returns a false 200 or retries Auth",async()=>{
+   const f=fixture(opts),r=await f.run();
+   assert.equal(r.status,503);
+   assert.equal(r.body.code,"account_type_reconciliation_required");
+   assert.equal(r.cache,"private, no-store");
+   assert.equal(f.events.filter(e=>e==="AUTH_UPDATE").length,1);
+   assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_/);
+ });
+}
