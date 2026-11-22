@@ -27,6 +27,9 @@ export async function PATCH(request: Request) {
     return jsonError("No se pudo comprobar tu sesión.", 503, "auth_unavailable");
   }
   if (!user) return jsonError("Debes iniciar sesión.", 401, "unauthorized");
+  if (!user.email_confirmed_at) {
+    return jsonError("Confirma tu email antes de cambiar el tipo de cuenta.", 403, "email_not_confirmed");
+  }
 
   const body = await request.json().catch(() => null);
   const targetType =
@@ -115,7 +118,9 @@ export async function PATCH(request: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", snapshot.id)
-        .eq("owner_user_id", user.id);
+        .eq("owner_user_id", user.id)
+        .eq("active", true)
+        .eq("relationship", targetType === "student" ? "self" : "guardian");
     }
   }
 
@@ -123,7 +128,7 @@ export async function PATCH(request: Request) {
     if (targetType === "student") {
       const onlyStudent = activeStudents[0];
       if (onlyStudent) {
-        const { error } = await admin
+        const { data: changed, error } = await admin
           .from("account_students")
           .update({
             relationship: "self",
@@ -132,13 +137,17 @@ export async function PATCH(request: Request) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", onlyStudent.id)
-          .eq("owner_user_id", user.id);
+          .eq("owner_user_id", user.id)
+          .eq("active", true)
+          .eq("relationship", onlyStudent.relationship)
+          .select("id")
+          .maybeSingle();
 
-        if (error) throw error;
+        if (error || !changed?.id) throw error || new Error("ACCOUNT_STUDENT_STATE_CHANGED");
       }
     } else {
       for (const student of activeStudents) {
-        const { error } = await admin
+        const { data: changed, error } = await admin
           .from("account_students")
           .update({
             relationship: "guardian",
@@ -147,20 +156,29 @@ export async function PATCH(request: Request) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", student.id)
-          .eq("owner_user_id", user.id);
+          .eq("owner_user_id", user.id)
+          .eq("active", true)
+          .eq("relationship", student.relationship)
+          .select("id")
+          .maybeSingle();
 
-        if (error) throw error;
+        if (error || !changed?.id) throw error || new Error("ACCOUNT_STUDENT_STATE_CHANGED");
       }
     }
 
-    const { error: updateProfileError } = await admin
+    // A successful SQL response may still update zero rows. A concurrent
+    // change must never be reported as a completed account transition.
+    const { data: updatedProfile, error: updateProfileError } = await admin
       .from("profiles")
       .update({ user_type: targetType })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .eq("user_type", currentType)
+      .select("id")
+      .maybeSingle();
 
-    if (updateProfileError) {
+    if (updateProfileError || !updatedProfile?.id) {
       await restoreStudents();
-      throw updateProfileError;
+      throw updateProfileError || new Error("ACCOUNT_TYPE_STATE_CHANGED");
     }
 
     const { data: freshUser, error: userError } =
@@ -170,7 +188,8 @@ export async function PATCH(request: Request) {
       await admin
         .from("profiles")
         .update({ user_type: currentType })
-        .eq("id", user.id);
+        .eq("id", user.id)
+        .eq("user_type", targetType);
       await restoreStudents();
       throw userError || new Error("No se pudo cargar Auth.");
     }
@@ -189,7 +208,8 @@ export async function PATCH(request: Request) {
       await admin
         .from("profiles")
         .update({ user_type: currentType })
-        .eq("id", user.id);
+        .eq("id", user.id)
+        .eq("user_type", targetType);
       await restoreStudents();
       throw authUpdateError;
     }
