@@ -50,7 +50,8 @@ BEGIN
   WHERE id=p_school_id;
   IF NOT FOUND OR v_active IS DISTINCT FROM true THEN RETURN false; END IF;
 
-  -- Schools stays SELECT-only for service_role; the trigger coordinates toggles.\n  -- The current dashboard supports exactly one school-admin school per user.
+  -- Schools stays SELECT-only for service_role; the trigger coordinates toggles.
+  -- The current dashboard supports exactly one school-admin school per user.
   IF EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id=p_user_id AND role='school_admin'
@@ -86,7 +87,9 @@ GRANT EXECUTE ON FUNCTION public.r2_grant_school_admin_atomic_candidate(uuid,uui
   TO service_role;
 DO $guard$
 BEGIN
-  IF has_function_privilege('anon','public.r2_school_active_transition_lock_candidate()','EXECUTE')\n  OR has_function_privilege('authenticated','public.r2_school_active_transition_lock_candidate()','EXECUTE')\n  OR has_function_privilege('anon','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
+  IF has_function_privilege('anon','public.r2_school_active_transition_lock_candidate()','EXECUTE')
+  OR has_function_privilege('authenticated','public.r2_school_active_transition_lock_candidate()','EXECUTE')
+  OR has_function_privilege('anon','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
   OR has_function_privilege('authenticated','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
   OR NOT has_function_privilege('service_role','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')
   OR (SELECT prosecdef FROM pg_proc
