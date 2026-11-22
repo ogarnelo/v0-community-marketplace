@@ -204,13 +204,23 @@ export async function PATCH(request: Request) {
       throw updateProfileError || new Error("ACCOUNT_TYPE_STATE_CHANGED");
     }
 
-    // Preserve the other metadata already present at the preflight point.
-    // Do not read or trust user_metadata for authorization decisions.
+    // Re-read Auth immediately before updating metadata so any unrelated
+    // user-metadata edits since preflight are not silently overwritten.
+    const { data: freshAuth, error: freshAuthError } =
+      await admin.auth.admin.getUserById(user.id);
+    if (freshAuthError || !freshAuth?.user || freshAuth.user.id !== existingAuthUser.id) {
+      await admin.from("profiles").update({ user_type: currentType })
+        .eq("id", user.id).eq("user_type", targetType);
+      await restoreStudents();
+      throw freshAuthError || new Error("AUTH_RECHECK_UNAVAILABLE");
+    }
+
+    // Metadata is display state only, never an authorization source.
     const { error: authUpdateError } = await admin.auth.admin.updateUserById(
       user.id,
       {
         user_metadata: {
-          ...(existingAuthUser.user_metadata || {}),
+          ...(freshAuth.user.user_metadata || {}),
           user_type: targetType,
         },
       }
