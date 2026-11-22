@@ -22,10 +22,10 @@ BEGIN
   IF NOT FOUND THEN RETURN false; END IF;
 
   SELECT is_active INTO v_active FROM public.schools
-  WHERE id=p_school_id FOR SHARE;
+  WHERE id=p_school_id;
   IF NOT FOUND OR v_active IS DISTINCT FROM true THEN RETURN false; END IF;
 
-  -- The current dashboard supports exactly one school-admin school per user.
+  -- Schools is SELECT-only for service_role: never require extra UPDATE grants.\n  -- The current dashboard supports exactly one school-admin school per user.
   IF EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id=p_user_id AND role='school_admin'
