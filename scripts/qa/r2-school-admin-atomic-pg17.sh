@@ -79,4 +79,34 @@ wait "$pa"; wait "$pb"
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles WHERE user_id='66666666-6666-4666-8666-666666666666';")" == 1 ]]
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles r JOIN public.profiles p ON p.id=r.user_id WHERE r.role='school_admin' AND p.school_id IS DISTINCT FROM r.school_id;")" == 0 ]]
 [[ "$("${P[@]}" -c "SELECT has_function_privilege('anon','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')::text || ':' || has_function_privilege('authenticated','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')::text || ':' || has_function_privilege('service_role','public.r2_grant_school_admin_atomic_candidate(uuid,uuid)','EXECUTE')::text || ':' || (SELECT prosecdef::text FROM pg_proc WHERE oid='public.r2_grant_school_admin_atomic_candidate(uuid,uuid)'::regprocedure);")" == false:false:true:false ]]
-echo "R2 PASS: idempotency, unauthorized, inactive, missing profile, rollback, competing schools, ACL"
+# Direct school status UPDATE is protected by the new trigger even when
+# the application does not use an RPC for toggling.
+"${P[@]}" <<'SQL'
+INSERT INTO public.schools VALUES
+('99999999-9999-4999-8999-999999999999',true);
+INSERT INTO public.profiles(id) VALUES
+('88888888-8888-4888-8888-888888888888');
+SQL
+status_school="'99999999-9999-4999-8999-999999999999'"
+status_user="'88888888-8888-4888-8888-888888888888'"
+# Deactivation wins first: grant must wait for the trigger lock and then deny.
+("${P[@]}" -c "BEGIN; UPDATE public.schools SET is_active=false WHERE id=$status_school; SELECT pg_sleep(1); COMMIT;" >"$tmp/toggle") &
+toggle_pid=$!
+sleep 0.25
+[[ "$("${P[@]}" -c "SET ROLE service_role; SELECT $rpc($status_user,$status_school);")" == f ]]
+wait "$toggle_pid"
+[[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles WHERE user_id=$status_user;")" == 0 ]]
+# Reverse order: a committed grant may precede deactivation, but the two
+# transactions cannot overlap in their activation decision.
+"${P[@]}" -c "UPDATE public.schools SET is_active=true WHERE id=$status_school;" >/dev/null
+("${P[@]}" -c "BEGIN; SET ROLE service_role; SELECT $rpc($status_user,$status_school); SELECT pg_sleep(1); COMMIT;" >"$tmp/grant") &
+grant_pid=$!
+sleep 0.25
+"${P[@]}" -c "UPDATE public.schools SET is_active=false WHERE id=$status_school;" >/dev/null
+wait "$grant_pid"
+[[ "$(grep -c '^t
+ "$tmp/grant")" == 1 ]]
+[[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles WHERE user_id=$status_user;")" == 1 ]]
+[[ "$("${P[@]}" -c "SELECT is_active::text FROM public.schools WHERE id=$status_school;")" == false ]]
+[[ "$("${P[@]}" -c "SELECT has_function_privilege('anon','public.r2_school_active_transition_lock_candidate()','EXECUTE')::text || ':' || has_function_privilege('authenticated','public.r2_school_active_transition_lock_candidate()','EXECUTE')::text;")" == false:false ]]
+echo "R2 PASS: idempotency, rollback, conflicting schools, ACL, both orders of active-toggle concurrency"
