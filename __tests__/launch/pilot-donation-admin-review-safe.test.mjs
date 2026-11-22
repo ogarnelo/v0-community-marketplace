@@ -18,7 +18,13 @@ function setup(opts={}){
    return {data:{user:opts.guest?null:user},error:opts.missing?{name:"AuthSessionMissingError"}:
      opts.missingCode?{code:"session_not_found"}:opts.authDown?{name:"ProviderError"}:null};
  }},from:()=>qRoles};
- const admin={from:(table)=>{
+ const admin={rpc:async(name,args)=>{
+  calls.push("RPC:"+name);
+  if(opts.rpcError)return {data:null,error:{code:opts.rpcError,message:"PRIVATE_RPC_ERROR"}};
+  const result={request_id:ID,decision_status:args.p_action==="approve"?"approved":"rejected",
+    listing_id:ID,requester_id:ID,school_id:ID,seller_id:OTHER};
+  return {data:opts.rpcEmpty?[]:opts.rpcMismatch?[{...result,request_id:OTHER}]:[result],error:null};
+ },from:(table)=>{
    calls.push("ADMIN_FROM:"+table);
    const q={
      select:()=>q,eq:()=>q,neq:()=>q,
@@ -64,6 +70,7 @@ function setup(opts={}){
  }});
  assert.equal((c.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error).length,0);
  vm.runInNewContext(c.outputText,{exports:exp,require:x=>mocks[x]??{},Request,Response,Date,Promise,
+  process:{env:opts.atomic?{WETUDY_R3_DONATION_ATOMIC_REVIEW_ENABLED:"true"}:{}},
   console:{error:()=>{}}},{filename:path,timeout:2000});
  return {calls,post:async(body={donationRequestId:ID,action:"approve"})=>{
   const r=await exp.POST(new Request("https://fixture.invalid/api",{method:"POST",
@@ -120,4 +127,36 @@ for(const action of ["approve","reject"]){
 test("ninguna ruta de actualización primaria omite status=pending ni confirmación de fila",()=>{
  const s=readFileSync("app/api/donations/review/route.ts","utf8");
  assert.equal((s.match(/\.eq\("status", "pending"\)\s*\.select\("id"\)\s*\.maybeSingle\(\)/g)||[]).length,2);
+});
+
+for(const action of ["approve","reject"]){
+ test("atomic gated "+action+" skips legacy writes and verifies RPC result",async()=>{
+   const h=setup({atomic:true}),r=await h.post({donationRequestId:ID,action});
+   assert.equal(r.status,200);
+   assert.equal(r.cache,"private, no-store");
+   assert.ok(h.calls.includes("RPC:r3_review_donation_atomic"));
+   assert.equal(h.calls.some(c=>c.startsWith("WRITE:")),false);
+ });
+ test("atomic gated "+action+" refuses empty RPC without success",async()=>{
+   const h=setup({atomic:true,rpcEmpty:true}),r=await h.post({donationRequestId:ID,action});
+   assert.equal(r.status,503);
+   assert.equal(h.calls.some(c=>c.startsWith("WRITE:")),false);
+   assert.notEqual(r.body.ok,true);
+ });
+ test("atomic gated "+action+" refuses wrong ID from RPC",async()=>{
+   const h=setup({atomic:true,rpcMismatch:true}),r=await h.post({donationRequestId:ID,action});
+   assert.equal(r.status,503);
+   assert.equal(h.calls.some(c=>c.startsWith("WRITE:")),false);
+ });
+ test("atomic gated "+action+" denies RPC role revocation",async()=>{
+   const h=setup({atomic:true,rpcError:"42501"}),r=await h.post({donationRequestId:ID,action});
+   assert.equal(r.status,403);
+   assert.equal(h.calls.some(c=>c.startsWith("WRITE:")),false);
+   assert.doesNotMatch(JSON.stringify(r.body),/PRIVATE_/);
+ });
+}
+test("atomic flag remains OFF by default",()=>{
+ const source=readFileSync("app/api/donations/review/route.ts","utf8");
+ assert.match(source,/process\.env\.WETUDY_R3_DONATION_ATOMIC_REVIEW_ENABLED === "true"/);
+ assert.match(source,/if \(!atomicReviewEnabled\)/);
 });
