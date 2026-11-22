@@ -1,5 +1,15 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
+## BLOQUE ACTIVO R3/A-015 — duplicidad de solicitudes de donación pendientes (22/11/2026)
+
+**PR [#807](https://github.com/ogarnelo/v0-community-marketplace/pull/807)**: corrección completa propuesta para que un mismo solicitante no cree **dos solicitudes pending** simultáneas del mismo anuncio. El código `lib/services/donations.service.ts` ya comprobaba pending antes de insertar, pero no estaba protegido frente a dos peticiones concurrentes. En la lectura SQL de 22/11, `donation_requests` tenía 0 filas; el índice existente `donation_requests_one_approved_per_listing_idx` limita un **approved** por anuncio, **no** los pending por usuario. No reinterpretar el alcance de #591 ni repetir su ensayo.
+
+Se prepara un índice único parcial `donation_requests_one_pending_per_requester_listing_idx` solo para `status='pending'`, con preflight y postflight, en `scripts/review_only/r3_donation_pending_unique_candidate.sql`. **NO es migración instalada ni está en el directorio automático de migraciones**; su ejecución en Supabase WETUDY exige autorización nueva, preflight read-only, plan de rollback y verificación de ACL/RLS. El servicio traduce exclusivamente `23505` de este índice a conflicto HTTP 409 mediante la clase ya existente. Dos transacciones concurrentes PG17 se prueban en base aislada y el test runtime valida que no se envíen efectos secundarios antes de confirmar el INSERT.
+
+**Cierre A-015:** CI exacta y preview READY, merge, Vercel producción READY; **aplicación SQL explícitamente autorizada** en `Education Marketplace` y postflight de catálogo (index unique/valid/ready, RLS y grants intactos) para declarar corregida la concurrencia **en producción**. Sin ese último paso, solo `PREPARADO, INSTALACIÓN PENDIENTE`. No iniciar otro subbloque R3 hasta cerrar este, o bloqueo externo y repriorización expresa.
+
+Mantener **donaciones entre colegios**; la clave es anuncio + solicitante, sin validación de colegio del solicitante. No hacer cambios al proyecto Supabase VM Copilot. R3 global sigue abierto con A-002, A-025/A-026 y otras decisiones separadas. #787 cerrado sin merge, privacidad pendiente en #804. **Piloto NO-GO**.
+
 ## CIERRE VERIFICADO R3 / A-019 — 22/11/2026
 
 La [PR #806](https://github.com/ogarnelo/v0-community-marketplace/pull/806) **se fusionó** por squash en `main` commit `053a4645d21e18cfb24f848e2bc086028b620eb0` tras CI íntegra SUCCESS del HEAD `dfb5a28bc347bb7839ae4e036a328e34a18a42d8` (contratos con prueba runtime de ambas rutas, PG17 escolar y alertas, compilación Next.js/sitemap). El despliegue de producción Vercel `dpl_EQY7rub4SuiGf362cL94Xn8NE25C` fue confirmado **READY para ese SHA exacto**. **Subbloque A-019 CERRADO**, sin DDL/DML, permisos, flags, Auth, correos ni datos alterados. La PR solo impide falsos éxitos de cancelación/incidencia cuando una RPC devuelve un resultado ausente, ajeno o de estado incorrecto.
