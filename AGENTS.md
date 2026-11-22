@@ -2,6 +2,15 @@
 
 Este archivo es la **base operativa permanente** de WETUDY. Debe leerse antes de planificar, editar, revisar, fusionar o desplegar cualquier cambio, también al iniciar un chat nuevo. Su contenido no depende de la memoria de un chat.
 
+## ESTADO VIGENTE — decisión expresa del propietario, 22/11/2026
+
+**#787 CERRADA ADMINISTRATIVAMENTE SIN MERGE**, no cerrada como remediación ejecutada. El propietario autorizó explícitamente archivar la PR #787 sin integrar sus 98 commits y **repriorizar** para avanzar a otro bloque; la PR se ha comprobado `CLOSED`/`merged=false`. La propuesta de retirar cinco `anon SELECT` **NO SE HA APLICADO** y continúa **PENDIENTE DE SEGURIDAD**, rastreada en [issue #804](https://github.com/ogarnelo/v0-community-marketplace/issues/804). Esta excepción está permitida por la norma general de repriorización expresa; no convertirla en precedente automático.
+
+- Seguimiento central: [#767](https://github.com/ogarnelo/v0-community-marketplace/issues/767). No reabrir #787 ni rehacer sus pruebas sin nueva evidencia/requisito.
+- Volver a #804 solo tras inventario/atestaciones reales de consumidores (incluida vista `demand_opportunities_30d`), revisión de seguridad independiente, snapshot y rollback productivo aceptados y autorización **nueva y específica** para cualquier REVOKE.
+- Proyectos Supabase identificados: WETUDY **Education Marketplace** `jpsljmakoscqevssimtk`; **VM Copilot** `iaoeqkjgjprnuzhbvkgc` independiente y fuera de alcance. WETUDY enlaza con Vercel `v0-community-marketplace`; integraciones instaladas Supabase y Resend. Webhooks Vercel no inventariables con el acceso actual (403). **No volver a pedir la identificación de estos proyectos.**
+- **Piloto general NO-GO**; permisos de Supabase, RLS, datos, flags, migraciones y secretos sin modificar. El siguiente bloque debe determinarse por su puerta vigente, no por reabrir #787.
+
 ## Principio vinculante: cerrar bloques antes de avanzar
 
 **Trabajar un bloque funcional a la vez. TERMINAR → VALIDAR → FUSIONAR → VERIFICAR DESPLIEGUE → DOCUMENTAR → CERRAR. DESPUÉS, y solo después, abrir otro bloque.**
@@ -19,6 +28,7 @@ Este archivo es la **base operativa permanente** de WETUDY. Debe leerse antes de
 
 - **EN CURSO:** cambios/pruebas de un único bloque activo, con objetivo de cierre explícito.
 - **BLOQUEADO EXTERNAMENTE / ABIERTO:** falta una decisión, firma, proveedor o ensayo autorizado y no puede concluirse autónomamente; debe conservarse como bloque activo salvo repriorización expresa.
+- **ARCHIVADO ADMINISTRATIVAMENTE CON REMEDIACIÓN ABIERTA:** existe una decisión expresa y trazable del propietario de cerrar la PR sin merge y continuar otro bloque; la deficiencia técnica sigue abierta en un issue independiente y no se declara solucionada.
 - **CERRADO TÉCNICAMENTE, ACTIVACIÓN PENDIENTE:** código/CI/RPC y despliegue preparados, pero flag, smoke, SQL o piloto siguen sujetos a puerta independiente. No equivaler a cierre funcional.
 - **CERRADO DEFINITIVAMENTE:** requisitos del alcance y postflight verificados; no repetir sin nueva evidencia.
 - **POSPILOTO:** no activar ni intercalar con el bloque activo.
@@ -32,8 +42,8 @@ Este archivo es la **base operativa permanente** de WETUDY. Debe leerse antes de
 - No afirmar éxito de producción, merge, pruebas o despliegues que no hayan sido comprobados.
 - Si la capacidad o herramientas no permiten el cierre, explicitar el límite y no fabricar evidencias.
 
-## Bloque prioritario al 22/11/2026
+## Seguimiento del bloque #787 (estado vigente)
 
-**#787 P0 privacidad:** retirada de `anon SELECT` en cinco tablas. La PR histórica permanece DRAFT, **no autorizada para fusionar o ejecutar REVOKE** por falta de atestaciones de consumidores externos y revisión independiente del rollback. Documento específico de estado: `docs/pilot/P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md`. El bloqueo no se elimina con más CI local: necesita pruebas y firmas de terceros.
+La PR #787 fue **cerrada administrativamente SIN MERGE** por decisión explícita del propietario; la propuesta de revocación de `anon SELECT` en cinco tablas **sigue pendiente** en [#804](https://github.com/ogarnelo/v0-community-marketplace/issues/804). No hay autorización para ejecutar SQL productivo; revisión independiente, atestación y rollback siguen por acreditar. La norma permanente de secuencialidad se mantiene: esta salida fue una repriorización explícita, no un cierre funcional ni una licencia para saltar automáticamente otros bloqueos.
 
-Los demás estados, hashes y prioridades evolucionan: consultar el índice de continuidad y verificar las fuentes vivas. Este archivo contiene **reglas permanentes**, no promesas de fondo ni automatizaciones futuras.
+Los demás estados, hashes y prioridades evolucionan: consultar el índice de continuidad, #767 y verificar las fuentes vivas. Este archivo contiene **reglas permanentes**, no promesas de trabajo de fondo ni automatizaciones futuras.
