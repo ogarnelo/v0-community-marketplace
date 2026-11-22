@@ -138,7 +138,7 @@ begin
 
   return v_agreement;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.server_cancel_agreement(p_actor_id uuid, p_agreement_id uuid, p_note text DEFAULT NULL::text)
  RETURNS agreements
@@ -226,7 +226,7 @@ begin
 
   return v_agreement;
 end;
-$function$
+$function$;
 
 DO $postflight$
 DECLARE c oid:=to_regprocedure('public.server_confirm_agreement(uuid,uuid)')::oid;
