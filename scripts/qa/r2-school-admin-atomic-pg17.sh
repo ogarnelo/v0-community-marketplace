@@ -104,8 +104,7 @@ grant_pid=$!
 sleep 0.25
 "${P[@]}" -c "UPDATE public.schools SET is_active=false WHERE id=$status_school;" >/dev/null
 wait "$grant_pid"
-[[ "$(grep -c '^t
- "$tmp/grant")" == 1 ]]
+[[ "$(grep -c '^t' "$tmp/grant")" == 1 ]]
 [[ "$("${P[@]}" -c "SELECT count(*) FROM public.user_roles WHERE user_id=$status_user;")" == 1 ]]
 [[ "$("${P[@]}" -c "SELECT is_active::text FROM public.schools WHERE id=$status_school;")" == false ]]
 [[ "$("${P[@]}" -c "SELECT has_function_privilege('anon','public.r2_school_active_transition_lock_candidate()','EXECUTE')::text || ':' || has_function_privilege('authenticated','public.r2_school_active_transition_lock_candidate()','EXECUTE')::text;")" == false:false ]]
