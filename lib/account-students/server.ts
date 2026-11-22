@@ -307,6 +307,31 @@ export async function deactivateAccountStudent(userId: string, studentId: string
     );
   }
 
+  // The atomic path is dormant until its PG17-validated RPC has been
+  // installed and independently accepted. Never attempt a privileged
+  // two-write fallback if the active RPC fails or refuses the transition.
+  if (process.env.WETUDY_R2_STUDENT_ATOMIC_DEACTIVATE_ENABLED === "true") {
+    const { data: committed, error: atomicError } = await admin.rpc(
+      "r2_deactivate_student_and_promote_candidate",
+      { p_owner_user_id: userId, p_student_id: studentId }
+    );
+    if (atomicError) {
+      throw new AccountStudentError(
+        "No se pudo completar la baja de forma segura. Revisa el estado antes de reintentar.",
+        503,
+        "atomic_deactivation_unavailable"
+      );
+    }
+    if (committed !== true) {
+      throw new AccountStudentError(
+        "El contexto ha cambiado. Recarga tu cuenta antes de reintentar.",
+        409,
+        "student_state_changed"
+      );
+    }
+    return { id: studentId, active: false };
+  }
+
   const { data: deactivated, error: deactivateError } = await admin
     .from("account_students")
     .update({
