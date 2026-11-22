@@ -1,0 +1,27 @@
+name: R2 atomic student primary isolated PG17
+on:
+  pull_request:
+    paths:
+      - 'docs/pilot/sql/r2_account_student_deactivate_atomic_review_only_20261122.sql'
+      - 'scripts/qa/r2-atomic-student-primary-pg17.sh'
+      - '.github/workflows/r2-atomic-student-primary-pg17.yml'
+jobs:
+  r2-student-primary-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: wetudy_r2_synthetic
+          POSTGRES_DB: wetudy_r2_synthetic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_r2_synthetic"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - run: bash scripts/qa/r2-atomic-student-primary-pg17.sh
