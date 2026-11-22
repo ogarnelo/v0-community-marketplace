@@ -10,7 +10,7 @@ function setup(opts={}){
  const calls=[],exp={},user={id:ID,email:"admin@example.invalid"};
  const req={id:ID,listing_id:ID,requester_id:ID,school_id:ID,status:opts.status||"pending"};
  const qRoles={select:()=>qRoles,eq:()=>qRoles,then:(r,j)=>Promise.resolve({
-   data:opts.noRole?[]:[{role:"school_admin",school_id:ID}],error:opts.roleError?{message:"PRIVATE_ROLE_SQL"}:null
+   data:opts.roleRows??(opts.noRole?[]:[{role:"school_admin",school_id:ID}]),error:opts.roleError?{message:"PRIVATE_ROLE_SQL"}:null
  }).then(r,j)};
  const db={auth:{getUser:async()=>{
    calls.push("AUTH");
@@ -24,6 +24,8 @@ function setup(opts={}){
      select:()=>q,eq:()=>q,neq:()=>q,
      maybeSingle:async()=>{
       if(table==="donation_requests")return {data:opts.noRequest?null:req,error:opts.requestError?{message:"PRIVATE_SQL"}:null};
+      if(table==="schools")return {data:opts.noSchool?null:{id:ID,is_active:!opts.inactiveSchool},
+        error:opts.schoolError?{message:"PRIVATE_SCHOOL_SQL"}:null};
       if(table==="listings")return {data:{id:ID,school_id:opts.otherSchool?OTHER:ID,title:"QA",seller_id:OTHER},
         error:opts.listingError?{message:"PRIVATE_SQL"}:null};
       if(table==="conversations")return {data:null,error:opts.conversationError?{message:"PRIVATE_SQL"}:null};
@@ -47,7 +49,12 @@ function setup(opts={}){
   "@/lib/supabase/admin":{createAdminClient:()=>{calls.push("ADMIN");return admin;}},
   "@/lib/admin/roles":{getAdminFlags:({roles})=>{
    const school=roles?.find(x=>x.role==="school_admin");
-   return {canAccessAdmin:!!school,isSuperAdmin:false,schoolAdminSchoolId:school?.school_id||null};
+   const superAdmin=roles?.some(x=>x.role==="super_admin");
+   return {canAccessAdmin:!!school||!!superAdmin,isSuperAdmin:!!superAdmin,schoolAdminSchoolId:school?.school_id||null};
+  }},
+  "@/lib/marketplace/unique-school-admin-context":{resolveUniqueSchoolAdminSchoolId:rows=>{
+   if(rows.length!==1||!rows[0]?.school_id)throw Error("AMBIGUOUS_SCHOOL_ADMIN_CONTEXT");
+   return rows[0].school_id;
   }},
   "@/lib/notifications":{createNotifications:async()=>({error:null})}
  };
@@ -70,6 +77,15 @@ for(const [label,opts,code] of [
  ["session_not_found residual",{missingCode:true},401],
  ["Auth caída residual",{authDown:true},503],
  ["lectura roles falla",{roleError:true},503],
+ ["roles ambiguos niegan antes de crear cliente privilegiado",{roleRows:[
+   {role:"school_admin",school_id:ID},{role:"school_admin",school_id:OTHER}
+ ]},403],
+ ["roles duplicados de mismo colegio niegan",{roleRows:[
+   {role:"school_admin",school_id:ID},{role:"school_admin",school_id:ID}
+ ]},403],
+ ["sin centro activo",{inactiveSchool:true},403],
+ ["centro no existe",{noSchool:true},403],
+ ["consulta centro falla",{schoolError:true},503],
  ["sin rol admin",{noRole:true},403],
  ["consulta solicitud falla",{requestError:true},503],
  ["solicitud no existe",{noRequest:true},404],
