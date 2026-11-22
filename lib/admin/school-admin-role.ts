@@ -27,6 +27,23 @@ export async function grantSchoolAdminRole(params: {
 }) {
   const admin = createAdminClient();
 
+  // Dormant until the reviewed SECURITY INVOKER RPC has been separately
+  // installed and enabled. Do not fall back to two independent writes
+  // when the atomic mode is ON but the database rejects the call.
+  if (process.env.WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_ENABLED === "true") {
+    const { data: committed, error: atomicError } = await admin.rpc(
+      "r2_grant_school_admin_atomic_candidate",
+      { p_user_id: params.userId, p_school_id: params.schoolId }
+    );
+    if (atomicError) {
+      throw new Error("La concesión del permiso no pudo completarse de forma segura.");
+    }
+    if (committed !== true) {
+      throw new Error("No se pudo autorizar el colegio o confirmar el perfil.");
+    }
+    return;
+  }
+
   const { data: school, error: schoolError } = await admin
     .from("schools")
     .select("id, is_active")
