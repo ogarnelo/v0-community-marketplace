@@ -6,7 +6,7 @@ import {createRequire} from "node:module";
 const ts=createRequire(import.meta.url)("typescript");
 const ID="11111111-1111-4111-8111-111111111111";
 function fixture(o={}){
- const events=[],out={},user={id:ID};
+ const events=[],out={},user={id:ID,email_confirmed_at:o.unconfirmed?null:"2026-01-01T00:00:00Z"};
  const mocks={
   "next/server":{NextResponse:{json:(data,opts={})=>new Response(JSON.stringify(data),
    {status:opts.status??200,headers:opts.headers??{}})}},
@@ -91,4 +91,22 @@ test("source does not falsely promise rollback preservation",()=>{
  assert.match(s,/account_type_reconciliation_required/);
  assert.doesNotMatch(s,/Tus datos anteriores se han conservado/);
  assert.doesNotMatch(s,/console\.error\([^\n]*,\s*(profileError|studentsError|error)\)/);
+});
+
+test("unconfirmed user cannot request a type change or create admin client",async()=>{
+ const x=fixture({unconfirmed:true}),response=await x.post();
+ assert.equal(response.status,403);
+ assert.equal(response.body.code,"email_not_confirmed");
+ assert.equal(x.events.includes("CREATE_ADMIN"),false);
+});
+test("account type transition is guarded by confirmed Auth and profile compare-and-swap",()=>{
+ const src=readFileSync("app/api/account/type/route.ts","utf8");
+ assert.match(src,/\.eq\("user_type", currentType\)[\s\S]*?\.select\("id"\)[\s\S]*?\.maybeSingle\(\)/);
+ assert.match(src,/!updatedProfile\?\.id/);
+ assert.match(src,/ACCOUNT_TYPE_STATE_CHANGED/);
+ assert.match(src,/\.eq\("active", true\)/);
+ assert.match(src,/\.eq\("relationship", student\.relationship\)/);
+ assert.match(src,/\.eq\("relationship", onlyStudent\.relationship\)/);
+ assert.match(src,/ACCOUNT_STUDENT_STATE_CHANGED/);
+ assert.match(src,/\.eq\("user_type", targetType\)/);
 });
