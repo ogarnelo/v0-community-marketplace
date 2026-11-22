@@ -30,7 +30,17 @@ export async function grantSchoolAdminRole(params: {
   // Dormant until the reviewed SECURITY INVOKER RPC has been separately
   // installed and enabled. Do not fall back to two independent writes
   // when the atomic mode is ON but the database rejects the call.
-  if (process.env.WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_ENABLED === "true") {
+  // The global switch alone must never activate a production rollout.
+  // Explicitly allowlist the target Auth UUID for an isolated canary.
+  // Unknown values, malformed IDs and an empty allowlist stay on legacy.
+  const canaryIds = (process.env.WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_CANARY_USER_IDS || "")
+    .split(",")
+    .map((id) => id.trim().toLowerCase())
+    .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id));
+  const useAtomicGrant =
+    process.env.WETUDY_R2_SCHOOL_ADMIN_ATOMIC_GRANT_ENABLED === "true" &&
+    canaryIds.includes(params.userId.toLowerCase());
+  if (useAtomicGrant) {
     const { data: committed, error: atomicError } = await admin.rpc(
       "r2_grant_school_admin_atomic_candidate",
       { p_user_id: params.userId, p_school_id: params.schoolId }
