@@ -1,5 +1,16 @@
 # WETUDY — START HERE: continuidad técnica y prioridades
 
+## ESTADO VIGENTE — decisión expresa del propietario, 22/11/2026
+
+**#787 CERRADA ADMINISTRATIVAMENTE SIN MERGE**, no cerrada como remediación ejecutada. El propietario autorizó explícitamente archivar la PR #787 sin integrar sus 98 commits y **repriorizar** para avanzar a otro bloque; la PR se ha comprobado `CLOSED`/`merged=false`. La propuesta de retirar cinco `anon SELECT` **NO SE HA APLICADO** y continúa **PENDIENTE DE SEGURIDAD**, rastreada en [issue #804](https://github.com/ogarnelo/v0-community-marketplace/issues/804). Esta excepción está permitida por la norma general de repriorización expresa; no convertirla en precedente automático.
+
+- Seguimiento central: [#767](https://github.com/ogarnelo/v0-community-marketplace/issues/767). No reabrir #787 ni rehacer sus pruebas sin nueva evidencia/requisito.
+- Volver a #804 solo tras inventario/atestaciones reales de consumidores (incluida vista `demand_opportunities_30d`), revisión de seguridad independiente, snapshot y rollback productivo aceptados y autorización **nueva y específica** para cualquier REVOKE.
+- Proyectos Supabase identificados: WETUDY **Education Marketplace** `jpsljmakoscqevssimtk`; **VM Copilot** `iaoeqkjgjprnuzhbvkgc` independiente y fuera de alcance. WETUDY enlaza con Vercel `v0-community-marketplace`; integraciones instaladas Supabase y Resend. Webhooks Vercel no inventariables con el acceso actual (403). **No volver a pedir la identificación de estos proyectos.**
+- **Piloto general NO-GO**; permisos de Supabase, RLS, datos, flags, migraciones y secretos sin modificar. El siguiente bloque debe determinarse por su puerta vigente, no por reabrir #787.
+
+**Nota de lectura:** las secciones inferiores describen observaciones históricas previas al cierre administrativo; donde digan que #787 está DRAFT/abierto, prevalece el estado vigente indicado arriba.
+
 > **OBLIGATORIO: leer `AGENTS.md` en la raíz antes de cualquier avance.** La norma de cerrar un bloque antes de abrir otro es una **regla permanente de WETUDY**, reiterada por el propietario en múltiples ocasiones: TERMINAR → VALIDAR → FUSIONAR → READY → DOCUMENTAR → CERRAR. No volver a tratarla como regla nueva, no abrir micro-PR duplicadas ni cambiar de frente por iniciativa propia. Si el bloque está bloqueado externamente, permanece ABIERTO y solo podrá repriorizarse por decisión expresa. Al finalizar cada tanda actualizar **el índice, #767 y el maestro completo**, conservando el histórico.
 
 
@@ -24,11 +35,11 @@ En un chat nuevo decir: *«Continúa WETUDY desde `docs/pilot/WETUDY_START_HERE_
 5. **Ensayo real SQL con sintéticos y ROLLBACK SUPERADO** en Supabase después de autorización expresa: usuario Auth efímero con dominio `example.invalid`, un colegio activo y otro inactivo, concesión/idempotencia/rechazos correctos. La transacción `ROLLBACK` eliminó todo lo ficticio. Recuentos restaurados: 11 Auth, 11 perfiles, 1 colegio, 2 roles, 0 roles-perfiles incoherentes. Evidencia: [issue #767, comentario 7080675158](https://github.com/ogarnelo/v0-community-marketplace/issues/767#issuecomment-7080675158).
 6. **Solo pendiente funcional R2:** ensayo HTTP/Vercel completo de canary con usuario de pruebas aprovisionado y eliminado mediante **Auth Admin API**, y eventual activación limitada. No escribir usuarios Auth persistentes directamente por SQL. Si no está disponible el lifecycle seguro, mantener OFF y postergar el E2E al piloto. Instalación SQL y prueba SQL no son pendientes.
 
-## PR abiertas y puertas reales
+## Inventario histórico de PR y puertas (antes del cierre de #787)
 
 | PR | Estado, límite, siguiente puerta |
 |---|---|
-| [#787](https://github.com/ogarnelo/v0-community-marketplace/pull/787) | DRAFT, 98 commits/29 archivos; propuesta de retirar `anon SELECT` en cinco tablas: `agreements`, `demand_requests`, `profiles`, `saved_searches`, `schools`. **No fusionar/aplicar** hasta atestación externa firmada, pruebas de consumidores reales, revisión independiente, snapshot y aceptación de rollback. `demand_opportunities_30d` es vista invocadora dependiente. La PR solo contiene SQL local/ensayos, no migración productiva. Documento: `docs/pilot/ANON_FIVE_TABLE_CONSUMER_ATTESTATION_2026-11-20.json` **en la rama de #787**, no necesariamente en main. `anon` todavía tiene SELECT de tabla en `agreements`, `profiles` y `schools` al último preflight, aunque RLS protege filas. La PR identifica también grants heredados DML/MAINTAIN que requieren revisión separada; no confundir permisos de tabla con acceso efectivo de fila. |
+| [#787](https://github.com/ogarnelo/v0-community-marketplace/pull/787) | **CLOSED SIN MERGE** por decisión expresa del propietario el 22/11/2026. Ensayos y evidencia histórica conservados; revocación de cinco `anon SELECT` **no aplicada**, pendiente de seguridad en [#804](https://github.com/ogarnelo/v0-community-marketplace/issues/804). |
 | [#232](https://github.com/ogarnelo/v0-community-marketplace/pull/232) | DRAFT, WhatsApp account linking, pospiloto. |
 | [#231](https://github.com/ogarnelo/v0-community-marketplace/pull/231) | DRAFT, publicación asistida WETUDY Easy IA, pospiloto. |
 | [#227](https://github.com/ogarnelo/v0-community-marketplace/pull/227) | DRAFT, aviso email tras signup verificado; requiere ensayo real de registro/mail e idempotencia antes de considerar merge. |
@@ -39,11 +50,11 @@ Otros bloques sin reabrir: reporting global R1 PR #789 migrada, cron apagado; fe
 
 La comprobación de catálogo de **solo lectura** del 22/11/2026 confirma las cinco tablas con anon SELECT, RLS activo y cero políticas anon/PUBLIC. Se han identificado dos vistas invocadoras dependientes: `demand_opportunities_30d` sobre `demand_requests` (**anon SELECT en la vista = sí**, potencial ruptura de consumidor invitado), y `saved_search_demand_summary` sobre `saved_searches` (**anon SELECT en la vista = no**). No son riesgos idénticos. Ver evidencias y consulta reproducible en [P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md](P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md). Atestaciones externas siguen sin acreditarse; **no aplicar REVOKE** ni cerrar #787 por pruebas locales.
 
-## Puerta #787 — bloqueo real, no cierre simulado
+## Evidencia histórica #787 — bloqueo anterior a la repriorización
 
-La **PR #787 sigue DRAFT** con ocho categorías de consumidores sin atestación firmada y ocho verificaciones externas en falso, conforme al manifiesto de su rama. El cierre técnico de ensayos PG17/SSR/PostgREST/Realtime locales **no habilita** `REVOKE` en producción ni el merge. Faltan responsables externos y revisor independiente para el inventario, ensayos de integraciones, rollback sobre ACL exactos y aprobación de propietario. Ver el acta de cierre pendiente: [P0_PRIVACY_787_CIERRE_PENDIENTE_20261122.md](P0_PRIVACY_787_CIERRE_PENDIENTE_20261122.md).
+En el corte anterior al cierre administrativo, **la PR #787 estaba DRAFT** con ocho categorías de consumidores sin atestación firmada y ocho verificaciones externas en falso, conforme al manifiesto de su rama. El cierre técnico de ensayos PG17/SSR/PostgREST/Realtime locales **no habilita** `REVOKE` en producción ni el merge. Faltan responsables externos y revisor independiente para el inventario, ensayos de integraciones, rollback sobre ACL exactos y aprobación de propietario. Ver el acta de cierre pendiente: [P0_PRIVACY_787_CIERRE_PENDIENTE_20261122.md](P0_PRIVACY_787_CIERRE_PENDIENTE_20261122.md).
 
-**No iniciar #227 ni otra PR funcional mientras #787 siga ABIERTO**, a menos que el propietario decida explícitamente repriorizar por bloqueo externo. Evitar gastar más tiempo repitiendo pruebas ya aprobadas.
+**Condición histórica resuelta por decisión expresa del propietario el 22/11/2026:** autorizado el archivo sin merge y la repriorización; el riesgo técnico sigue pendiente en #804. Evitar gastar más tiempo repitiendo pruebas ya aprobadas.
 
 ## #787 — Responsable identificado, firma aún pendiente (22/11/2026)
 
