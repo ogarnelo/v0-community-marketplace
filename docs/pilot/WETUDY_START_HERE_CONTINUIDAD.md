@@ -32,6 +32,10 @@ En un chat nuevo decir: *«Continúa WETUDY desde `docs/pilot/WETUDY_START_HERE_
 
 Otros bloques sin reabrir: reporting global R1 PR #789 migrada, cron apagado; federaciones FAMPA/CEAPA PR #788 fusionada y feature flag OFF; fotos Storage y edición retesteadas por usuario tras #750.
 
+## Auditoría específica #787 — observación posterior al maestro V38
+
+La comprobación de catálogo de **solo lectura** del 22/11/2026 confirma las cinco tablas con anon SELECT, RLS activo y cero políticas anon/PUBLIC. Se han identificado dos vistas invocadoras dependientes: `demand_opportunities_30d` sobre `demand_requests` (**anon SELECT en la vista = sí**, potencial ruptura de consumidor invitado), y `saved_search_demand_summary` sobre `saved_searches` (**anon SELECT en la vista = no**). No son riesgos idénticos. Ver evidencias y consulta reproducible en [P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md](P0_PRIVACY_787_READONLY_CONSUMER_DEPENDENCIES_20261122.md). Atestaciones externas siguen sin acreditarse; **no aplicar REVOKE** ni cerrar #787 por pruebas locales.
+
 ## Qué hacer ahora
 
 - Priorizar una **acción nueva y verificable** sin duplicar R2: abordar la revisión externa de consumidores/rollback de #787 por vía documental; no retirar grants hasta atestación. Si dependencias necesitan consentimiento externo, registrar bloqueo y pasar al siguiente frente no bloqueado.
