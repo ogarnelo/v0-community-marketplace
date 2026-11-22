@@ -167,9 +167,13 @@ export async function POST(request: Request) {
           { status: denied ? 403 : conflict ? 409 : 503 }
         );
       }
-      const row = Array.isArray(rpcData) ? rpcData[0] || null : rpcData;
+      const row = Array.isArray(rpcData)
+        ? (rpcData.length === 1 ? rpcData[0] : null)
+        : rpcData;
       if (
-        !row || row.request_id !== donationRequestId ||
+        !row ||
+        typeof row.request_id !== "string" ||
+        row.request_id.toLowerCase() !== donationRequestId.toLowerCase() ||
         row.decision_status !== (action === "approve" ? "approved" : "rejected") ||
         row.listing_id !== donationRequest.listing_id ||
         row.requester_id !== donationRequest.requester_id ||
