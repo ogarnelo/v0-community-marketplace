@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       if (lower.includes("not allowed")) {
         return privateJson({ error: "No puedes confirmar este acuerdo." }, { status: 403 });
       }
-      if (lower.includes("current state")) {
+      if (lower.includes("current state") || lower.includes("listing no longer accepts") || lower.includes("listing already allocated")) {
         return privateJson(
           { error: "Este acuerdo ya no se puede confirmar." },
           { status: 409 }
@@ -73,9 +73,23 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    const agreement = normalizeRpcRow<any>(data);
-    if (!agreement) {
-      return privateJson({ error: "No se pudo confirmar." }, { status: 500 });
+    // An RPC can commit yet return an uncertain/empty response. Never emit
+    // email, conversion or notification for a missing or foreign agreement.
+    const agreement = Array.isArray(data)
+      ? (data.length === 1 ? data[0] : null)
+      : normalizeRpcRow<any>(data);
+    if (
+      !agreement ||
+      typeof agreement.id !== "string" ||
+      agreement.id.toLowerCase() !== agreementId.toLowerCase() ||
+      !["buyer_confirmed", "seller_confirmed", "confirmed"].includes(agreement.status) ||
+      (agreement.buyer_id !== user.id && agreement.seller_id !== user.id)
+    ) {
+      console.error("agreement_confirm_rpc_result_unverified");
+      return privateJson(
+        { error: "No se pudo verificar la confirmación. Actualiza la conversación antes de reintentar." },
+        { status: 503 }
+      );
     }
 
     const isConfirmed = agreement.status === "confirmed";
