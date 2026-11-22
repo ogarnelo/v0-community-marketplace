@@ -26,7 +26,7 @@ function execute({kind, noRows=false, relationship="guardian", active=true, role
    };return q;
  };
  const compiled=ts.transpileModule(readFileSync("lib/account-students/server.ts","utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});
- const out={};vm.runInNewContext(compiled.outputText,{exports:out,require:(key)=>key==="@/lib/supabase/admin"?{createAdminClient:()=>({from:makeQuery})}:{},Date,Error,console});
+ const out={};vm.runInNewContext(compiled.outputText,{exports:out,require:(key)=>key==="@/lib/supabase/admin"?{createAdminClient:()=>({from:makeQuery})}:{},Date,Error,console,process:{env:{WETUDY_R2_STUDENT_ATOMIC_DEACTIVATE_ENABLED:'false'}}});
  const input={alias:null,schoolId:null,directorySchoolCode:null,gradeLevel:"4 ESO"};
  return {calls,run:()=>kind==="update"?out.updateAccountStudent(USER,UUID,input):out.deactivateAccountStudent(USER,UUID)};
 }
