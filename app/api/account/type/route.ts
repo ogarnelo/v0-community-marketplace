@@ -236,6 +236,34 @@ export async function PATCH(request: Request) {
       throw authUpdateError;
     }
 
+    // Auth accepted the write; DO NOT compensate blindly if final verification
+    // fails, because a retry or concurrent transition may already have run.
+    // Return a reconciliation-required status rather than claiming success.
+    try {
+      const [authVerified, profileVerified] = await Promise.all([
+        admin.auth.admin.getUserById(user.id),
+        admin.from("profiles").select("user_type").eq("id", user.id).maybeSingle(),
+      ]);
+      if (authVerified.error || !authVerified.data?.user ||
+          authVerified.data.user.id !== user.id ||
+          authVerified.data.user.user_metadata?.user_type !== targetType ||
+          profileVerified.error || profileVerified.data?.user_type !== targetType) {
+        console.error("account_type_postwrite_verification_failed");
+        return jsonError(
+          "El cambio necesita una revisión de consistencia antes de continuar.",
+          503,
+          "account_type_reconciliation_required"
+        );
+      }
+    } catch {
+      console.error("account_type_postwrite_verification_unavailable");
+      return jsonError(
+        "El cambio necesita una revisión de consistencia antes de continuar.",
+        503,
+        "account_type_reconciliation_required"
+      );
+    }
+
     return NextResponse.json({ userType: targetType }, { headers: PRIVATE_HEADERS });
   } catch (error) {
     // Rollback is best effort across PostgreSQL and Auth; never guarantee
