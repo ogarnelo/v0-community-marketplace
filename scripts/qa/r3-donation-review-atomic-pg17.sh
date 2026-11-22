@@ -42,7 +42,7 @@ CREATE UNIQUE INDEX donation_requests_one_pending_per_requester_listing_idx
  ON public.donation_requests(listing_id, requester_id)
  WHERE status='pending' AND listing_id IS NOT NULL AND requester_id IS NOT NULL;
 GRANT SELECT ON public.schools,public.listings,public.user_roles,public.donation_requests TO service_role;
-GRANT UPDATE ON public.listings,public.donation_requests TO service_role;
+GRANT UPDATE ON public.schools,public.listings,public.donation_requests TO service_role;
 INSERT INTO public.schools(id,is_active) VALUES
  ('11111111-1111-4111-8111-111111111111',true),
  ('99999999-9999-4999-8999-999999999999',false);
