@@ -17,6 +17,7 @@ function runtime(action,opts={}){
   const db=()=>({
    data:
     table==="donation_requests"?{id:ID,listing_id:ID,requester_id:ID,school_id:ID,status:"pending"}:
+    table==="schools"?{id:ID,is_active:true}:
     table==="listings"?{id:ID,title:"QA",seller_id:OTHER,school_id:ID}:
     table==="conversations"?{id:ID}:null,
    error:null
@@ -62,6 +63,10 @@ function runtime(action,opts={}){
   "@/lib/admin/roles":{getAdminFlags:()=>({
    canAccessAdmin:true,isSuperAdmin:false,schoolAdminSchoolId:ID
   })},
+  "@/lib/marketplace/unique-school-admin-context":{resolveUniqueSchoolAdminSchoolId:rows=>{
+   if(rows.length!==1)throw Error("ambiguous");
+   return rows[0].school_id;
+  }},
   "@/lib/notifications":{createNotifications:async()=>{
    calls.push("NOTIFY");return {error:opts.notificationError?{message:"PRIVATE_NOTIFICATION"}:null};
   }}
