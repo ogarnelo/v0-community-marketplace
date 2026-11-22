@@ -52,7 +52,20 @@ export async function requestDonationFlow(params: {
       updated_at: now,
     })
     .select("id, listing_id, requester_id, school_id, status, note").single();
-  if (insertError || !donationRequest) throw new Error("No se pudo crear la solicitud.");
+  // The pre-insert SELECT is only a UX optimization: two concurrent requests
+  // can both see no pending row. The P0/A-015 unique index is the DB arbiter.
+  // Only this exact constraint represents a duplicate donation request; other
+  // 23505 violations must not be silently misclassified.
+  if (insertError) {
+    if (
+      insertError.code === "23505" &&
+      (insertError.message || "").includes("donation_requests_one_pending_per_requester_listing_idx")
+    ) {
+      throw new DonationRequestConflictError();
+    }
+    throw new Error("No se pudo crear la solicitud.");
+  }
+  if (!donationRequest) throw new Error("No se pudo crear la solicitud.");
 
   // The request has committed. Any later error requires reconciliation;
   // retries could create duplicate events, chats or notifications.

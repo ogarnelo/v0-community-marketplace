@@ -31,6 +31,8 @@ jobs:
         run: node --test __tests__/launch/r2-school-admin-atomic-gate.test.mjs
       - name: R3 agreement cancel and dispute RPC acknowledgement must fail closed
         run: node --test __tests__/launch/r3-agreement-rpc-ack-runtime.test.mjs
+      - name: R3 pending donation index collision must fail closed
+        run: node --test __tests__/launch/r3-donation-pending-unique-review-runtime.test.mjs
       - name: Critical contract tests
         run: npm run test:critical-contracts
       - name: Commerce and moderation HTTP privacy boundaries
@@ -317,3 +319,28 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Pause retains failure history and respects lease ownership and ACL
         run: bash scripts/qa/p0-alert-pause-pg17.sh
+
+  r3-donation-pending-pg17:
+    name: Isolated PG17 pending donation request race
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Two concurrent pending donation inserts, replay, and duplicate preflight
+        run: bash scripts/qa/r3-donation-pending-unique-pg17.sh
