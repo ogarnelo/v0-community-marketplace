@@ -252,10 +252,19 @@ export async function updateAccountStudent(
     })
     .eq("id", studentId)
     .eq("owner_user_id", userId)
+    .eq("active", true)
+    .eq("relationship", expectedRelationship)
     .select("id, relationship, alias, school_id, directory_school_code, grade_level, academic_year, is_primary, active, sort_order, created_at, updated_at")
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new AccountStudentError(
+      "El contexto ha cambiado mientras lo editabas. Recarga tu cuenta antes de reintentar.",
+      409,
+      "student_state_changed"
+    );
+  }
   return data;
 }
 
@@ -279,6 +288,17 @@ export async function deactivateAccountStudent(userId: string, studentId: string
     throw new AccountStudentError("Ese estudiante ya no está disponible.", 404, "student_not_found");
   }
 
+  // Re-check the relationship in the actual mutation so a concurrent
+  // account-type transition cannot delete a newly converted self context.
+  const expectedRelationshipForDeletion = relationshipForAccountType(accountType);
+  if (existing.relationship !== expectedRelationshipForDeletion) {
+    throw new AccountStudentError(
+      "El tipo de cuenta ha cambiado. Recarga antes de eliminar este contexto.",
+      409,
+      "relationship_mismatch"
+    );
+  }
+
   if (accountType === "student") {
     throw new AccountStudentError(
       "Una cuenta de estudiante no puede eliminar su propio contexto educativo. Puedes editarlo.",
@@ -287,7 +307,7 @@ export async function deactivateAccountStudent(userId: string, studentId: string
     );
   }
 
-  const { error: deactivateError } = await admin
+  const { data: deactivated, error: deactivateError } = await admin
     .from("account_students")
     .update({
       active: false,
@@ -295,9 +315,21 @@ export async function deactivateAccountStudent(userId: string, studentId: string
       updated_at: new Date().toISOString(),
     })
     .eq("id", studentId)
-    .eq("owner_user_id", userId);
+    .eq("owner_user_id", userId)
+    .eq("active", true)
+    .eq("relationship", expectedRelationshipForDeletion)
+    .eq("is_primary", existing.is_primary)
+    .select("id")
+    .maybeSingle();
 
   if (deactivateError) throw deactivateError;
+  if (!deactivated?.id) {
+    throw new AccountStudentError(
+      "El contexto ha cambiado mientras lo eliminabas. Recarga tu cuenta antes de reintentar.",
+      409,
+      "student_state_changed"
+    );
+  }
 
   if (existing.is_primary) {
     const { data: nextPrimary, error: nextError } = await admin
