@@ -125,6 +125,8 @@ jobs:
         run: node --test __tests__/launch/pilot-auth-marketplace-read-failclosed-runtime.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
+      - name: Public listing privacy for guests without breaking contact and proximity
+        run: node --test __tests__/launch/p433-public-listing-guest-identity-runtime.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
         run: node --test __tests__/launch/pilot-prod-photo-rls-after-listings-acl.test.mjs
       - name: Listing detail authorized photo reads and metadata

@@ -1,4 +1,5 @@
 import { MarketplaceClient } from "@/components/marketplace/marketplace-client";
+import { projectListingForViewer } from "@/lib/marketplace/public-listing-identity";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPublicMetadata } from "@/lib/seo/metadata";
@@ -26,8 +27,10 @@ export default async function MarketplacePage() {
   const admin = createAdminClient();
 
   const {
-    data: { user },
+    data: { user: authUser },
+    error: authError,
   } = await supabase.auth.getUser();
+  const user = authError ? null : authUser;
 
   let favoriteIds = new Set<string>();
   let viewerSchoolId = "";
@@ -219,7 +222,7 @@ export default async function MarketplacePage() {
       sellerProfile?.postalCode ||
       null;
 
-    return {
+    return projectListingForViewer({
     id: item.id,
     title: item.title || "Anuncio sin título",
     description: item.description || null,
@@ -249,7 +252,7 @@ export default async function MarketplacePage() {
     createdAt: item.created_at || null,
     distance: approximateDistanceKm(viewerPostalCode, currentSellerPostalCode),
     isFavorite: favoriteIds.has(item.id),
-    };
+    }, user?.id);
   });
 
   return (

@@ -29,7 +29,8 @@ export default function MobileListingActions({
   currentUserId?: string | null;
   isProfessionalSeller?: boolean;
 }) {
-  if (isOwnListing || !isAvailable || !sellerId) return null;
+  // Keep guest CTA: redirect to Auth precedes the seller ID requirement.
+  if (isOwnListing || !isAvailable || (currentUserId && !sellerId)) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.1)] backdrop-blur md:hidden">

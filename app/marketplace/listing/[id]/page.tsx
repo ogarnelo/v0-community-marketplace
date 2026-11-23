@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { buildPhotosMap, type ListingPhotoRow, type MarketplaceListing } from "@/lib/types/marketplace";
 import { getListingTypeFromRow } from "@/lib/marketplace/listing-type";
+import { projectListingForViewer } from "@/lib/marketplace/public-listing-identity";
 import { getConditionLabel } from "@/lib/marketplace/formatters";
 import { getUserReviews } from "@/lib/users/get-user-reviews";
 import JsonLd from "@/components/seo/json-ld";
@@ -135,7 +136,7 @@ export default async function ListingDetailPage({
   const supabase = createAdminClient();
   const authSupabase = await createClient();
 
-  const [{ data: listing, error: listingError }, { data: authData }] = await Promise.all([
+  const [{ data: listing, error: listingError }, { data: authData, error: authError }] = await Promise.all([
     supabase
       .from("listings")
       .select("id, title, description, category, grade_level, condition, type, listing_type, price, original_price, estimated_retail_price, isbn, author, publisher, format, language, subject, specific_type, size_label, brand, model, season, seller_id, school_id, directory_school_code, status, created_at")
@@ -156,7 +157,7 @@ export default async function ListingDetailPage({
 
   const suppressPublicSignals =
     isDemoListing(listing) || listingSchool?.is_test === true;
-  const currentUserId = authData?.user?.id || null;
+  const currentUserId = authError ? null : authData?.user?.id || null;
   const isOwnListing = !!currentUserId && listing.seller_id === currentUserId;
   const isDonation = getListingTypeFromRow(listing as any) === "donation";
   const isAvailable = listing.status === "available";
@@ -223,7 +224,14 @@ export default async function ListingDetailPage({
   const shareUrl = appUrl ? `${appUrl}/marketplace/listing/${listing.id}` : `/marketplace/listing/${listing.id}`;
   const currentSchoolId = viewerProfile?.school_id || "";
   const savings = typeof listing.original_price === "number" && typeof listing.price === "number" ? Math.max(0, listing.original_price - listing.price) : 0;
-  const sellerName = seller?.business_name || seller?.full_name || "Usuario de Wetudy";
+  // Public browsing must not reveal a private family's full name.
+  // Keep the business display name public; authenticated buyers see the
+  // current seller identity to continue the marketplace conversation.
+  const sellerName = currentUserId
+    ? seller?.business_name || seller?.full_name || "Usuario de Wetudy"
+    : seller?.user_type === "business" && seller?.business_name?.trim()
+      ? seller.business_name.trim()
+      : "Miembro de Wetudy";
   const createdAtLabel = listing.created_at
     ? new Date(listing.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })
     : null;
@@ -252,7 +260,7 @@ export default async function ListingDetailPage({
     relatedPhotosMap = buildPhotosMap((relatedPhotos || []) as ListingPhotoRow[]);
   }
 
-  const relatedListings: MarketplaceListing[] = (relatedRows || []).map((item: any) => ({
+  const relatedListings: MarketplaceListing[] = (relatedRows || []).map((item: any) => projectListingForViewer({
     id: item.id,
     title: item.title || "Anuncio sin título",
     description: item.description || null,
@@ -270,7 +278,7 @@ export default async function ListingDetailPage({
     status: item.status,
     createdAt: item.created_at || null,
     isFavorite: false,
-  }));
+  }, currentUserId));
 
   const canonicalUrl = `${SEO_SITE_URL}/marketplace/listing/${listing.id}`;
   const normalizedCondition = String(listing.condition || "").toLowerCase();
@@ -310,7 +318,7 @@ export default async function ListingDetailPage({
     <div className="bg-slate-50/60 pb-28 md:pb-10">
       {!suppressPublicSignals ? <JsonLd data={[productJsonLd, breadcrumbJsonLd]} /> : null}
       {!suppressPublicSignals ? (
-        <ListingViewTracker listingId={listing.id} sellerId={listing.seller_id} category={listing.category} gradeLevel={listing.grade_level} />
+        <ListingViewTracker listingId={listing.id} sellerId={currentUserId ? listing.seller_id : null} category={listing.category} gradeLevel={listing.grade_level} />
       ) : null}
 
       <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
@@ -421,7 +429,7 @@ export default async function ListingDetailPage({
                   </div>
                 ) : isAvailable && listing.seller_id ? (
                   <>
-                    <ContactSellerButton listingId={listing.id} sellerId={listing.seller_id} currentUserId={currentUserId} />
+                    <ContactSellerButton listingId={listing.id} sellerId={currentUserId ? listing.seller_id : null} currentUserId={currentUserId} />
                     <p className="rounded-2xl border bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
                       Wetudy facilita el contacto y conserva el historial. La entrega y el pago se acuerdan directamente entre las partes.
                       {isProfessionalSeller ? " En perfiles profesionales el precio es fijo; usa el chat para resolver dudas." : " Si el vendedor acepta negociar, cerradlo por chat antes de confirmar el acuerdo."}
@@ -454,7 +462,7 @@ export default async function ListingDetailPage({
                 <span className="rounded-full bg-slate-100 px-2 py-1 text-muted-foreground">{sellerActiveListings} anuncios activos</span>
                 {seller?.is_business_verified ? <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">Negocio verificado</span> : null}
               </div>
-              {seller?.id ? <Link href={`/profile/${seller.id}`} className="mt-4 inline-flex text-sm font-medium text-primary hover:underline">Ver perfil del vendedor</Link> : null}
+              {seller?.id && currentUserId ? <Link href={`/profile/${seller.id}`} className="mt-4 inline-flex text-sm font-medium text-primary hover:underline">Ver perfil del vendedor</Link> : null}
             </section>
 
             <section className="rounded-[1.75rem] border bg-white p-5 shadow-sm">
@@ -475,7 +483,7 @@ export default async function ListingDetailPage({
         isDonation={isDonation}
         isAvailable={isAvailable}
         isOwnListing={isOwnListing}
-        sellerId={listing.seller_id}
+        sellerId={currentUserId ? listing.seller_id : null}
         currentUserId={currentUserId}
       />
     </div>
