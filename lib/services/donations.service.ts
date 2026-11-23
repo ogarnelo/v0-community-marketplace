@@ -93,13 +93,42 @@ async function readVerifiedDonationRequestReplay(params: {
   return { requestId: existing.id, conversationId: chat.id, replayed: true };
 }
 
+/**
+ * A-039b optional transacted repair. Only the API's service_role client may
+ * execute this RPC, and this adapter NEVER falls back after an RPC error.
+ * It is disabled by default until the reviewed SQL + feature flag are both
+ * explicitly authorized. The legacy A-039a replay path stays unchanged.
+ */
+async function reconcileDonationRequestAtomically(params: {
+  supabase: SupabaseClient;
+  requestId: string;
+  actorUserId: string;
+  replayed: boolean;
+}): Promise<{ requestId: string; conversationId: string; replayed: boolean }> {
+  const { supabase, requestId, actorUserId, replayed } = params;
+  const { data, error } = await supabase.rpc(
+    "r3_reconcile_donation_request_atomic",
+    { p_request_id: requestId, p_actor_id: actorUserId },
+  );
+  const row = Array.isArray(data) ? (data.length === 1 ? data[0] : null) : data;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (error || !row || typeof row.request_id !== "string" ||
+      row.request_id.toLowerCase() !== requestId.toLowerCase() ||
+      typeof row.conversation_id !== "string" ||
+      !uuid.test(row.conversation_id)) {
+    throw new DonationRequestReconciliationError();
+  }
+  return { requestId, conversationId: row.conversation_id, replayed };
+}
+
 export async function requestDonationFlow(params: {
   supabase: SupabaseClient;
   listingId: string;
   actorUserId: string;
   note?: string | null;
+  enableAtomicReconciliation?: boolean;
 }) {
-  const { supabase, listingId, actorUserId, note } = params;
+  const { supabase, listingId, actorUserId, note, enableAtomicReconciliation = false } = params;
   const { data: listing, error: listingError } = await supabase.from("listings")
     .select("id, title, seller_id, school_id, status, type, listing_type")
     .eq("id", listingId).maybeSingle();
@@ -114,10 +143,15 @@ export async function requestDonationFlow(params: {
     .eq("status", "pending").maybeSingle();
   const { data: existing, error: existingError } = await pendingQuery();
   if (existingError) throw new Error("No se pudo comprobar la solicitud anterior.");
-  if (existing) return readVerifiedDonationRequestReplay({
-    supabase, existing, listingId, actorUserId, sellerId: listing.seller_id,
-    schoolId: listing.school_id || null,
-  });
+  if (existing) {
+    if (enableAtomicReconciliation) return reconcileDonationRequestAtomically({
+      supabase, requestId: existing.id, actorUserId, replayed: true,
+    });
+    return readVerifiedDonationRequestReplay({
+      supabase, existing, listingId, actorUserId, sellerId: listing.seller_id,
+      schoolId: listing.school_id || null,
+    });
+  }
 
   const now = new Date().toISOString();
   const { data: donationRequest, error: insertError } = await supabase
@@ -142,6 +176,9 @@ export async function requestDonationFlow(params: {
       // under the same requester and listing, with no repeated effects.
       const { data: winner, error: winnerError } = await pendingQuery();
       if (winnerError || !winner) throw new DonationRequestReconciliationError();
+      if (enableAtomicReconciliation) return reconcileDonationRequestAtomically({
+        supabase, requestId: winner.id, actorUserId, replayed: true,
+      });
       return readVerifiedDonationRequestReplay({
         supabase, existing: winner, listingId, actorUserId,
         sellerId: listing.seller_id, schoolId: listing.school_id || null,
@@ -150,6 +187,9 @@ export async function requestDonationFlow(params: {
     throw new Error("No se pudo crear la solicitud.");
   }
   if (!donationRequest) throw new Error("No se pudo crear la solicitud.");
+  if (enableAtomicReconciliation) return reconcileDonationRequestAtomically({
+    supabase, requestId: donationRequest.id, actorUserId, replayed: false,
+  });
 
   // The request has committed. Any later error requires reconciliation;
   // retries could create duplicate events, chats or notifications.

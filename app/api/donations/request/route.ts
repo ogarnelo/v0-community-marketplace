@@ -43,6 +43,10 @@ export async function POST(request: Request) {
       listingId,
       actorUserId: user.id,
       note,
+      // Enable only AFTER the RPC and uniqueness indexes pass production
+      // preflight, tests, grants and postflight; OFF without this env var.
+      enableAtomicReconciliation: typeof process !== "undefined" &&
+        process.env.WETUDY_R3_DONATION_REQUEST_REPAIR_ENABLED === "true",
     });
 
     // A verified replay is read-only, including attribution.
