@@ -39,6 +39,8 @@ jobs:
         run: node --test __tests__/launch/r3-donation-pending-unique-review-runtime.test.mjs
       - name: R3 A-039 donation replay must verify chat, event, message and notification read-only
         run: node --test __tests__/launch/r3-donation-request-replay-runtime.test.mjs
+      - name: R3 A-039b atomic repair adapter is OFF by default and RPC fail-closed
+        run: node --test __tests__/launch/r3-donation-atomic-repair-adapter-runtime.test.mjs
       - name: R3 atomic donation review contract and actor authorization
         run: node --test __tests__/launch/r3-donation-review-atomic-contract.test.mjs __tests__/launch/pilot-donation-admin-review-safe.test.mjs __tests__/launch/pilot-donation-review-side-effects-runtime.test.mjs
       - name: Critical contract tests
@@ -402,3 +404,28 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Competing agreement confirmations and conditional cancel release
         run: bash scripts/qa/r3-agreements-confirm-cancel-a025-a026-pg17.sh
+
+  r3-donation-request-repair-pg17:
+    name: Isolated PG17 donation partial recovery transaction
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Atomic request repair, partial replay, concurrent calls and rollback
+        run: bash scripts/qa/r3-donation-request-reconcile-atomic-pg17.sh
