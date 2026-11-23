@@ -40,7 +40,7 @@ function harness(opts={}){
   "@/lib/marketplace/rules":{canRequestDonation:({listing})=>
    opts.invalid||listing.status!=="available"||listing.listing_type!=="donation"?
     {ok:false,error:"No permitido"}:{ok:true}},
-  "@/lib/notifications":{createNotification:async()=>{
+  "@/lib/notifications":{createNotificationOnce:async()=>{
     calls.push("NOTIFY");return {error:opts.notificationError?{message:"PRIVATE_NOTIFY"}:null};
   }},
   "@/lib/donations/chat-message":{buildDonationChatBody:()=>"QA"},
@@ -73,8 +73,11 @@ for(const [name,opts] of [
   if(!opts.insertError)assert.ok(!h.calls.some(x=>x.startsWith("INSERT:")));
  });
 }
-test("duplicado muestra nombre de error de conflicto",async()=>{
- const h=harness({existing:true});await assert.rejects(h.run(),x=>x.name==="DonationRequestConflictError");
+test("duplicado pendiente incompleto necesita conciliación, sin efectos",async()=>{
+ const h=harness({existing:true});
+ await assert.rejects(h.run(),x=>x.name==="DonationRequestReconciliationError");
+ assert.ok(!h.calls.includes("CHAT") && !h.calls.includes("NOTIFY"));
+ assert.ok(!h.calls.some(x=>x.startsWith("INSERT:")));
 });
 test("éxito crea solicitud antes de conversación, evento, mensaje, touch y aviso",async()=>{
  const h=harness(),r=await h.run();assert.equal(r.requestId,ID);

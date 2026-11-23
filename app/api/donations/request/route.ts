@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       note,
     });
 
-    try {
+    // A verified replay is read-only, including attribution.
+    if (!result.replayed) try {
       await attributeNeedToConversation(adminSupabase, {
         userId: user.id,
         listingId,
@@ -55,7 +56,9 @@ export async function POST(request: Request) {
       console.error("donation_need_attribution_failed");
     }
 
-    return privateJson({ ok: true, ...result });
+    return privateJson({
+      ok: true, requestId: result.requestId, conversationId: result.conversationId,
+    });
   } catch (error: unknown) {
     const name = error && typeof error === "object" && "name" in error ? error.name : null;
     if (name === "DonationRequestConflictError") {

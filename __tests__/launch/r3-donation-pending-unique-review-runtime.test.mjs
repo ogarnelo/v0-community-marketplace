@@ -101,12 +101,12 @@ test("R3 A-015 PG17 test enforces actual parallel inserts and isolated host", ()
   assert.doesNotMatch(pgHarness, /supabase\.co|wetudy\.com|DATABASE_URL/);
 });
 
-test("R3 A-015 concurrent duplicate is mapped to the existing conflict type", async () => {
+test("R3 A-015 concurrent duplicate without verified committed winner fails closed", async () => {
   const f = serviceFixture({
     insertError: { code: "23505", message: 'duplicate key value violates unique constraint "' + indexName + '"' },
   });
   await assert.rejects(f.request(), error =>
-    error.name === "DonationRequestConflictError" && /Ya has solicitado/.test(error.message));
+    error.name === "DonationRequestReconciliationError");
   assert.equal(f.calls.filter(c => c === "INSERT:donation_requests").length, 1);
   assert.ok(!f.calls.includes("CONVERSATION") && !f.calls.includes("NOTIFY"));
 });
@@ -127,6 +127,6 @@ test("R3 A-015 a backend failure does not become 409 conflict", async () => {
 
 test("R3 A-015 an existing pending row still short-circuits before INSERT", async () => {
   const f = serviceFixture({ existing: { id: "55555555-5555-4555-8555-555555555555" } });
-  await assert.rejects(f.request(), error => error.name === "DonationRequestConflictError");
+  await assert.rejects(f.request(), error => error.name === "DonationRequestReconciliationError");
   assert.ok(!f.calls.includes("INSERT:donation_requests"));
 });
