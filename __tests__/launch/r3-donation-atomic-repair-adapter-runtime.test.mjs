@@ -144,7 +144,7 @@ test("A-039b PG17 harness uses disposable local Postgres, never WETUDY productio
  assert.match(s,/PGHOST=127\.0\.0\.1/);
  assert.match(s,/wetudy_r3_a039b_synthetic/);
  assert.match(s,/QA_BLOCK_NOTIFICATION/);
- assert.match(s,/run_parallel/);
+ assert.match(s,/parallel\(\)/);
  assert.match(s,/UNIQUE event-ID message fence/);
  assert.doesNotMatch(s,/supabase\.co|DATABASE_URL/);
 });
