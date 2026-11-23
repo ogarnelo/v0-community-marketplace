@@ -40,7 +40,10 @@ test("mobile Contactar creates or opens the actual conversation", () => {
 test("listing owners can delete from the listing detail", () => {
   assert.match(listingPage, /DeleteListingButton/);
   assert.match(listingPage, /redirectTo="\/account\/listings"/);
-  assert.match(listingPage, /sellerId=\{listing\.seller_id\}/);
+  // For guests, the CTA must not leak the seller UUID into the HTML.
+  // Authenticated users still receive the seller ID to open real chat.
+  assert.match(listingPage, /sellerId=\{currentUserId \? listing\.seller_id : null\}/);
+  assert.match(mobileActions, /currentUserId && !sellerId/);
   assert.match(deleteButton, /redirectTo/);
   assert.match(deleteButton, /router\.push\(redirectTo\)/);
 });

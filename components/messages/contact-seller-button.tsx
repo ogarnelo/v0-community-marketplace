@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 interface ContactSellerButtonProps {
   listingId: string;
-  sellerId: string;
+  sellerId: string | null;
   currentUserId?: string | null;
   className?: string;
   showIcon?: boolean;
@@ -56,6 +56,9 @@ export function ContactSellerButton({
         return;
       }
 
+      if (!sellerId) {
+        throw new Error("No se pudo identificar al vendedor de este anuncio.");
+      }
       if (currentUserId === sellerId) {
         alert("No puedes iniciar una conversación contigo mismo.");
         return;

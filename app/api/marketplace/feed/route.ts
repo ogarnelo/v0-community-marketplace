@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { projectListingForViewer } from "@/lib/marketplace/public-listing-identity";
 import {
   applyMarketplaceFeedFilters,
   parseMarketplaceFeedFilters,
@@ -145,7 +146,7 @@ export async function GET(request: Request) {
     const listings: MarketplaceListing[] = rows.map((item) => {
       const sellerId = item.seller_id || item.user_id || null;
       const seller = sellerId ? sellerMap.get(sellerId) || null : null;
-      return {
+      return projectListingForViewer({
         id: item.id, title: item.title || "Anuncio sin título",
         description: item.description || null,
         category: item.category, gradeLevel: item.grade_level,
@@ -167,7 +168,7 @@ export async function GET(request: Request) {
         distance: nearbyDistances.get(item.id) ?? approximateDistanceKm(
           viewerPostalCode, item.postal_code || seller?.postalCode),
         isFavorite: favoriteIds.has(item.id),
-      };
+      }, user?.id);
     });
     return NextResponse.json({ listings, hasMore, offset }, {
       headers: { "Cache-Control": "private, no-store" },
