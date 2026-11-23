@@ -37,6 +37,8 @@ jobs:
         run: node --test __tests__/launch/r3-agreements-confirm-cancel-a025-a026-runtime.test.mjs
       - name: R3 pending donation index collision must fail closed
         run: node --test __tests__/launch/r3-donation-pending-unique-review-runtime.test.mjs
+      - name: R3 A-039 donation replay must verify chat, event, message and notification read-only
+        run: node --test __tests__/launch/r3-donation-request-replay-runtime.test.mjs
       - name: R3 atomic donation review contract and actor authorization
         run: node --test __tests__/launch/r3-donation-review-atomic-contract.test.mjs __tests__/launch/pilot-donation-admin-review-safe.test.mjs __tests__/launch/pilot-donation-review-side-effects-runtime.test.mjs
       - name: Critical contract tests

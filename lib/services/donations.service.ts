@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canRequestDonation } from "@/lib/marketplace/rules";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, createNotificationOnce } from "@/lib/notifications";
 import { buildDonationChatBody } from "@/lib/donations/chat-message";
 import { getOrCreateConversation } from "@/lib/services/conversations.service";
 
@@ -20,6 +20,79 @@ export class DonationRequestReconciliationError extends Error {
   }
 }
 
+type PendingDonationRequestSnapshot = {
+  id: string;
+  listing_id: string | null;
+  requester_id: string | null;
+  school_id: string | null;
+  status: string;
+  note: string | null;
+};
+
+/**
+ * A-039. A repeated request is a read-only acknowledgement, not permission
+ * to emit another chat event/message/notification. Until event and message
+ * idempotency are enforced by SQL, incomplete flows require reconciliation.
+ */
+async function readVerifiedDonationRequestReplay(params: {
+  supabase: SupabaseClient;
+  existing: PendingDonationRequestSnapshot;
+  listingId: string;
+  actorUserId: string;
+  sellerId: string;
+  schoolId: string | null;
+}): Promise<{ requestId: string; conversationId: string; replayed: true }> {
+  const { supabase, existing, listingId, actorUserId, sellerId, schoolId } = params;
+  const fail = (): never => { throw new DonationRequestReconciliationError(); };
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuid.test(existing.id) || existing.listing_id !== listingId ||
+      existing.requester_id !== actorUserId || existing.status !== "pending" ||
+      (existing.school_id || null) !== schoolId) fail();
+
+  // The existing conversation-pair UNIQUE index is authoritative.
+  const { data: chat, error: chatError } = await supabase.from("conversations")
+    .select("id,listing_id,buyer_id,seller_id")
+    .eq("listing_id", listingId).eq("buyer_id", actorUserId)
+    .eq("seller_id", sellerId).maybeSingle();
+  if (chatError || !uuid.test(chat?.id || "") ||
+      chat.listing_id !== listingId || chat.buyer_id !== actorUserId ||
+      chat.seller_id !== sellerId) fail();
+
+  const { data: events, error: eventError } = await supabase
+    .from("donation_request_events")
+    .select("id,request_id,conversation_id,actor_id,event_type,status_snapshot,note")
+    .eq("request_id", existing.id).eq("event_type", "request_created")
+    .limit(2);
+  if (eventError || !Array.isArray(events) || events.length !== 1) fail();
+  const event = events[0];
+  if (!uuid.test(event.id) || event.request_id !== existing.id ||
+      event.conversation_id !== chat.id || event.actor_id !== actorUserId ||
+      event.event_type !== "request_created" ||
+      event.status_snapshot !== "pending" ||
+      (event.note || null) !== (existing.note || null)) fail();
+
+  const expectedBody = buildDonationChatBody({
+    eventId: event.id, requestId: existing.id, eventType: "request_created",
+    status: "pending", note: existing.note || null,
+  });
+  const { data: messages, error: messageError } = await supabase.from("messages")
+    .select("id").eq("conversation_id", chat.id).eq("sender_id", actorUserId)
+    .eq("body", expectedBody).limit(2);
+  if (messageError || !Array.isArray(messages) || messages.length !== 1) fail();
+
+  // Legacy event_key can be NULL. Check exact server metadata and recipient.
+  const { data: notices, error: noticeError } = await supabase.from("notifications")
+    .select("id").eq("user_id", sellerId).eq("kind", "donation_requested")
+    .eq("href", "/messages/" + chat.id)
+    .contains("metadata", {
+      listing_id: listingId,
+      donation_request_id: existing.id,
+      conversation_id: chat.id,
+    }).limit(2);
+  if (noticeError || !Array.isArray(notices) || notices.length !== 1) fail();
+  return { requestId: existing.id, conversationId: chat.id, replayed: true };
+}
+
 export async function requestDonationFlow(params: {
   supabase: SupabaseClient;
   listingId: string;
@@ -35,12 +108,16 @@ export async function requestDonationFlow(params: {
   const check = canRequestDonation({ listing, currentUserId: actorUserId });
   if (!check.ok) throw new Error(check.error);
 
-  const { data: existing, error: existingError } = await supabase
-    .from("donation_requests").select("id")
+  const pendingQuery = () => supabase.from("donation_requests")
+    .select("id,listing_id,requester_id,school_id,status,note")
     .eq("listing_id", listingId).eq("requester_id", actorUserId)
     .eq("status", "pending").maybeSingle();
+  const { data: existing, error: existingError } = await pendingQuery();
   if (existingError) throw new Error("No se pudo comprobar la solicitud anterior.");
-  if (existing) throw new DonationRequestConflictError();
+  if (existing) return readVerifiedDonationRequestReplay({
+    supabase, existing, listingId, actorUserId, sellerId: listing.seller_id,
+    schoolId: listing.school_id || null,
+  });
 
   const now = new Date().toISOString();
   const { data: donationRequest, error: insertError } = await supabase
@@ -61,7 +138,14 @@ export async function requestDonationFlow(params: {
       insertError.code === "23505" &&
       (insertError.message || "").includes("donation_requests_one_pending_per_requester_listing_idx")
     ) {
-      throw new DonationRequestConflictError();
+      // Another writer may have committed; verify its completed outcome
+      // under the same requester and listing, with no repeated effects.
+      const { data: winner, error: winnerError } = await pendingQuery();
+      if (winnerError || !winner) throw new DonationRequestReconciliationError();
+      return readVerifiedDonationRequestReplay({
+        supabase, existing: winner, listingId, actorUserId,
+        sellerId: listing.seller_id, schoolId: listing.school_id || null,
+      });
     }
     throw new Error("No se pudo crear la solicitud.");
   }
@@ -92,7 +176,8 @@ export async function requestDonationFlow(params: {
       .update({ updated_at: now }).eq("id", conversationId)
       .select("id").maybeSingle();
     if (touchError || !touched) throw new Error("donation_chat_touch_not_confirmed");
-    const { error: notificationError } = await createNotification(supabase, {
+    const { error: notificationError } = await createNotificationOnce(supabase, {
+      event_key: "donation-request:" + donationRequest.id + ":created",
       user_id: listing.seller_id, kind: "donation_requested",
       title: "Han solicitado tu donación",
       body: listing.title || "Tienes una nueva solicitud de donación.",
@@ -103,7 +188,7 @@ export async function requestDonationFlow(params: {
       },
     });
     if (notificationError) throw new Error("donation_notification_not_confirmed");
-    return { requestId: donationRequest.id, conversationId };
+    return { requestId: donationRequest.id, conversationId, replayed: false };
   } catch {
     throw new DonationRequestReconciliationError();
   }
