@@ -125,6 +125,8 @@ jobs:
         run: node --test __tests__/launch/pilot-auth-marketplace-read-failclosed-runtime.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
+      - name: "P0 #447 postal immutable owner UPDATE — REVIEW ONLY contract"
+        run: node --test __tests__/launch/p447-postal-owner-update-guard-review-only.test.mjs
       - name: Public listing privacy for guests without breaking contact and proximity
         run: node --test __tests__/launch/p433-public-listing-guest-identity-runtime.test.mjs
       - name: Public photos remain readable after anonymous ACL revocation
@@ -431,3 +433,28 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Atomic request repair, partial replay, concurrent calls and rollback
         run: bash scripts/qa/r3-donation-request-reconcile-atomic-pg17.sh
+
+  p447-postal-owner-update-pg17:
+    name: Isolated PG17 owner postcode immutability after publishing
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Preserve signup snapshot and edit rules; block owner CP spoof, allow service corrections
+        run: bash scripts/qa/p447-listing-postal-owner-update-guard-pg17.sh
