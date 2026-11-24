@@ -125,7 +125,7 @@ jobs:
         run: node --test __tests__/launch/pilot-auth-marketplace-read-failclosed-runtime.test.mjs
       - name: Production ACL reader compatibility
         run: node --test __tests__/launch/pilot-prod-acl-reader-compat.test.mjs
-      - name: P0 #447 postal immutable owner UPDATE — REVIEW ONLY contract
+      - name: "P0 #447 postal immutable owner UPDATE — REVIEW ONLY contract"
         run: node --test __tests__/launch/p447-postal-owner-update-guard-review-only.test.mjs
       - name: Public listing privacy for guests without breaking contact and proximity
         run: node --test __tests__/launch/p433-public-listing-guest-identity-runtime.test.mjs

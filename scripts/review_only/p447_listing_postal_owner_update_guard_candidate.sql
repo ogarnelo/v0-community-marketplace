@@ -90,7 +90,7 @@ BEGIN
     OR (SELECT p.prosecdef FROM pg_proc p WHERE p.oid=v_function)
     OR NOT EXISTS(
        SELECT 1 FROM pg_proc p WHERE p.oid=v_function
-       AND p.proconfig @> ARRAY['search_path=']
+       AND p.proconfig @> ARRAY['search_path=""']
     )
     OR has_function_privilege('anon',v_function,'EXECUTE')
     OR has_function_privilege('authenticated',v_function,'EXECUTE')
