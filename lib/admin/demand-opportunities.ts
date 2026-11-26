@@ -516,7 +516,9 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
     // Keyset pagination by owner skips duplicate siblings, even across pages.
     // Fail closed on any incomplete targeted exclusion check.
     let complete = true;
-    while (true) {
+    // Bound synchronous work; do not advertise a partial scan as complete.
+    const maxPages = 10;
+    for (let page = 0; page < maxPages; page++) {
       let query = admin.from("account_students")
         .select("owner_user_id")
         .eq("school_id", opportunity.schoolId)
@@ -529,6 +531,7 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       const { data: students, error: studentError } = await query;
       if (studentError || !students) { complete = false; break; }
       if (!students.length) break;
+      if (page === maxPages - 1 && students.length === batchSize) { complete = false; break; }
       const lastOwner: string = students[students.length - 1].owner_user_id;
       if (!lastOwner || lastOwner === cursor) { complete = false; break; }
       cursor = lastOwner;
