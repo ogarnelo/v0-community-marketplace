@@ -145,7 +145,12 @@ test("progression queries active same-school contexts only and preserves manual 
   const end=helper.indexOf("const sorted = candidates.sort",start);
   assert.ok(start>=0 && end>start);
   const segment=helper.slice(start,end);
-  for(const required of ['opportunity.supplyCount === 0','.eq("school_id", opportunity.schoolId)','.eq("active", true)','.eq("academic_year", currentSupplyAcademicYear())','.in("grade_level", grades)','.limit(200)','demanders.has(sellerId)','recentlyContacted.has(sellerId)','sellersWithUnresolvedListingReports.has(sellerId)','new Set<string>','lastListingAt: null']) assert.ok(segment.includes(required),required);
+  for(const required of ['opportunity.supplyCount === 0','.eq("school_id", opportunity.schoolId)','.eq("active", true)','.eq("academic_year", academicYear)','.in("grade_level", grades)','.limit(batchSize)','demanders.has(sellerId)','recentlyContacted.has(sellerId)','sellersWithUnresolvedListingReports.has(sellerId)','new Set<string>','lastListingAt: null']) assert.ok(segment.includes(required),required);
+  assert.ok(segment.includes('query.gt("owner_user_id", cursor)'));
+  assert.ok(segment.includes('const batchSize = 100'));
+  assert.ok(segment.includes('.in("target_user_id", ids)'));
+  assert.ok(segment.includes('.in("listings.seller_id", ids)'));
+  assert.ok(segment.includes('if (complete) candidates.push(...progression)'));
   assert.match(activationRoute,/findSupplyCandidates/);
   assert.match(activationRoute,/eq\("role", "super_admin"\)/);
 });
