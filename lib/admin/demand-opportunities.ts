@@ -395,7 +395,7 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       .eq("opportunity_key", opportunity.key)
       .eq("action_type", "seller_contacted")
       .not("sent_at", "is", null)
-      .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .gte("sent_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .limit(1000),
     admin
       .from("reports")
@@ -542,12 +542,12 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       const [p,a,rep] = await Promise.all([
         admin.from("profiles").select("id").in("id",ids),
         admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key",opportunity.key)
-          .eq("action_type","seller_contacted").not("sent_at","is",null).gte("created_at",since).in("target_user_id",ids).limit(1001),
+          .eq("action_type","seller_contacted").not("sent_at","is",null).gte("sent_at",since).in("target_user_id",ids).limit(1001),
         admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status",["open","reviewing"])
           .in("listings.seller_id",ids).limit(1001),
       ]);
       if (p.error || a.error || rep.error || !p.data || !a.data || !rep.data ||
-          a.data.length >= 1001 || rep.data.length >= 1001) throw new Error("supply_exclusions_unavailable");
+          a.data.length >= 1000 || rep.data.length >= 1000) throw new Error("supply_exclusions_unavailable");
       const blocked = new Set<string>([...a.data.map((x:any)=>x.target_user_id),...rep.data.map((x:any)=>x.listings?.seller_id)]);
       const existing = new Set(candidates.map(x=>x.userId));
       for (const row of p.data) {
@@ -581,12 +581,12 @@ export async function revalidateSupplyTargets(admin: any, opportunity: DemandOpp
     admin.from("profiles").select("id").in("id",ids),
     admin.from("listings").select("seller_id,isbn,category,school_id").in("seller_id",ids).limit(1001),
     admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key",opportunity.key)
-      .eq("action_type","seller_contacted").not("sent_at","is",null).gte("created_at",since).in("target_user_id",ids).limit(1001),
+      .eq("action_type","seller_contacted").not("sent_at","is",null).gte("sent_at",since).in("target_user_id",ids).limit(1001),
     admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status",["open","reviewing"])
       .in("listings.seller_id",ids).limit(1001),
   ]);
   if ([prefs,profiles,listings,actions,reports].some(result=>result.error || !Array.isArray(result.data)) ||
-      listings.data.length>=1001 || actions.data.length>=1001 || reports.data.length>=1001)
+      listings.data.length>=1000 || actions.data.length>=1000 || reports.data.length>=1000)
     throw new Error("supply_revalidation_unavailable");
   const opted=new Set(prefs.data.filter((x:any)=>x.supply_outreach_opt_in===true).map((x:any)=>x.user_id));
   const accounts=new Set(profiles.data.map((x:any)=>x.id));
@@ -606,7 +606,7 @@ export async function revalidateSupplyTargets(admin: any, opportunity: DemandOpp
     const {data,error}=await admin.from("account_students").select("owner_user_id").in("owner_user_id",ids)
       .eq("school_id",opportunity.schoolId).eq("active",true)
       .eq("academic_year",currentSupplyAcademicYear()).in("grade_level",grades).limit(1001);
-    if(error || !data || data.length>=1001)throw new Error("supply_progression_revalidation_unavailable");
+    if(error || !data || data.length>=1000)throw new Error("supply_progression_revalidation_unavailable");
     for(const row of data)progressing.add(row.owner_user_id);
   }
   return ids.filter(id=>opted.has(id) && accounts.has(id) && !denied.has(id) &&

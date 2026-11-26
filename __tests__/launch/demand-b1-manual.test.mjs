@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
+const atomicSql = read("scripts/review_only/p816_atomic_supply_outreach_v2_candidate.sql");
 const helper = read("lib/admin/demand-opportunities.ts");
 const migration = read("supabase/migrations/20260924133000_demand_b1_manual_activation.sql");
 const constraintFix = read("supabase/migrations/20260924123216_fix_demand_b1_constraints.sql");
@@ -66,9 +67,9 @@ test("Super Admin exposes grouped demand with filters and manual candidate searc
 test("seller activation is manual, consent-gated and in-app only",()=>{
   assert.match(activationComponent,/contactAllowed/);
   assert.match(activationRoute,/revalidateSupplyTargets/);
-  assert.match(activationRoute,/createNotificationOnce/);
-  assert.match(activationRoute,/kind:"supply_activation"/);
-  assert.match(activationRoute,/channel:"in_app"/);
+  assert.match(activationRoute,/activate_supply_recipient_v2/);
+  assert.match(atomicSql,/\x27supply_activation\x27/);
+  assert.match(atomicSql,/\x27in_app\x27/);
   assert.doesNotMatch(activationRoute,/sendEmail|Resend/);
   assert.match(sellerPage,/SupplyOpportunityResponse/);
   assert.match(responseRoute,/"have_one"/);
@@ -148,6 +149,16 @@ test("progression uses resumable keyset and targeted checks",()=>{
 test("explicit permission and protected action reservation precede notification",()=>{
   assert.match(activationRoute,/revalidateSupplyTargets/);
   assert.match(activationRoute,/demandIsSatisfied/);
-  assert.match(activationRoute,/createNotificationOnce/);
+  assert.match(activationRoute,/activate_supply_recipient_v2/);
   assert.match(helper,/supply_outreach_opt_in/);
+});
+
+test("atomic outreach locks consent, enforces rolling 30 days and restricts RPC",()=>{
+ assert.match(atomicSql,/WHERE user_id=p_target FOR UPDATE/);
+ assert.match(atomicSql,/sent_at>=t-interval '30 days'/);
+ assert.match(atomicSql,/SECURITY INVOKER/);
+ assert.match(atomicSql,/FROM PUBLIC,anon,authenticated/);
+ assert.match(atomicSql,/TO service_role/);
+ assert.match(atomicSql,/INSERT INTO public.notifications/);
+ assert.doesNotMatch(activationRoute,/createNotificationOnce/);
 });

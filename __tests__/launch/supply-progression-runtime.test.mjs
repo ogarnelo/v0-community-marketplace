@@ -26,7 +26,7 @@ function fixture(){
   {owner_user_id:id(2002),school_id:school,active:true,academic_year:"1999/00",grade_level:"4o Primaria"},
   {owner_user_id:id(2003),school_id:id(6666),active:true,academic_year:year,grade_level:"4o Primaria"}],
  profiles:[...new Set(students.map(x=>x.owner_user_id))].map(id=>({id,full_name:"Confidencial"})),
- listings:[],reports:[],demand_opportunity_actions:[{target_user_id:id(7),opportunity_key:opp.key,action_type:"seller_contacted",created_at:new Date().toISOString()}],
+ listings:[],reports:[],demand_opportunity_actions:[{target_user_id:id(7),opportunity_key:opp.key,action_type:"seller_contacted",sent_at:new Date().toISOString(),created_at:new Date().toISOString()}],
  user_marketplace_preferences:students.filter(x=>x.owner_user_id!==id(8)).map(x=>({user_id:x.owner_user_id,supply_outreach_opt_in:true}))};
  let studentQueries=0, budgetOK=true;
  return {db,admin:{from(table){

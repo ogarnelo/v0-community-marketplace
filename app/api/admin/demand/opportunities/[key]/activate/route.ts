@@ -7,7 +7,6 @@ function privateJson(body: unknown, options: { status?: number; headers?: Record
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotificationOnce } from "@/lib/notifications";
 import {
   activationMessage,
   findDemandOpportunity,
@@ -69,13 +68,10 @@ export async function POST(
       return privateJson({ error: "Los candidatos ya no son elegibles." }, { status: 409 });
     }
 
-    const now = new Date().toISOString();
     const message = activationMessage(opportunity);
     const metadata = opportunityMetadata(opportunity);
 
-    const { error: campaignError } = await admin
-      .from("demand_campaigns")
-      .upsert({
+    const campaign = {
         title: opportunity.title,
         opportunity_key: opportunity.key,
         school_id: opportunity.schoolId,
@@ -92,50 +88,18 @@ export async function POST(
         first_seen_at: opportunity.firstSeenAt,
         last_seen_at: opportunity.lastSeenAt,
         priority: opportunity.familiesCount >= 3 && opportunity.supplyCount === 0 ? "high" : "medium",
-        status: "sellers_contacted",
-        recommended_action: "Activación manual in-app",
         metadata,
-        created_by: user.id,
-        updated_at: now,
-      }, { onConflict: "opportunity_key" });
-    if (campaignError) throw campaignError;
-
+    };
     const activatedUserIds: string[] = [];
     for (const targetUserId of targets) {
-      // Unique partial index in review-only SQL reserves a recipient. Pending records can retry.
-      const inserted = await admin.from("demand_opportunity_actions").insert({
-        opportunity_key:opportunity.key,actor_id:user.id,target_user_id:targetUserId,
-        action_type:"seller_contacted",role_context:"super_admin",channel:"in_app",
-        message,sent_at:null,metadata,
-      }).select("id").single();
-      let actionId: string | null = inserted.data?.id || null;
-      if (inserted.error?.code === "23505") {
-        const old = await admin.from("demand_opportunity_actions").select("id,sent_at")
-          .eq("opportunity_key",opportunity.key).eq("target_user_id",targetUserId)
-          .eq("action_type","seller_contacted").limit(1).maybeSingle();
-        if(old.error)throw old.error;
-        if(old.data?.sent_at)continue;
-        actionId=old.data?.id || null;
-      } else if(inserted.error)throw inserted.error;
-      if(!actionId)throw new Error("supply_contact_reservation_failed");
-      // Revocation between discovery and the send must prevent an actual notification.
-      const consent=await admin.from("user_marketplace_preferences").select("supply_outreach_opt_in")
-        .eq("user_id",targetUserId).eq("supply_outreach_opt_in",true).maybeSingle();
-      if(consent.error)throw consent.error;
-      if(consent.data?.supply_outreach_opt_in!==true)continue;
-      const notification=await createNotificationOnce(admin,{
-        event_key:`supply-activation:${opportunity.key}:${targetUserId}`,
-        user_id:targetUserId,kind:"supply_activation",
-        title:"Hay familias buscando material que quizá tengas",body:message,
-        href:`/supply-opportunity/${encodeURIComponent(opportunity.key)}`,
-        metadata:{opportunity_key:opportunity.key,category:opportunity.category,school_id:opportunity.schoolId},
+      const result = await admin.rpc("activate_supply_recipient_v2", {
+        p_actor: user.id, p_target: targetUserId, p_campaign: campaign,
+        p_message: message, p_href: `/supply-opportunity/${encodeURIComponent(opportunity.key)}`,
       });
-      if(notification.error)throw notification.error;
-      const marked=await admin.from("demand_opportunity_actions").update({sent_at:now})
-        .eq("id",actionId).is("sent_at",null).select("id");
-      if(marked.error)throw marked.error;
-      activatedUserIds.push(targetUserId);
+      if (result.error) throw result.error;
+      if (result.data === true) activatedUserIds.push(targetUserId);
     }
+    if (!activatedUserIds.length) return privateJson({error:"No quedan candidatos elegibles."},{status:409});
 
     return privateJson({ ok: true, activatedUserIds });
   } catch {
