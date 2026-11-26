@@ -57,8 +57,14 @@ export async function POST(
     const opportunity = await findDemandOpportunity(admin, key);
     if (!opportunity) return privateJson({ error: "Oportunidad no encontrada." }, { status: 404 });
 
+    if (opportunity.supplyCount > 0 || ["supply_generated", "satisfied", "closed"].includes(opportunity.status)) {
+      return privateJson({ error: "La oportunidad ya tiene oferta o está cerrada." }, { status: 409 });
+    }
+
     const candidates = await findSupplyCandidates(admin, opportunity);
-    const allowed = new Set(candidates.map((candidate) => candidate.userId));
+    // Academic inference is discovery-only until explicit communication preferences exist.
+    // Keep the established historical activation path; never send to a newly inferred owner.
+    const allowed = new Set(candidates.filter((candidate) => candidate.lastListingAt !== null).map((candidate) => candidate.userId));
     const targets = Array.from(new Set(requested)).filter((id) => allowed.has(id));
     if (targets.length === 0) {
       return privateJson({ error: "Los candidatos ya no son elegibles." }, { status: 409 });
@@ -97,7 +103,7 @@ export async function POST(
 
     const activatedUserIds: string[] = [];
     for (const targetUserId of targets) {
-      const { data: existingAction } = await admin
+      const { data: existingAction, error: existingActionError } = await admin
         .from("demand_opportunity_actions")
         .select("id")
         .eq("opportunity_key", opportunity.key)
@@ -106,6 +112,7 @@ export async function POST(
         .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
         .limit(1)
         .maybeSingle();
+      if (existingActionError) throw existingActionError;
       if (existingAction) continue;
 
       const notification = await createNotification(admin, {
