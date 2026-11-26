@@ -63,6 +63,7 @@ const quickActions = [
   { href: "/account/activity", label: "Mis acuerdos", helper: "Actividad reciente", icon: Bell },
   { href: "/account/reviews", label: "Opiniones", helper: "Tu reputación", icon: Star },
   { href: "/account/security", label: "Seguridad", helper: "Cambia tu contraseña", icon: KeyRound },
+  { href: "/account/supply-outreach", label: "Permiso de contacto", helper: "Autorizar o revocar avisos", icon: Bell },
   { href: "/help", label: "Soporte", helper: "Centro de ayuda", icon: LifeBuoy },
 ];
 

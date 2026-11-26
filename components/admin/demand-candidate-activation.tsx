@@ -12,25 +12,31 @@ export type DemandCandidateView = {
   affinity: "alta" | "media";
   reasons: string[];
   lastListingAt: string | null;
+  contactAllowed: boolean;
 };
 
 export function DemandCandidateActivation({
   opportunityKey,
   candidates,
   message,
+  nextCursor,
 }: {
   opportunityKey: string;
   candidates: DemandCandidateView[];
   message: string;
+  nextCursor: string | null;
 }) {
+  const [visible, setVisible] = useState(candidates);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<string[]>([]);
   const [error, setError] = useState("");
 
   const selectable = useMemo(
-    () => candidates.filter((candidate) => !sent.includes(candidate.userId)),
-    [candidates, sent]
+    () => visible.filter((candidate) => !sent.includes(candidate.userId)),
+    [visible, sent]
   );
 
   const toggle = (userId: string, checked: boolean) => {
@@ -40,7 +46,7 @@ export function DemandCandidateActivation({
   };
 
   const activate = async () => {
-    if (sending || selected.length === 0) return;
+    if (sending || selected.length === 0 || selected.length > 20) return;
     setSending(true);
     setError("");
     try {
@@ -62,6 +68,21 @@ export function DemandCandidateActivation({
     }
   };
 
+  const loadMore = async () => {
+    if(!cursor || loadingMore)return;
+    setLoadingMore(true);setError("");
+    try {
+      const response=await fetch(`/api/admin/demand/opportunities/${encodeURIComponent(opportunityKey)}/candidates?cursor=${encodeURIComponent(cursor)}`,{cache:"no-store"});
+      const data=await response.json();
+      if(!response.ok)throw Error(data.error||"No se pudo continuar.");
+      setVisible(old=>{
+        const known=new Set(old.map(x=>x.userId));
+        return [...old,...(data.candidates||[]).filter((x:DemandCandidateView)=>!known.has(x.userId))];
+      });
+      setCursor(data.nextCursor||null);
+    }catch(e:any){setError(e.message||"No se pudo continuar.");}
+    finally{setLoadingMore(false);}
+  };
   return (
     <div className="space-y-4">
       <div className="rounded-xl border bg-muted/20 p-4">
@@ -78,12 +99,14 @@ export function DemandCandidateActivation({
             <label key={candidate.userId} className="flex cursor-pointer items-start gap-3 rounded-xl border p-4">
               <Checkbox
                 className="mt-1"
+                disabled={!candidate.contactAllowed || (selected.length >= 20 && !selected.includes(candidate.userId))}
                 checked={selected.includes(candidate.userId)}
                 onCheckedChange={(checked) => toggle(candidate.userId, checked === true)}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{candidate.name}</p>
+                  {!candidate.contactAllowed ? <span className="text-xs text-muted-foreground">Sin permiso de contacto</span> : null}
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs">Afinidad {candidate.affinity} · {candidate.score}</span>
                 </div>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -95,8 +118,10 @@ export function DemandCandidateActivation({
         </div>
       )}
 
+      {cursor ? <Button variant="outline" type="button" disabled={loadingMore} onClick={()=>void loadMore()}>{loadingMore?"Cargando...":"Continuar búsqueda"}</Button> : null}
+      <p className="text-xs text-muted-foreground">Límite de 20 avisos por tanda; ningún aviso sin autorización.</p>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" disabled={sending || selected.length === 0} onClick={() => void activate()} className="gap-2">
+        <Button type="button" disabled={sending || selected.length === 0 || selected.length > 20} onClick={() => void activate()} className="gap-2">
           <Send className="h-4 w-4" />
           {sending ? "Enviando..." : `Enviar a ${selected.length} seleccionado${selected.length === 1 ? "" : "s"}`}
         </Button>

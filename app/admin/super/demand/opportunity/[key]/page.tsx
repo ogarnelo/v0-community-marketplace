@@ -65,7 +65,7 @@ export default async function DemandOpportunityPage({
   ]);
   if (!opportunity) notFound();
 
-  const [candidates, actionResult] = await Promise.all([
+  const [candidateBatch, actionResult] = await Promise.all([
     findSupplyCandidates(admin, opportunity),
     admin
       .from("demand_opportunity_actions")
@@ -126,13 +126,14 @@ export default async function DemandOpportunityPage({
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4" /> Buscar oferta potencial</CardTitle>
               <CardDescription>
-                Solo aparecen usuarios con historial de publicación y señales fuertes de afinidad. Se excluyen demandantes de esta oportunidad, usuarios contactados recientemente y vendedores con reportes abiertos sobre sus anuncios.
+                Historial de publicaciones y posibles familias del curso siguiente. La posesión no está verificada. Solo se podrá contactar con permiso explícito vigente y comprobación del servidor.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <DemandCandidateActivation
                 opportunityKey={opportunity.key}
-                candidates={candidates}
+                candidates={candidateBatch.candidates}
+                nextCursor={candidateBatch.nextCursor}
                 message={activationMessage(opportunity)}
               />
             </CardContent>

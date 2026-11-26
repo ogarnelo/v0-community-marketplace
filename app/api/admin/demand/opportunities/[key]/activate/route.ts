@@ -7,11 +7,11 @@ function privateJson(body: unknown, options: { status?: number; headers?: Record
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotification } from "@/lib/notifications";
 import {
   activationMessage,
   findDemandOpportunity,
-  findSupplyCandidates,
+  revalidateSupplyTargets,
+  demandIsSatisfied,
   opportunityMetadata,
 } from "@/lib/admin/demand-opportunities";
 
@@ -46,9 +46,11 @@ export async function POST(
 
     const { key } = await context.params;
     const body = await request.json().catch(() => ({}));
-    const requested = Array.isArray(body?.targetUserIds)
-      ? body.targetUserIds.filter((value: unknown): value is string => typeof value === "string").slice(0, MAX_TARGETS)
-      : [];
+    const requested = Array.isArray(body?.targetUserIds) ? body.targetUserIds : [];
+    if (requested.length > MAX_TARGETS || requested.some((id: unknown) =>
+      typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+      return privateJson({ error: "Máximo 20 identificadores válidos." }, { status: 400 });
+    }
     if (requested.length === 0) {
       return privateJson({ error: "Selecciona al menos un candidato." }, { status: 400 });
     }
@@ -57,20 +59,19 @@ export async function POST(
     const opportunity = await findDemandOpportunity(admin, key);
     if (!opportunity) return privateJson({ error: "Oportunidad no encontrada." }, { status: 404 });
 
-    const candidates = await findSupplyCandidates(admin, opportunity);
-    const allowed = new Set(candidates.map((candidate) => candidate.userId));
-    const targets = Array.from(new Set(requested)).filter((id) => allowed.has(id));
+    if (demandIsSatisfied(opportunity)) {
+      return privateJson({ error:"Esta demanda ya está cubierta o cerrada." }, { status:409 });
+    }
+    // Recheck concrete recipients, independent of the admin's visible page/cursor.
+    const targets = await revalidateSupplyTargets(admin, opportunity, requested);
     if (targets.length === 0) {
       return privateJson({ error: "Los candidatos ya no son elegibles." }, { status: 409 });
     }
 
-    const now = new Date().toISOString();
     const message = activationMessage(opportunity);
     const metadata = opportunityMetadata(opportunity);
 
-    const { error: campaignError } = await admin
-      .from("demand_campaigns")
-      .upsert({
+    const campaign = {
         title: opportunity.title,
         opportunity_key: opportunity.key,
         school_id: opportunity.schoolId,
@@ -87,57 +88,18 @@ export async function POST(
         first_seen_at: opportunity.firstSeenAt,
         last_seen_at: opportunity.lastSeenAt,
         priority: opportunity.familiesCount >= 3 && opportunity.supplyCount === 0 ? "high" : "medium",
-        status: "sellers_contacted",
-        recommended_action: "Activación manual in-app",
         metadata,
-        created_by: user.id,
-        updated_at: now,
-      }, { onConflict: "opportunity_key" });
-    if (campaignError) throw campaignError;
-
+    };
     const activatedUserIds: string[] = [];
     for (const targetUserId of targets) {
-      const { data: existingAction } = await admin
-        .from("demand_opportunity_actions")
-        .select("id")
-        .eq("opportunity_key", opportunity.key)
-        .eq("target_user_id", targetUserId)
-        .eq("action_type", "seller_contacted")
-        .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .limit(1)
-        .maybeSingle();
-      if (existingAction) continue;
-
-      const notification = await createNotification(admin, {
-        user_id: targetUserId,
-        kind: "supply_activation",
-        title: "Hay familias buscando material que quizá tengas",
-        body: message,
-        href: `/supply-opportunity/${encodeURIComponent(opportunity.key)}`,
-        metadata: {
-          opportunity_key: opportunity.key,
-          category: opportunity.category,
-          school_id: opportunity.schoolId,
-        },
+      const result = await admin.rpc("activate_supply_recipient_v2", {
+        p_actor: user.id, p_target: targetUserId, p_campaign: campaign,
+        p_message: message, p_href: `/supply-opportunity/${encodeURIComponent(opportunity.key)}`,
       });
-      if (notification.error) throw notification.error;
-
-      const { error: actionError } = await admin
-        .from("demand_opportunity_actions")
-        .insert({
-          opportunity_key: opportunity.key,
-          actor_id: user.id,
-          target_user_id: targetUserId,
-          action_type: "seller_contacted",
-          role_context: "super_admin",
-          channel: "in_app",
-          message,
-          sent_at: now,
-          metadata,
-        });
-      if (actionError) throw actionError;
-      activatedUserIds.push(targetUserId);
+      if (result.error) throw result.error;
+      if (result.data === true) activatedUserIds.push(targetUserId);
     }
+    if (!activatedUserIds.length) return privateJson({error:"No quedan candidatos elegibles."},{status:409});
 
     return privateJson({ ok: true, activatedUserIds });
   } catch {

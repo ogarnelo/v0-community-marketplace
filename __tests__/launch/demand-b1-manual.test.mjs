@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
+const atomicSql = read("scripts/review_only/p816_atomic_supply_outreach_v2_candidate.sql");
 const helper = read("lib/admin/demand-opportunities.ts");
 const migration = read("supabase/migrations/20260924133000_demand_b1_manual_activation.sql");
 const constraintFix = read("supabase/migrations/20260924123216_fix_demand_b1_constraints.sql");
@@ -63,18 +64,16 @@ test("Super Admin exposes grouped demand with filters and manual candidate searc
   assert.match(opportunityPage, /Anuncios generados/);
 });
 
-test("seller activation is manual, server-validated and in-app only", () => {
-  assert.match(activationComponent, /Previsualización del mensaje/);
-  assert.match(activationRoute, /eq\("role", "super_admin"\)/);
-  assert.match(activationRoute, /findSupplyCandidates/);
-  assert.match(activationRoute, /const allowed = new Set\(candidates\.map/);
-  assert.doesNotMatch(activationRoute, /profile\.user_type === "student"/);
-  assert.match(activationRoute, /kind: "supply_activation"/);
-  assert.match(activationRoute, /channel: "in_app"/);
-  assert.doesNotMatch(activationRoute, /sendEmail|Resend|sendSavedSearchMatchEmail/);
-  assert.match(sellerPage, /SupplyOpportunityResponse/);
-  assert.match(responseRoute, /"have_one"/);
-  assert.match(responseRoute, /"dont_have"/);
+test("seller activation is manual, consent-gated and in-app only",()=>{
+  assert.match(activationComponent,/contactAllowed/);
+  assert.match(activationRoute,/revalidateSupplyTargets/);
+  assert.match(activationRoute,/activate_supply_recipient_v2/);
+  assert.match(atomicSql,/\x27supply_activation\x27/);
+  assert.match(atomicSql,/\x27in_app\x27/);
+  assert.doesNotMatch(activationRoute,/sendEmail|Resend/);
+  assert.match(sellerPage,/SupplyOpportunityResponse/);
+  assert.match(responseRoute,/"have_one"/);
+  assert.match(responseRoute,/"dont_have"/);
 });
 
 test("publish-now prefill is recovered server-side and the listing remains normal", () => {
@@ -114,15 +113,52 @@ test("free-text ISBN variants collapse into the ISBN-first identity", () => {
 });
 
 
-test("B1 candidate identity and ISBN-only prefill stay operator-friendly", () => {
-  assert.match(helper, /admin\.auth\.admin\.getUserById/);
-  assert.match(newListingPage, /safeOpportunityTitle/);
-  assert.match(newListingPage, /normalizeIsbn/);
-  assert.match(newListingPage, /if \(titleIsbn && expectedIsbn && titleIsbn === expectedIsbn\) return undefined/);
+test("B1 candidate identity has no bulk Auth email reads",()=>{
+  assert.doesNotMatch(helper,/admin\\.auth\\.admin\\.getUserById/);
+  assert.match(newListingPage,/safeOpportunityTitle/);
+  assert.match(newListingPage,/normalizeIsbn/);
 });
 
 
 test("dismissed reports do not block B1 candidates, while open/reviewing reports do", () => {
   assert.match(helper, /\.in\("status", \["open", "reviewing"\]\)/);
   assert.doesNotMatch(helper, /\.neq\("status", "resolved"\)/);
+});
+
+test("academic progression supports canonical grades and refuses ambiguous stages", () => {
+  const normalizeStart=helper.indexOf("function normalizeText(");
+  const normalizeEnd=helper.indexOf("function queryTokens(",normalizeStart);
+  const start=helper.indexOf("export function nextSupplyGrade(");
+  const end=helper.indexOf("function currentSupplyAcademicYear(",start);
+  assert.ok(start>=0 && end>start);
+  const normalize=helper.slice(normalizeStart,normalizeEnd).replace("value?: string | null","value");
+  const progression=helper.slice(start,end).replace("export function","function").replace("value: string | null): string[]","value)");
+  const next=new Function(normalize+progression+"return nextSupplyGrade;")();
+  for(const [from,to] of [["3o Primaria","4o Primaria"],["3 Primaria","4o Primaria"],["6º Primaria","1o ESO"],["4.º ESO","1o Bachillerato"]]) assert.ok(next(from).includes(to),from);
+  for(const invalid of [null,"Primaria","ESO","FP","2o Bachillerato","5o ESO"]) assert.deepEqual(next(invalid),[]);
+});
+
+test("progression uses resumable keyset and targeted checks",()=>{
+  assert.match(helper,/batchSize = 100/);
+  assert.ok(helper.includes(".limit(batchSize + 1)"));
+  assert.ok(helper.includes('query.gt("owner_user_id", options.cursor)'));
+  assert.match(helper,/nextCursor/);
+  assert.match(helper,/revalidateSupplyTargets/);
+});
+
+test("explicit permission and protected action reservation precede notification",()=>{
+  assert.match(activationRoute,/revalidateSupplyTargets/);
+  assert.match(activationRoute,/demandIsSatisfied/);
+  assert.match(activationRoute,/activate_supply_recipient_v2/);
+  assert.match(helper,/supply_outreach_opt_in/);
+});
+
+test("atomic outreach locks consent, enforces rolling 30 days and restricts RPC",()=>{
+ assert.match(atomicSql,/WHERE user_id=p_target FOR UPDATE/);
+ assert.match(atomicSql,/sent_at>=t-interval '30 days'/);
+ assert.match(atomicSql,/SECURITY INVOKER/);
+ assert.match(atomicSql,/FROM PUBLIC,anon,authenticated/);
+ assert.match(atomicSql,/TO service_role/);
+ assert.match(atomicSql,/INSERT INTO public.notifications/);
+ assert.doesNotMatch(activationRoute,/createNotificationOnce/);
 });

@@ -1,0 +1,27 @@
+name: Pilot supply outreach PG17
+on:
+  pull_request:
+    paths:
+      - 'scripts/pilot-supply-outreach-pg17.sh'
+      - 'scripts/review_only/p816_atomic_supply_outreach_v2_candidate.sql'
+      - '.github/workflows/pilot-supply-outreach-pg17.yml'
+jobs:
+  supply-outreach-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_synthetic_pg17
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - run: bash scripts/pilot-supply-outreach-pg17.sh
