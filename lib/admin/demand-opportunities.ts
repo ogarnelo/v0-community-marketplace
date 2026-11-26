@@ -346,6 +346,28 @@ export async function findDemandOpportunity(admin: any, key: string) {
   return opportunities.find((opportunity) => opportunity.key === key) || null;
 }
 
+// Academic progression is a suggestion, never proof of ownership.
+export function nextSupplyGrade(value: string | null): string[] {
+  const match = normalizeText(value).match(/^([1-6])\s*o?\s*(?:de\s+(?:la\s+)?)?(primaria|eso|bachillerato)$/);
+  if (!match) return [];
+  const grade = Number(match[1]);
+  const stage = match[2];
+  const max = stage === "primaria" ? 6 : stage === "eso" ? 4 : 2;
+  if (grade > max) return [];
+  const next = grade < max ? [grade + 1, stage] : stage === "primaria" ? [1, "eso"] : stage === "eso" ? [1, "bachillerato"] : null;
+  if (!next) return [];
+  const label = next[1] === "eso" ? "ESO" : next[1] === "primaria" ? "Primaria" : "Bachillerato";
+  return [`${next[0]}o ${label}`, `${next[0]} ${label}`, `${next[0]}º ${label}`, `${next[0]}.º ${label}`];
+}
+
+function currentSupplyAcademicYear(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", year: "numeric", month: "numeric" }).formatToParts(now);
+  const year = Number(parts.find(p => p.type === "year")?.value);
+  const month = Number(parts.find(p => p.type === "month")?.value);
+  const start = month >= 9 ? year : year - 1;
+  return `${start}/${String(start + 1).slice(-2)}`;
+}
+
 export async function findSupplyCandidates(admin: any, opportunity: DemandOpportunity): Promise<SupplyCandidate[]> {
   const [{ data: listings }, { data: profiles }, { data: recentActions }, { data: unresolvedReports }] = await Promise.all([
     admin
@@ -476,6 +498,48 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       reasons: Array.from(reasons),
       lastListingAt,
     });
+  }
+
+  // Same-school progression only for explicit book demand with no known supply.
+  // Existing ISBN matching stays national. No communications are sent here.
+  const grades = nextSupplyGrade(opportunity.gradeLevel);
+  if (opportunity.schoolId && opportunity.supplyCount === 0 &&
+      ["new", "offer_search", "sellers_contacted"].includes(opportunity.status) &&
+      (opportunity.isbn || ["libros", "libros de texto"].includes(normalizeText(opportunity.category))) &&
+      grades.length > 0) {
+    const { data: students, error: studentError } = await admin.from("account_students")
+      .select("owner_user_id")
+      .eq("school_id", opportunity.schoolId)
+      .eq("active", true)
+      .eq("academic_year", currentSupplyAcademicYear())
+      .in("grade_level", grades)
+      .order("owner_user_id")
+      .limit(200);
+    // Do not infer candidates from incomplete exclusion data.
+    if (!studentError && students && listings && profiles && recentActions && unresolvedReports &&
+        listings.length < 1000 && recentActions.length < 1000 && unresolvedReports.length < 1000) {
+      const existing = new Map(candidates.map(candidate => [candidate.userId, candidate]));
+      const owners = new Set<string>(students.map((student: any) => student.owner_user_id).filter(Boolean));
+      for (const sellerId of owners) {
+        if (demanders.has(sellerId) || recentlyContacted.has(sellerId) || sellersWithUnresolvedListingReports.has(sellerId)) continue;
+        const profile = profileById.get(sellerId);
+        if (!profile) continue;
+        const reason = "Contexto educativo activo del curso siguiente en este centro; disponibilidad sin confirmar";
+        const previous = existing.get(sellerId);
+        if (previous) {
+          previous.reasons.push(reason);
+          continue;
+        }
+        candidates.push({
+          userId: sellerId,
+          name: profile.business_name || profile.full_name || "Usuario",
+          score: 40,
+          affinity: "media",
+          reasons: [reason],
+          lastListingAt: null,
+        });
+      }
+    }
   }
 
   const sorted = candidates.sort(
