@@ -67,7 +67,7 @@ test("seller activation is manual, server-validated and in-app only", () => {
   assert.match(activationComponent, /Previsualización del mensaje/);
   assert.match(activationRoute, /eq\("role", "super_admin"\)/);
   assert.match(activationRoute, /findSupplyCandidates/);
-  assert.match(activationRoute, /const allowed = new Set\(candidates\.map/);
+  assert.match(activationRoute, /const allowed = new Set\(candidates\.filter/);
   assert.doesNotMatch(activationRoute, /profile\.user_type === "student"/);
   assert.match(activationRoute, /kind: "supply_activation"/);
   assert.match(activationRoute, /channel: "in_app"/);
@@ -153,4 +153,10 @@ test("progression queries active same-school contexts only and preserves manual 
   assert.ok(segment.includes('if (complete) candidates.push(...progression)'));
   assert.match(activationRoute,/findSupplyCandidates/);
   assert.match(activationRoute,/eq\("role", "super_admin"\)/);
+});
+
+test("inferred owners cannot be contacted before explicit permission exists", () => {
+  assert.match(activationRoute, /candidate\.lastListingAt !== null/);
+  assert.match(activationRoute, /opportunity\.supplyCount > 0/);
+  assert.match(activationRoute, /if \(existingActionError\) throw existingActionError/);
 });
