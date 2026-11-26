@@ -50,7 +50,9 @@ export type SupplyCandidate = {
   affinity: "alta" | "media";
   reasons: string[];
   lastListingAt: string | null;
+  contactAllowed: boolean;
 };
+export type SupplyCandidateBatch = { candidates: SupplyCandidate[]; nextCursor: string | null; hasMore: boolean };
 
 const STOPWORDS = new Set([
   "de","del","la","el","los","las","un","una","para","por","en","y","o",
@@ -368,8 +370,15 @@ function currentSupplyAcademicYear(now = new Date()) {
   return `${start}/${String(start + 1).slice(-2)}`;
 }
 
-export async function findSupplyCandidates(admin: any, opportunity: DemandOpportunity): Promise<SupplyCandidate[]> {
-  const [{ data: listings }, { data: profiles }, { data: recentActions }, { data: unresolvedReports }] = await Promise.all([
+export function demandIsSatisfied(opportunity: DemandOpportunity) {
+  return ["supply_generated", "satisfied", "closed"].includes(opportunity.status) ||
+    (opportunity.supplyCount > 0 && opportunity.supplyCount >= Math.max(1, opportunity.familiesCount));
+}
+export async function findSupplyCandidates(admin: any, opportunity: DemandOpportunity, options: { cursor?: string | null } = {}): Promise<SupplyCandidateBatch> {
+  // Later batches do not re-read any global listing, profile or report pages.
+  const baseResults: any[] = options.cursor
+    ? [{data:[]},{data:[]},{data:[]},{data:[]}]
+    : await Promise.all([
     admin
       .from("listings")
       .select("id,seller_id,title,isbn,category,grade_level,status,school_id,listing_type,type,specific_type,size_label,brand,model,created_at")
@@ -394,6 +403,8 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       .in("status", ["open", "reviewing"])
       .limit(2000),
   ]);
+  if (baseResults.some(value => value.error || !Array.isArray(value.data))) throw new Error("supply_candidate_base_unavailable");
+  const [{data:listings},{data:profiles},{data:recentActions},{data:unresolvedReports}] = baseResults;
 
   const profileById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
   const recentlyContacted = new Set((recentActions || []).map((action: any) => action.target_user_id).filter(Boolean));
@@ -497,96 +508,107 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       affinity: score >= 70 ? "alta" : "media",
       reasons: Array.from(reasons),
       lastListingAt,
+      contactAllowed: false,
     });
   }
 
-  // Same-school progression only for explicit book demand with no known supply.
-  // Existing ISBN matching stays national. No communications are sent here.
+  // Paginate by owner: 101-row lookahead makes a 100-row last batch unambiguous.
+  // Academic context suggests relevance, never verified possession or consent.
   const grades = nextSupplyGrade(opportunity.gradeLevel);
-  if (opportunity.schoolId && opportunity.supplyCount === 0 &&
+  let nextCursor: string | null = null;
+  let hasMore = false;
+  if (opportunity.schoolId && !demandIsSatisfied(opportunity) &&
       ["new", "offer_search", "sellers_contacted"].includes(opportunity.status) &&
       (opportunity.isbn || ["libros", "libros de texto"].includes(normalizeText(opportunity.category))) &&
       grades.length > 0) {
-    const academicYear = currentSupplyAcademicYear();
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const batchSize = 100;
-    const existing = new Map(candidates.map(candidate => [candidate.userId, candidate]));
-    const progression: SupplyCandidate[] = [];
-    let cursor: string | null = null;
-    // Keyset pagination by owner skips duplicate siblings, even across pages.
-    // Fail closed on any incomplete targeted exclusion check.
-    let complete = true;
-    // Bound synchronous work; do not advertise a partial scan as complete.
-    const maxPages = 10;
-    for (let page = 0; page < maxPages; page++) {
-      let query = admin.from("account_students")
-        .select("owner_user_id")
-        .eq("school_id", opportunity.schoolId)
-        .eq("active", true)
-        .eq("academic_year", academicYear)
-        .in("grade_level", grades)
-        .order("owner_user_id", { ascending: true })
-        .limit(batchSize);
-      if (cursor) query = query.gt("owner_user_id", cursor);
-      const { data: students, error: studentError } = await query;
-      if (studentError || !students) { complete = false; break; }
-      if (!students.length) break;
-      if (page === maxPages - 1 && students.length === batchSize) { complete = false; break; }
-      const lastOwner: string = students[students.length - 1].owner_user_id;
-      if (!lastOwner || lastOwner === cursor) { complete = false; break; }
-      cursor = lastOwner;
-      const owners = new Set<string>(students.map((student: any) => student.owner_user_id).filter(Boolean));
-      const ids = Array.from(owners).filter(sellerId => !demanders.has(sellerId) && !recentlyContacted.has(sellerId) && !sellersWithUnresolvedListingReports.has(sellerId));
-      if (!ids.length) continue;
-      const [targetProfiles, targetActions, targetReports] = await Promise.all([
-        admin.from("profiles").select("id,full_name,business_name").in("id", ids),
-        admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key", opportunity.key).eq("action_type", "seller_contacted").gte("created_at", since).in("target_user_id", ids).limit(1000),
-        admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status", ["open", "reviewing"]).in("listings.seller_id", ids).limit(1000),
+    let query = admin.from("account_students").select("owner_user_id")
+      .eq("school_id", opportunity.schoolId).eq("active", true)
+      .eq("academic_year", currentSupplyAcademicYear()).in("grade_level", grades)
+      .order("owner_user_id", { ascending:true }).limit(batchSize + 1);
+    if (options.cursor) query = query.gt("owner_user_id", options.cursor);
+    const { data: students, error: studentError } = await query;
+    if (studentError || !students) throw new Error("supply_student_page_unavailable");
+    const pageStudents = students.slice(0,batchSize);
+    hasMore = students.length > batchSize;
+    const lastOwner = pageStudents.length ? pageStudents[pageStudents.length - 1].owner_user_id : null;
+    if (hasMore && (!lastOwner || lastOwner === options.cursor)) throw new Error("supply_student_cursor_unavailable");
+    nextCursor = hasMore ? lastOwner : null;
+    const owners = Array.from(new Set<string>(pageStudents.map((row: any) => row.owner_user_id).filter(Boolean)));
+    const ids = owners.filter(id => !demanders.has(id) && !recentlyContacted.has(id) && !sellersWithUnresolvedListingReports.has(id));
+    if (ids.length) {
+      const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+      const [p,a,rep] = await Promise.all([
+        admin.from("profiles").select("id").in("id",ids),
+        admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key",opportunity.key)
+          .eq("action_type","seller_contacted").gte("created_at",since).in("target_user_id",ids).limit(1001),
+        admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status",["open","reviewing"])
+          .in("listings.seller_id",ids).limit(1001),
       ]);
-      if (targetProfiles.error || targetActions.error || targetReports.error ||
-          !targetProfiles.data || !targetActions.data || !targetReports.data ||
-          targetActions.data.length >= 1000 || targetReports.data.length >= 1000) {
-        complete = false;
-        break;
-      }
-      const blocked = new Set<string>([
-        ...targetActions.data.map((row: any) => row.target_user_id),
-        ...targetReports.data.map((row: any) => row.listings?.seller_id),
-      ]);
-      for (const profile of targetProfiles.data) {
-        const sellerId = profile.id;
-        if (blocked.has(sellerId) || existing.has(sellerId)) continue;
-        progression.push({
-          userId: sellerId,
-          name: profile.business_name || profile.full_name || "Usuario",
-          score: 40,
-          affinity: "media",
-          reasons: ["Contexto educativo activo del curso siguiente en este centro; disponibilidad sin confirmar"],
-          lastListingAt: null,
-        });
+      if (p.error || a.error || rep.error || !p.data || !a.data || !rep.data ||
+          a.data.length >= 1001 || rep.data.length >= 1001) throw new Error("supply_exclusions_unavailable");
+      const blocked = new Set<string>([...a.data.map((x:any)=>x.target_user_id),...rep.data.map((x:any)=>x.listings?.seller_id)]);
+      const existing = new Set(candidates.map(x=>x.userId));
+      for (const row of p.data) {
+        if (!ids.includes(row.id) || blocked.has(row.id) || existing.has(row.id)) continue;
+        candidates.push({ userId:row.id, name:"Familia potencial", score:40, affinity:"media",
+          reasons:["Curso siguiente en este centro; disponibilidad sin confirmar"],
+          lastListingAt:null,contactAllowed:false });
       }
     }
-    if (complete) candidates.push(...progression);
   }
+  const sorted = candidates.sort((a,b)=>b.score-a.score || String(b.lastListingAt||"").localeCompare(String(a.lastListingAt||"")));
+  // No email or child data. All candidates require explicit, current opt-in.
+  for (let i=0;i<sorted.length;i+=100) {
+    const batch=sorted.slice(i,i+100);
+    const {data,error}=await admin.from("user_marketplace_preferences").select("user_id,supply_outreach_opt_in")
+      .in("user_id",batch.map(x=>x.userId)).eq("supply_outreach_opt_in",true);
+    if (error || !data) continue; // Missing schema/permission fails closed; discovery remains read-only.
+    const allowed=new Set(data.filter((x:any)=>x.supply_outreach_opt_in===true).map((x:any)=>x.user_id));
+    for(const candidate of batch)candidate.contactAllowed=allowed.has(candidate.userId);
+  }
+  return {candidates:sorted,nextCursor,hasMore};
+}
 
-  const sorted = candidates.sort(
-    (a, b) => b.score - a.score || String(b.lastListingAt || "").localeCompare(String(a.lastListingAt || ""))
-  );
-
-  const enriched = await Promise.all(
-    sorted.map(async (candidate) => {
-      if (candidate.name !== "Usuario") return candidate;
-      try {
-        const { data } = await admin.auth.admin.getUserById(candidate.userId);
-        const email = data?.user?.email?.trim();
-        return email ? { ...candidate, name: email } : candidate;
-      } catch {
-        return candidate;
-      }
-    })
-  );
-
-  return enriched;
+export async function revalidateSupplyTargets(admin: any, opportunity: DemandOpportunity, requested: string[]): Promise<string[]> {
+  if (!requested.length || requested.length > 20 || demandIsSatisfied(opportunity)) return [];
+  const ids=Array.from(new Set(requested));
+  const since=new Date(Date.now()-30*24*60*60*1000).toISOString();
+  const [prefs,profiles,listings,actions,reports]=await Promise.all([
+    admin.from("user_marketplace_preferences").select("user_id,supply_outreach_opt_in").in("user_id",ids).eq("supply_outreach_opt_in",true),
+    admin.from("profiles").select("id").in("id",ids),
+    admin.from("listings").select("seller_id,isbn,category,school_id").in("seller_id",ids).limit(1001),
+    admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key",opportunity.key)
+      .eq("action_type","seller_contacted").gte("created_at",since).in("target_user_id",ids).limit(1001),
+    admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status",["open","reviewing"])
+      .in("listings.seller_id",ids).limit(1001),
+  ]);
+  if ([prefs,profiles,listings,actions,reports].some(result=>result.error || !Array.isArray(result.data)) ||
+      listings.data.length>=1001 || actions.data.length>=1001 || reports.data.length>=1001)
+    throw new Error("supply_revalidation_unavailable");
+  const opted=new Set(prefs.data.filter((x:any)=>x.supply_outreach_opt_in===true).map((x:any)=>x.user_id));
+  const accounts=new Set(profiles.data.map((x:any)=>x.id));
+  const denied=new Set([...opportunity.demandUserIds,...actions.data.map((x:any)=>x.target_user_id),
+    ...reports.data.map((x:any)=>x.listings?.seller_id)]);
+  const historical=new Set<string>();
+  for(const listing of listings.data){
+    if ((opportunity.isbn && normalizeIsbn(listing.isbn||"")?.canonicalIsbn===opportunity.isbn) ||
+        (opportunity.schoolId && listing.school_id===opportunity.schoolId &&
+         opportunity.category && normalizeText(listing.category)===normalizeText(opportunity.category)))
+      historical.add(listing.seller_id);
+  }
+  const progressing=new Set<string>();
+  const grades=nextSupplyGrade(opportunity.gradeLevel);
+  if(opportunity.schoolId && grades.length &&
+      (opportunity.isbn || ["libros","libros de texto"].includes(normalizeText(opportunity.category)))){
+    const {data,error}=await admin.from("account_students").select("owner_user_id").in("owner_user_id",ids)
+      .eq("school_id",opportunity.schoolId).eq("active",true)
+      .eq("academic_year",currentSupplyAcademicYear()).in("grade_level",grades).limit(1001);
+    if(error || !data || data.length>=1001)throw new Error("supply_progression_revalidation_unavailable");
+    for(const row of data)progressing.add(row.owner_user_id);
+  }
+  return ids.filter(id=>opted.has(id) && accounts.has(id) && !denied.has(id) &&
+    (historical.has(id) || progressing.has(id)));
 }
 
 export function activationMessage(opportunity: DemandOpportunity) {

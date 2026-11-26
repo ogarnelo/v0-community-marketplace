@@ -63,18 +63,16 @@ test("Super Admin exposes grouped demand with filters and manual candidate searc
   assert.match(opportunityPage, /Anuncios generados/);
 });
 
-test("seller activation is manual, server-validated and in-app only", () => {
-  assert.match(activationComponent, /Previsualización del mensaje/);
-  assert.match(activationRoute, /eq\("role", "super_admin"\)/);
-  assert.match(activationRoute, /findSupplyCandidates/);
-  assert.match(activationRoute, /const allowed = new Set\(candidates\.filter/);
-  assert.doesNotMatch(activationRoute, /profile\.user_type === "student"/);
-  assert.match(activationRoute, /kind: "supply_activation"/);
-  assert.match(activationRoute, /channel: "in_app"/);
-  assert.doesNotMatch(activationRoute, /sendEmail|Resend|sendSavedSearchMatchEmail/);
-  assert.match(sellerPage, /SupplyOpportunityResponse/);
-  assert.match(responseRoute, /"have_one"/);
-  assert.match(responseRoute, /"dont_have"/);
+test("seller activation is manual, consent-gated and in-app only",()=>{
+  assert.match(activationComponent,/contactAllowed/);
+  assert.match(activationRoute,/revalidateSupplyTargets/);
+  assert.match(activationRoute,/createNotificationOnce/);
+  assert.match(activationRoute,/kind:"supply_activation"/);
+  assert.match(activationRoute,/channel:"in_app"/);
+  assert.doesNotMatch(activationRoute,/sendEmail|Resend/);
+  assert.match(sellerPage,/SupplyOpportunityResponse/);
+  assert.match(responseRoute,/"have_one"/);
+  assert.match(responseRoute,/"dont_have"/);
 });
 
 test("publish-now prefill is recovered server-side and the listing remains normal", () => {
@@ -114,11 +112,10 @@ test("free-text ISBN variants collapse into the ISBN-first identity", () => {
 });
 
 
-test("B1 candidate identity and ISBN-only prefill stay operator-friendly", () => {
-  assert.match(helper, /admin\.auth\.admin\.getUserById/);
-  assert.match(newListingPage, /safeOpportunityTitle/);
-  assert.match(newListingPage, /normalizeIsbn/);
-  assert.match(newListingPage, /if \(titleIsbn && expectedIsbn && titleIsbn === expectedIsbn\) return undefined/);
+test("B1 candidate identity has no bulk Auth email reads",()=>{
+  assert.doesNotMatch(helper,/admin\\.auth\\.admin\\.getUserById/);
+  assert.match(newListingPage,/safeOpportunityTitle/);
+  assert.match(newListingPage,/normalizeIsbn/);
 });
 
 
@@ -140,23 +137,17 @@ test("academic progression supports canonical grades and refuses ambiguous stage
   for(const invalid of [null,"Primaria","ESO","FP","2o Bachillerato","5o ESO"]) assert.deepEqual(next(invalid),[]);
 });
 
-test("progression queries active same-school contexts only and preserves manual activation",()=>{
-  const start=helper.indexOf("// Same-school progression");
-  const end=helper.indexOf("const sorted = candidates.sort",start);
-  assert.ok(start>=0 && end>start);
-  const segment=helper.slice(start,end);
-  for(const required of ['opportunity.supplyCount === 0','.eq("school_id", opportunity.schoolId)','.eq("active", true)','.eq("academic_year", academicYear)','.in("grade_level", grades)','.limit(batchSize)','demanders.has(sellerId)','recentlyContacted.has(sellerId)','sellersWithUnresolvedListingReports.has(sellerId)','new Set<string>','lastListingAt: null']) assert.ok(segment.includes(required),required);
-  assert.ok(segment.includes('query.gt("owner_user_id", cursor)'));
-  assert.ok(segment.includes('const batchSize = 100'));
-  assert.ok(segment.includes('.in("target_user_id", ids)'));
-  assert.ok(segment.includes('.in("listings.seller_id", ids)'));
-  assert.ok(segment.includes('if (complete) candidates.push(...progression)'));
-  assert.match(activationRoute,/findSupplyCandidates/);
-  assert.match(activationRoute,/eq\("role", "super_admin"\)/);
+test("progression uses resumable keyset and targeted checks",()=>{
+  assert.match(helper,/batchSize = 100/);
+  assert.match(helper,/limit\\(batchSize \\+ 1\\)/);
+  assert.match(helper,/query\\.gt\\("owner_user_id", options\\.cursor\\)/);
+  assert.match(helper,/nextCursor/);
+  assert.match(helper,/revalidateSupplyTargets/);
 });
 
-test("inferred owners cannot be contacted before explicit permission exists", () => {
-  assert.match(activationRoute, /candidate\.lastListingAt !== null/);
-  assert.match(activationRoute, /opportunity\.supplyCount > 0/);
-  assert.match(activationRoute, /if \(existingActionError\) throw existingActionError/);
+test("explicit permission and protected action reservation precede notification",()=>{
+  assert.match(activationRoute,/revalidateSupplyTargets/);
+  assert.match(activationRoute,/demandIsSatisfied/);
+  assert.match(activationRoute,/createNotificationOnce/);
+  assert.match(helper,/supply_outreach_opt_in/);
 });

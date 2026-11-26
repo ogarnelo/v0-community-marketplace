@@ -7,11 +7,12 @@ function privateJson(body: unknown, options: { status?: number; headers?: Record
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOnce } from "@/lib/notifications";
 import {
   activationMessage,
   findDemandOpportunity,
-  findSupplyCandidates,
+  revalidateSupplyTargets,
+  demandIsSatisfied,
   opportunityMetadata,
 } from "@/lib/admin/demand-opportunities";
 
@@ -46,9 +47,11 @@ export async function POST(
 
     const { key } = await context.params;
     const body = await request.json().catch(() => ({}));
-    const requested = Array.isArray(body?.targetUserIds)
-      ? body.targetUserIds.filter((value: unknown): value is string => typeof value === "string").slice(0, MAX_TARGETS)
-      : [];
+    const requested = Array.isArray(body?.targetUserIds) ? body.targetUserIds : [];
+    if (requested.length > MAX_TARGETS || requested.some((id: unknown) =>
+      typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+      return privateJson({ error: "Máximo 20 identificadores válidos." }, { status: 400 });
+    }
     if (requested.length === 0) {
       return privateJson({ error: "Selecciona al menos un candidato." }, { status: 400 });
     }
@@ -57,15 +60,11 @@ export async function POST(
     const opportunity = await findDemandOpportunity(admin, key);
     if (!opportunity) return privateJson({ error: "Oportunidad no encontrada." }, { status: 404 });
 
-    if (opportunity.supplyCount > 0 || ["supply_generated", "satisfied", "closed"].includes(opportunity.status)) {
-      return privateJson({ error: "La oportunidad ya tiene oferta o está cerrada." }, { status: 409 });
+    if (demandIsSatisfied(opportunity)) {
+      return privateJson({ error:"Esta demanda ya está cubierta o cerrada." }, { status:409 });
     }
-
-    const candidates = await findSupplyCandidates(admin, opportunity);
-    // Academic inference is discovery-only until explicit communication preferences exist.
-    // Keep the established historical activation path; never send to a newly inferred owner.
-    const allowed = new Set(candidates.filter((candidate) => candidate.lastListingAt !== null).map((candidate) => candidate.userId));
-    const targets = Array.from(new Set(requested)).filter((id) => allowed.has(id));
+    // Recheck concrete recipients, independent of the admin's visible page/cursor.
+    const targets = await revalidateSupplyTargets(admin, opportunity, requested);
     if (targets.length === 0) {
       return privateJson({ error: "Los candidatos ya no son elegibles." }, { status: 409 });
     }
@@ -103,46 +102,38 @@ export async function POST(
 
     const activatedUserIds: string[] = [];
     for (const targetUserId of targets) {
-      const { data: existingAction, error: existingActionError } = await admin
-        .from("demand_opportunity_actions")
-        .select("id")
-        .eq("opportunity_key", opportunity.key)
-        .eq("target_user_id", targetUserId)
-        .eq("action_type", "seller_contacted")
-        .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .limit(1)
-        .maybeSingle();
-      if (existingActionError) throw existingActionError;
-      if (existingAction) continue;
-
-      const notification = await createNotification(admin, {
-        user_id: targetUserId,
-        kind: "supply_activation",
-        title: "Hay familias buscando material que quizá tengas",
-        body: message,
-        href: `/supply-opportunity/${encodeURIComponent(opportunity.key)}`,
-        metadata: {
-          opportunity_key: opportunity.key,
-          category: opportunity.category,
-          school_id: opportunity.schoolId,
-        },
+      // Unique partial index in review-only SQL reserves a recipient. Pending records can retry.
+      const inserted = await admin.from("demand_opportunity_actions").insert({
+        opportunity_key:opportunity.key,actor_id:user.id,target_user_id:targetUserId,
+        action_type:"seller_contacted",role_context:"super_admin",channel:"in_app",
+        message,sent_at:null,metadata,
+      }).select("id").single();
+      let actionId: string | null = inserted.data?.id || null;
+      if (inserted.error?.code === "23505") {
+        const old = await admin.from("demand_opportunity_actions").select("id,sent_at")
+          .eq("opportunity_key",opportunity.key).eq("target_user_id",targetUserId)
+          .eq("action_type","seller_contacted").limit(1).maybeSingle();
+        if(old.error)throw old.error;
+        if(old.data?.sent_at)continue;
+        actionId=old.data?.id || null;
+      } else if(inserted.error)throw inserted.error;
+      if(!actionId)throw new Error("supply_contact_reservation_failed");
+      // Revocation between discovery and the send must prevent an actual notification.
+      const consent=await admin.from("user_marketplace_preferences").select("supply_outreach_opt_in")
+        .eq("user_id",targetUserId).eq("supply_outreach_opt_in",true).maybeSingle();
+      if(consent.error)throw consent.error;
+      if(consent.data?.supply_outreach_opt_in!==true)continue;
+      const notification=await createNotificationOnce(admin,{
+        event_key:`supply-activation:${opportunity.key}:${targetUserId}`,
+        user_id:targetUserId,kind:"supply_activation",
+        title:"Hay familias buscando material que quizá tengas",body:message,
+        href:`/supply-opportunity/${encodeURIComponent(opportunity.key)}`,
+        metadata:{opportunity_key:opportunity.key,category:opportunity.category,school_id:opportunity.schoolId},
       });
-      if (notification.error) throw notification.error;
-
-      const { error: actionError } = await admin
-        .from("demand_opportunity_actions")
-        .insert({
-          opportunity_key: opportunity.key,
-          actor_id: user.id,
-          target_user_id: targetUserId,
-          action_type: "seller_contacted",
-          role_context: "super_admin",
-          channel: "in_app",
-          message,
-          sent_at: now,
-          metadata,
-        });
-      if (actionError) throw actionError;
+      if(notification.error)throw notification.error;
+      const marked=await admin.from("demand_opportunity_actions").update({sent_at:now})
+        .eq("id",actionId).is("sent_at",null).select("id");
+      if(marked.error)throw marked.error;
       activatedUserIds.push(targetUserId);
     }
 
