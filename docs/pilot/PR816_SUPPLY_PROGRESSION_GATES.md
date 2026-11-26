@@ -5,3 +5,6 @@
 - API revalida consentimientos, demandantes, informes, contactos en últimos 30 días y colegio/año/curso de cada destinatario, sin repetir las páginas del panel.
 - Contacto idempotente: acción reservada antes del aviso, notificación con event_key único y sent_at posterior. DDL del índice único indispensable para proteger carreras; no fusionar antes de instalarlo.
 - Próximas puertas: sintéticas/CI completas, autorización del SQL exacto solo Education Marketplace `jpsljmakoscqevssimtk`, instalación con preflight/postflight, opt-in/revocación, preview, merge seguro, producción READY. VM Copilot fuera de alcance.
+
+## Corrección tras primer CI
+El primer run `45906777007` falló únicamente en los tests B1/nueva fixture: expresión regular mal escapada y perfil repetido por un hermano sintético. Los siete ensayos PG17 de ese SHA pasaron. Este commit corrige los tests y la deduplicación por propietario, y trata `supply_generated` como oferta parcial hasta cubrir todas las familias. Las acciones pendientes (`sent_at IS NULL`) permanecen reintentables. No se ha aplicado SQL productivo ni fusionado.

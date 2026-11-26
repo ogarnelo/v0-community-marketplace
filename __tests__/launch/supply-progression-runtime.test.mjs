@@ -25,11 +25,11 @@ function fixture(){
   {owner_user_id:id(2001),school_id:school,active:false,academic_year:year,grade_level:"4o Primaria"},
   {owner_user_id:id(2002),school_id:school,active:true,academic_year:"1999/00",grade_level:"4o Primaria"},
   {owner_user_id:id(2003),school_id:id(6666),active:true,academic_year:year,grade_level:"4o Primaria"}],
- profiles:students.map(x=>({id:x.owner_user_id,full_name:"Confidencial"})),
+ profiles:[...new Set(students.map(x=>x.owner_user_id))].map(id=>({id,full_name:"Confidencial"})),
  listings:[],reports:[],demand_opportunity_actions:[{target_user_id:id(7),opportunity_key:opp.key,action_type:"seller_contacted",created_at:new Date().toISOString()}],
  user_marketplace_preferences:students.filter(x=>x.owner_user_id!==id(8)).map(x=>({user_id:x.owner_user_id,supply_outreach_opt_in:true}))};
  let studentQueries=0, budgetOK=true;
- return {admin:{from(table){
+ return {db,admin:{from(table){
   const filters=[];let max=Infinity,sort=null;const q={
    select(){return this;},eq(k,v){filters.push(x=>x[k]===v);return this;},
    gt(k,v){filters.push(x=>x[k]>v);return this;},gte(k,v){filters.push(x=>x[k]>=v);return this;},
@@ -70,4 +70,28 @@ test("satisfied demand is blocked",async()=>{
  assert.equal(mod.demandIsSatisfied({...opp,supplyCount:3}),true);
  const f=fixture();
  assert.equal((await mod.revalidateSupplyTargets(f.admin,{...opp,status:"satisfied"},[id(4)])).length,0);
+});
+
+test("moderation reports deny contacted owner; national ISBN remains valid", async()=>{
+  const f=fixture(),listingId=id(7000);
+  f.db.reports.push({listing_id:listingId,status:"open",listings:{seller_id:id(5)}});
+  f.db.listings.push({id:listingId,seller_id:id(5),isbn:null,category:"libros",school_id:school});
+  const blocked=await mod.revalidateSupplyTargets(f.admin,opp,[id(4),id(5)]);
+  assert.deepEqual([...blocked],[id(4)]);
+  f.db.listings.push({id:id(7001),seller_id:id(9),isbn:"9780001234567",category:"otros",school_id:id(6666)});
+  const national={...opp,schoolId:null,isbn:"9780001234567",category:"otros"};
+  const accepted=await mod.revalidateSupplyTargets(f.admin,national,[id(9)]);
+  assert.deepEqual([...accepted],[id(9)]);
+});
+test("failed consent query blocks target revalidation rather than permitting send", async()=>{
+  const f=fixture(),original=f.admin.from.bind(f.admin);
+  f.admin.from=(table)=>{
+    if(table!=="user_marketplace_preferences")return original(table);
+    return {select(){return this;},in(){return this;},eq(){return Promise.resolve({data:null,error:{code:"42703"}});}};
+  };
+  await assert.rejects(()=>mod.revalidateSupplyTargets(f.admin,opp,[id(4)]),/supply_revalidation_unavailable/);
+});
+test("partial generated supply must not be mistaken for all demand satisfied",()=>{
+  assert.equal(mod.demandIsSatisfied({...opp,status:"supply_generated",supplyCount:1,familiesCount:3}),false);
+  assert.equal(mod.demandIsSatisfied({...opp,status:"supply_generated",supplyCount:3,familiesCount:3}),true);
 });

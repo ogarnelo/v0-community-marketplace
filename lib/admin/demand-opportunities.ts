@@ -371,7 +371,7 @@ function currentSupplyAcademicYear(now = new Date()) {
 }
 
 export function demandIsSatisfied(opportunity: DemandOpportunity) {
-  return ["supply_generated", "satisfied", "closed"].includes(opportunity.status) ||
+  return ["satisfied", "closed"].includes(opportunity.status) ||
     (opportunity.supplyCount > 0 && opportunity.supplyCount >= Math.max(1, opportunity.familiesCount));
 }
 export async function findSupplyCandidates(admin: any, opportunity: DemandOpportunity, options: { cursor?: string | null } = {}): Promise<SupplyCandidateBatch> {
@@ -394,6 +394,7 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       .select("target_user_id,created_at")
       .eq("opportunity_key", opportunity.key)
       .eq("action_type", "seller_contacted")
+      .not("sent_at", "is", null)
       .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .limit(1000),
     admin
@@ -518,7 +519,7 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
   let nextCursor: string | null = null;
   let hasMore = false;
   if (opportunity.schoolId && !demandIsSatisfied(opportunity) &&
-      ["new", "offer_search", "sellers_contacted"].includes(opportunity.status) &&
+      ["new", "offer_search", "sellers_contacted", "supply_generated"].includes(opportunity.status) &&
       (opportunity.isbn || ["libros", "libros de texto"].includes(normalizeText(opportunity.category))) &&
       grades.length > 0) {
     const batchSize = 100;
@@ -541,7 +542,7 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       const [p,a,rep] = await Promise.all([
         admin.from("profiles").select("id").in("id",ids),
         admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key",opportunity.key)
-          .eq("action_type","seller_contacted").gte("created_at",since).in("target_user_id",ids).limit(1001),
+          .eq("action_type","seller_contacted").not("sent_at","is",null).gte("created_at",since).in("target_user_id",ids).limit(1001),
         admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status",["open","reviewing"])
           .in("listings.seller_id",ids).limit(1001),
       ]);
@@ -554,6 +555,7 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
         candidates.push({ userId:row.id, name:"Familia potencial", score:40, affinity:"media",
           reasons:["Curso siguiente en este centro; disponibilidad sin confirmar"],
           lastListingAt:null,contactAllowed:false });
+        existing.add(row.id);
       }
     }
   }
@@ -579,7 +581,7 @@ export async function revalidateSupplyTargets(admin: any, opportunity: DemandOpp
     admin.from("profiles").select("id").in("id",ids),
     admin.from("listings").select("seller_id,isbn,category,school_id").in("seller_id",ids).limit(1001),
     admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key",opportunity.key)
-      .eq("action_type","seller_contacted").gte("created_at",since).in("target_user_id",ids).limit(1001),
+      .eq("action_type","seller_contacted").not("sent_at","is",null).gte("created_at",since).in("target_user_id",ids).limit(1001),
     admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status",["open","reviewing"])
       .in("listings.seller_id",ids).limit(1001),
   ]);

@@ -139,8 +139,8 @@ test("academic progression supports canonical grades and refuses ambiguous stage
 
 test("progression uses resumable keyset and targeted checks",()=>{
   assert.match(helper,/batchSize = 100/);
-  assert.match(helper,/limit\\(batchSize \\+ 1\\)/);
-  assert.match(helper,/query\\.gt\\("owner_user_id", options\\.cursor\\)/);
+  assert.ok(helper.includes(".limit(batchSize + 1)"));
+  assert.ok(helper.includes('query.gt("owner_user_id", options.cursor)'));
   assert.match(helper,/nextCursor/);
   assert.match(helper,/revalidateSupplyTargets/);
 });
