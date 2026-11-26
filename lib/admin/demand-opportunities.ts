@@ -507,39 +507,63 @@ export async function findSupplyCandidates(admin: any, opportunity: DemandOpport
       ["new", "offer_search", "sellers_contacted"].includes(opportunity.status) &&
       (opportunity.isbn || ["libros", "libros de texto"].includes(normalizeText(opportunity.category))) &&
       grades.length > 0) {
-    const { data: students, error: studentError } = await admin.from("account_students")
-      .select("owner_user_id")
-      .eq("school_id", opportunity.schoolId)
-      .eq("active", true)
-      .eq("academic_year", currentSupplyAcademicYear())
-      .in("grade_level", grades)
-      .order("owner_user_id")
-      .limit(200);
-    // Do not infer candidates from incomplete exclusion data.
-    if (!studentError && students && listings && profiles && recentActions && unresolvedReports &&
-        listings.length < 1000 && recentActions.length < 1000 && unresolvedReports.length < 1000) {
-      const existing = new Map(candidates.map(candidate => [candidate.userId, candidate]));
+    const academicYear = currentSupplyAcademicYear();
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const batchSize = 100;
+    const existing = new Map(candidates.map(candidate => [candidate.userId, candidate]));
+    const progression: SupplyCandidate[] = [];
+    let cursor: string | null = null;
+    // Keyset pagination by owner skips duplicate siblings, even across pages.
+    // Fail closed on any incomplete targeted exclusion check.
+    let complete = true;
+    while (true) {
+      let query = admin.from("account_students")
+        .select("owner_user_id")
+        .eq("school_id", opportunity.schoolId)
+        .eq("active", true)
+        .eq("academic_year", academicYear)
+        .in("grade_level", grades)
+        .order("owner_user_id", { ascending: true })
+        .limit(batchSize);
+      if (cursor) query = query.gt("owner_user_id", cursor);
+      const { data: students, error: studentError } = await query;
+      if (studentError || !students) { complete = false; break; }
+      if (!students.length) break;
+      const lastOwner: string = students[students.length - 1].owner_user_id;
+      if (!lastOwner || lastOwner === cursor) { complete = false; break; }
+      cursor = lastOwner;
       const owners = new Set<string>(students.map((student: any) => student.owner_user_id).filter(Boolean));
-      for (const sellerId of owners) {
-        if (demanders.has(sellerId) || recentlyContacted.has(sellerId) || sellersWithUnresolvedListingReports.has(sellerId)) continue;
-        const profile = profileById.get(sellerId);
-        if (!profile) continue;
-        const reason = "Contexto educativo activo del curso siguiente en este centro; disponibilidad sin confirmar";
-        const previous = existing.get(sellerId);
-        if (previous) {
-          previous.reasons.push(reason);
-          continue;
-        }
-        candidates.push({
+      const ids = Array.from(owners).filter(sellerId => !demanders.has(sellerId) && !recentlyContacted.has(sellerId) && !sellersWithUnresolvedListingReports.has(sellerId));
+      if (!ids.length) continue;
+      const [targetProfiles, targetActions, targetReports] = await Promise.all([
+        admin.from("profiles").select("id,full_name,business_name").in("id", ids),
+        admin.from("demand_opportunity_actions").select("target_user_id").eq("opportunity_key", opportunity.key).eq("action_type", "seller_contacted").gte("created_at", since).in("target_user_id", ids).limit(1000),
+        admin.from("reports").select("listing_id,listings!inner(seller_id)").in("status", ["open", "reviewing"]).in("listings.seller_id", ids).limit(1000),
+      ]);
+      if (targetProfiles.error || targetActions.error || targetReports.error ||
+          !targetProfiles.data || !targetActions.data || !targetReports.data ||
+          targetActions.data.length >= 1000 || targetReports.data.length >= 1000) {
+        complete = false;
+        break;
+      }
+      const blocked = new Set<string>([
+        ...targetActions.data.map((row: any) => row.target_user_id),
+        ...targetReports.data.map((row: any) => row.listings?.seller_id),
+      ]);
+      for (const profile of targetProfiles.data) {
+        const sellerId = profile.id;
+        if (blocked.has(sellerId) || existing.has(sellerId)) continue;
+        progression.push({
           userId: sellerId,
           name: profile.business_name || profile.full_name || "Usuario",
           score: 40,
           affinity: "media",
-          reasons: [reason],
+          reasons: ["Contexto educativo activo del curso siguiente en este centro; disponibilidad sin confirmar"],
           lastListingAt: null,
         });
       }
     }
+    if (complete) candidates.push(...progression);
   }
 
   const sorted = candidates.sort(
