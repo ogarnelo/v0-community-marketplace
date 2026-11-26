@@ -126,3 +126,26 @@ test("dismissed reports do not block B1 candidates, while open/reviewing reports
   assert.match(helper, /\.in\("status", \["open", "reviewing"\]\)/);
   assert.doesNotMatch(helper, /\.neq\("status", "resolved"\)/);
 });
+
+test("academic progression supports canonical grades and refuses ambiguous stages", () => {
+  const normalizeStart=helper.indexOf("function normalizeText(");
+  const normalizeEnd=helper.indexOf("function queryTokens(",normalizeStart);
+  const start=helper.indexOf("export function nextSupplyGrade(");
+  const end=helper.indexOf("function currentSupplyAcademicYear(",start);
+  assert.ok(start>=0 && end>start);
+  const normalize=helper.slice(normalizeStart,normalizeEnd).replace("value?: string | null","value");
+  const progression=helper.slice(start,end).replace("export function","function").replace("value: string | null): string[]","value)");
+  const next=new Function(normalize+progression+"return nextSupplyGrade;")();
+  for(const [from,to] of [["3o Primaria","4o Primaria"],["3 Primaria","4o Primaria"],["6º Primaria","1o ESO"],["4.º ESO","1o Bachillerato"]]) assert.ok(next(from).includes(to),from);
+  for(const invalid of [null,"Primaria","ESO","FP","2o Bachillerato","5o ESO"]) assert.deepEqual(next(invalid),[]);
+});
+
+test("progression queries active same-school contexts only and preserves manual activation",()=>{
+  const start=helper.indexOf("// Same-school progression");
+  const end=helper.indexOf("const sorted = candidates.sort",start);
+  assert.ok(start>=0 && end>start);
+  const segment=helper.slice(start,end);
+  for(const required of ['opportunity.supplyCount === 0','.eq("school_id", opportunity.schoolId)','.eq("active", true)','.eq("academic_year", currentSupplyAcademicYear())','.in("grade_level", grades)','.limit(200)','demanders.has(sellerId)','recentlyContacted.has(sellerId)','sellersWithUnresolvedListingReports.has(sellerId)','new Set<string>','lastListingAt: null']) assert.ok(segment.includes(required),required);
+  assert.match(activationRoute,/findSupplyCandidates/);
+  assert.match(activationRoute,/eq\("role", "super_admin"\)/);
+});
