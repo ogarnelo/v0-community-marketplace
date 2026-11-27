@@ -70,3 +70,11 @@ CREATE POLICY qa_roles_own_read ON public.user_roles FOR SELECT TO authenticated
 GRANT SELECT ON public.user_roles TO authenticated;
 GRANT SELECT ON public.schools TO authenticated;
 GRANT SELECT ON public.account_students TO authenticated;
+
+-- Local-only preference table matching production ownership policy.
+CREATE TABLE public.user_marketplace_preferences(user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,supply_outreach_opt_in boolean NOT NULL DEFAULT false);
+ALTER TABLE public.user_marketplace_preferences ENABLE ROW LEVEL SECURITY;
+CREATE POLICY qa_supply_read ON public.user_marketplace_preferences FOR SELECT TO authenticated USING(user_id=(SELECT auth.uid()));
+CREATE POLICY qa_supply_insert ON public.user_marketplace_preferences FOR INSERT TO authenticated WITH CHECK(user_id=(SELECT auth.uid()));
+CREATE POLICY qa_supply_update ON public.user_marketplace_preferences FOR UPDATE TO authenticated USING(user_id=(SELECT auth.uid())) WITH CHECK(user_id=(SELECT auth.uid()));
+GRANT SELECT,INSERT,UPDATE ON public.user_marketplace_preferences TO authenticated;
