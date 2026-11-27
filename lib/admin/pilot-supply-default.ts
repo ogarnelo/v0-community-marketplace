@@ -1,7 +1,15 @@
-// Server-only configuration. An empty or malformed allowlist disables defaults.
 import "server-only";
-export function pilotSupplySchoolIds(flag: string | undefined, ids: string | undefined): string[] {
-  if (flag !== "true" || !ids) return [];
-  const values = [...new Set(ids.split(",").map(x=>x.trim().toLowerCase()))];
-  return values.length <= 20 && values.every(x=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(x)) ? values : [];
+// Explicit deployment switch, independent of account type or school.
+export function pilotSupplyDefault(flag: string | undefined): boolean {
+  return flag === "true";
+}
+// Insert only: a previous explicit opt-out must never be overwritten.
+export async function initializePilotSupplyPreference(db: {from: (table:string)=>any}, user: {id:string;user_metadata?:Record<string,unknown>}, flag: string | undefined) {
+  const choice=user.user_metadata?.wetudy_supply_notice_initial;
+  if(choice!==false && !pilotSupplyDefault(flag))return;
+  const {error}=await db.from("user_marketplace_preferences").upsert(
+    {user_id:user.id,supply_outreach_opt_in:choice===false?false:true},
+    {onConflict:"user_id",ignoreDuplicates:true}
+  );
+  if(error)throw error;
 }
