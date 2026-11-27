@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -88,6 +88,23 @@ export default function AccountStudentsOnboarding({
   const [addingAnother, setAddingAnother] = useState(initialStudents.length === 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pilotChoice,setPilotChoice]=useState(true);
+  const [pilotEligible,setPilotEligible]=useState(false);
+  const [pilotReady,setPilotReady]=useState(false);
+  const [entering,setEntering]=useState(false);
+  const enteringRef=useRef(false);
+  const studentKey=students.map(s=>s.id+":"+s.school_id).join(",");
+  useEffect(()=>{
+    let live=true;
+    setPilotReady(false);setPilotEligible(false);
+    if(accountType!=="parent"||!studentKey){setPilotReady(true);return;}
+    fetch("/api/account/supply-outreach",{cache:"no-store"}).then(async r=>{
+      if(!r.ok)throw Error("preference unavailable");
+      return r.json();
+    }).then(data=>{if(live){setPilotEligible(data.pilotDefaultEligible===true);setPilotReady(true);}})
+    .catch(()=>{if(live)setPilotReady(true);});
+    return ()=>{live=false;};
+  },[accountType,studentKey]);
 
   const schoolById = useMemo(
     () => new Map(schools.map((school) => [school.id, school])),
@@ -240,6 +257,14 @@ export default function AccountStudentsOnboarding({
       return;
     }
 
+    if(enteringRef.current)return;
+    enteringRef.current=true;setEntering(true);
+    try{
+      if(pilotEligible){
+        const res=await fetch("/api/account/supply-outreach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:pilotChoice})});
+        if(!res.ok)throw Error("No se pudo guardar la preferencia de avisos. Inténtalo de nuevo.");
+      }
+    }catch(cause){setError(cause instanceof Error?cause.message:"No se pudo continuar.");enteringRef.current=false;setEntering(false);return;}
     router.push(nextPath || "/marketplace");
     router.refresh();
   }
@@ -405,8 +430,15 @@ export default function AccountStudentsOnboarding({
                       ? "Puedes entrar ya o añadir otro estudiante. También podrás gestionarlos desde Mi cuenta."
                       : "Tu contexto educativo ya está guardado."}
                   </p>
+                  {pilotEligible ? <div className="mt-3 rounded-lg border bg-background p-3">
+                    <label className="flex items-start gap-2 text-sm font-medium">
+                      <input type="checkbox" checked={pilotChoice} disabled={entering} onChange={e=>setPilotChoice(e.target.checked)} className="mt-1"/>
+                      Avisos de oportunidades de venta durante el piloto
+                    </label>
+                    <p className="mt-2 text-xs text-muted-foreground">Wetudy podrá avisarte dentro de la plataforma cuando otras familias busquen material que quizá tengas. No publicamos ni vendemos por ti, ni enviamos correos comerciales. Puedes desactivar esta opción ahora o en Mi cuenta.</p>
+                  </div>:null}
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <Button type="button" onClick={() => void enterWetudy()} disabled={saving}>
+                    <Button type="button" onClick={() => void enterWetudy()} disabled={saving || entering || !pilotReady}>
                       Entrar en Wetudy
                     </Button>
                     {accountType === "parent" && !showEditor ? (

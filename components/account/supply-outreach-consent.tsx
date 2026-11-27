@@ -16,7 +16,7 @@ export function SupplyOutreachConsent(){
     }catch(e:any){setError(e.message||"Error al guardar.");}finally{setSaving(false);}
   };
   return <section className="space-y-4 rounded-xl border p-5">
-    <p className="font-medium">{enabled?"Permiso activado":"Permiso desactivado (por defecto)"}</p>
+    <p className="font-medium">{enabled?"Permiso activado":"Permiso desactivado"}</p>
     <p className="text-sm text-muted-foreground">Puedes permitir que WETUDY te avise dentro de la aplicación
       cuando otras familias busquen material que quizá tengas según el contexto educativo de tu cuenta.
       No significa que tengas ningún producto. No genera emails ni avisos automáticos.

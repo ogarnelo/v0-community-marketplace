@@ -1,0 +1,4 @@
+# Pilot supply outreach defaults — separate from closed #816
+Owner approved preselected internal service notices for pilot only. No marketing consent, automatic messages or emails.
+Server flags PILOT_SUPPLY_DEFAULT_ENABLED=true and PILOT_SUPPLY_SCHOOL_IDS=comma-separated verified pilot school UUIDs. Empty/invalid scope disables the feature. No existing preference is overwritten, including explicit false. New eligible parent sees initial checked choice in educational onboarding and may uncheck before continuing. First write uses ignoreDuplicates to preserve concurrent opt-out. Existing #816 RPC, 30-day limit and manual admin contact unchanged.
+Default flags OFF until actual pilot schools identified and legal basis for service notices confirmed. No DDL or production environment change in this PR. Verify CI/preview and functional onboarding before enabling.
