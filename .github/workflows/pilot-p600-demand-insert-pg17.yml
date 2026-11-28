@@ -1,0 +1,128 @@
+# WETUDY #600: one isolated, synthetic PostgreSQL 17 run.
+# Archive is the exact owner-visible V64 review-only package, not a migration.
+# No production credentials, network targets, database URLs or deploy steps.
+name: Pilot P600 isolated demand INSERT PG17
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/pilot-p600-demand-insert-pg17.yml'
+permissions:
+  contents: read
+jobs:
+  p600:
+    if: github.head_ref == 'qa/p600-demand-insert-pg17-20261126'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: wetudy_p600_synthetic_only
+          POSTGRES_DB: wetudy_p600_fixture
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wetudy_p600_fixture"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - name: Verify exact review-only archive and SQL fingerprints
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/p600"
+          cd "$RUNNER_TEMP/p600"
+          base64 -d > review.zip <<'P600_ARCHIVE'
+          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
+          IN0Wnv4+c32tHIJa70jplAVz0bok5aUYmU0Hza74iv13Z4AuFliN6iqqQY03g6+AYHkk+upiigbqz/M4CX0+/47Hu1qRvlj17u6B
+          FomiruR+8dNNe/sWVRGp16Zf+joBe/0qMg1rJcKe/bY32fAmo0NnlQGQlTdVp685W8d044d0EbNYPVa0flXyah+3u62pjpXIhcyV
+          Ms38P87CxnjvS5HTlmUs1n0YZTtvdvojDesdDve+sG8hZXMm986K3+7vdVaOvk16vXJiNCforhSavb7y0xrBw/HLg8ipr8bkHseS
+          du3ollcTDyn65ktMza2DCqsIaroI5WDCvyiy9sPg3VXSGOXBkrCIvqgOtVLze9TB1ajTehaOOhP79nbmjTr/AlBLAQIUAxQAAAAI
+          AF2nel1q4A5MAgIAADIDAAAIAAAAAAAAAAAAAACkgQAAAABMRUVNRS5tZFBLAQIUAxQAAAAIAEunel2vqyu8sAYAABsSAAAmAAAA
+          AAAAAAAAAACkgSgCAABwNjAwX2RlbWFuZF9pbnNlcnRfZ3VhcmRfY2FuZGlkYXRlLnNxbFBLAQIUAxQAAAAIAEunel2JKg5ZUQYA
+          AC0WAAAkAAAAAAAAAAAAAACkgRwJAABwNjAwX2RlbWFuZF9pbnNlcnRfZ3VhcmRfZml4dHVyZS5zcWxQSwECFAMUAAAACABLp3pd
+          ThAd9YUEAACLCwAAJQAAAAAAAAAAAAAApIGvDwAAcDYwMF9kZW1hbmRfaW5zZXJ0X2d1YXJkX3JvbGxiYWNrLnNxbFBLBQYAAAAA
+          BAAEAC8BAAB3FAAAAAA=
+          P600_ARCHIVE
+          echo 'ccdd093d5cf293048c2e0a12782c57e40aa05851c5fae573da30dace2bf93fd3  review.zip' | sha256sum -c -
+          python3 -c 'import zipfile; z=zipfile.ZipFile("review.zip"); assert set(z.namelist()) == {"LEEME.md","p600_demand_insert_guard_candidate.sql","p600_demand_insert_guard_fixture.sql","p600_demand_insert_guard_rollback.sql"}; z.extractall(".")'
+          sha256sum -c <<'P600_SHA'
+          90929dfafc7bf854f2a1b636947b40e48c1551ebb111b752e98128287f156504  p600_demand_insert_guard_candidate.sql
+          c6a4dad908e5961da9f4554a1a8eef953942dee0c06a477176078ac5ed6f0605  p600_demand_insert_guard_fixture.sql
+          655e29cad9a64e9bb7a3c2374ecb62bd805874c047dfe3b6fa6f6e892d5cd743  p600_demand_insert_guard_rollback.sql
+          P600_SHA
+      - name: Execute original fixture in disposable PG17 service
+        shell: bash
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          test -n "$PG_CONTAINER"
+          docker exec "$PG_CONTAINER" mkdir -p /tmp/p600
+          docker cp "$RUNNER_TEMP/p600/." "$PG_CONTAINER:/tmp/p600/"
+          docker exec "$PG_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d wetudy_p600_fixture -f /tmp/p600/p600_demand_insert_guard_fixture.sql
