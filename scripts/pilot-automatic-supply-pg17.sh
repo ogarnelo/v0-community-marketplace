@@ -66,6 +66,44 @@ DO $$ BEGIN
  IF has_function_privilege('anon','public.set_automatic_supply_enabled_v1(uuid,boolean)','execute') OR has_function_privilege('authenticated','public.automatic_supply_enabled_v1()','execute') THEN RAISE EXCEPTION 'ACL'; END IF;
 END $$;
 SQL
+# Concurrent pause wins before a waiting dispatch; consent is checked under row lock.
+actor=11111111-1111-4111-8111-111111111111
+target=22222222-2222-4222-8222-222222222222
+q -c "UPDATE demand_opportunity_actions SET sent_at=now()-interval '31 days'; SELECT set_automatic_supply_enabled_v1('$actor',true)" >/dev/null
+call_auto="SELECT activate_supply_recipient_v2(NULL,'$target','{\"opportunity_key\":\"concurrency\",\"title\":\"QA\",\"families_count\":1,\"supply_count\":0,\"searches_count\":1,\"priority\":\"medium\",\"metadata\":{\"source_ids\":[\"33333333-3333-4333-8333-333333333333\"]}}'::jsonb,'QA','/qa');"
+wait_sleep(){ local app="$1"; for i in $(seq 1 100); do
+ if [[ "$(q -c "SELECT count(*) FROM pg_stat_activity WHERE application_name='$app' AND wait_event='PgSleep'")" == 1 ]]; then return; fi
+ sleep .05
+done; echo "No synchronization with $app" >&2; exit 1; }
+(
+ export PGAPPNAME=qa_auto_pause_first
+ q <<SQL
+BEGIN;
+SELECT set_automatic_supply_enabled_v1('$actor',false);
+SELECT pg_sleep(2);
+COMMIT;
+SQL
+) >"$tmp/pause" 2>&1 &
+a=$!
+wait_sleep qa_auto_pause_first
+[[ "$(q -c "$call_auto")" == f ]]
+wait "$a"
+q -c "SELECT set_automatic_supply_enabled_v1('$actor',true)" >/dev/null
+(
+ export PGAPPNAME=qa_auto_revoke_first
+ q <<SQL
+BEGIN;
+UPDATE user_marketplace_preferences SET supply_outreach_opt_in=false WHERE user_id='$target';
+SELECT pg_sleep(2);
+COMMIT;
+SQL
+) >"$tmp/revoke" 2>&1 &
+a=$!
+wait_sleep qa_auto_revoke_first
+[[ "$(q -c "$call_auto")" == f ]]
+wait "$a"
+q -c "SELECT set_automatic_supply_enabled_v1('$actor',false)" >/dev/null
+[[ "$(q -c 'SELECT count(*) FROM notifications')" == 20 ]]
 q -f scripts/review_only/p819_automatic_supply_rollback.sql
 [[ "$(q -c "SELECT count(*) FROM notifications")" == 20 ]]
 [[ "$(q -c "SELECT to_regprocedure('public.automatic_supply_enabled_v1()') IS NULL")" == t ]]
