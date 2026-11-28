@@ -295,8 +295,8 @@ export default async function DemandIntelligencePage({
             </div>
           </div>
 
+          <AutomaticSupplyControl />
           <section className="grid gap-4 sm:grid-cols-3">
-      <AutomaticSupplyControl />
             <Card>
               <CardContent className="p-5">
                 <p className="text-sm text-muted-foreground">Búsquedas registradas</p>
