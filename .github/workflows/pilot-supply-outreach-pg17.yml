@@ -5,6 +5,9 @@ on:
       - 'scripts/pilot-supply-outreach-pg17.sh'
       - 'scripts/review_only/p816_atomic_supply_outreach_v2_candidate.sql'
       - '.github/workflows/pilot-supply-outreach-pg17.yml'
+      - 'scripts/review_only/p819_automatic_supply_control_candidate.sql'
+      - 'scripts/pilot-automatic-supply-pg17.sh'
+      - 'scripts/review_only/p819_automatic_supply_rollback.sql'
 jobs:
   supply-outreach-race:
     runs-on: ubuntu-latest
@@ -25,3 +28,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - run: bash scripts/pilot-supply-outreach-pg17.sh
+      - run: bash scripts/pilot-automatic-supply-pg17.sh

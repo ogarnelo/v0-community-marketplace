@@ -1,3 +1,4 @@
+import { AutomaticSupplyControl } from "@/components/admin/automatic-supply-control";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Activity, ArrowLeft, Download, Leaf, Search, TrendingUp, AlertTriangle, School, Users, Package, Handshake, MousePointerClick, MessageCircleQuestion, Target } from "lucide-react";
@@ -294,6 +295,7 @@ export default async function DemandIntelligencePage({
             </div>
           </div>
 
+          <AutomaticSupplyControl />
           <section className="grid gap-4 sm:grid-cols-3">
             <Card>
               <CardContent className="p-5">

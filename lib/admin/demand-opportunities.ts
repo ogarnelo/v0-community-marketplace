@@ -170,22 +170,17 @@ function supplyMatches(opportunity: DemandOpportunity, listing: any) {
   return tokens.some((token) => haystack.includes(token));
 }
 
-export async function loadDemandOpportunities(admin: any): Promise<DemandOpportunity[]> {
-  const [
-    { data: savedSearches },
-    { data: demandRequests },
-    { data: events },
-    { data: listings },
-    { data: schools },
-    { data: campaigns },
-  ] = await Promise.all([
-    admin
+export async function loadDemandOpportunities(admin: any, options: { strict?: boolean } = {}): Promise<DemandOpportunity[]> {
+  let savedSearchQuery = admin
       .from("saved_searches")
       .select("id,user_id,query,isbn_query,category,grade_level,school_id,need_details,results_count,intent_source,created_at")
       .eq("results_count", 0)
       .eq("intent_source", "zero_results_prompt")
       .order("created_at", { ascending: false })
-      .limit(1000),
+      .limit(1000);
+  if (options.strict) savedSearchQuery = savedSearchQuery.eq("notifications_enabled", true);
+  const results = await Promise.all([
+    savedSearchQuery,
     admin
       .from("demand_requests")
       .select("id,user_id,title,normalized_query,category,grade_level,isbn,school_id,status,metadata,created_at")
@@ -209,6 +204,11 @@ export async function loadDemandOpportunities(admin: any): Promise<DemandOpportu
       .limit(2000),
   ]);
 
+  // Automated outreach must never interpret a failed or capped read as no supply.
+  if (options.strict && results.some(result => result.error || !Array.isArray(result.data) || result.data.length >= 1000)) {
+    throw new Error("demand_snapshot_incomplete");
+  }
+  const [{data:savedSearches},{data:demandRequests},{data:events},{data:listings},{data:schools},{data:campaigns}] = results;
   const schoolNames = new Map((schools || []).map((school: any) => [school.id, school.name]));
   const statusByKey = new Map((campaigns || []).map((campaign: any) => [campaign.opportunity_key, campaign.status]));
   const explicit: ExplicitDemand[] = [];
