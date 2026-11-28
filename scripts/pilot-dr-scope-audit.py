@@ -3,7 +3,7 @@
 
 Inventory: production Supabase information_schema.tables (SELECT only),
 refreshed read-only 2026-11-10. No production credentials or runtime calls here.
-A successful synthetic six-table restore is NOT a full Wetudy recovery.
+A successful synthetic seven-table restore is NOT a full Wetudy recovery.
 """
 import ast
 import json
@@ -56,9 +56,9 @@ def covered_tables():
 
 def main():
     covered = covered_tables()
-    assert len(PUBLIC_TABLES) == 79, f"Expected verified inventory of 77, got {len(PUBLIC_TABLES)}"
+    assert len(PUBLIC_TABLES) == 79, f"Expected verified inventory of 79, got {len(PUBLIC_TABLES)}"
     assert covered <= PUBLIC_TABLES, "Restore fixture has unknown production table name"
-    assert len(covered) >= 6, "Local restore contract lost protected tables"
+    assert len(covered) >= 7, "Local restore contract lost protected tables"
     missing = PUBLIC_TABLES - covered
     restored_app_pct = round(len(covered) * 100 / len(PUBLIC_TABLES), 1)
     findings = {area:sorted(tables-covered) for area,tables in CRITICAL.items()}

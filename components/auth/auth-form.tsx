@@ -60,7 +60,7 @@ function triggerWelcomeEmail() {
   });
 }
 
-export function AuthForm() {
+export function AuthForm({pilotSupplyEnabled=false}:{pilotSupplyEnabled?:boolean}={}) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -111,6 +111,7 @@ export function AuthForm() {
   const [userType, setUserType] = useState<SupportedSignupUserType>("");
   const [postalCode, setPostalCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [supplyNotice,setSupplyNotice]=useState(pilotSupplyEnabled);
   const [studentAgeConfirmed, setStudentAgeConfirmed] = useState(false);
 
   const captchaIsRequired = Boolean(TURNSTILE_SITE_KEY);
@@ -402,6 +403,7 @@ export function AuthForm() {
             user_type: userType,
             postal_code: normalizedPostalCode,
             wetudy_email_confirmation_required: true,
+            wetudy_supply_notice_initial: pilotSupplyEnabled && supplyNotice,
             ...(signupAttribution
               ? {
                   wetudy_acquisition_source: signupAttribution.source,
@@ -793,6 +795,10 @@ export function AuthForm() {
                   .
                 </span>
               </label>
+              {pilotSupplyEnabled ? <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground">
+                <input type="checkbox" checked={supplyNotice} onChange={e=>setSupplyNotice(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0"/>
+                <span>Avisos internos de oportunidades de venta durante el piloto. Puedes desactivarlos ahora o en Mi cuenta. No implica anuncios, ventas ni correos comerciales automáticos.</span>
+              </label>:null}
             </>
           )}
 

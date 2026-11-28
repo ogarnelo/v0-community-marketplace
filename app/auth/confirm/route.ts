@@ -1,3 +1,4 @@
+import { initializePilotSupplyPreference } from "@/lib/admin/pilot-supply-default";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({
+  const { data, error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
     type,
   });
@@ -26,6 +27,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  if(type!=="recovery" && data.user){
+    try { await initializePilotSupplyPreference(supabase,data.user,process.env.PILOT_SUPPLY_DEFAULT_ENABLED); }
+    catch { console.error("supply_notice_initialization_failed"); }
+  }
   const fallbackDestination =
     type === "recovery"
       ? "/auth/update-password"

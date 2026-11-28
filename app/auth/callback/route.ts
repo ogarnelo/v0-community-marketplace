@@ -1,3 +1,4 @@
+import { initializePilotSupplyPreference } from "@/lib/admin/pilot-supply-default";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildFullName, normalizeNamePart, splitLegacyFullName } from "@/lib/users/person-name";
@@ -107,6 +108,9 @@ export async function GET(request: Request) {
     deferProductEvent("signup_completed", { account_type: accountType });
   }
 
+  try {
+    await initializePilotSupplyPreference(supabase,user,process.env.PILOT_SUPPLY_DEFAULT_ENABLED);
+  } catch { console.error("supply_notice_initialization_failed"); }
   const destination =
     safeNext ||
     (metadata.user_type === "business"

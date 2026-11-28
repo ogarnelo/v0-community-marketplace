@@ -1,3 +1,4 @@
+import { pilotSupplyDefault } from "@/lib/admin/pilot-supply-default"
 import { Suspense } from "react"
 import { AuthForm } from "@/components/auth/auth-form"
 import { BookOpen } from "lucide-react"
@@ -5,6 +6,8 @@ import Link from "next/link"
 
 const TURNSTILE_SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+
+export const dynamic = "force-dynamic"
 
 export default function AuthPage() {
   return (
@@ -47,7 +50,7 @@ export default function AuthPage() {
             </Link>
           </div>
           <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
-            <AuthForm />
+            <AuthForm pilotSupplyEnabled={pilotSupplyDefault(process.env.PILOT_SUPPLY_DEFAULT_ENABLED)} />
           </Suspense>
         </div>
       </div>

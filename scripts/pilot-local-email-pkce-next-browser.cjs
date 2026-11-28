@@ -50,7 +50,7 @@ async function setup(){
   "components/ui/popover.tsx","components/ui/select.tsx","lib/utils.ts",
   "lib/supabase/server.ts",
   "lib/supabase/client.ts","lib/supabase/admin.ts","lib/auth/safe-next.ts",
-  "lib/users/person-name.ts","lib/growth/attribution.ts"])copy(name);
+  "lib/users/person-name.ts","lib/growth/attribution.ts","lib/admin/pilot-supply-default.ts","app/api/account/supply-outreach/route.ts"])copy(name);
  if(fs.existsSync(path.join(fixture,".next")))fs.rmSync(path.join(fixture,".next"),{recursive:true,force:true});
  write("qa/events.ts","export function deferProductEvent(_name:string,_data:any){/* no network telemetry in local QA */}");
  
@@ -190,7 +190,7 @@ async function mailLink(targetEmail=email){
  assert.ok(fs.existsSync(bin));
  const child=spawn(process.execPath,[bin,"dev","--hostname","127.0.0.1",
   "--port",String(port)],{cwd:fixture,env:{...process.env,
-   NEXT_TELEMETRY_DISABLED:"1",NEXT_PUBLIC_SUPABASE_URL:api,
+   NEXT_TELEMETRY_DISABLED:"1",PILOT_SUPPLY_DEFAULT_ENABLED:"true",NEXT_PUBLIC_SUPABASE_URL:api,
    NEXT_PUBLIC_SUPABASE_ANON_KEY:anon,SUPABASE_SERVICE_ROLE_KEY:service
   },stdio:["ignore","pipe","pipe"]});
  let diagnostics="";
@@ -266,6 +266,8 @@ async function mailLink(targetEmail=email){
   const user=await page.evaluate(()=>window.__qaEmail.user());
   assert.equal(user.id,signed.id);
   assert.equal(user.confirmed,true);
+  assert.equal(sql("select supply_outreach_opt_in from public.user_marketplace_preferences where user_id=\x27"+signed.id+"\x27"),"t","New account default must persist after actual PKCE confirmation");
+  console.log("PASS global pilot default persisted through real Auth callback.");
   const profile=await page.evaluate(id=>window.__qaEmail.profile(id),signed.id);
   assert.equal(profile.error,null);
   assert.deepEqual(profile.data,{

@@ -25,7 +25,7 @@ DEST = urlunsplit((parsed.scheme, parsed.netloc, "/" + DEST_NAME, "", ""))
 
 TABLES = (
     "profiles", "growth_acquisition_events", "account_students",
-    "schools", "school_directory", "user_roles",
+    "schools", "school_directory", "user_roles", "user_marketplace_preferences",
 )
 
 def run(*argv):
@@ -68,7 +68,7 @@ def security_snapshot(conn):
             "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
             "WHERE n.nspname='public' AND c.relname='" + name + "'"
         )
-    for name in ("profiles", "account_students", "user_roles", "school_directory"):
+    for name in ("profiles", "account_students", "user_roles", "school_directory", "user_marketplace_preferences"):
         for role in ("anon", "authenticated"):
             report[role + "_select_" + name] = sql(
                 conn, "SELECT has_table_privilege('" + role + "', 'public."
@@ -95,6 +95,8 @@ def verify_restored_rls_reads():
             "SELECT count(*) FROM public.profiles WHERE id='" + other + "'; "
             "SELECT count(*) FROM public.account_students WHERE owner_user_id='" + own + "'; "
             "SELECT count(*) FROM public.account_students WHERE owner_user_id='" + other + "'; "
+            "SELECT count(*) FROM public.user_marketplace_preferences WHERE user_id=\'" + own + "\'; "
+            "SELECT count(*) FROM public.user_marketplace_preferences WHERE user_id=\'" + other + "\'; "
             "ROLLBACK;"
         )
         observed = run(
@@ -102,7 +104,7 @@ def verify_restored_rls_reads():
             "--dbname", DEST, "-c", query).splitlines()
         # SET/BEGIN commands emit textual markers. Inspect numeric SELECT rows.
         numeric = [line for line in observed if line.isdigit()]
-        if len(numeric) != 4 or numeric[0:2] != ["1", "0"] or (
+        if len(numeric) != 6 or numeric[0:2] != ["1", "0"] or numeric[4:6] != ["1", "0"] or (
                 int(numeric[2]) < 1 or numeric[3] != "0"):
             raise AssertionError("Recovered RLS leaks profiles or students across families")
     # A family may not write a student belonging to another user; the target
@@ -189,8 +191,15 @@ def main():
             # minimally scoped compile-time stub for policy DDL; NO real
             # GoTrue or working Auth service is restored by this operation.
             sql(DEST, """CREATE SCHEMA auth;
+                CREATE TABLE auth.users(id uuid PRIMARY KEY);
                 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
                 STABLE AS $qa$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$qa$;""")
+            # Restore only the synthetic UUID keys needed by the public FK.
+            # This is not a managed Auth restore; no credentials or identity rows.
+            for uid in sql(SOURCE, "SELECT id FROM auth.users ORDER BY id").splitlines():
+                import uuid
+                safe_id = str(uuid.UUID(uid))
+                sql(DEST, "INSERT INTO auth.users(id) VALUES ('" + safe_id + "')")
             # template0 may already contain an empty public schema.
             sql(DEST, "DROP SCHEMA IF EXISTS public CASCADE")
             # Supabase CLI's postgres login cannot alter DEFAULT PRIVILEGES
@@ -213,7 +222,7 @@ def main():
                 raise AssertionError("Recovered RLS policies or grants differ")
             # Direct SQL grants and RLS are distinct. If anon has a SELECT
             # grant, it must still see zero private rows via RLS.
-            for table in ("profiles", "account_students"):
+            for table in ("profiles", "account_students", "user_marketplace_preferences"):
                 if security_snapshot(DEST)["anon_select_" + table] == "t":
                     anonymous_rows = sql(
                         DEST, "SET ROLE anon; SELECT count(*) FROM public."
@@ -223,7 +232,7 @@ def main():
             verify_restored_rls_reads()
             if sql(DEST, "SELECT count(*) FROM public.user_roles") != "0":
                 raise AssertionError("Restored local test center has unexpected admin roles")
-            print("PASS ENCRYPTED full LOCAL PUBLIC application schema cold restore: all six "
+            print("PASS ENCRYPTED full LOCAL PUBLIC application schema cold restore: all seven "
                   "tables with row digests, RLS and existing-table GRANT parity; no school admin.")
             print("LIMIT: this restores APPLICATION tables only, not Supabase "
                   "managed Auth, GoTrue runtime, SMTP, Storage bytes or hosted DR.")

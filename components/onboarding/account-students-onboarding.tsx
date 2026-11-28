@@ -97,7 +97,7 @@ export default function AccountStudentsOnboarding({
   useEffect(()=>{
     let live=true;
     setPilotReady(false);setPilotEligible(false);
-    if(accountType!=="parent"||!studentKey){setPilotReady(true);return;}
+    if(!studentKey){setPilotReady(true);return;}
     fetch("/api/account/supply-outreach",{cache:"no-store"}).then(async r=>{
       if(!r.ok)throw Error("preference unavailable");
       return r.json();
