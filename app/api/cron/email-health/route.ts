@@ -1,4 +1,4 @@
-import {runAutomaticSupply} from "@/lib/admin/automatic-supply-worker";
+import {runRecordedAutomaticSupply} from "@/lib/admin/automatic-supply-worker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshEmailHealthMonitoring } from "@/lib/admin/email-health-monitoring";
 import { pruneEmailTelemetry } from "@/lib/admin/email-telemetry-retention";
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     // Reuse the existing daily schedule; no additional Vercel cron allocation.
     let automaticSupply: Record<string, unknown> = {status:"disabled"};
     if(process.env.WETUDY_AUTOMATIC_SUPPLY_ENABLED==="true"){
-      try{automaticSupply=await runAutomaticSupply(admin);}
+      try{automaticSupply=await runRecordedAutomaticSupply(admin);}
       catch{automaticSupply={status:"failed"};console.error("automatic_supply_daily_failed");}
     }
     return Response.json({

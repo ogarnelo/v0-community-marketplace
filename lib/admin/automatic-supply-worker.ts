@@ -42,3 +42,24 @@ export async function runAutomaticSupply(admin: any) {
  }
  return {status:"completed",sent,inspected:result.inspected};
 }
+
+// Persist only aggregate operational counters; no recipient or search content.
+export async function runRecordedAutomaticSupply(admin: any, trigger: "cron" | "api" = "cron") {
+ const start=Date.now();
+ const {data,error}=await admin.from("automation_runs").insert({
+  job_id:"automatic_supply_v1",job_name:"Demanda inteligente automática",status:"running",trigger_source:trigger
+ }).select("id").single();
+ if(error||!data?.id)throw Error("automatic_supply_audit_unavailable");
+ const finish=async(status:string,result:Record<string,unknown>,ok:boolean)=>{
+  const {error}=await admin.from("automation_runs").update({
+   status,ok,result,finished_at:new Date().toISOString(),duration_ms:Date.now()-start,
+   error:ok?null:"automatic_supply_run_failed"
+  }).eq("id",data.id);
+  if(error)throw Error("automatic_supply_audit_finish_failed");
+ };
+ let result:Awaited<ReturnType<typeof runAutomaticSupply>>;
+ try{result=await runAutomaticSupply(admin);}
+ catch{await finish("failed",{},false);throw Error("automatic_supply_run_failed");}
+ await finish(result.status==="paused"?"skipped":"succeeded",result,true);
+ return result;
+}
