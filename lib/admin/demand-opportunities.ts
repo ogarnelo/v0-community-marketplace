@@ -171,15 +171,16 @@ function supplyMatches(opportunity: DemandOpportunity, listing: any) {
 }
 
 export async function loadDemandOpportunities(admin: any, options: { strict?: boolean } = {}): Promise<DemandOpportunity[]> {
-  const results = await Promise.all([
-    admin
+  let savedSearchQuery = admin
       .from("saved_searches")
       .select("id,user_id,query,isbn_query,category,grade_level,school_id,need_details,results_count,intent_source,created_at")
       .eq("results_count", 0)
       .eq("intent_source", "zero_results_prompt")
-      .eq("notifications_enabled", true)
       .order("created_at", { ascending: false })
-      .limit(1000),
+      .limit(1000);
+  if (options.strict) savedSearchQuery = savedSearchQuery.eq("notifications_enabled", true);
+  const results = await Promise.all([
+    savedSearchQuery,
     admin
       .from("demand_requests")
       .select("id,user_id,title,normalized_query,category,grade_level,isbn,school_id,status,metadata,created_at")
