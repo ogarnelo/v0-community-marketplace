@@ -9,7 +9,7 @@ const opp={key:"qa",status:"new",familiesCount:1,supplyCount:0,demandUserIds:[]}
 function fixture(states=[true,true],fresh=[opp]){
  const calls=[];let reads=0;
  const exports={};
- const deps={loadDemandOpportunities:async()=>++reads===1?[opp]:fresh,findSupplyCandidates:async()=>({candidates:[{userId:"target",contactAllowed:true}]}),revalidateSupplyTargets:async(o,ids)=>ids,activationMessage:()=>"QA",opportunityMetadata:()=>({}),demandIsSatisfied:o=>o.supplyCount>=o.familiesCount};
+ const deps={loadDemandOpportunities:async(admin,options)=>{assert.equal(options.strict,true);return ++reads===1?[opp]:fresh},findSupplyCandidates:async()=>({candidates:[{userId:"target",contactAllowed:true}]}),revalidateSupplyTargets:async(admin,o,ids)=>{assert.ok(Array.isArray(ids));return ids},activationMessage:()=>"QA",opportunityMetadata:()=>({}),demandIsSatisfied:o=>o.supplyCount>=o.familiesCount};
  vm.runInNewContext(ts.transpileModule(read("lib/admin/automatic-supply-worker.ts"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:p=>p.includes("automatic-supply-plan")?{planAutomaticSupply}:deps});
  const admin={rpc:async(name,args)=>{calls.push({name,args});return {data:name==="automatic_supply_enabled_v1"?states.shift():true}}};
  return {run:()=>exports.runAutomaticSupply(admin),calls};

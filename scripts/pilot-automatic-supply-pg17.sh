@@ -46,7 +46,23 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM demand_opportunity_actions WHERE actor_id IS NULL AND role_context='system') THEN RAISE EXCEPTION 'actor mismatch'; END IF;
 END $$;
 RESET ROLE;
-DO $$ BEGIN
+-- Fill the remaining rolling daily budget with synthetic distinct recipients.
+INSERT INTO user_marketplace_preferences(user_id,supply_outreach_opt_in)
+SELECT md5('quota-'||i)::uuid,true FROM generate_series(1,21) i;
+SET ROLE service_role;
+DO $
+DECLARE actor uuid:='11111111-1111-4111-8111-111111111111'; i integer; c jsonb;
+BEGIN
+ PERFORM set_automatic_supply_enabled_v1(actor,true);
+ FOR i IN 1..20 LOOP
+  c:=jsonb_build_object('opportunity_key','quota-'||i,'title','QA','families_count',1,'supply_count',0,'searches_count',1,'priority','medium','metadata',jsonb_build_object('source_ids',jsonb_build_array('33333333-3333-4333-8333-333333333333')));
+  IF activate_supply_recipient_v2(NULL,md5('quota-'||i)::uuid,c,'QA','/qa') IS DISTINCT FROM (i<20) THEN RAISE EXCEPTION 'daily quota at %',i; END IF;
+ END LOOP;
+ IF (SELECT count(*) FROM notifications)<>20 THEN RAISE EXCEPTION 'daily quota mismatch'; END IF;
+ PERFORM set_automatic_supply_enabled_v1(actor,false);
+END $;
+RESET ROLE;
+DO $ BEGIN
  IF has_function_privilege('anon','public.set_automatic_supply_enabled_v1(uuid,boolean)','execute') OR has_function_privilege('authenticated','public.automatic_supply_enabled_v1()','execute') THEN RAISE EXCEPTION 'ACL'; END IF;
 END $$;
 SQL

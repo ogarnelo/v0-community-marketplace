@@ -13,12 +13,16 @@ function campaign(o: DemandOpportunity) {
  families_count:o.familiesCount,searches_count:o.searchesCount,supply_count:o.supplyCount,first_seen_at:o.firstSeenAt,last_seen_at:o.lastSeenAt,
  priority:o.familiesCount>=3 && o.supplyCount===0?"high":"medium",metadata:opportunityMetadata(o)};
 }
+function checkedTargets(value: unknown): string[] {
+ if(!Array.isArray(value)||value.some(id=>typeof id!=="string"))throw Error("automatic_supply_invalid_targets");
+ return value;
+}
 export async function runAutomaticSupply(admin: any) {
  if (!await automaticSupplyEnabled(admin)) return {status:"paused",sent:0};
  const result=await planAutomaticSupply({
   load:()=>loadDemandOpportunities(admin,{strict:true}),
   candidates:(o:DemandOpportunity)=>findSupplyCandidates(admin,o),
-  revalidate:(o:DemandOpportunity,ids:string[])=>revalidateSupplyTargets(admin,o,ids)
+  revalidate:async(o:DemandOpportunity,ids:string[])=>checkedTargets(await revalidateSupplyTargets(admin,o,ids))
  });
  let sent=0;
  for(const entry of result.plan) {
@@ -27,7 +31,7 @@ export async function runAutomaticSupply(admin: any) {
    // Re-read authoritative demand and current supply before each individual send.
    const fresh=(await loadDemandOpportunities(admin,{strict:true})).find(o=>o.key===entry.key);
    if(!fresh || demandIsSatisfied(fresh)) break;
-   if(!(await revalidateSupplyTargets(admin,fresh,[target])).includes(target)) continue;
+   if(!checkedTargets(await revalidateSupplyTargets(admin,fresh,[target])).includes(target)) continue;
    const {data,error}=await admin.rpc("activate_supply_recipient_v2",{
     p_actor:null,p_target:target,p_campaign:campaign(fresh),p_message:activationMessage(fresh),
     p_href:`/supply-opportunity/${encodeURIComponent(fresh.key)}`
