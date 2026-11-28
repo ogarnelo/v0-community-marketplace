@@ -7,6 +7,7 @@ on:
       - '.github/workflows/pilot-supply-outreach-pg17.yml'
       - 'scripts/review_only/p819_automatic_supply_control_candidate.sql'
       - 'scripts/pilot-automatic-supply-pg17.sh'
+      - 'scripts/review_only/p819_automatic_supply_rollback.sql'
 jobs:
   supply-outreach-race:
     runs-on: ubuntu-latest

@@ -50,7 +50,7 @@ RESET ROLE;
 INSERT INTO user_marketplace_preferences(user_id,supply_outreach_opt_in)
 SELECT md5('quota-'||i)::uuid,true FROM generate_series(1,21) i;
 SET ROLE service_role;
-DO $
+DO $$
 DECLARE actor uuid:='11111111-1111-4111-8111-111111111111'; i integer; c jsonb;
 BEGIN
  PERFORM set_automatic_supply_enabled_v1(actor,true);
@@ -60,10 +60,13 @@ BEGIN
  END LOOP;
  IF (SELECT count(*) FROM notifications)<>20 THEN RAISE EXCEPTION 'daily quota mismatch'; END IF;
  PERFORM set_automatic_supply_enabled_v1(actor,false);
-END $;
+END $$;
 RESET ROLE;
-DO $ BEGIN
+DO $$ BEGIN
  IF has_function_privilege('anon','public.set_automatic_supply_enabled_v1(uuid,boolean)','execute') OR has_function_privilege('authenticated','public.automatic_supply_enabled_v1()','execute') THEN RAISE EXCEPTION 'ACL'; END IF;
 END $$;
 SQL
-echo 'PASS automatic control, recipient quota, system identity and pause'
+q -f scripts/review_only/p819_automatic_supply_rollback.sql
+[[ "$(q -c "SELECT count(*) FROM notifications")" == 20 ]]
+[[ "$(q -c "SELECT to_regprocedure('public.automatic_supply_enabled_v1()') IS NULL")" == t ]]
+echo 'PASS automatic control, recipient and daily quota, system identity, pause and rollback'
